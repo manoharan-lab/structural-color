@@ -1,0 +1,4 @@
+The following Python packages are needed to run the code:
+- numpy
+- scipy
+- pint (needed to assign units to quantities)
