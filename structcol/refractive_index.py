@@ -125,18 +125,6 @@ def n(material, wavelen):
 def n_air(w):
     return 1.0
 
-def n_ps(w):
-    return 1.59
-
-def n_titania(w):
-    return 2.71
-
-def n_pmma(w):
-    return 1.5
-
-def n_silica(w):
-    return 1.5
-
 def n_silica_colloidal(w):
     return 1.40
 
@@ -154,29 +142,28 @@ def n_ptbma(w):
     # from http://www.sigmaaldrich.com/catalog/product/aldrich/181587?lang=en&region=US
     return 1.46
 
-# TODO: legacy code; need to refactor
-# Maxwell-Garnett effective refractive index in terms of pure medium index,
-# pure scatterer index, and the volume fraction.
+def neff(n_particle, n_medium, volume_fraction):
+    """
+    Maxwell-Garnett effective refractive index 
 
-def neff(n_scatterer, n_medium, i, series, wavelength, volume_fraction):
-    if isinstance(n_scatterer, float):
-        if isinstance(n_medium, float):
-            index = n_medium * np.sqrt(
-(2*n_medium**2 + n_scatterer**2 + 2*volume_fraction*((n_scatterer**2)-(n_medium**2))) /(2*n_medium**2 + n_scatterer**2 - volume_fraction*((n_scatterer**2)-(n_medium**2))))
-        else:
-            index = n_medium(wavelength) * np.sqrt(
-(2*n_medium(wavelength)**2 + n_scatterer**2 + 2*volume_fraction*((n_scatterer**2)-(n_medium(wavelength)**2))) /(2*n_medium(wavelength)**2 + n_scatterer**2 - volume_fraction*((n_scatterer**2)-(n_medium(wavelength)**2))))
-    else:
-        if isinstance(n_medium, float):
-            index = n_medium * np.sqrt(
-(2*n_medium**2 + n_scatterer(wavelength)**2 + 2*volume_fraction*((n_scatterer(wavelength)**2)-(n_medium**2))) /(2*n_medium**2 + n_scatterer(wavelength)**2 - volume_fraction*((n_scatterer(wavelength)**2)-(n_medium**2))))
-        else:
-            if n_medium == n_cargille:
-                index = n_medium(i,series, wavelength) * np.sqrt(
-(2*n_medium(i,series,wavelength)**2 + n_scatterer(wavelength)**2 + 2*volume_fraction*((n_scatterer(wavelength)**2)-(n_medium(i,series,wavelength)**2))) /(2*n_medium(i,series,wavelength)**2 + n_scatterer(wavelength)**2 - volume_fraction*((n_scatterer(wavelength)**2)-(n_medium(i,series,wavelength)**2))))
-            else:
-                index = n_medium(wavelength) * np.sqrt(
-(2*n_medium(wavelength)**2 + n_scatterer(wavelength)**2 + 2*volume_fraction*((n_scatterer(wavelength)**2)-(n_medium(wavelength)**2))) /(2*n_medium(wavelength)**2 + n_scatterer(wavelength)**2 - volume_fraction*((n_scatterer(wavelength)**2)-(n_medium(wavelength)**2))))
-    return index
+    Parameters
+    ----------
+    n_particle: float or structcol.Quantity (dimensionless)
+        refractive index of particle
+    n_medium : float or structcol.Quantity (dimensionless)
+        refractive index of medium
+    volume_fraction: float
+        volume fraction of particles
+
+    Returns
+    -------
+    float or structcol.Quantity (dimensionless)
+        refractive index
+    """
+    np = n_particle
+    nm = n_medium
+    phi = volume_fraction
+    return nm * np.sqrt((2*nm**2 + np**2 + 2*phi*((np**2)-(nm**2))) /
+                         (2*nm**2 + np**2 - phi*((np**2)-(nm**2))))
 
 
