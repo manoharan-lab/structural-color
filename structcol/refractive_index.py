@@ -26,8 +26,7 @@ http://refractiveindex.info/download.php,
 "refractiveindex.info database is in public domain. Copyright and related
 rights were waived by Mikhail Polyanskiy through the CC0 1.0 Universal Public
 Domain Dedication. You can copy, modify and distribute refractiveindex.info
-database, even for commercial purposes, all without asking permission. Also
-contains the Maxwell-Garnett approximation formula.""
+database, even for commercial purposes, all without asking permission."
 
 References
 ----------
@@ -95,6 +94,7 @@ n_dict = {
                                       (w*w - Quantity('9.896161**2 um^2')))
 }
 
+@ureg.check(None, '[length]')   # ensures wavelen has units of length
 def n(material, wavelen):
     """Refractive index of various materials
 
@@ -102,7 +102,7 @@ def n(material, wavelen):
     ----------
     material: string
         material type; if not found in dictionary, assumes vacuum
-    w : structcol.Quantity
+    w : structcol.Quantity [length]
         Wavelength in vacuum.
 
     Returns

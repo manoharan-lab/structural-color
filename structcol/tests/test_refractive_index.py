@@ -19,11 +19,17 @@ from .. import refractive_index as ri
 from .. import Quantity
 from nose.tools import assert_raises, assert_equal
 from numpy.testing import assert_almost_equal, assert_array_almost_equal
+from pint.errors import DimensionalityError
 
 
 def test_n():
     # make sure that a material not in the dictionary raises a KeyError
     assert_raises(KeyError, ri.n, 'badkey', Quantity('0.5 um'))
+
+    # make sure that specifying no units throws an exception
+    assert_raises(AttributeError, ri.n, 'polystyrene', 0.5)
+    # and specifying the wrong units, too
+    assert_raises(DimensionalityError, ri.n, 'polystyrene', Quantity('0.5 J'))
 
 # the next few tests make sure that the various dispersion formulas give values
 # of n close to those listed by refractiveindex.info (or other source) at the
