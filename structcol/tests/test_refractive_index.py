@@ -38,29 +38,32 @@ def test_n():
 
 def test_npmma():
     # values from refractiveindex.info
-    n450 = ri.n('pmma', Quantity('0.42 um'))
-    n800 = ri.n('pmma', Quantity('0.804 um'))
-    assert_almost_equal(n450, Quantity('1.5049521933717'))
-    assert_almost_equal(n800, Quantity('1.4866523830528'))
+    assert_almost_equal(ri.n('pmma', Quantity('0.42 um')),
+                        Quantity('1.5049521933717'))
+    assert_almost_equal(ri.n('pmma', Quantity('0.804 um')),
+                        Quantity('1.4866523830528'))
 
 def test_nps():
     # values from refractiveindex.info
-    n450 = ri.n('polystyrene', Quantity('0.4491 um'))
-    n800 = ri.n('polystyrene', Quantity('0.7998 um'))
-    assert_almost_equal(n450, Quantity('1.6137854760669'))
-    assert_almost_equal(n800, Quantity('1.5781660671827'))
+    assert_almost_equal(ri.n('polystyrene', Quantity('0.4491 um')),
+                        Quantity('1.6137854760669'))
+    assert_almost_equal(ri.n('polystyrene', Quantity('0.7998 um')),
+                        Quantity('1.5781660671827'))
 
 def test_rutile():
     # values from refractiveindex.info
-    n450 = ri.n('rutile', Quantity('0.4300 um'))
-    n800 = ri.n('rutile', Quantity('0.8040 um'))
-    assert_almost_equal(n450, Quantity('2.8716984534676'))
-    assert_almost_equal(n800, Quantity('2.5187663081355'))
+    assert_almost_equal(ri.n('rutile', Quantity('0.4300 um')),
+                        Quantity('2.8716984534676'))
+    assert_almost_equal(ri.n('rutile', Quantity('0.8040 um')),
+                        Quantity('2.5187663081355'))
 
 def test_fused_silica():
     # values from refractiveindex.info
-    n450 = ri.n('fused silica', Quantity('0.3850 um'))
-    n800 = ri.n('fused silica', Quantity('0.8050 um'))
-    assert_almost_equal(n450, Quantity('1.4718556531995'))
-    assert_almost_equal(n800, Quantity('1.4532313266004'))
+    assert_almost_equal(ri.n('fused silica', Quantity('0.3850 um')),
+                        Quantity('1.4718556531995'))
+    assert_almost_equal(ri.n('fused silica', Quantity('0.8050 um')),
+                        Quantity('1.4532313266004'))
 
+def test_vacuum():
+    assert_almost_equal(ri.n('vacuum', Quantity('0.400 um')), Quantity('1.0'))
+    assert_almost_equal(ri.n('vacuum', Quantity('0.800 um')), Quantity('1.0'))

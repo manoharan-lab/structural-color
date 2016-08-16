@@ -91,7 +91,9 @@ n_dict = {
                                       0.4079426*w*w/
                                       (w*w - Quantity('0.1162414**2 um^2')) +
                                       0.8974794*w*w/
-                                      (w*w - Quantity('9.896161**2 um^2')))
+                                      (w*w - Quantity('9.896161**2 um^2'))),
+
+    'vacuum': lambda w: 1.0
 }
 
 @ureg.check(None, '[length]')   # ensures wavelen has units of length
