@@ -41,6 +41,7 @@ Physical Review E 90, no. 6 (2014): 62302. doi:10.1103/PhysRevE.90.062302
 .. moduleauthor :: Sofia Magkiriadou <sofia@physics.harvard.edu>.
 """
 
+import numpy as np
 from pint import UnitRegistry
 
 # Load the default unit registry from pint and use it everywhere.
@@ -48,3 +49,22 @@ from pint import UnitRegistry
 # make unit mistakes
 ureg = UnitRegistry()
 Quantity = ureg.Quantity
+
+@ureg.check('[length]', '[]')
+def q(wavelen, theta):
+    """
+    Calculates the magnitude of the momentum-transfer wavevector
+
+    Parameters
+    ----------
+    wavelen: structcol.Quantity [length]
+        wavelength in vacuum
+    theta: structcol.Quantity [dimensionless]
+        scattering angle (polar angle with z pointing along the incident direction)
+
+    Returns
+    -------
+    structcol.Quantity [1/length]
+        magnitude of wavevector
+    """
+    return 4*np.pi/wavelen * np.sin(theta/2.0)
