@@ -38,7 +38,7 @@ def test_cross_sections():
     # scipy special functions cannot handle pint Quantities, so must first put
     # in non-dimensional form and then pass the magnitude
     x = (2*np.pi*n_medium/wavelen * radius).to('dimensionless').magnitude
-    qscat, qext, _ = mie.calc_efficiencies(m, x)
+    qscat, qext, qback = mie.calc_efficiencies(m, x)
     g = mie.calc_g(m,x)   # asymmetry parameter
 
     qscat_std, qext_std, g_std = 3.6647, 3.6677, 0.92701
@@ -46,17 +46,23 @@ def test_cross_sections():
     assert_almost_equal(qext, qext_std, decimal=4)
     assert_almost_equal(g, g_std, decimal=4)
 
-    wavelen_scalar = wavelen.to('m').magnitude
-    radius_scalar = radius.to('m').magnitude
     # test to make sure calc_cross_sections returns the same values as
     # calc_efficiencies and calc_g
-    cross_sections_1 = mie.calc_cross_sections(m, x, wavelen_scalar)[0:2]
-    cross_sections_2 = mie.calc_efficiencies(m, x)[0:2] * np.pi * radius_scalar**2
-    assert_almost_equal(cross_sections_1, cross_sections_2)
+    cscat = qscat * np.pi * radius**2
+    cext = qext * np.pi * radius**2
+    cback  = qback * np.pi * radius**2
+    cscat2, cext2, _, cback2, g2 = mie.calc_cross_sections(m, x, wavelen/n_medium)
+    assert_almost_equal(cscat.to('m^2').magnitude, cscat2.to('m^2').magnitude)
+    assert_almost_equal(cext.to('m^2').magnitude, cext2.to('m^2').magnitude)
+    assert_almost_equal(cback.to('m^2').magnitude, cback2.to('m^2').magnitude)
+    assert_almost_equal(g, g2)
 
-    g_1 = mie.calc_cross_sections(m, x, wavelen_scalar)[4]
-    g_2 = mie.calc_g(m, x)
-    assert_almost_equal(g_1, g_2)
+    # test that calc_cross_sections throws an exception when given an argument
+    # with the wrong dimensions
+    assert_raises(DimensionalityError, mie.calc_cross_sections,
+                  m, x, Quantity('0.25 J'))
+    assert_raises(DimensionalityError, mie.calc_cross_sections,
+                  m, x, Quantity('0.25'))
 
 # TODO: need to add more tests here to test for correctness of Mie results
 # (form factors and cross sections at a variety of different size parameters)

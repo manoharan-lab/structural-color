@@ -41,7 +41,7 @@ Small Particles" (1983)
 """
 import numpy as np
 from scipy.special import lpn, riccati_jn, riccati_yn, sph_jn, sph_yn
-from . import mie_specfuncs
+from . import mie_specfuncs, ureg, Quantity
 from .mie_specfuncs import DEFAULT_EPS1, DEFAULT_EPS2   # default tolerances
 
 def pis_and_taus(nstop, theta):
@@ -139,7 +139,7 @@ def cross_sections(al, bl):
 
     See Bohren & Huffman eqns. 4.61 and 4.62.
 
-    The output omits a scaling prefactor of 2 * pi / k^2.
+    The output omits a scaling prefactor of 2 * pi / k^2 = lambda_medium^2/2/pi.
     '''
     lmax = al.shape[0]
 
@@ -152,7 +152,7 @@ def cross_sections(al, bl):
     alts = 2. * (np.arange(lmax) % 2) - 1
     cback = np.abs((prefactor * alts * (al - bl)).sum())**2
 
-    return np.array([cscat, cext, cback])
+    return cscat, cext, cback
 
 # Convenience functions for the most often calculated quantities (form factor,
 # efficiencies, asymmetry parameter)
@@ -246,21 +246,25 @@ def calc_ang_dist(m, x, angles = None, degrees = True,
 
     return ipar, iperp
 
-def calc_cross_sections(m, x, wavelen, eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
+@ureg.check(None, None, '[length]', None, None)
+def calc_cross_sections(m, x, wavelen_medium, eps1 = DEFAULT_EPS1,
+                        eps2 = DEFAULT_EPS2):
     """
-    Calculate scattering, absorption, and extinction cross sections, and
-    asymmetry parameter for spherically symmetric scatterers.
+    Calculate (dimensional) scattering, absorption, and extinction cross
+    sections, and asymmetry parameter for spherically symmetric scatterers.
 
     Parameters
     ----------
     m: complex relative refractive index
     x: size parameter
+    wavelen_medium: structcol.Quantity [length]
+        wavelength of incident light *in medium*
 
     Returns
     -------
-    cross_sections : array (5)
-    Dimensional scattering, absorption, extinction, and backscattering cross
-    sections, and <cos \theta> (asymmetry parameter g)
+    cross_sections : tuple (5)
+        Dimensional scattering, absorption, extinction, and backscattering cross
+        sections, and <cos \theta> (asymmetry parameter g)
 
     Notes
     -----
@@ -272,7 +276,6 @@ def calc_cross_sections(m, x, wavelen, eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2)
     F = (n_med I_0 C_pr) / c
 
     where I_0 is the incident intensity.  See van de Hulst, p. 14.
-
     """
     # This is adapted from mie.py in holopy
     # TODO take arrays for m and x to describe a multilayer sphere and return
@@ -281,24 +284,28 @@ def calc_cross_sections(m, x, wavelen, eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2)
     lmax = nstop(x)
     albl = scatcoeffs(m, x, lmax, eps1=eps1, eps2=eps2)
 
-    cscat, cext, cback = cross_sections(albl[0], albl[1]) * wavelen**2
+    cscat, cext, cback =  tuple(wavelen_medium**2 * c/2/np.pi for c in
+                                cross_sections(albl[0], albl[1]))
 
     cabs = cext - cscat # conservation of energy
 
-    asym = 2. * wavelen**2 / cscat * asymmetry_parameter(albl[0], albl[1])
+    asym = wavelen_medium**2 / np.pi / cscat * \
+           asymmetry_parameter(albl[0], albl[1])
 
-    return np.array([cscat, cext, cabs, cback, asym])
+    return cscat, cext, cabs, cback, asym
 
 def calc_efficiencies(m, x):
     """
     Scattering, extinction, backscattering efficiencies
     """
     n_stop = nstop(x)
-    xsects = cross_sections(scatcoeffs(m, x, n_stop)[0],
-                            scatcoeffs(m, x, n_stop)[1])
-    efficiencies = xsects * (2./x**2) * np.array([1,1,0.5])
+    cscat, cext, cback = cross_sections(scatcoeffs(m, x, n_stop)[0],
+                                        scatcoeffs(m, x, n_stop)[1])
+    qscat = cscat * 2./x**2
+    qext = cext * 2./x**2
+    qback = cback * 1./x**2
     # in order: scattering, extinction and backscattering efficiency
-    return efficiencies
+    return qscat, qext, qback
 
 def calc_g(m, x):
     """
@@ -306,9 +313,8 @@ def calc_g(m, x):
     """
     n_stop = nstop(x)
     coeffs = scatcoeffs(m, x, n_stop)
-    xsects = cross_sections(coeffs[0], coeffs[1])
-    efficiencies = xsects * (2./x**2) * np.array([1,1,0.5]) # save the result
-    g = (4/(x**2 * efficiencies[0])) * asymmetry_parameter(coeffs[0], coeffs[1])
+    cscat = cross_sections(coeffs[0], coeffs[1])[0] * 2./x**2
+    g = (4/(x**2 * cscat)) * asymmetry_parameter(coeffs[0], coeffs[1])
     return g
 
 # TODO: copy multilayer code from multilayer_sphere_lib.py in holopy and
