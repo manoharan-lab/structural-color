@@ -14,6 +14,11 @@
 #
 # You should have received a copy of the GNU General Public License along with
 # this package. If not, see <http://www.gnu.org/licenses/>.
+"""
+Tests various features of the structcol package not found in submodules
+
+.. moduleauthor:: Vinothan N. Manoharan <vnm@seas.harvard.edu>
+"""
 
 from .. import Quantity, ureg, q, np
 from nose.tools import assert_raises, assert_equal
