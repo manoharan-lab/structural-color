@@ -157,6 +157,7 @@ def cross_sections(al, bl):
 # Convenience functions for the most often calculated quantities (form factor,
 # efficiencies, asymmetry parameter)
 
+# TODO update to handle units of angles (rad, deg) using pint
 def calc_ang_dist(m, x, angles = None, degrees = True,
                   mie = True, check = True):
     """
@@ -181,7 +182,7 @@ def calc_ang_dist(m, x, angles = None, degrees = True,
     Bohren & Huffman ch. 3 for details.)
     """
 
-    if angles == None:
+    if angles is None:
         angles = np.linspace(0, 180., 1801)
 
     if degrees: # convert to radians
@@ -191,6 +192,8 @@ def calc_ang_dist(m, x, angles = None, degrees = True,
     ipar = np.array([])
     iperp = np.array([])
 
+    # TODO: prefactor, angfuncs, and coeffs are initialized outside of the
+    # function scope; clean this up to prevent unexpected behavior
     def AScatMatrixMie(thet): # amplitude scat matrix from Mie scattering
         angfuncs = pis_and_taus(n_stop, thet)
         pis = angfuncs[0]
@@ -211,14 +214,18 @@ def calc_ang_dist(m, x, angles = None, degrees = True,
         print('Number of terms:')
         print(n_stop)
         print('Scattering, extinction, and backscattering efficiencies:')
-        efficiencies = xsects * (2./x**2) * np.array([1,1,0.5]) # save the result
-        eff = efficiencies
-        print(efficiencies)
+        cscat, cext, cback = cross_sections(scatcoeffs(m, x, n_stop)[0],
+                                        scatcoeffs(m, x, n_stop)[1])
+        qscat = cscat * 2./x**2
+        qext = cext * 2./x**2
+        qback = cback * 1./x**2
+        print(qscat, qext, qback)
         print('Extinction efficiency from optical theorem:')
         print((4./x**2)*opt)
-        return efficiencies
+        return qscat, qext, qback
 
-# loop over input angles
+    # TODO vectorize and remove loop
+    # loop over input angles
     if mie:
         # Mie scattering preliminaries
         n_stop = nstop(x)
