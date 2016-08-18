@@ -114,7 +114,7 @@ def nstop(x):
     # takes size parameter, outputs order to compute to according to
     # Wiscombe, Applied Optics 19, 1505 (1980).
     # 7/7/08: generalize to apply same criterion when x is complex
-    return int(np.round_(np.absolute(x+4.05*x**(1./3.)+2)))
+    return (np.round_(np.absolute(x+4.05*x**(1./3.)+2))).astype('int')
 
 def asymmetry_parameter(al, bl):
     '''
