@@ -20,7 +20,7 @@ Tests for the mie module
 .. moduleauthor:: Vinothan N. Manoharan <vnm@seas.harvard.edu>
 """
 
-from .. import Quantity, ureg, q, np, mie
+from .. import Quantity, ureg, q, index_ratio, size_parameter, np, mie
 from nose.tools import assert_raises, assert_equal
 from numpy.testing import assert_almost_equal, assert_array_almost_equal
 from pint.errors import DimensionalityError
@@ -32,12 +32,10 @@ def test_cross_sections():
     # test case is PS sphere in water
     wavelen = Quantity('658 nm')
     radius = Quantity('0.85 um')
-    n_medium = 1.33
-    n_particle = 1.59 + 1e-4 * 1.0j
-    m = n_particle/n_medium
-    # scipy special functions cannot handle pint Quantities, so must first put
-    # in non-dimensional form and then pass the magnitude
-    x = (2*np.pi*n_medium/wavelen * radius).to('dimensionless').magnitude
+    n_medium = Quantity(1.33, '')
+    n_particle = Quantity(1.59 + 1e-4 * 1.0j, '')
+    m = index_ratio(n_particle, n_medium)
+    x = size_parameter(wavelen, n_medium, radius)
     qscat, qext, qback = mie.calc_efficiencies(m, x)
     g = mie.calc_g(m,x)   # asymmetry parameter
 
@@ -64,5 +62,7 @@ def test_cross_sections():
     assert_raises(DimensionalityError, mie.calc_cross_sections,
                   m, x, Quantity('0.25'))
 
+def test_form_factor():
+    pass
 # TODO: need to add more tests here to test for correctness of Mie results
 # (form factors and cross sections at a variety of different size parameters)
