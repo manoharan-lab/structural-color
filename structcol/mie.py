@@ -157,9 +157,8 @@ def cross_sections(al, bl):
 # Convenience functions for the most often calculated quantities (form factor,
 # efficiencies, asymmetry parameter)
 
-# TODO update to handle units of angles (rad, deg) using pint
-def calc_ang_dist(m, x, angles = None, degrees = True,
-                  mie = True, check = True):
+@ureg.check('[]', '[]', '[]') # all arguments should be dimensionless
+def calc_ang_dist(m, x, angles, mie = True, check = True):
     """
     Calculates the angular distribution of light intensity for parallel and
     perpendicular polarization for a sphere.
@@ -168,8 +167,9 @@ def calc_ang_dist(m, x, angles = None, degrees = True,
     ----------
     m: complex particle relative refractive index, n_part/n_med
     x: size parameter, x = ka = 2*\pi*n_med/\lambda * a (sphere radius a)
-    angles: ndarray for range of angles. Default is 0-180 degrees.
-    degrees: Boolean, set false for angles in radians.
+    angles: ndarray(structcol.Quantity [dimensionless])
+        array of angles. Must be entered as a Quantity to allow specifying
+        units (degrees or radians) explicitly
     mie: Boolean, default true, uses RG approximation if false
     check: Boolean, if using Mie solution display scat. efficiencies
 
@@ -182,12 +182,8 @@ def calc_ang_dist(m, x, angles = None, degrees = True,
     Bohren & Huffman ch. 3 for details.)
     """
 
-    if angles is None:
-        angles = np.linspace(0, 180., 1801)
-
-    if degrees: # convert to radians
-        angles = angles * (np.pi / 180.)
-
+    # convert to radians from whatever units the user specifies
+    angles = angles.to('rad').magnitude
     #initialize arrays for holding ipar and iperp
     ipar = np.array([])
     iperp = np.array([])
