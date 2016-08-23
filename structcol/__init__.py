@@ -70,7 +70,7 @@ def q(wavelen, theta):
     return 4*np.pi/wavelen * np.sin(theta/2.0)
 
 @ureg.check('[]', '[]')
-def index_ratio(n_particle, n_medium):
+def index_ratio(n_particle, n_matrix):
     """
     Calculates the ratio of refractive indices (m in Mie theory)
 
@@ -79,8 +79,8 @@ def index_ratio(n_particle, n_medium):
     n_particle: structcol.Quantity [dimensionless]
         refractive index of particle at a particular wavelength
         can be complex
-    n_medium: structcol.Quantity [dimensionless]
-        refractive index of medium at a particular wavelength
+    n_matrix: structcol.Quantity [dimensionless]
+        refractive index of matrix at a particular wavelength
 
     Notes
     -----
@@ -91,19 +91,19 @@ def index_ratio(n_particle, n_medium):
     -------
     float
     """
-    return (n_particle/n_medium).magnitude
+    return (n_particle/n_matrix).magnitude
 
 @ureg.check('[length]', '[]', '[length]')
-def size_parameter(wavelen, n_medium, radius):
+def size_parameter(wavelen, n_matrix, radius):
     """
-    Calculates the size parameter x=k_medium*a needed for Mie calculations
+    Calculates the size parameter x=k_matrix*a needed for Mie calculations
 
     Parameters
     ----------
     wavelen: structcol.Quantity [length]
         wavelength in vacuum
-    n_medium: structcol.Quantity [dimensionless]
-        refractive index of medium at wavelength=wavelen
+    n_matrix: structcol.Quantity [dimensionless]
+        refractive index of matrix at wavelength=wavelen
     radius: structcol.Quantity [length]
         radius of particle
 
@@ -119,4 +119,4 @@ def size_parameter(wavelen, n_medium, radius):
     # must use to('dimensionless') in case the wavelength and radius are
     # specified in different units; pint doesn't automatically make
     # ratios such as 'nm'/'um' dimensionless 
-    return (2*np.pi*n_medium/wavelen * radius).to('dimensionless').magnitude
+    return (2*np.pi*n_matrix/wavelen * radius).to('dimensionless').magnitude

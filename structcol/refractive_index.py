@@ -92,8 +92,9 @@ n_dict = {
                                       (w*w - Quantity('0.1162414**2 um^2')) +
                                       0.8974794*w*w/
                                       (w*w - Quantity('9.896161**2 um^2'))),
-
-    'vacuum': lambda w: Quantity('1.0')
+    # the w/w is a crude hack to make the function output an array when the
+    # input is an array
+    'vacuum': lambda w: Quantity('1.0')*w/w
 }
 
 @ureg.check(None, '[length]')   # ensures wavelen has units of length
@@ -144,49 +145,28 @@ def n_ptbma(w):
     # from http://www.sigmaaldrich.com/catalog/product/aldrich/181587?lang=en&region=US
     return 1.46
 
-# def neff(n_particle, n_medium, volume_fraction):
-#     """
-#     Maxwell-Garnett effective refractive index 
+def n_eff(n_inclusion, n_matrix, volume_fraction):
+    """
+    Calculates Maxwell-Garnett effective refractive index for a composite of
+    two dielectric media.
 
-#     Parameters
-#     ----------
-#     n_particle: float or structcol.Quantity (dimensionless)
-#         refractive index of particle
-#     n_medium : float or structcol.Quantity (dimensionless)
-#         refractive index of medium
-#     volume_fraction: float
-#         volume fraction of particles
+    Parameters
+    ----------
+    n_inclusion: float or structcol.Quantity (dimensionless)
+        refractive index of inclusions (particles or voids)
+    n_matrix : float or structcol.Quantity (dimensionless)
+        refractive index of matrix phase
+    volume_fraction: float
+        volume fraction of inclusions
 
-#     Returns
-#     -------
-#     float or structcol.Quantity (dimensionless)
-#         refractive index
-#     """
-#     np = n_particle
-#     nm = n_medium
-#     phi = volume_fraction
-#     return nm * np.sqrt((2*nm**2 + np**2 + 2*phi*((np**2)-(nm**2))) /
-#                          (2*nm**2 + np**2 - phi*((np**2)-(nm**2))))
-
-# this is in here for now to preserve compatibility with Sofia's old code. Will
-# be replaced by the above function when the rest of the code is refactored
-def neff(n_scatterer, n_medium, i, series, wavelength, volume_fraction):
-    if isinstance(n_scatterer, float):
-        if isinstance(n_medium, float):
-            index = n_medium * np.sqrt(
-(2*n_medium**2 + n_scatterer**2 + 2*volume_fraction*((n_scatterer**2)-(n_medium**2))) /(2*n_medium**2 + n_scatterer**2 - volume_fraction*((n_scatterer**2)-(n_medium**2))))
-        else:
-            index = n_medium(wavelength) * np.sqrt(
-(2*n_medium(wavelength)**2 + n_scatterer**2 + 2*volume_fraction*((n_scatterer**2)-(n_medium(wavelength)**2))) /(2*n_medium(wavelength)**2 + n_scatterer**2 - volume_fraction*((n_scatterer**2)-(n_medium(wavelength)**2))))
-    else:
-        if isinstance(n_medium, float):
-            index = n_medium * np.sqrt(
-(2*n_medium**2 + n_scatterer(wavelength)**2 + 2*volume_fraction*((n_scatterer(wavelength)**2)-(n_medium**2))) /(2*n_medium**2 + n_scatterer(wavelength)**2 - volume_fraction*((n_scatterer(wavelength)**2)-(n_medium**2))))
-        else:
-            if n_medium == n_cargille:
-                index = n_medium(i,series, wavelength) * np.sqrt(
-(2*n_medium(i,series,wavelength)**2 + n_scatterer(wavelength)**2 + 2*volume_fraction*((n_scatterer(wavelength)**2)-(n_medium(i,series,wavelength)**2))) /(2*n_medium(i,series,wavelength)**2 + n_scatterer(wavelength)**2 - volume_fraction*((n_scatterer(wavelength)**2)-(n_medium(i,series,wavelength)**2))))
-            else:
-                index = n_medium(wavelength) * np.sqrt(
-(2*n_medium(wavelength)**2 + n_scatterer(wavelength)**2 + 2*volume_fraction*((n_scatterer(wavelength)**2)-(n_medium(wavelength)**2))) /(2*n_medium(wavelength)**2 + n_scatterer(wavelength)**2 - volume_fraction*((n_scatterer(wavelength)**2)-(n_medium(wavelength)**2))))
-    return index
+    Returns
+    -------
+    structcol.Quantity (dimensionless)
+        refractive index
+    """
+    ni = n_inclusion
+    nm = n_matrix
+    phi = volume_fraction
+    neff =  nm * np.sqrt((2*nm**2 + ni**2 + 2*phi*((ni**2)-(nm**2))) /
+                         (2*nm**2 + ni**2 - phi*((ni**2)-(nm**2))))
+    return Quantity(neff)

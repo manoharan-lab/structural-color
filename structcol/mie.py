@@ -44,7 +44,165 @@ from scipy.special import lpn, riccati_jn, riccati_yn, sph_jn, sph_yn
 from . import mie_specfuncs, ureg, Quantity
 from .mie_specfuncs import DEFAULT_EPS1, DEFAULT_EPS2   # default tolerances
 
-def pis_and_taus(nstop, theta):
+# User-facing functions for the most often calculated quantities (form factor,
+# efficiencies, asymmetry parameter)
+
+@ureg.check('[]', '[]', '[]') # all arguments should be dimensionless
+def calc_ang_dist(m, x, angles, mie = True, check = False):
+    """
+    Calculates the angular distribution of light intensity for parallel and
+    perpendicular polarization for a sphere.
+
+    Parameters
+    ----------
+    m: complex particle relative refractive index, n_part/n_med
+    x: size parameter, x = ka = 2*\pi*n_med/\lambda * a (sphere radius a)
+    angles: ndarray(structcol.Quantity [dimensionless])
+        array of angles. Must be entered as a Quantity to allow specifying
+        units (degrees or radians) explicitly
+    mie: Boolean, default true, uses RG approximation if false
+    check: Boolean, if using Mie solution display scat. efficiencies
+
+    Returns
+    -------
+    ipar: |S_2|^2
+    iperp: |S_1|^2
+    (These are the differential scattering X-section*k^2 for polarization
+    parallel and perpendicular to scattering plane, respectively.  See
+    Bohren & Huffman ch. 3 for details.)
+    """
+
+    # convert to radians from whatever units the user specifies
+    angles = angles.to('rad').magnitude
+    #initialize arrays for holding ipar and iperp
+    ipar = np.array([])
+    iperp = np.array([])
+
+    # TODO vectorize and remove loop
+    # loop over input angles
+    if mie:
+        # Mie scattering preliminaries
+        nstop = _nstop(x)
+        coeffs = _scatcoeffs(m, x, nstop)
+        n = np.arange(nstop)+1.
+        prefactor = (2*n+1.)/(n*(n+1.))
+
+        for theta in angles:
+            asmat = _amplitude_scattering_matrix(nstop, prefactor, coeffs, theta)
+            par = np.absolute(asmat[0])**2
+            ipar = np.append(ipar, par)
+            perp = np.absolute(asmat[1])**2
+            iperp = np.append(iperp, perp)
+
+        if check:
+            opt = _amplitude_scattering_matrix(nstop, prefactor, coeffs, 0).real
+            qscat, qext, qback = calc_efficiencies(m, x)
+            print('Number of terms:')
+            print(nstop)
+            print('Scattering, extinction, and backscattering efficiencies:')
+            print(qscat, qext, qback)
+            print('Extinction efficiency from optical theorem:')
+            print((4./x**2)*opt)
+            print('Asymmetry parameter')
+            print(calc_g(m, x))
+
+    else:
+        prefactor = -1j * (2./3.) * x**3 * np.absolute(m - 1)
+        for theta in angles:
+            asmat = _amplitude_scattering_matrix_RG(prefactor, x, theta)
+            ipar = np.append(ipar, np.absolute(asmat[0])**2)
+            iperp = np.append(iperp, np.absolute(asmat[1])**2)
+
+    return ipar, iperp
+
+@ureg.check(None, None, '[length]', None, None)
+def calc_cross_sections(m, x, wavelen_media, eps1 = DEFAULT_EPS1,
+                        eps2 = DEFAULT_EPS2):
+    """
+    Calculate (dimensional) scattering, absorption, and extinction cross
+    sections, and asymmetry parameter for spherically symmetric scatterers.
+
+    Parameters
+    ----------
+    m: complex relative refractive index
+    x: size parameter
+    wavelen_media: structcol.Quantity [length]
+        wavelength of incident light *in media* (usually this would be the
+        wavelength in the effective index of the particle-matrix composite) 
+
+    Returns
+    -------
+    cross_sections : tuple (5)
+        Dimensional scattering, absorption, extinction, and backscattering cross
+        sections, and <cos \theta> (asymmetry parameter g)
+
+    Notes
+    -----
+    The radiation pressure cross section C_pr is given by
+    C_pr = C_ext - <cos \theta> C_sca.
+
+    The radiation pressure force on a sphere is
+
+    F = (n_med I_0 C_pr) / c
+
+    where I_0 is the incident intensity.  See van de Hulst, p. 14.
+    """
+    # This is adapted from mie.py in holopy
+    # TODO take arrays for m and x to describe a multilayer sphere and return
+    # multilayer scattering coefficients
+
+    lmax = _nstop(x)
+    albl = _scatcoeffs(m, x, lmax, eps1=eps1, eps2=eps2)
+
+    cscat, cext, cback =  tuple(wavelen_media**2 * c/2/np.pi for c in
+                                _cross_sections(albl[0], albl[1]))
+
+    cabs = cext - cscat # conservation of energy
+
+    asym = wavelen_media**2 / np.pi / cscat * \
+           _asymmetry_parameter(albl[0], albl[1])
+
+    return cscat, cext, cabs, cback, asym
+
+def calc_efficiencies(m, x):
+    """
+    Scattering, extinction, backscattering efficiencies
+    """
+    nstop = _nstop(x)
+    cscat, cext, cback = _cross_sections(_scatcoeffs(m, x, nstop)[0],
+                                         _scatcoeffs(m, x, nstop)[1])
+    qscat = cscat * 2./x**2
+    qext = cext * 2./x**2
+    qback = cback * 1./x**2
+    # in order: scattering, extinction and backscattering efficiency
+    return qscat, qext, qback
+
+def calc_g(m, x):
+    """
+    Asymmetry parameter
+    """
+    nstop = _nstop(x)
+    coeffs = _scatcoeffs(m, x, nstop)
+    cscat = _cross_sections(coeffs[0], coeffs[1])[0] * 2./x**2
+    g = (4/(x**2 * cscat)) * _asymmetry_parameter(coeffs[0], coeffs[1])
+    return g
+
+# Mie functions used internally
+
+def _lpn_vectorized(n, z):
+    # scipy.special.lpn (Legendre polynomials and derivatives) is not a ufunc,
+    # so cannot handle array arguments for n and z. It does, however, calculate
+    # all orders of the polynomial and derivatives up to order n. So we pick
+    # the max value of the array n that is passed to the function.
+    nmax = np.max(n)
+    z = np.atleast_1d(z)
+    # now vectorize over z; this is in general slow because it runs a python loop.
+    # Need to figure out a better way to do this; one possibility is to use
+    # scipy.special.sph_harm, which is a ufunc, and use special cases to recover
+    # the legendre polynomials and derivatives
+    return np.array([lpn(nmax, z) for z in z])
+
+def _pis_and_taus(nstop, theta):
     """
     Calculate pi_n and tau angular functions at theta out to order n by up
     recursion.
@@ -75,7 +233,7 @@ def pis_and_taus(nstop, theta):
     taus = n*pis*mus - (n+1)*pishift
     return np.array([pis[1:nstop+1], taus[1:nstop+1]])
 
-def scatcoeffs(m, x, nstop, eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
+def _scatcoeffs(m, x, nstop, eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
     # see B/H eqn 4.88
     # implement criterion used by BHMIE plus a couple more orders to be safe
     # nmx = np.array([nstop, np.round_(np.absolute(m*x))]).max() + 20
@@ -92,7 +250,7 @@ def scatcoeffs(m, x, nstop, eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
     bn = ( (Dnmx*m + n/x)*psi - psishift ) / ( (Dnmx*m + n/x)*xi - xishift )
     return np.array([an[1:nstop+1], bn[1:nstop+1]]) # output begins at n=1
 
-def internal_coeffs(m, x, n_max, eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
+def _internal_coeffs(m, x, n_max, eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
     '''
     Calculate internal Mie coefficients c_n and d_n given
     relative index, size parameter, and maximum order of expansion.
@@ -110,13 +268,13 @@ def internal_coeffs(m, x, n_max, eps1 = DEFAULT_EPS1, eps2 = DEFAULT_EPS2):
     dl = m * ratio * (D3x - D1x) / (m * D3x - D1mx)
     return array([cl[1:], dl[1:]]) # start from l = 1
 
-def nstop(x):
+def _nstop(x):
     # takes size parameter, outputs order to compute to according to
     # Wiscombe, Applied Optics 19, 1505 (1980).
     # 7/7/08: generalize to apply same criterion when x is complex
     return (np.round_(np.absolute(x+4.05*x**(1./3.)+2))).astype('int')
 
-def asymmetry_parameter(al, bl):
+def _asymmetry_parameter(al, bl):
     '''
     Inputs: an, bn coefficient arrays from Mie solution
 
@@ -132,14 +290,14 @@ def asymmetry_parameter(al, bl):
                  np.real(al * np.conj(bl))).sum()
     return selfterm + crossterm
 
-def cross_sections(al, bl):
+def _cross_sections(al, bl):
     '''
     Calculates scattering and extinction cross sections
-    given arrays of Mie scattering coefficients an and bn.
+    given arrays of Mie scattering coefficients al and bl.
 
     See Bohren & Huffman eqns. 4.61 and 4.62.
 
-    The output omits a scaling prefactor of 2 * pi / k^2 = lambda_medium^2/2/pi.
+    The output omits a scaling prefactor of 2 * pi / k^2 = lambda_media^2/2/pi.
     '''
     lmax = al.shape[0]
 
@@ -154,171 +312,22 @@ def cross_sections(al, bl):
 
     return cscat, cext, cback
 
-# Convenience functions for the most often calculated quantities (form factor,
-# efficiencies, asymmetry parameter)
+def _amplitude_scattering_matrix(n_stop, prefactor, coeffs, theta):
+    # amplitude scattering matrix from Mie coefficients
+    angfuncs = _pis_and_taus(n_stop, theta)
+    pis = angfuncs[0]
+    taus = angfuncs[1]
+    S1 = (prefactor*(coeffs[0]*pis + coeffs[1]*taus)).sum()
+    S2 = (prefactor*(coeffs[0]*taus + coeffs[1]*pis)).sum()
+    return np.array([S2,S1])
 
-@ureg.check('[]', '[]', '[]') # all arguments should be dimensionless
-def calc_ang_dist(m, x, angles, mie = True, check = True):
-    """
-    Calculates the angular distribution of light intensity for parallel and
-    perpendicular polarization for a sphere.
+def _amplitude_scattering_matrix_RG(prefactor, x, theta):
+    # amplitude scattering matrix from Rayleigh-Gans approximation
+    u = 2 * x * np.sin(thet/2.)
+    S1 = prefactor * (3./u**3) * (np.sin(u) - u*np.cos(u))
+    S2 = prefactor * (3./u**3) * (np.sin(u) - u*np.cos(u)) * np.cos(theta)
+    return np.array([S2, S1])
 
-    Parameters
-    ----------
-    m: complex particle relative refractive index, n_part/n_med
-    x: size parameter, x = ka = 2*\pi*n_med/\lambda * a (sphere radius a)
-    angles: ndarray(structcol.Quantity [dimensionless])
-        array of angles. Must be entered as a Quantity to allow specifying
-        units (degrees or radians) explicitly
-    mie: Boolean, default true, uses RG approximation if false
-    check: Boolean, if using Mie solution display scat. efficiencies
-
-    Returns
-    -------
-    ipar: |S_2|^2
-    iperp: |S_1|^2
-    (These are the differential scattering X-section*k^2 for polarization
-    parallel and perpendicular to scattering plane, respectively.  See
-    Bohren & Huffman ch. 3 for details.)
-    """
-
-    # convert to radians from whatever units the user specifies
-    angles = angles.to('rad').magnitude
-    #initialize arrays for holding ipar and iperp
-    ipar = np.array([])
-    iperp = np.array([])
-
-    # TODO: prefactor, angfuncs, and coeffs are initialized outside of the
-    # function scope; clean this up to prevent unexpected behavior
-    def AScatMatrixMie(thet): # amplitude scat matrix from Mie scattering
-        angfuncs = pis_and_taus(n_stop, thet)
-        pis = angfuncs[0]
-        taus = angfuncs[1]
-        S1 = (prefactor*(coeffs[0]*pis + coeffs[1]*taus)).sum()
-        S2 = (prefactor*(coeffs[0]*taus + coeffs[1]*pis)).sum()
-        return np.array([S2,S1])
-
-    def AScatMatrixRG(thet): # amplitude scat matrix from Rayleigh-Gans
-        u = 2 * x * np.sin(thet/2.)
-        S1 = prefactor * (3./u**3) * (np.sin(u) - u*np.cos(u))
-        S2 = prefactor * (3./u**3) * (np.sin(u) - u*np.cos(u)) * np.cos(theta)
-        return np.array([S2, S1])
-
-    def MieChecks(): # display and print cross sections
-        xsects = cross_sections(coeffs[0], coeffs[1])
-        opt = AScatMatrixMie(0).real
-        print('Number of terms:')
-        print(n_stop)
-        print('Scattering, extinction, and backscattering efficiencies:')
-        cscat, cext, cback = cross_sections(scatcoeffs(m, x, n_stop)[0],
-                                        scatcoeffs(m, x, n_stop)[1])
-        qscat = cscat * 2./x**2
-        qext = cext * 2./x**2
-        qback = cback * 1./x**2
-        print(qscat, qext, qback)
-        print('Extinction efficiency from optical theorem:')
-        print((4./x**2)*opt)
-        return qscat, qext, qback
-
-    # TODO vectorize and remove loop
-    # loop over input angles
-    if mie:
-        # Mie scattering preliminaries
-        n_stop = nstop(x)
-        coeffs = scatcoeffs(m, x, n_stop)
-        n = np.arange(n_stop)+1.
-        prefactor = (2*n+1.)/(n*(n+1.))
-
-        for theta in angles:
-            asmat = AScatMatrixMie(theta)
-            par = np.absolute(asmat[0])**2
-            ipar = np.append(ipar, par)
-            perp = np.absolute(asmat[1])**2
-            iperp = np.append(iperp, perp)
-
-        if check:
-            efficiencies = MieChecks()
-            g = (4/(x**2 * efficiencies[0])) * asymmetry_parameter(coeffs[0], coeffs[1])
-
-    else:
-        prefactor = -1j * (2./3.) * x**3 * np.absolute(m - 1)
-        for theta in angles:
-            asmat = AScatMatrixRG(theta)
-            ipar = np.append(ipar, np.absolute(asmat[0])**2)
-            iperp = np.append(iperp, np.absolute(asmat[1])**2)
-
-    return ipar, iperp
-
-@ureg.check(None, None, '[length]', None, None)
-def calc_cross_sections(m, x, wavelen_medium, eps1 = DEFAULT_EPS1,
-                        eps2 = DEFAULT_EPS2):
-    """
-    Calculate (dimensional) scattering, absorption, and extinction cross
-    sections, and asymmetry parameter for spherically symmetric scatterers.
-
-    Parameters
-    ----------
-    m: complex relative refractive index
-    x: size parameter
-    wavelen_medium: structcol.Quantity [length]
-        wavelength of incident light *in medium*
-
-    Returns
-    -------
-    cross_sections : tuple (5)
-        Dimensional scattering, absorption, extinction, and backscattering cross
-        sections, and <cos \theta> (asymmetry parameter g)
-
-    Notes
-    -----
-    The radiation pressure cross section C_pr is given by
-    C_pr = C_ext - <cos \theta> C_sca.
-
-    The radiation pressure force on a sphere is
-
-    F = (n_med I_0 C_pr) / c
-
-    where I_0 is the incident intensity.  See van de Hulst, p. 14.
-    """
-    # This is adapted from mie.py in holopy
-    # TODO take arrays for m and x to describe a multilayer sphere and return
-    # multilayer scattering coefficients
-
-    lmax = nstop(x)
-    albl = scatcoeffs(m, x, lmax, eps1=eps1, eps2=eps2)
-
-    cscat, cext, cback =  tuple(wavelen_medium**2 * c/2/np.pi for c in
-                                cross_sections(albl[0], albl[1]))
-
-    cabs = cext - cscat # conservation of energy
-
-    asym = wavelen_medium**2 / np.pi / cscat * \
-           asymmetry_parameter(albl[0], albl[1])
-
-    return cscat, cext, cabs, cback, asym
-
-def calc_efficiencies(m, x):
-    """
-    Scattering, extinction, backscattering efficiencies
-    """
-    n_stop = nstop(x)
-    cscat, cext, cback = cross_sections(scatcoeffs(m, x, n_stop)[0],
-                                        scatcoeffs(m, x, n_stop)[1])
-    qscat = cscat * 2./x**2
-    qext = cext * 2./x**2
-    qback = cback * 1./x**2
-    # in order: scattering, extinction and backscattering efficiency
-    return qscat, qext, qback
-
-def calc_g(m, x):
-    """
-    Asymmetry parameter
-    """
-    n_stop = nstop(x)
-    coeffs = scatcoeffs(m, x, n_stop)
-    cscat = cross_sections(coeffs[0], coeffs[1])[0] * 2./x**2
-    g = (4/(x**2 * cscat)) * asymmetry_parameter(coeffs[0], coeffs[1])
-    return g
 
 # TODO: copy multilayer code from multilayer_sphere_lib.py in holopy and
 # integrate with functions for calculating scattering cross sections and form

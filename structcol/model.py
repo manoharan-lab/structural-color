@@ -1,0 +1,297 @@
+# Copyright 2016, Vinothan N. Manoharan, Sofia Makgiriadou
+#
+# This file is part of the structural-color python package.
+#
+# This package is free software: you can redistribute it and/or modify it under
+# the terms of the GNU General Public License as published by the Free Software
+# Foundation, either version 3 of the License, or (at your option) any later
+# version.
+#
+# This package is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+# FOR A PARTICULAR PURPOSE. See the GNU General Public License for more
+# details.
+#
+# You should have received a copy of the GNU General Public License along with
+# this package. If not, see <http://www.gnu.org/licenses/>.
+"""
+Calculates optical properties of an amorphous colloidal suspension ("a photonic
+glass") using a calculated structure factor, form factor, and Fresnel
+coefficients, based on the single-scattering model in reference [1]_
+
+References
+----------
+[1] Magkiriadou, S., Park, J.-G., Kim, Y.-S., and Manoharan, V. N. “Absence of
+Red Structural Color in Photonic Glasses, Bird Feathers, and Certain Beetles”
+Physical Review E 90, no. 6 (2014): 62302. doi:10.1103/PhysRevE.90.062302
+
+.. moduleauthor :: Vinothan N. Manoharan <vnm@seas.harvard.edu>
+.. moduleauthor :: Sofia Magkiriadou <sofia@physics.harvard.edu>
+"""
+
+import numpy as np
+from scipy import integrate
+from . import refractive_index as ri
+from . import ureg, Quantity
+from . import mie, structure, q, index_ratio, size_parameter
+
+# If the analytic formula is used, S(q=0) returns nan. To calculate the
+# scattering cross section, this does not matter because sin(0) = 0 so the
+# contribution of the differential scattering cross section at theta = 0 to the
+# total cross section is zero.  To prevent any errors or warnings, we set a
+# value EPSILON corresponding to the minimum angle at which to calculate the
+# structure factor (and, by extension, the total cross-section)
+SMALL_ANGLE = 1e-8
+
+# For the moment, I'm using fixed quadrature.  The following number of angles
+# seems to do ok for 280 nm spheres, but could use some more testing.
+NUM_ANGLES = 200
+
+@ureg.check('[]', '[]', '[]', '[length]', '[length]', '[]')
+def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
+               thickness=None,
+               theta_min=Quantity('90 deg'),
+               theta_max=Quantity('180 deg'),
+               incident_angle=Quantity('0 deg')):
+    """
+    Calculate fraction of light reflected from an amorphous colloidal
+    suspension (a "photonic glass").
+
+    Parameters
+    ----------
+    n_particle: structcol.Quantity [dimensionless]
+        refractive index of particles or voids at wavelength=wavelen
+    n_matrix: structcol.Quantity [dimensionless]
+        refractive index of the matrix surrounding the particles (at wavelen)
+    n_medium: structcol.Quantity [dimensionless]
+        refractive index of the medium surrounding the sample.  This is
+        usually air or vacuum
+    wavelen: structcol.Quantity [length]
+        wavelength of light in the medium (which is usually air or vacuum)
+    radius: structcol.Quantity [length]
+        radius of particles or voids
+    volume_fraction: structcol.Quantity [dimensionless]
+        volume fraction of particles or voids in matrix
+    thickness: structcol.Quantity [length] (optional)
+        thickness of photonic glass.  If unspecified, assumed to be infinite
+    theta_min: structcol.Quantity [dimensionless] (optional)
+    theta_max: structcol.Quantity [dimensionless]
+        along with theta_min, specifies the angular range over which to
+        integrate the scattered signal. The angles are the scattering angles
+        (polar angle, measured from the incident light direction).  If left
+        unspecified, the integral is carried out over the entire backscattering
+        hemisphere (90 to 180 degrees). Usually one would set theta_min to
+        correspond to the numerical aperture of the detector, after correcting
+        for refraction. Setting theta_max to a value less than 180 degrees
+        corresponds to dark-field detection. Both theta_min and theta_max can
+        carry explicit units of radians or degrees.
+    incident_angle: structcol.Quantity [dimensionless] (optional)
+        incident angle, measured from the normal (specify degrees or radians by
+        using the appropriate units in Quantity())
+
+    Returns
+    -------
+    float (3-tuple):
+        fraction of light reflected from sample for unpolarized light, parallel
+        polarization, and perpendicular polarization.
+
+    Notes
+    -----
+    Uses eqs. 5 and 6 from [1]_. As described in the reference, the function
+    uses the Maxwell-Garnett effective refractive index of the sample to
+    calculate the scattering from individual spheres within the matrix. It also
+    uses the effective refractive index to calculate the Fresnel coefficients
+    at the boundary between the medium (referred to as "air" in the reference)
+    and the sample.
+
+    References
+    ----------
+    [1] Magkiriadou, S., Park, J.-G., Kim, Y.-S., and Manoharan, V. N. “Absence
+    of Red Structural Color in Photonic Glasses, Bird Feathers, and Certain
+    Beetles” Physical Review E 90, no. 6 (2014): 62302.
+    doi:10.1103/PhysRevE.90.062302
+    """
+
+    # use Maxwell-Garnett formula to calculate effective index of
+    # particle-matrix composite
+    n_sample = ri.n_eff(n_particle, n_matrix, volume_fraction)
+    m = index_ratio(n_particle, n_sample)
+    x = size_parameter(wavelen, n_sample, radius)
+    k = 2*np.pi*n_sample/wavelen
+
+    # calculate transmission and reflection coefficients at first interface
+    # between medium and sample
+    # (TODO: include correction for reflection off the back interface of the
+    # sample)
+    t_medium_sample = fresnel_transmission(n_medium, n_sample, incident_angle)
+    r_medium_sample = fresnel_reflection(n_medium, n_sample, incident_angle)
+
+    theta_min = theta_min.to('rad').magnitude
+    theta_max = theta_max.to('rad').magnitude
+    # calculate the min theta, taking into account refraction at the interface
+    # between the medium and the sample
+    # (Snell's law: n_medium sin(alpha_medium) = n_sample sin(alpha_sample)
+    # where alpha = pi - theta)
+    theta_min_refracted = np.pi - np.arcsin(np.sin(np.pi - theta_min)*n_medium/ \
+                                            n_sample)
+
+    # integrate form_factor*structure_factor*transmission
+    # coefficient*sin(theta) over angles to get sigma_detected (eq 5)
+    angles = Quantity(np.linspace(theta_min_refracted, theta_max, NUM_ANGLES),
+                      'rad')
+    diff_cs = differential_cross_section(m, x, angles, volume_fraction)
+    transmission = fresnel_transmission(n_sample, n_medium, np.pi-angles)
+    sigma_detected_par = _integrate_cross_section(diff_cs[0],
+                                                  transmission[0]/k**2, angles)
+    sigma_detected_perp = _integrate_cross_section(diff_cs[1],
+                                                   transmission[1]/k**2, angles)
+    sigma_detected = (sigma_detected_par + sigma_detected_perp)/2.0
+
+    # now integrate from 0 to 180 degrees to get total cross-section.
+    angles = Quantity(np.linspace(0.0+SMALL_ANGLE, np.pi, NUM_ANGLES), 'rad')
+    # Fresnel coefficients do not appear in this integral since we're using the
+    # total cross-section to account for the attenuation in intensity as light
+    # propagates through the sample
+    diff_cs = differential_cross_section(m, x, angles, volume_fraction)
+    sigma_total_par = _integrate_cross_section(diff_cs[0], 1.0/k**2, angles)
+    sigma_total_perp = _integrate_cross_section(diff_cs[1], 1.0/k**2, angles)
+    sigma_total = (sigma_total_par + sigma_total_perp)/2.0
+
+    # now eq. 6 for the total reflection
+    rho = _number_density(volume_fraction, radius)
+    if thickness is None:
+        # assume semi-infinite sample
+        factor = 1.0
+    else:
+        # use Beer-Lambert law to account for attenuation
+        factor = 1.0-np.exp(-rho*sigma_total*thickness)
+
+    # one critical difference from Sofia's original code is that this code
+    # calculates the reflected intensity in each polarization channel
+    # separately, then averages them.  The original code averaged the transmission
+    # coefficients and differential cross sections for the two polarization
+    # channels before integrating.
+    reflected_par =  t_medium_sample[0] * sigma_detected_par/sigma_total_par * \
+                     factor + r_medium_sample[0]
+    reflected_perp =  t_medium_sample[1] * sigma_detected_perp/sigma_total_perp * \
+                      factor + r_medium_sample[1]
+    return (reflected_par + reflected_perp)/2.0, reflected_par, reflected_perp
+
+@ureg.check('[]', '[]', '[]', '[]')
+def differential_cross_section(m, x, angles, volume_fraction):
+    """
+    Calculate dimensionless differential scattering cross-section for a sphere,
+    including contributions from the structure factor. Need to multiply by k**2
+    to get the dimensional differential cross section.
+    """
+    form_factor = mie.calc_ang_dist(m, x, angles)
+    f_par = form_factor[0]
+    f_perp = form_factor[1]
+
+    qd = 4*x*np.sin(angles/2)
+    s = structure.factor_py(qd, volume_fraction)
+
+    scat_par = s * f_par
+    scat_perp = s * f_perp
+
+    return scat_par, scat_perp
+
+def _integrate_cross_section(cross_section, factor, angles):
+    """
+    Integrate differential cross-section (multiplied by factor) over angles
+    using trapezoid rule
+    """
+    # integrand
+    integrand = cross_section * factor * np.sin(angles)
+    # np.trapz does not preserve units, so need to state explicitly that we are
+    # in the same units as the integrand
+    integral = np.trapz(integrand, angles) * integrand.units
+    # multiply by 2*pi to account for integral over phi
+    sigma = 2 * np.pi * integral
+
+    return sigma
+
+
+@ureg.check('[]','[]','[]')
+def fresnel_reflection(n1, n2, incident_angle):
+    """
+    Calculates Fresnel coefficients for the reflected intensity of parallel
+    (p) and perpendicular (s) polarized light incident on a boundary between
+    two dielectric, nonmagnetic materials.
+
+    Parameters
+    ----------
+    n1: structcol.Quantity [dimensionless]
+        refractive index of the first medium along the direction of propagation
+    n2: structcol.Quantity [dimensionless]
+        refractive index of the second medium along the direction of propagation
+    incident_angle: structcol.Quantity [dimensionless] or ndarray of such
+        incident angle, measured from the normal (specify degrees or radians by
+        using the appropriate units in Quantity())
+
+    Returns
+    -------
+    (float, float) or ndarray(float, float):
+        Parallel (p) and perpendicular (s) reflection coefficients for the
+        intensity
+    """
+    theta = np.atleast_1d(incident_angle.to('rad').magnitude)
+    if np.any(theta > np.pi/2.0):
+        raise ValueError('Unphysical angle of incidence.  Angle must be \n'+
+                         'less than or equal to 90 degrees with respect to' +
+                         'the normal.')
+    else:
+        r_par = np.zeros(theta.size)
+        r_perp = np.zeros(theta.size)
+        ms = (n2/n1)
+        if ms < 1:
+            # handle case of total internal reflection; this code is written
+            # using index arrays so that theta can be input as an array
+            tir_vals = theta > np.arcsin(ms)
+            good_vals = ~tir_vals   # ~ means logical negation
+            r_perp[tir_vals] = 1
+            r_par[tir_vals] = 1
+        else:
+            good_vals = np.ones(theta.size, dtype=bool)
+
+        # see, e.g., http://www.ece.rutgers.edu/~orfanidi/ewa/ch07.pdf
+        # equations 7.4.2 for fresnel coefficients in terms of the incident
+        # angle only
+        root = np.sqrt(n2**2 - (n1 * np.sin(theta[good_vals]))**2)
+        costheta = np.cos(theta[good_vals])
+        r_par[good_vals] = (np.abs((n1*root - n2**2 * costheta)/ \
+                                   (n1*root + n2**2 * costheta)))**2
+        r_perp[good_vals] = (np.abs((n1*costheta - root) / \
+                                    (n1*costheta + root)))**2
+
+    return np.squeeze(r_par), np.squeeze(r_perp)
+
+@ureg.check('[]','[]','[]')
+def fresnel_transmission(index1, index2, incident_angle):
+    """
+    Calculates Fresnel coefficients for the transmitted intensity of parallel
+    (p) and perpendicular (s) polarized light incident on a boundary between
+    two dielectric, nonmagnetic materials.
+
+    Parameters
+    ----------
+    n1: structcol.Quantity [dimensionless]
+        refractive index of the first medium along the direction of propagation
+    n2: structcol.Quantity [dimensionless]
+        refractive index of the second medium along the direction of propagation
+    incident_angle: structcol.Quantity [dimensionless] or ndarray of such
+        incident angle, measured from the normal (specify degrees or radians by
+        using the appropriate units in Quantity())
+
+    Returns
+    -------
+    (float, float) or ndarray(float, float):
+        Parallel (p) and perpendicular (s) transmission coefficients for the
+        intensity
+    """
+    r_par, r_perp = fresnel_reflection(index1, index2, incident_angle)
+    return 1.0-r_par, 1.0-r_perp
+
+def _number_density(volume_fraction, radius):
+    return 3.0 * volume_fraction / (4.0 * np.pi * radius**3)
+
