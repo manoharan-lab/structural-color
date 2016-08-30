@@ -110,6 +110,18 @@ def test_efficiencies():
                            2.5912825599, 2.0891233123, 2.1818510296,
                            2.1221614258, 2.1131226379, 1.9736114111,
                            1.922984002, 1.8490112847, 1.7303694187])
+    qback_bhmie = np.array([3.62498741762823E-10, 3.62471372652178E-09,
+                            3.623847844672E-08, 3.62110791613906E-07,
+                            3.61242786911475E-06, 3.58482008581018E-05,
+                            3.49577114878315E-04, 3.19256234186963E-03,
+                            0.019955229811329, 1.22543944129328E-02,
+                            0.114985907473273, 0.587724020116958,
+                            0.780839362788633, 0.17952369257935,
+                            0.068204471161473, 0.314128510891842,
+                            0.256455963161882, 3.84713481428992E-02,
+                            1.02022022710453, 0.51835427781473,
+                            0.331000402174976])
+
     wavelen = Quantity('658 nm')
     n_matrix = Quantity(1.00, '')
     n_particle = Quantity(1.59 + 1e-4 * 1.0j, '')
@@ -119,6 +131,7 @@ def test_efficiencies():
     q_arr = np.asarray(effs)
     qsca = q_arr[:,0]
     qext = q_arr[:,1]
+    qback = q_arr[:,2]
     # use two decimal places for the small size parameters because MiePlot
     # doesn't report sufficient precision
     assert_array_almost_equal(qsca[0:9], qsca_bhmie[0:9], decimal=2)
@@ -129,6 +142,12 @@ def test_efficiencies():
     # more.
     assert_array_almost_equal(qsca[9:], qsca_bhmie[9:], decimal=3)
     assert_array_almost_equal(qext[9:], qext_bhmie[9:], decimal=3)
+
+    # test backscattering efficiencies (still some discrepancies at 3rd decimal
+    # point for large size parameters)
+    assert_array_almost_equal(qback, qback_bhmie, decimal=2)
+
+
 
 def test_absorbing_materials():
     # test calculations for gold, which has a high imaginary refractive index
