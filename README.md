@@ -1,5 +1,7 @@
 # structural-color
-Python package for modeling structural color in colloidal systems.  
+Python package for modeling structural color in colloidal systems. See the
+tutorial Jupyter notebook (tutorial.ipynb) for instructions on using the
+package.
 
 The original code was developed by Sofia Magkiriadou (with contributions from
 Jerome Fung and others) during her research [1,2] in the
