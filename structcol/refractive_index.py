@@ -53,14 +53,15 @@ from . import ureg, Quantity  # unit registry and Quantity constructor from pint
 # np.power doesn't seem to be supported by pint -- hence the w*w... or
 # /w/w/w/w... syntax
 n_dict = {
-    # water data from M. Daimon and A. Masumura. Measurement of the refractive 
-    # index of distilled water from the near-infrared region to the ultraviolet 
-    # region, Appl. Opt. 46, 3811-3820 (2007). 
+    # water data from M. Daimon and A. Masumura. Measurement of the refractive
+    # index of distilled water from the near-infrared region to the ultraviolet
+    # region, Appl. Opt. 46, 3811-3820 (2007).
     # Fit of the experimental data with the Sellmeier dispersion formula:
     # refractiveindex.info
-    # data for high performance liquid chromatography (HPLC) distilled water at 20.0 °C
+    # data for high performance liquid chromatography (HPLC) distilled water at
+    # 20.0 °C
     'water': lambda w: np.sqrt(5.684027565e-1*w*w/
-                                    (w*w-Quantitiy('5.101829712e-2 um^2')) + 
+                                    (w*w-Quantity('5.101829712e-2 um^2')) +
                                     1.726177391e-1*w*w/
                                     (w*w - Quantity('1.821153936e-2 um^2')) +
                                     2.086189578e-2*w*w/
@@ -110,7 +111,7 @@ n_dict = {
                                       (w*w - Quantity('9.896161**2 um^2'))),
     # the w/w is a crude hack to make the function output an array when the
     # input is an array
-    'vacuum': lambda w: Quantity('1.0')*w/w   
+    'vacuum': lambda w: Quantity('1.0')*w/w
 }
 
 @ureg.check(None, '[length]')   # ensures wavelen has units of length
