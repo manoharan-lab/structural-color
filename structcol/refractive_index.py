@@ -53,13 +53,29 @@ from . import ureg, Quantity  # unit registry and Quantity constructor from pint
 # np.power doesn't seem to be supported by pint -- hence the w*w... or
 # /w/w/w/w... syntax
 n_dict = {
+    # water data from M. Daimon and A. Masumura. Measurement of the refractive 
+    # index of distilled water from the near-infrared region to the ultraviolet 
+    # region, Appl. Opt. 46, 3811-3820 (2007). 
+    # Fit of the experimental data with the Sellmeier dispersion formula:
+    # refractiveindex.info
+    # data for high performance liquid chromatography (HPLC) distilled water at 20.0 °C
+    'water': lambda w: np.sqrt(5.684027565e-1*w*w/
+                                    (w*w-Quantitiy('5.101829712e-2 um^2')) + 
+                                    1.726177391e-1*w*w/
+                                    (w*w - Quantity('1.821153936e-2 um^2')) +
+                                    2.086189578e-2*w*w/
+                                    (w*w - Quantity('2.620722293e-2 um^2')) +
+                                    1.130748688e-1*w*w/
+                                    (w*w - Quantity('1.069792721e1 um^2'))),
+
+
     # polystyrene data from N. Sultanova, S. Kasarova and I. Nikolov. Dispersion
     # properties of optical polymers, Acta Physica Polonica A 116, 585-587 (2009).
     # Fit of the experimental data with the Sellmeier dispersion formula:
     # refractiveindex.info
     # data for 20 degrees C, 0.4368-1.052 micrometers
     'polystyrene': lambda w: np.sqrt(1.4435*w*w/
-                                     (w*w-Quantity("0.020216 um^2"))+1),
+                                     (w*w-Quantity("0.020216 um^2"))+1)
 
     # pmma data from G. Beadie, M. Brindza, R. A. Flynn, A. Rosenberg, and J.
     # S. Shirk. Refractive index measurements of poly(methyl methacrylate)
@@ -95,6 +111,7 @@ n_dict = {
     # the w/w is a crude hack to make the function output an array when the
     # input is an array
     'vacuum': lambda w: Quantity('1.0')*w/w
+    
 }
 
 @ureg.check(None, '[length]')   # ensures wavelen has units of length

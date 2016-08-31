@@ -41,6 +41,13 @@ def test_n():
 # boundaries of the visible spectrum.  This is mostly to make sure that the
 # coefficients of the dispersion formulas are entered properly
 
+def test_water():
+    # values from refractiveindex.info
+    assert_almost_equal(ri.n('water', Quantity('0.40930 um')),
+                        Quantity('1.3427061376724'))
+    assert_almost_equal(ri.n('water', Quantity('0.80700 um')),
+                        Quantity('1.3284883366632'))
+
 def test_npmma():
     # values from refractiveindex.info
     assert_almost_equal(ri.n('pmma', Quantity('0.42 um')),
