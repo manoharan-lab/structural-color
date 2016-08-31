@@ -61,7 +61,7 @@ n_dict = {
     # data for high performance liquid chromatography (HPLC) distilled water at
     # 20.0 °C
     'water': lambda w: np.sqrt(5.684027565e-1*w*w/
-                                    (w*w-Quantity('5.101829712e-2 um^2')) +
+                                    (w*w - Quantity('5.101829712e-3 um^2')) +
                                     1.726177391e-1*w*w/
                                     (w*w - Quantity('1.821153936e-2 um^2')) +
                                     2.086189578e-2*w*w/
