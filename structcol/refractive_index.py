@@ -66,7 +66,7 @@ n_dict = {
                                     2.086189578e-2*w*w/
                                     (w*w - Quantity('2.620722293e-2 um^2')) +
                                     1.130748688e-1*w*w/
-                                    (w*w - Quantity('1.069792721e1 um^2'))),
+                                    (w*w - Quantity('1.069792721e1 um^2')) + 1),
 
 
     # polystyrene data from N. Sultanova, S. Kasarova and I. Nikolov. Dispersion
@@ -75,7 +75,7 @@ n_dict = {
     # refractiveindex.info
     # data for 20 degrees C, 0.4368-1.052 micrometers
     'polystyrene': lambda w: np.sqrt(1.4435*w*w/
-                                     (w*w-Quantity("0.020216 um^2"))+1)
+                                     (w*w-Quantity("0.020216 um^2"))+1),
 
     # pmma data from G. Beadie, M. Brindza, R. A. Flynn, A. Rosenberg, and J.
     # S. Shirk. Refractive index measurements of poly(methyl methacrylate)
@@ -110,8 +110,7 @@ n_dict = {
                                       (w*w - Quantity('9.896161**2 um^2'))),
     # the w/w is a crude hack to make the function output an array when the
     # input is an array
-    'vacuum': lambda w: Quantity('1.0')*w/w
-    
+    'vacuum': lambda w: Quantity('1.0')*w/w   
 }
 
 @ureg.check(None, '[length]')   # ensures wavelen has units of length
