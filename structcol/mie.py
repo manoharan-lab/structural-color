@@ -128,7 +128,7 @@ def calc_cross_sections(m, x, wavelen_media, eps1 = DEFAULT_EPS1,
     x: size parameter
     wavelen_media: structcol.Quantity [length]
         wavelength of incident light *in media* (usually this would be the
-        wavelength in the effective index of the particle-matrix composite) 
+        wavelength in the effective index of the particle-matrix composite)
 
     Returns
     -------
@@ -138,6 +138,10 @@ def calc_cross_sections(m, x, wavelen_media, eps1 = DEFAULT_EPS1,
 
     Notes
     -----
+    The backscattering cross-section is 1/(4*pi) times the radar backscattering
+    cross-secion; that is, it corresponds to the differential scattering
+    cross-section in the backscattering direction.  See B&H 4.6.
+
     The radiation pressure cross section C_pr is given by
     C_pr = C_ext - <cos \theta> C_sca.
 
@@ -167,6 +171,11 @@ def calc_cross_sections(m, x, wavelen_media, eps1 = DEFAULT_EPS1,
 def calc_efficiencies(m, x):
     """
     Scattering, extinction, backscattering efficiencies
+
+    Note that the backscattering efficiency is 1/(4*pi) times the radar
+    backscattering efficiency; that is, it corresponds to the differential
+    scattering cross-section in the backscattering direction, divided by the
+    geometrical cross-section
     """
     nstop = _nstop(x)
     cscat, cext, cback = _cross_sections(_scatcoeffs(m, x, nstop)[0],
@@ -306,9 +315,13 @@ def _cross_sections(al, bl):
     cscat = (prefactor * (np.abs(al)**2 + np.abs(bl)**2)).sum()
     cext = (prefactor * np.real(al + bl)).sum()
 
-    # see p. 122
+    # see p. 122 and discussion in that section. The formula on p. 122
+    # calculates the backscattering cross-section according to the traditional
+    # definition, which includes a factor of 4*pi for historical reasons. We
+    # jettison the factor of 4*pi to get values that correspond to the
+    # differential scattering cross-section in the backscattering direction.
     alts = 2. * (np.arange(lmax) % 2) - 1
-    cback = np.abs((prefactor * alts * (al - bl)).sum())**2
+    cback = (np.abs((prefactor * alts * (al - bl)).sum())**2)/4.0/np.pi
 
     return cscat, cext, cback
 
