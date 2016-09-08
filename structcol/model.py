@@ -247,7 +247,7 @@ def fresnel_reflection(n1, n2, incident_angle):
         if ms < 1:
             # handle case of total internal reflection; this code is written
             # using index arrays so that theta can be input as an array
-            tir_vals = theta > np.arcsin(ms)
+            tir_vals = theta >= np.arcsin(ms)
             good_vals = ~tir_vals   # ~ means logical negation
             r_perp[tir_vals] = 1
             r_par[tir_vals] = 1
