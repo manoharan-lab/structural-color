@@ -30,10 +30,9 @@ Physical Review E 90, no. 6 (2014): 62302. doi:10.1103/PhysRevE.90.062302
 """
 
 import numpy as np
-from scipy import integrate
 from . import refractive_index as ri
 from . import ureg, Quantity
-from . import mie, structure, q, index_ratio, size_parameter
+from . import mie, structure, index_ratio, size_parameter
 
 # If the analytic formula is used, S(q=0) returns nan. To calculate the
 # scattering cross section, this does not matter because sin(0) = 0 so the
@@ -75,7 +74,7 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
     thickness: structcol.Quantity [length] (optional)
         thickness of photonic glass.  If unspecified, assumed to be infinite
     theta_min: structcol.Quantity [dimensionless] (optional)
-    theta_max: structcol.Quantity [dimensionless]
+    theta_max: structcol.Quantity [dimensionless] (optional)
         along with theta_min, specifies the angular range over which to
         integrate the scattered signal. The angles are the scattering angles
         (polar angle, measured from the incident light direction).  If left
@@ -91,9 +90,10 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
 
     Returns
     -------
-    float (3-tuple):
+    float (5-tuple):
         fraction of light reflected from sample for unpolarized light, parallel
-        polarization, and perpendicular polarization.
+        polarization, and perpendicular polarization;
+        asymmetry parameter and transport length for unpolarized light
 
     Notes
     -----
@@ -157,6 +157,11 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
     sigma_total_perp = _integrate_cross_section(diff_cs[1], 1.0/k**2, angles)
     sigma_total = (sigma_total_par + sigma_total_perp)/2.0
 
+    # calculate asymmetry parameter using integral from 0 to 180 degrees
+    asymmetry_parameter = _integrate_cross_section(diff_cs[0], np.cos(angles)*1.0/k**2, angles)
+    # calculate for unpolarized light
+    asymmetry_parameter = asymmetry_parameter/sigma_total
+
     # now eq. 6 for the total reflection
     rho = _number_density(volume_fraction, radius)
     if thickness is None:
@@ -171,11 +176,18 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
     # separately, then averages them.  The original code averaged the transmission
     # coefficients and differential cross sections for the two polarization
     # channels before integrating.
-    reflected_par =  t_medium_sample[0] * sigma_detected_par/sigma_total_par * \
-                     factor + r_medium_sample[0]
-    reflected_perp =  t_medium_sample[1] * sigma_detected_perp/sigma_total_perp * \
-                      factor + r_medium_sample[1]
-    return (reflected_par + reflected_perp)/2.0, reflected_par, reflected_perp
+    reflected_par = t_medium_sample[0] * sigma_detected_par/sigma_total_par * \
+                    factor + r_medium_sample[0]
+    reflected_perp = t_medium_sample[1] * sigma_detected_perp/sigma_total_perp * \
+                     factor + r_medium_sample[1]
+
+    # and the transport length for unpolarized light
+    # (see eq. 5 of Kaplan, Dinsmore, Yodh, Pine, PRE 50(6): 4827, 1994)
+    transport_length = 1/(1.0-asymmetry_parameter)/rho/sigma_total
+
+    return (reflected_par + reflected_perp)/2.0, \
+        reflected_par, reflected_perp, \
+        asymmetry_parameter, transport_length
 
 @ureg.check('[]', '[]', '[]', '[]')
 def differential_cross_section(m, x, angles, volume_fraction):
@@ -212,7 +224,7 @@ def _integrate_cross_section(cross_section, factor, angles):
     return sigma
 
 
-@ureg.check('[]','[]','[]')
+@ureg.check('[]', '[]', '[]')
 def fresnel_reflection(n1, n2, incident_angle):
     """
     Calculates Fresnel coefficients for the reflected intensity of parallel
@@ -266,7 +278,7 @@ def fresnel_reflection(n1, n2, incident_angle):
 
     return np.squeeze(r_par), np.squeeze(r_perp)
 
-@ureg.check('[]','[]','[]')
+@ureg.check('[]', '[]', '[]')
 def fresnel_transmission(index1, index2, incident_angle):
     """
     Calculates Fresnel coefficients for the transmitted intensity of parallel
