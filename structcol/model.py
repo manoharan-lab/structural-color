@@ -77,13 +77,16 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
     theta_max: structcol.Quantity [dimensionless] (optional)
         along with theta_min, specifies the angular range over which to
         integrate the scattered signal. The angles are the scattering angles
-        (polar angle, measured from the incident light direction).  If left
+        (polar angle, measured from the incident light direction) after the
+        light exits into the medium. The function will correct for refraction
+        at the interface to map this range of exit angles onto the range of
+        scattering angles from the particles. If theta_min and theta_max are
         unspecified, the integral is carried out over the entire backscattering
         hemisphere (90 to 180 degrees). Usually one would set theta_min to
-        correspond to the numerical aperture of the detector, after correcting
-        for refraction. Setting theta_max to a value less than 180 degrees
-        corresponds to dark-field detection. Both theta_min and theta_max can
-        carry explicit units of radians or degrees.
+        correspond to the numerical aperture of the detector. Setting theta_max
+        to a value less than 180 degrees corresponds to dark-field detection.
+        Both theta_min and theta_max can carry explicit units of radians or
+        degrees.
     incident_angle: structcol.Quantity [dimensionless] (optional)
         incident angle, measured from the normal (specify degrees or radians by
         using the appropriate units in Quantity())
@@ -129,11 +132,18 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
     theta_min = theta_min.to('rad').magnitude
     theta_max = theta_max.to('rad').magnitude
     # calculate the min theta, taking into account refraction at the interface
-    # between the medium and the sample
+    # between the medium and the sample. This is the scattering angle at which
+    # light exits into the medium at (180-theta_min) degrees from the normal.
     # (Snell's law: n_medium sin(alpha_medium) = n_sample sin(alpha_sample)
     # where alpha = pi - theta)
-    theta_min_refracted = np.pi - np.arcsin(np.sin(np.pi - theta_min)*n_medium/ \
-                                            n_sample)
+    sin_alpha_sample = np.sin(np.pi - theta_min) * n_medium/n_sample
+    if sin_alpha_sample >= 1:
+        # in this case, theta_min and the ratio of n_medium/n_sample are
+        # sufficiently large so that all the scattering from 90-180 degrees
+        # exits into the range of angles captured by the detector
+        theta_min_refracted = np.pi/2.0
+    else:
+        theta_min_refracted = np.pi - np.arcsin(sin_alpha_sample)
 
     # integrate form_factor*structure_factor*transmission
     # coefficient*sin(theta) over angles to get sigma_detected (eq 5)
