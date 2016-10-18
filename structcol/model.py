@@ -37,9 +37,9 @@ from . import mie, structure, index_ratio, size_parameter
 # If the analytic formula is used, S(q=0) returns nan. To calculate the
 # scattering cross section, this does not matter because sin(0) = 0 so the
 # contribution of the differential scattering cross section at theta = 0 to the
-# total cross section is zero.  To prevent any errors or warnings, we set a
-# value EPSILON corresponding to the minimum angle at which to calculate the
-# structure factor (and, by extension, the total cross-section)
+# total cross section is zero. To prevent any errors or warnings, we set a
+# value SMALL_ANGLE corresponding to the minimum angle at which to calculate
+# the structure factor (and, by extension, the total cross-section)
 SMALL_ANGLE = 1e-8
 
 # For the moment, I'm using fixed quadrature.  The following number of angles
@@ -183,12 +183,14 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
 
     # one critical difference from Sofia's original code is that this code
     # calculates the reflected intensity in each polarization channel
-    # separately, then averages them.  The original code averaged the transmission
-    # coefficients and differential cross sections for the two polarization
-    # channels before integrating.
-    reflected_par = t_medium_sample[0] * sigma_detected_par/sigma_total_par * \
+    # separately, then averages them. The original code averaged the
+    # transmission coefficients for the two polarization channels before
+    # integrating. However, we do average the total cross section to normalize
+    # the reflection cross-sections (that is, we use sigma_total rather than
+    # sigma_total_par or sigma_total_perp).
+    reflected_par = t_medium_sample[0] * sigma_detected_par/sigma_total * \
                     factor + r_medium_sample[0]
-    reflected_perp = t_medium_sample[1] * sigma_detected_perp/sigma_total_perp * \
+    reflected_perp = t_medium_sample[1] * sigma_detected_perp/sigma_total * \
                      factor + r_medium_sample[1]
 
     # and the transport length for unpolarized light
@@ -227,7 +229,7 @@ def _integrate_cross_section(cross_section, factor, angles):
     integrand = cross_section * factor * np.sin(angles)
     # np.trapz does not preserve units, so need to state explicitly that we are
     # in the same units as the integrand
-    integral = np.trapz(integrand, angles) * integrand.units
+    integral = np.trapz(integrand, x=angles) * integrand.units
     # multiply by 2*pi to account for integral over phi
     sigma = 2 * np.pi * integral
 
