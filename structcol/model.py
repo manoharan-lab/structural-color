@@ -34,24 +34,14 @@ from . import refractive_index as ri
 from . import ureg, Quantity
 from . import mie, structure, index_ratio, size_parameter
 
-# If the analytic formula is used, S(q=0) returns nan. To calculate the
-# scattering cross section, this does not matter because sin(0) = 0 so the
-# contribution of the differential scattering cross section at theta = 0 to the
-# total cross section is zero. To prevent any errors or warnings, we set a
-# value SMALL_ANGLE corresponding to the minimum angle at which to calculate
-# the structure factor (and, by extension, the total cross-section)
-SMALL_ANGLE = 1e-8
-
-# For the moment, I'm using fixed quadrature.  The following number of angles
-# seems to do ok for 280 nm spheres, but could use some more testing.
-NUM_ANGLES = 200
-
 @ureg.check('[]', '[]', '[]', '[length]', '[length]', '[]')
 def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
                thickness=None,
                theta_min=Quantity('90 deg'),
                theta_max=Quantity('180 deg'),
-               incident_angle=Quantity('0 deg')):
+               incident_angle=Quantity('0 deg'),
+               num_angles = 200,
+               small_angle=Quantity('5 deg')):
     """
     Calculate fraction of light reflected from an amorphous colloidal
     suspension (a "photonic glass").
@@ -90,6 +80,21 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
     incident_angle: structcol.Quantity [dimensionless] (optional)
         incident angle, measured from the normal (specify degrees or radians by
         using the appropriate units in Quantity())
+    num_angles: integer
+        number of angles to use in evaluation of the cross-section, which is
+        done by numerical integration (fixed quadrature). The default value
+        (200) seems to do OK for 280-nm-diameter spheres, but could use more
+        testing.
+    small_angle: structcol.Quantity [dimensionless] (optional)
+        If the analytic formula is used, S(q=0) returns nan. This doesn't
+        matter when calculating the scattering cross section because sin(0) =
+        0, so the contribution of the differential scattering cross section at
+        theta = 0 to the total cross section is zero. To prevent any errors or
+        warnings, set small_angle equal to some minimum angle
+        at which to calculate the structure factor (and, by extension, the
+        total cross-section).  The default value is chosen to give good
+        agreement with Mie theory for a single sphere, but it may not be
+        reasonable for all calculations.
 
     Returns
     -------
@@ -131,6 +136,7 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
 
     theta_min = theta_min.to('rad').magnitude
     theta_max = theta_max.to('rad').magnitude
+    small_angle = small_angle.to('rad').magnitude
     # calculate the min theta, taking into account refraction at the interface
     # between the medium and the sample. This is the scattering angle at which
     # light exits into the medium at (180-theta_min) degrees from the normal.
@@ -147,7 +153,7 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
 
     # integrate form_factor*structure_factor*transmission
     # coefficient*sin(theta) over angles to get sigma_detected (eq 5)
-    angles = Quantity(np.linspace(theta_min_refracted, theta_max, NUM_ANGLES),
+    angles = Quantity(np.linspace(theta_min_refracted, theta_max, num_angles),
                       'rad')
     diff_cs = differential_cross_section(m, x, angles, volume_fraction)
     transmission = fresnel_transmission(n_sample, n_medium, np.pi-angles)
@@ -158,7 +164,7 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
     sigma_detected = (sigma_detected_par + sigma_detected_perp)/2.0
 
     # now integrate from 0 to 180 degrees to get total cross-section.
-    angles = Quantity(np.linspace(0.0+SMALL_ANGLE, np.pi, NUM_ANGLES), 'rad')
+    angles = Quantity(np.linspace(0.0+small_angle, np.pi, num_angles), 'rad')
     # Fresnel coefficients do not appear in this integral since we're using the
     # total cross-section to account for the attenuation in intensity as light
     # propagates through the sample
@@ -168,9 +174,12 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
     sigma_total = (sigma_total_par + sigma_total_perp)/2.0
 
     # calculate asymmetry parameter using integral from 0 to 180 degrees
-    asymmetry_parameter = _integrate_cross_section(diff_cs[0], np.cos(angles)*1.0/k**2, angles)
+    asymmetry_par = _integrate_cross_section(diff_cs[0], np.cos(angles)*1.0/k**2,
+                                             angles)
+    asymmetry_perp = _integrate_cross_section(diff_cs[1], np.cos(angles)*1.0/k**2,
+                                              angles)
     # calculate for unpolarized light
-    asymmetry_parameter = asymmetry_parameter/sigma_total
+    asymmetry_parameter = (asymmetry_par + asymmetry_perp)/sigma_total/2.0
 
     # now eq. 6 for the total reflection
     rho = _number_density(volume_fraction, radius)
