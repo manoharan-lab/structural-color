@@ -60,8 +60,11 @@ def calc_ang_dist(m, x, angles, mie = True, check = False):
     angles: ndarray(structcol.Quantity [dimensionless])
         array of angles. Must be entered as a Quantity to allow specifying
         units (degrees or radians) explicitly
-    mie: Boolean, default true, uses RG approximation if false
-    check: Boolean, if using Mie solution display scat. efficiencies
+    mie: Boolean (optional)
+        if true (default) does full Mie calculation; if false, )uses RG
+        approximation
+    check: Boolean (optional)
+        if true, outputs scattering efficiencies
 
     Returns
     -------
@@ -195,6 +198,42 @@ def calc_g(m, x):
     cscat = _cross_sections(coeffs[0], coeffs[1])[0] * 2./x**2
     g = (4/(x**2 * cscat)) * _asymmetry_parameter(coeffs[0], coeffs[1])
     return g
+
+@ureg.check(None, None, '[length]', ('[]','[]', '[]'))
+def calc_integrated_cross_section(m, x, wavelen_media, theta_range):
+    """
+    Calculate (dimensional) integrated cross section using quadrature
+
+    Parameters
+    ----------
+    m: complex relative refractive index
+    x: size parameter
+    wavelen_media: structcol.Quantity [length]
+        wavelength of incident light *in media*
+    theta_range: tuple of structcol.Quantity [dimensionless]
+        first two elements specify the range of polar angles over which to
+        integrate the scattering. Last element specifies the number of angles.
+
+    Returns
+    -------
+    cross_section : float
+        Dimensional integrated cross-section
+    """
+    theta_min = theta_range[0].to('rad').magnitude
+    theta_max = theta_range[1].to('rad').magnitude
+    angles = Quantity(np.linspace(theta_min, theta_max, theta_range[2]), 'rad')
+    form_factor = calc_ang_dist(m, x, angles)
+
+    integrand_par = form_factor[0]*np.sin(angles)
+    integrand_perp = form_factor[1]*np.sin(angles)
+
+    # np.trapz does not preserve units, so need to state explicitly that we are
+    # in the same units as the integrand
+    integral_par = 2 * np.pi * np.trapz(integrand_par, x=angles)*integrand_par.units
+    integral_perp = 2 * np.pi * np.trapz(integrand_perp, x=angles)*integrand_perp.units
+
+    # multiply by 1/k**2 to get the dimensional value
+    return wavelen_media**2/4/np.pi/np.pi * (integral_par + integral_perp)/2.0
 
 # Mie functions used internally
 
