@@ -263,6 +263,7 @@ def initialize(nevents, ntraj):
 
 
 def phase_function(radius, n_particle, n_sample, angles, wavelen):
+
     """
     Calculates the phase function from Mie theory. 
     
