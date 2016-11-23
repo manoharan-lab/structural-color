@@ -186,7 +186,56 @@ class Trajectory():
             
             for n in np.arange(ntraj):
                 ax3D.scatter(self.r[0,:,n], self.r[1,:,n], self.r[2,:,n], color=next(colors)) 
-        #plt.show()
+        
+
+def RTcounter(z, z_low, cutoff, ntraj):
+    """
+    Counts the fraction of reflected and transmitted trajectories 
+    after a cutoff.
+    Identifies which trajectories are reflected or transmitted,
+    and at which scattering event. 
+    """
+
+    R_row_indices = []
+    R_col_indices = []
+    T_row_indices = []
+    T_col_indices = []
+
+    for tr in np.arange(ntraj):
+        z_tr = z[:,tr]
+    
+        if any(z_tr > cutoff):
+            z_T = next(zi for zi in z_tr if zi > cutoff)        
+            T_row = z_tr.tolist().index(z_T)
+        else:
+            T_row = np.NaN
+   
+        if any(z_tr < z_low):
+            z_R = next(zi for zi in z_tr if zi < z_low)
+            R_row = z_tr.tolist().index(z_R)
+        else:
+            R_row = np.NaN
+
+        
+        if (type(T_row) == int and type(R_row) != int):
+            T_row_indices.append(T_row)
+            T_col_indices.append(tr)
+        
+        if (type(R_row) == int and type(T_row) != int):
+            R_row_indices.append(R_row)
+            R_col_indices.append(tr)
+        
+        # if a trajectory both reflects and transmits, choose whichever happens first
+        if (type(T_row) == int and type(R_row) == int):
+            if T_row < R_row: 
+                T_row_indices.append(T_row)
+                T_col_indices.append(tr)
+            if R_row < T_row: 
+                R_row_indices.append(R_row)
+                R_col_indices.append(tr)
+
+    return len(R_row_indices), len(T_row_indices), R_row_indices, R_col_indices, T_row_indices, T_col_indices
+
 
 def initialize(nevents, ntraj):
     """
@@ -213,7 +262,8 @@ def initialize(nevents, ntraj):
     return r0, k0, W0
 
 
-def phase_function(radius, n_particle, n_matrix, angles, wavelen):
+def phase_function(radius, n_particle, n_sample, angles, wavelen):
+
     """
     Calculates the phase function from Mie theory. 
     
@@ -227,10 +277,10 @@ def phase_function(radius, n_particle, n_matrix, angles, wavelen):
     """
         
     angles = angles.to('rad')
-    ksquared = (2 * np.pi *n_matrix / wavelen)**2
+    ksquared = (2 * np.pi *n_sample / wavelen)**2
 
-    m = index_ratio(n_particle, n_matrix)
-    x = size_parameter(wavelen, n_matrix, radius)
+    m = index_ratio(n_particle, n_sample)
+    x = size_parameter(wavelen, n_sample, radius)
 
     S2squared, S1squared = mie.calc_ang_dist(m, x, angles)
     S11 = (S1squared + S2squared)/2
@@ -241,17 +291,17 @@ def phase_function(radius, n_particle, n_matrix, angles, wavelen):
     return p
 
 
-def scat_abs_length(radius, n_particle, n_matrix, volume_fraction, wavelen):
+def scat_abs_length(radius, n_particle, n_sample, volume_fraction, wavelen):
     """
     Calculates the scattering and absorption lengths from Mie theory. 
     
-    radius, n_particle, n_matrix, wavelen: must be entered as Quantity to allow 
+    radius, n_particle, n_sample, wavelen: must be entered as Quantity to allow 
     specifying units
     """
     
     number_density = 3.0 * volume_fraction / (4.0 * np.pi * radius**3)
-    m = index_ratio(n_particle, n_matrix)
-    x = size_parameter(wavelen, n_matrix, radius)
+    m = index_ratio(n_particle, n_sample)
+    x = size_parameter(wavelen, n_sample, radius)
     
     cscat = mie.calc_cross_sections(m, x, wavelen)[0]
     cabs = mie.calc_cross_sections(m, x, wavelen)[2]
