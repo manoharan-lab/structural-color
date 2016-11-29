@@ -31,7 +31,9 @@ Radiation Transfer” (July 2013).
 
 from . import mie, index_ratio, size_parameter
 import numpy as np
+np.random.seed([10])
 from numpy.random import random as random
+
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 import itertools
@@ -284,7 +286,7 @@ def phase_function(radius, n_particle, n_sample, angles, wavelen):
 
     S2squared, S1squared = mie.calc_ang_dist(m, x, angles)
     S11 = (S1squared + S2squared)/2
-    cscat = mie.calc_cross_sections(m, x, wavelen)[0]
+    cscat = mie.calc_cross_sections(m, x, wavelen/n_sample)[0]
 
     p = S11 / (ksquared * cscat)      
     
@@ -297,14 +299,19 @@ def scat_abs_length(radius, n_particle, n_sample, volume_fraction, wavelen):
     
     radius, n_particle, n_sample, wavelen: must be entered as Quantity to allow 
     specifying units
+    
+    wavelen: structcol.Quantity [length]. Wavelength in vacuum.
+    wavelen/n_sample: wavelength of incident light *in media* (usually this would be the
+    wavelength in the effective index of the particle-matrix composite)
     """
     
     number_density = 3.0 * volume_fraction / (4.0 * np.pi * radius**3)
     m = index_ratio(n_particle, n_sample)
     x = size_parameter(wavelen, n_sample, radius)
     
-    cscat = mie.calc_cross_sections(m, x, wavelen)[0]
-    cabs = mie.calc_cross_sections(m, x, wavelen)[2]
+    cross_sections = mie.calc_cross_sections(m, x, wavelen/n_sample)
+    cscat = cross_sections[0]
+    cabs = cross_sections[2]
 
     lscat = 1 / (cscat * number_density)
     lscat = lscat.to('um')
