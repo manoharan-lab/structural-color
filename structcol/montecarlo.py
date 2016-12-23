@@ -31,7 +31,7 @@ Radiation Transfer” (July 2013).
 
 from . import mie, index_ratio, size_parameter
 import numpy as np
-np.random.seed([10])
+#np.random.seed([10])
 from numpy.random import random as random
 
 import matplotlib.pyplot as plt
@@ -190,12 +190,14 @@ class Trajectory():
                 ax3D.scatter(self.r[0,:,n], self.r[1,:,n], self.r[2,:,n], color=next(colors)) 
         
 
-def RTcounter(z, z_low, cutoff, ntraj):
+def RTcounter(z, z_low, cutoff, ntraj, n_matrix, n_sample, kx, ky, kz):
     """
     Counts the fraction of reflected and transmitted trajectories 
     after a cutoff.
     Identifies which trajectories are reflected or transmitted,
     and at which scattering event. 
+    Includes total internal reflection correction.
+    kx, ky, kz: direction cosines calculated during the simulation.
     """
 
     R_row_indices = []
@@ -236,7 +238,65 @@ def RTcounter(z, z_low, cutoff, ntraj):
                 R_row_indices.append(R_row)
                 R_col_indices.append(tr)
 
-    return len(R_row_indices), len(T_row_indices), R_row_indices, R_col_indices, T_row_indices, T_col_indices
+
+    ## Include total internal reflection correction:
+    
+    # Calculate total internal reflection angle
+    sin_alpha_sample = np.sin(np.pi - np.pi/2) * n_matrix/n_sample
+    
+    if sin_alpha_sample >= 1:
+        theta_min_refracted = np.pi/2.0
+    else:
+        theta_min_refracted = np.pi - np.arcsin(sin_alpha_sample)
+
+
+    Theta_R = []
+    Phi_R = []
+    count = 0
+    
+    ev = np.array(R_row_indices)-1
+    tr = np.array(R_col_indices)
+    cosA = kx[ev,tr]
+    cosB = ky[ev,tr]
+    cosC = kz[ev,tr]
+    
+    for i in range(len(cosA)):
+        
+        # Solve for correct theta and phi from the direction cosines, 
+        # accounting for parity of sin and cos functions
+        
+        theta = np.arccos(cosC[i])
+        phi1 = np.arccos(cosA[i] / np.sin(theta))
+        phi2 = -np.arccos(cosA[i] / np.sin(theta))
+
+        phi3 = np.arcsin(cosB[i] / np.sin(theta))
+        phi4 = np.pi - np.arcsin(cosB[i] / np.sin(theta))
+
+        A = np.array([abs(phi1-phi3),abs(phi1-phi4),abs(phi2-phi3),abs(2*np.pi+phi2-phi4)])
+        B = A.argmin(0)
+
+        if B == 0:
+            Phi_R.append((phi1+phi3)/2) 
+        elif B == 1:
+            Phi_R.append((phi1+phi4)/2)
+        elif B == 2: 
+            Phi_R.append((phi2+phi3)/2)
+        elif B == 3:
+            Phi_R.append((2*np.pi+phi2+phi4)/2)
+    
+        Theta_R.append(theta)
+        
+        # Count how many of the thetas correspond to the range of total internal reflection
+        if theta < theta_min_refracted:
+            count = count + 1
+
+
+    # Calculate corrected reflection fraction
+
+    R_fraction_corrected = np.array(len(R_row_indices) - count) / ntraj
+    
+    
+    return R_fraction_corrected, Theta_R, Phi_R
 
 
 def initialize(nevents, ntraj):
