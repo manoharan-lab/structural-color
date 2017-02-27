@@ -1,10 +1,13 @@
 # -*- coding: utf-8 -*-
+<<<<<<< HEAD
 """
 Created on Fri Feb 10 17:22:32 2017
 
 @author: vhwang
 """
 
+=======
+>>>>>>> 8cfdd8bc79e734396ff155bb4184c08fcd05ea13
 # Copyright 2016 Vinothan N. Manoharan, Victoria Hwang, Annie Stephenson
 #
 # This file is part of the structural-color python package.
@@ -107,12 +110,11 @@ class Trajectory:
     ----------
     position : ndarray (structcol.Quantity [length])
         array of position vectors in cartesian coordinates of n trajectories
-        dimensions of 
     direction : ndarray (structcol.Quantity [dimensionless])
         array of direction of propagation vectors in cartesian coordinates
         of n trajectories after every scattering event
     weight : ndarray (structcol.Quantity [dimensionless])
-        array of photon packet weights for absorption modeling of n 
+        array of photon packet weights for absorption modeling of n
         trajectories
     nevents : int
         number of scattering events
@@ -148,8 +150,8 @@ class Trajectory:
             Dimensions of (nevents, number of trajectories)
         nevents : see Class attributes
 
-        """        
-    
+        """
+
         self.position = position
         self.direction = direction
         self.weight = weight
@@ -160,10 +162,10 @@ class Trajectory:
         """
         Calculates absorption of photon packet after each scattering event.
 
-        Absorption is modeled as a reduction of a photon packet's weight 
+        Absorption is modeled as a reduction of a photon packet's weight
         every time it gets scattered. Currently, absorption is not modeled
         independently of scattering.
-        
+
         Parameters
         ----------
         mu_abs : float (structcol.Quantity [1/length])
@@ -171,17 +173,17 @@ class Trajectory:
         mu_scat: float (structcol.Quantity [1/length])
             Scattering coefficient of packet.
 
-        Returns 
+        Returns
         -------
         array_like
-            New weight of packet 
-        
+            New weight of packet
+
         """
 
         # Extinction coefficient is sum of absorption and scattering coeff.
         mu_total = mu_abs + mu_scat
-        
-        # At each scattering event, the photon packet loses part of its weight        
+
+        # At each scattering event, the photon packet loses part of its weight
         delta_weight = self.weight * mu_abs / mu_total
 
         self.weight = self.weight - delta_weight
@@ -189,18 +191,18 @@ class Trajectory:
 
     def scatter(self, sintheta, costheta, sinphi, cosphi):
         """
-        Calculates the directions of propagation (or direction cosines) after 
+        Calculates the directions of propagation (or direction cosines) after
         scattering.
 
-        At a scattering event, a photon packet adopts a new direction of 
-        propagation, which is randomly sampled from the phase function. 
-        
+        At a scattering event, a photon packet adopts a new direction of
+        propagation, which is randomly sampled from the phase function.
+
         Parameters
         ----------
         sintheta, costheta, sinphi, cosphi : array_like
-            Sines and cosines of scattering (theta) and azimuthal (phi) angles 
-            sampled from the phase function. Theta and phi are angles that are 
-            defined with respect to the previous corresponding direction of 
+            Sines and cosines of scattering (theta) and azimuthal (phi) angles
+            sampled from the phase function. Theta and phi are angles that are
+            defined with respect to the previous corresponding direction of
             propagation. Thus, they are defined in a local spherical coordinate
             system. All have dimensions of (nevents, ntrajectories).
 
@@ -208,6 +210,7 @@ class Trajectory:
 
         kn = self.direction
 
+<<<<<<< HEAD
         # Calculate the new x, y, z coordinates of the propagation direction 
         # using the following equations, which can be derived by using matrix
         # operations to perform a rotation about the y-axis by angle theta 
@@ -221,6 +224,23 @@ class Trajectory:
 
             kn[:,n,:] = kx, ky, kz
             
+=======
+        # Calculate the new x, y, z coordinates of the propagation direction
+        # using the following equations, which can be derived by using matrix
+        # operations to perform a rotation about the y-axis by angle theta
+        # followed by a rotation about the z-axis by angle phi
+        for n in np.arange(1,self.nevents):
+            kx = ((kn[0,n-1,:]*costheta[n-1,:] + kn[2,n-1,:]*sintheta[n-1,:])*
+                  cosphi[n-1,:]) - kn[1,n-1,:]*sinphi[n-1,:]
+
+            ky = ((kn[0,n-1,:]*costheta[n-1,:] + kn[2,n-1,:]*sintheta[n-1,:])*
+                  sinphi[n-1,:]) + kn[1,n-1,:]*cosphi[n-1,:]
+
+            kz = -kn[0,n-1,:]*sintheta[n-1,:] + kn[2,n-1,:]*costheta[n-1,:]
+
+            kn[:,n,:] = kx, ky, kz
+
+>>>>>>> 8cfdd8bc79e734396ff155bb4184c08fcd05ea13
         # Update all the directions of the trajectories
         self.direction = kn
 
@@ -229,23 +249,30 @@ class Trajectory:
         """
         Calculates positions of photon packets in all the trajectories.
 
-        After each scattering event, the photon packet gets a new position 
-        based on the previous position, the step size, and the direction of 
+        After each scattering event, the photon packet gets a new position
+        based on the previous position, the step size, and the direction of
         propagation.
 
         Parameters
         ----------
         lscat : float (structcol.Quantity [length])
+<<<<<<< HEAD
             Scattering length (from either Mie theory or the single scattering  
             model), which is used as the step size between scattering events 
             in the trajectories.
       
+=======
+            Scattering length (from either Mie theory or the single scattering
+            model), which is used as the step size between scattering events
+            in the trajectories.
+
+>>>>>>> 8cfdd8bc79e734396ff155bb4184c08fcd05ea13
         """
 
         displacement = self.position
         displacement[:, 1:, :] = lscat * self.direction
 
-        # The array of positions is a cumulative sum of all of the 
+        # The array of positions is a cumulative sum of all of the
         # displacements
         self.position[0] = np.cumsum(displacement[0,:,:], axis=0)
         self.position[1] = np.cumsum(displacement[1,:,:], axis=0)
@@ -260,10 +287,10 @@ class Trajectory:
         Parameters
         ----------
         ntraj : int
-            Number of trajectories. 
+            Number of trajectories.
         three_dim : bool
             If True, it plots the trajectories' coordinates in 3D.
-            
+
         """
 
         colormap = plt.cm.gist_ncar
@@ -295,6 +322,7 @@ class Trajectory:
                              self.position[2,:,n], color=next(colors))
 
 
+<<<<<<< HEAD
 def refl_trans_counter(z, z_low, cutoff, ntraj, n_matrix, n_sample, kx, ky, kz, detection_angle=np.pi/2):
     """
     Counts the fraction of reflected trajectories after a cutoff.
@@ -302,16 +330,25 @@ def refl_trans_counter(z, z_low, cutoff, ntraj, n_matrix, n_sample, kx, ky, kz, 
     Identifies which trajectories are reflected or transmitted, and at which 
     scattering event. Includes Fresnel reflection correction. Then 
     counts the fraction of reflected trajectories that are detected. 
+=======
+def calc_reflection(z, z_low, cutoff, ntraj, n_matrix, n_sample, kx, ky, kz, detection_angle=np.pi/2):
+    """
+    Counts the fraction of reflected trajectories after a cutoff.
+
+    Identifies which trajectories are reflected or transmitted, and at which
+    scattering event. Includes Fresnel reflection correction. Then
+    counts the fraction of reflected trajectories that are detected.
+>>>>>>> 8cfdd8bc79e734396ff155bb4184c08fcd05ea13
 
     Parameters
     ----------
     z : array_like (structcol.Quantity [length])
         z-coordinates of position array.
     z_low : float (structcol.Quantity [length])
-        Initial z-position that defines the beginning of the simulated sample. 
-        Should be set to 0. 
+        Initial z-position that defines the beginning of the simulated sample.
+        Should be set to 0.
     cutoff : float (structcol.Quantity [length])
-        Final z-cutoff that determines the effective thickness of the simulated 
+        Final z-cutoff that determines the effective thickness of the simulated
         sample.
     ntraj : int
         Number of trajectories.
@@ -320,6 +357,7 @@ def refl_trans_counter(z, z_low, cutoff, ntraj, n_matrix, n_sample, kx, ky, kz, 
     n_sample : float
         Refractive index of the sample.
     kx, ky, kz : array_like (structcol.Quantity [dimensionless])
+<<<<<<< HEAD
         x, y, and z components of the direction cosines. 
     detection_angle : float
         Range of angles of detection. Only the packets that come out of the 
@@ -334,22 +372,38 @@ def refl_trans_counter(z, z_low, cutoff, ntraj, n_matrix, n_sample, kx, ky, kz, 
         (which includes total internal reflection), and are within the range
         of the detector.
         
+=======
+        x, y, and z components of the direction cosines.
+    detection_angle : float
+        Range of angles of detection. Only the packets that come out of the
+        sample within this range will be detected and counted. Should be
+        0 < detection_angle <= pi/2, where 0 means that no angles are detected,
+        and pi/2 means that all the backscattering angles are detected.
+
+    Returns
+    -------
+    refl_fraction_corrected : float
+        Fraction of reflected trajectories, including the Fresnel correction
+        (which includes total internal reflection), and are within the range
+        of the detector.
+
+>>>>>>> 8cfdd8bc79e734396ff155bb4184c08fcd05ea13
     """
 
     refl_row_indices = []
     refl_col_indices = []
     trans_row_indices = []
     trans_col_indices = []
-    
-    # For each trajectory, find the first scattering event after which the  
+
+    # For each trajectory, find the first scattering event after which the
     # packet exits the system by either getting reflected (z-coord < z_low) or
     # transmitted (z-coord > cutoff):
     for tr in np.arange(ntraj):
         z_tr = z[:,tr]
 
         # If there are any z-positions in the trajectory that are larger
-        # than the cutoff (which means the packet has been transmitted), then   
-        # find the index of the first scattering event at which this happens. 
+        # than the cutoff (which means the packet has been transmitted), then
+        # find the index of the first scattering event at which this happens.
         # If no packet gets transmitted, then leave as NaN.
         if any(z_tr > cutoff):
             z_trans = next(zi for zi in z_tr if zi > cutoff)
@@ -358,8 +412,8 @@ def refl_trans_counter(z, z_low, cutoff, ntraj, n_matrix, n_sample, kx, ky, kz, 
             trans_row = np.NaN
 
         # If there are any z-positions in the trajectory that are smaller
-        # than z_low (which means the packet has been reflected), then find  
-        # the index of the first scattering event at which this happens. 
+        # than z_low (which means the packet has been reflected), then find
+        # the index of the first scattering event at which this happens.
         # If no packet gets reflected, then leave as NaN.
         if any(z_tr < z_low):
             z_refl = next(zi for zi in z_tr if zi < z_low)
@@ -367,19 +421,19 @@ def refl_trans_counter(z, z_low, cutoff, ntraj, n_matrix, n_sample, kx, ky, kz, 
         else:
             refl_row = np.NaN
 
-        # If a packet got transmitted but not reflected in the trajectory, 
+        # If a packet got transmitted but not reflected in the trajectory,
         # then append the index at which it gets transmitted
         if (type(trans_row) == int and type(refl_row) != int):
             trans_row_indices.append(trans_row)
             trans_col_indices.append(tr)
 
-        # If a packet got reflected but not transmitted in the trajectory, 
+        # If a packet got reflected but not transmitted in the trajectory,
         # then append the index at which it gets reflected
         if (type(refl_row) == int and type(trans_row) != int):
             refl_row_indices.append(refl_row)
             refl_col_indices.append(tr)
 
-        # If a packet gets both reflected and transmitted, choose whichever 
+        # If a packet gets both reflected and transmitted, choose whichever
         # happens first
         if (type(trans_row) == int and type(refl_row) == int):
             if trans_row < refl_row:
@@ -390,8 +444,13 @@ def refl_trans_counter(z, z_low, cutoff, ntraj, n_matrix, n_sample, kx, ky, kz, 
                 refl_col_indices.append(tr)
 
 
+<<<<<<< HEAD
     ## Include total internal reflection correction if there is any reflection: 
     
+=======
+    ## Include total internal reflection correction if there is any reflection:
+
+>>>>>>> 8cfdd8bc79e734396ff155bb4184c08fcd05ea13
     # If there aren't any reflected packets, then no need to calculate TIR
     if not refl_row_indices:
         refl_fraction_corrected = 0.0
@@ -408,17 +467,24 @@ def refl_trans_counter(z, z_low, cutoff, ntraj, n_matrix, n_sample, kx, ky, kz, 
 #            theta_min_refracted = np.pi - np.arcsin(sin_alpha_sample)
 
         # Now we want to find the scattering and azimuthal angles of the packets
-        # as they exit the sample, to see if they would get reflected back into 
+        # as they exit the sample, to see if they would get reflected back into
         # the sample due to TIR.
         theta_r = []
         phi_r = []
 #        count = 0
 
         # refl_row_indices is the list of indices corresponding to the scattering
+<<<<<<< HEAD
         # events immediately after a photon packet gets reflected. Thus, to get the 
         # scattering event immediately before the packet exits the sample, we 
         # subtract 1.  refl_col_indices is the list of indices corresponding to the 
         # trajectories in which a photon packet gets reflected. 
+=======
+        # events immediately after a photon packet gets reflected. Thus, to get the
+        # scattering event immediately before the packet exits the sample, we
+        # subtract 1.  refl_col_indices is the list of indices corresponding to the
+        # trajectories in which a photon packet gets reflected.
+>>>>>>> 8cfdd8bc79e734396ff155bb4184c08fcd05ea13
         ev = np.array(refl_row_indices)-1
         tr = np.array(refl_col_indices)
 
@@ -428,7 +494,7 @@ def refl_trans_counter(z, z_low, cutoff, ntraj, n_matrix, n_sample, kx, ky, kz, 
         cos_z = kz[ev,tr]
 
         # Find the propagation angles of the photon packets when they are exiting
-        # the sample. Count how many of the angles are within the total internal 
+        # the sample. Count how many of the angles are within the total internal
         # reflection range, and calculate a corrected reflection fraction
         for i in range(len(cos_x)):
 
@@ -437,6 +503,7 @@ def refl_trans_counter(z, z_low, cutoff, ntraj, n_matrix, n_sample, kx, ky, kz, 
             # phi would be defined with respect to the global coordinate
             # system, since they are calculated from the cartesian direction
             # cosines
+<<<<<<< HEAD
             # cos_x = sinθ * cosφ 
             # cos_y = sinθ * sinφ  
             # cos_z = cosθ 
@@ -447,26 +514,38 @@ def refl_trans_counter(z, z_low, cutoff, ntraj, n_matrix, n_sample, kx, ky, kz, 
             
             # However, phi goes from 0 to 2 pi, which means we need to account for 
             # two possible solutions of arccos so that they span the 0 - 2pi range. 
+=======
+            # cos_x = sinθ * cosφ
+            # cos_y = sinθ * sinφ
+            # cos_z = cosθ
+
+            # The arccos function in numpy takes values from 0 to pi. When we solve
+            # for theta, this is fine because theta goes from 0 to pi.
+            theta = np.arccos(cos_z[i])
+
+            # However, phi goes from 0 to 2 pi, which means we need to account for
+            # two possible solutions of arccos so that they span the 0 - 2pi range.
+>>>>>>> 8cfdd8bc79e734396ff155bb4184c08fcd05ea13
             phi1 = np.arccos(cos_x[i] / np.sin(theta))
-        
-            # I define pi as a quantity in radians, so that phi is in radians.        
+
+            # I define pi as a quantity in radians, so that phi is in radians.
             pi = sc.Quantity(np.pi,'rad')
             phi2 = - np.arccos(cos_x[i] / np.sin(theta)) + 2*pi
-    
-            # Same for arcsin. 
+
+            # Same for arcsin.
             phi3 = np.arcsin(cos_y[i] / np.sin(theta))
             if phi3 < 0:
-                phi3 = phi3 + 2*pi 
-            phi4 = - np.arcsin(cos_y[i] / np.sin(theta)) + pi 
+                phi3 = phi3 + 2*pi
+            phi4 = - np.arcsin(cos_y[i] / np.sin(theta)) + pi
 
             # Now we need to figure out which phi in each pair is the correct one,
             # since only either phi1 or phi2 will match either phi3 or phi4
             A = np.array([abs(phi1-phi3),abs(phi1-phi4),abs(phi2-phi3),abs(phi2-phi4)])
-        
-            # Find which element in A is the minimum        
+
+            # Find which element in A is the minimum
             B = A.argmin(0)
 
-            # If the first element in A is the minimum, then the correct solution 
+            # If the first element in A is the minimum, then the correct solution
             # is phi1 = phi3, so append their average:
             if B == 0:
                 phi_r.append((phi1+phi3)/2)
@@ -479,6 +558,7 @@ def refl_trans_counter(z, z_low, cutoff, ntraj, n_matrix, n_sample, kx, ky, kz, 
 
 #            # Count how many of the thetas are totally internally reflected
 #            if theta < theta_min_refracted:
+<<<<<<< HEAD
 #                count = count + 1            
 #            else: 
 #                theta_r.append(theta)
@@ -494,10 +574,28 @@ def refl_trans_counter(z, z_low, cutoff, ntraj, n_matrix, n_sample, kx, ky, kz, 
         # refracted_theta = np.pi*np.ones(len(theta_r)) - np.arcsin(n_sample / n_matrix * np.sin(np.pi*np.ones(len(theta_r)) -theta_r))
         refracted_theta = np.pi - np.arcsin(n_sample / n_matrix * np.sin(np.pi-theta_r))
         
+=======
+#                count = count + 1
+#            else:
+#                theta_r.append(theta)
+#                # NOTE TO MYSELF: I AM APPENDING ONLY THE THETAS THAT DON'T GET TIR'D.
+#                # HOWEVER, I STILL APPEND ALL THE PHI, INCLUDING THE ONES THAT DO GET TIR'D.
+
+        # Calculate the Fresnel reflection of all the reflected trajectories
+        refl_fresnel_inc, refl_fresnel_out, theta_r = fresnel_refl(n_sample, n_matrix, kz, ev, tr)
+
+        # For the trajectories that make it out of the sample after the TIR
+        # correction, calculate the thetas after refraction at the interface.
+        # The refracted theta is the theta in the global coordinate system.
+        # refracted_theta = np.pi*np.ones(len(theta_r)) - np.arcsin(n_sample / n_matrix * np.sin(np.pi*np.ones(len(theta_r)) -theta_r))
+        refracted_theta = np.pi - np.arcsin(n_sample / n_matrix * np.sin(np.pi-theta_r))
+
+>>>>>>> 8cfdd8bc79e734396ff155bb4184c08fcd05ea13
         # Out of the trajectories that make it out of the sample, find the ones
         # that are within the detector range after being refracted at the interface
         detected_refl_fresnel_out = refl_fresnel_out[np.where(refracted_theta > (np.pi-detection_angle))]
         refl_fraction = np.array(len(detected_refl_fresnel_out)) / ntraj
+<<<<<<< HEAD
         
         # Only keep the refracted theta that are within angle of detection
         refl_fresnel_out_avg = np.sum(detected_refl_fresnel_out) / ntraj
@@ -534,28 +632,83 @@ def refl_trans_counter_sphere(x, y, z, ntraj, n_matrix, n_sample, kx, ky, kz, ra
     R_fraction : float
         Fraction of reflected trajectories.
 
+=======
+
+        # Only keep the refracted theta that are within angle of detection
+        refl_fresnel_out_avg = np.sum(detected_refl_fresnel_out) / ntraj
+        refl_fresnel_inc_avg = np.sum(refl_fresnel_inc) / ntraj
+
+        refl_fraction_corrected = refl_fresnel_inc_avg + (refl_fraction - refl_fresnel_out_avg) * (1- refl_fresnel_inc_avg)
+
+    return refl_fraction_corrected
+
+def calc_reflection_sphere(x, y, z, ntraj, n_matrix, n_sample, kx, ky, kz, radius):
+    """
+    Counts the fraction of reflected trajectories for a photonic glass with a
+    spherical boundary.
+
+    Identifies which trajectories are reflected or transmitted, and at which
+    scattering event. Then counts the fraction of reflected trajectories.
+
+    Parameters
+    ----------
+    x, y, z : array_like (structcol.Quantity [length])
+        x, y, z-coordinates of position array.
+    ntraj : int
+        Number of trajectories.
+    n_matrix : float
+        Refractive index of the matrix.
+    n_sample : float
+        Refractive index of the sample.
+    kx, ky, kz : array_like (structcol.Quantity [dimensionless])
+        x, y, and z components of the direction cosines.
+    radius : float
+        radius of spherical boundary
+
+    Returns
+    ----------
+    R_fraction : float
+        Fraction of reflected trajectories.
+
+>>>>>>> 8cfdd8bc79e734396ff155bb4184c08fcd05ea13
     """
     refl_row_indices = []
     refl_col_indices = []
     trans_row_indices = []
     trans_col_indices = []
+<<<<<<< HEAD
     
+=======
+
+>>>>>>> 8cfdd8bc79e734396ff155bb4184c08fcd05ea13
     def cutoff(x,y):
         if (x**2 + y**2) < radius**2:
             return radius + np.sqrt(radius**2 - x**2 - y**2)
         else:
             return radius
+<<<<<<< HEAD
     
+=======
+
+>>>>>>> 8cfdd8bc79e734396ff155bb4184c08fcd05ea13
     def z_low(x,y):
         if (x**2 + y**2) < radius**2:
             return radius - np.sqrt(radius**2 - x**2 - y**2)
         else:
             return radius
+<<<<<<< HEAD
     
     # For each trajectory, find the first scattering event after which the  
     # packet exits the system by either getting reflected (z-coord < z_low) or
     # transmitted (z-coord > cutoff):
     
+=======
+
+    # For each trajectory, find the first scattering event after which the
+    # packet exits the system by either getting reflected (z-coord < z_low) or
+    # transmitted (z-coord > cutoff):
+
+>>>>>>> 8cfdd8bc79e734396ff155bb4184c08fcd05ea13
     for tr in np.arange(ntraj):
         x_tr = x[:,tr]
         y_tr = y[:,tr]
@@ -563,6 +716,7 @@ def refl_trans_counter_sphere(x, y, z, ntraj, n_matrix, n_sample, kx, ky, kz, ra
         kz_tr = kz[:,tr]
 
         # If there are any z-positions in the trajectory that are larger
+<<<<<<< HEAD
         # than the cutoff (which means the packet has been transmitted), then   
         # find the index of the first scattering event at which this happens. 
         # If no packet gets transmitted, then leave as NaN.
@@ -570,6 +724,15 @@ def refl_trans_counter_sphere(x, y, z, ntraj, n_matrix, n_sample, kx, ky, kz, ra
         #if any(x_tr**2 + y_tr**2 + z_tr**2 > radius):
 
        
+=======
+        # than the cutoff (which means the packet has been transmitted), then
+        # find the index of the first scattering event at which this happens.
+        # If no packet gets transmitted, then leave as NaN.
+
+        #if any(x_tr**2 + y_tr**2 + z_tr**2 > radius):
+
+
+>>>>>>> 8cfdd8bc79e734396ff155bb4184c08fcd05ea13
         for i in range(0,len(z_tr)):
             if z_tr[i] > cutoff(x_tr[i], y_tr[i]):
                 trans_row = i
@@ -578,8 +741,13 @@ def refl_trans_counter_sphere(x, y, z, ntraj, n_matrix, n_sample, kx, ky, kz, ra
                 trans_row = np.NaN
 
         # If there are any z-positions in the trajectory that are smaller
+<<<<<<< HEAD
         # than z_low (which means the packet has been reflected), then find  
         # the index of the first scattering event at which this happens. 
+=======
+        # than z_low (which means the packet has been reflected), then find
+        # the index of the first scattering event at which this happens.
+>>>>>>> 8cfdd8bc79e734396ff155bb4184c08fcd05ea13
         # If no packet gets reflected, then leave as NaN.
         for i in range(0,len(z_tr)):
             if i > 0: # there will not be reflection before first event
@@ -588,19 +756,31 @@ def refl_trans_counter_sphere(x, y, z, ntraj, n_matrix, n_sample, kx, ky, kz, ra
                     break
                 else:
                     refl_row = np.NaN
+<<<<<<< HEAD
         # If a packet got transmitted but not reflected in the trajectory, 
+=======
+        # If a packet got transmitted but not reflected in the trajectory,
+>>>>>>> 8cfdd8bc79e734396ff155bb4184c08fcd05ea13
         # then append the index at which it gets transmitted
         if (type(trans_row) == int and type(refl_row) != int):
             trans_row_indices.append(trans_row)
             trans_col_indices.append(tr)
 
+<<<<<<< HEAD
         # If a packet got reflected but not transmitted in the trajectory, 
+=======
+        # If a packet got reflected but not transmitted in the trajectory,
+>>>>>>> 8cfdd8bc79e734396ff155bb4184c08fcd05ea13
         # then append the index at which it gets reflected
         if (type(refl_row) == int and type(trans_row) != int):
             refl_row_indices.append(refl_row)
             refl_col_indices.append(tr)
 
+<<<<<<< HEAD
         # If a packet gets both reflected and transmitted, choose whichever 
+=======
+        # If a packet gets both reflected and transmitted, choose whichever
+>>>>>>> 8cfdd8bc79e734396ff155bb4184c08fcd05ea13
         # happens first
         if (type(trans_row) == int and type(refl_row) == int):
             if trans_row < refl_row:
@@ -609,6 +789,7 @@ def refl_trans_counter_sphere(x, y, z, ntraj, n_matrix, n_sample, kx, ky, kz, ra
             if trans_row < trans_row:
                 refl_row_indices.append(refl_row)
                 refl_col_indices.append(tr)
+<<<<<<< HEAD
                 
     # create arrays from reflection row and column lists
     #refl_event = np.array(refl_row_indices)-1
@@ -624,39 +805,66 @@ def refl_trans_counter_sphere(x, y, z, ntraj, n_matrix, n_sample, kx, ky, kz, ra
 
     return refl_fraction
     
+=======
+
+    # create arrays from reflection row and column lists
+    #refl_event = np.array(refl_row_indices)-1
+    #refl_traj = np.array(refl_col_indices)
+
+    # TODO: add fresnel correction for sphere instead of just for plane
+    # calculate fresnel reflectances
+    #refl_fresnel_1, refl_fresnel_2 = fresnel_refl(n_sample, n_matrix, kz, refl_event, refl_traj)
+
+    # calculate reflected fraction
+    refl_fraction = np.array(len(refl_row_indices)) / ntraj
+    #refl_fraction = refl_fresnel_1 + (refl_fraction - refl_fresnel_2)*(1- refl_fresnel_1)
+
+    return refl_fraction
+
+>>>>>>> 8cfdd8bc79e734396ff155bb4184c08fcd05ea13
 
 def initialize(nevents, ntraj, seed=None, initial_weight=0.001, incidence_angle=np.pi/2, eps = 1.e-9):
     """
     Sets the trajectories' initial conditions (position, direction, and weight).
-    
-    The initial positions are determined randomly in the x-y plane (the initial 
-    z-position is at z = 0). The initial propagation direction is set to be 1 
-    at z, meaning that the photon packets point straight down in z. The initial 
-    weight is currently determined to be a value of choice. 
+
+    The initial positions are determined randomly in the x-y plane (the initial
+    z-position is at z = 0). The initial propagation direction is set to be 1
+    at z, meaning that the photon packets point straight down in z. The initial
+    weight is currently determined to be a value of choice.
 
     Parameters
-    ----------  
+    ----------
     nevents : int
         Number of scattering events
     ntraj : int
         Number of trajectories
-    seed : int or None        
+    seed : int or None
         If seed is int, the simulation results will be reproducible. If seed is
-        None, the simulation results are actually random. 
+        None, the simulation results are actually random.
     initial_weight : float
         Initial weight of the photon packet. (Note: we still need to decide how
+<<<<<<< HEAD
         to determine this value). 
     incidence_angle = Maximum value for theta when it incides onto the sample. 
+=======
+        to determine this value).
+    incidence_angle = Maximum value for theta when it incides onto the sample.
+>>>>>>> 8cfdd8bc79e734396ff155bb4184c08fcd05ea13
         Should be between 0 and pi/2.
     eps : float
         Difference between the initial z-direction cosine value and 1. The
         initial z-direction value should not be exactly 1.0 because this leads to
-        a divide-by-zero error in the 'scatter' function, when it calculates the 
+        a divide-by-zero error in the 'scatter' function, when it calculates the
         denominator of the equations for the new directions of propagation.
         eps should be smaller than the tolerance parameter 'atol' in the 'scatter'
         function.
         # NOTE TO SELF: GET RID OF THIS EPS, BUT WAIT UNTIL ANNIE CONFIRMS THE NEW SCATTER EQ.
+<<<<<<< HEAD
     Returns 
+=======
+
+    Returns
+>>>>>>> 8cfdd8bc79e734396ff155bb4184c08fcd05ea13
     -------
     r0 : array_like (structcol.Quantity [length])
         Initial position.
@@ -664,22 +872,27 @@ def initialize(nevents, ntraj, seed=None, initial_weight=0.001, incidence_angle=
         Initial direction of propagation.
     weight0 : array_like (structcol.Quantity [dimensionless])
         Initial weight.
-    
+
     """
-        
+
     if seed is not None:
         np.random.seed([seed])
 
     # Initial position. The position array has one more row than the direction
-    # and weight arrays because it includes the starting positions on the x-y 
+    # and weight arrays because it includes the starting positions on the x-y
     # plane
     r0 = np.zeros((3, nevents+1, ntraj))
     r0[0,0,:] = random((1,ntraj))
     r0[1,0,:] = random((1,ntraj))
 
     # Create an empty array of the initial direction cosines of the right size
+<<<<<<< HEAD
     k0 = np.zeros((3, nevents, ntraj)) 
     
+=======
+    k0 = np.zeros((3, nevents, ntraj))
+
+>>>>>>> 8cfdd8bc79e734396ff155bb4184c08fcd05ea13
     # Random sampling of azimuthal angle phi from uniform distribution [0 - 2pi]
     # for the first scattering event
     rand_phi = random((1,ntraj))
@@ -693,25 +906,36 @@ def initialize(nevents, ntraj, seed=None, initial_weight=0.001, incidence_angle=
     theta = rand_theta * incidence_angle
     sintheta = np.sin(theta)
     costheta = np.cos(theta)
+<<<<<<< HEAD
     
     # Fill up the first row (corresponding to the first scattering event) of the 
+=======
+
+    # Fill up the first row (corresponding to the first scattering event) of the
+>>>>>>> 8cfdd8bc79e734396ff155bb4184c08fcd05ea13
     # direction cosines array with the randomly generated angles:
     # kx = sintheta * cosphi
     # ky = sintheta * sinphi
     # kz = costheta
+<<<<<<< HEAD
     k0[0,0,:] = sintheta * cosphi    
     k0[1,0,:] = sintheta * sinphi 
+=======
+    k0[0,0,:] = sintheta * cosphi
+    k0[1,0,:] = sintheta * sinphi
+>>>>>>> 8cfdd8bc79e734396ff155bb4184c08fcd05ea13
     k0[2,0,:] = costheta
 
     # Initial weight
     weight0 = np.zeros((nevents, ntraj))
-    weight0[0,:] = initial_weight                
+    weight0[0,:] = initial_weight
 
     return r0, k0, weight0
 
 def initialize_sphere(nevents, ntraj, radius, seed=None):
     """
     Sets the trajectories' initial conditions (position, direction, and weight).
+<<<<<<< HEAD
     
     The initial positions are determined randomly in the x-y plane (the initial 
     z-position is at z = 0). The initial propagation direction is set to be 1 
@@ -720,11 +944,22 @@ def initialize_sphere(nevents, ntraj, radius, seed=None):
 
     Parameters
     ----------  
+=======
+
+    The initial positions are determined randomly in the x-y plane (the initial
+    z-position is at z = 0). The initial propagation direction is set to be 1
+    at z, meaning that the photon packets point straight down in z. The initial
+    weight is currently determined to be a value of choice.
+
+    Parameters
+    ----------
+>>>>>>> 8cfdd8bc79e734396ff155bb4184c08fcd05ea13
     nevents : int
         Number of scattering events
     ntraj : int
         Number of trajectories
     radius: float
+<<<<<<< HEAD
         radius of the photonic ball
     seed : int or None        
         If seed is int, the simulation results will be reproducible. If seed is
@@ -732,13 +967,26 @@ def initialize_sphere(nevents, ntraj, radius, seed=None):
        
     Returns 
     ---------- 
+=======
+        radius of the bounding sphere
+    seed : int or None
+        If seed is int, the simulation results will be reproducible. If seed is
+        None, the simulation results are actually random.
+
+    Returns
+    ----------
+>>>>>>> 8cfdd8bc79e734396ff155bb4184c08fcd05ea13
     r0 : array_like (structcol.Quantity [length])
         Initial position.
     k0 : array_like (structcol.Quantity [dimensionless])
         Initial direction of propagation.
     weight0 : array_like (structcol.Quantity [dimensionless])
         Initial weight.
+<<<<<<< HEAD
     
+=======
+
+>>>>>>> 8cfdd8bc79e734396ff155bb4184c08fcd05ea13
     """
           
     if seed is not None:
@@ -754,6 +1002,7 @@ def initialize_sphere(nevents, ntraj, radius, seed=None):
     r0[1,0,:] = r*np.sin(t)
     r0[2,0,:] = radius.magnitude-np.sqrt(radius.magnitude**2-r0[0,0,:]**2-r0[1,0,:]**2)
 
+<<<<<<< HEAD
     # Initial direction
     eps = 1.e-9
     k0 = np.zeros((3, nevents, ntraj))
@@ -763,17 +1012,52 @@ def initialize_sphere(nevents, ntraj, radius, seed=None):
     weight0 = np.zeros((nevents, ntraj))
     weight0[0,:] = 0.001                  # (figure out how to determine this)
 
+=======
+    if seed is not None:
+        np.random.seed([seed])
+
+    # Initial position. The position array has one more row than the direction
+    # and weight arrays because in includes the starting positions on the x-y
+    # plane
+    r0 = np.zeros((3, nevents+1, ntraj))
+    r = radius.magnitude*random((1,ntraj))
+    t = 2*np.pi*random((1,ntraj))
+    r0[0,0,:] = r*np.cos(t)
+    r0[1,0,:] = r*np.sin(t)
+    r0[2,0,:] = radius.magnitude-np.sqrt(radius.magnitude**2-r0[0,0,:]**2-r0[1,0,:]**2)
+
+    # Initial direction
+    eps = 1.e-9
+    k0 = np.zeros((3, nevents, ntraj))
+    k0[2,0,:] = 1. - eps
+
+    # Initial weight
+    weight0 = np.zeros((nevents, ntraj))
+    weight0[0,:] = 0.001                  # (figure out how to determine this)
+>>>>>>> 8cfdd8bc79e734396ff155bb4184c08fcd05ea13
 
     return r0, k0, weight0
 
+<<<<<<< HEAD
 def scat_theory_calc(radius, n_particle, n_sample, volume_fraction, angles, wavelen, phase_mie=False, lscat_mie=False):
     """
     Calculates the phase function and scattering length from either the single 
+=======
+    return r0, k0, weight0
+
+def calc_scat(radius, n_particle, n_sample, volume_fraction, angles, wavelen, phase_mie=False, lscat_mie=False):
+    """
+    Calculates the phase function and scattering length from either the single
+>>>>>>> 8cfdd8bc79e734396ff155bb4184c08fcd05ea13
     scattering model or Mie theory. Calculates the absorption length from Mie
     theory.
 
     Parameters
+<<<<<<< HEAD
     ----------  
+=======
+    ----------
+>>>>>>> 8cfdd8bc79e734396ff155bb4184c08fcd05ea13
     radius : float (structcol.Quantity [length])
         Radius of scatterer.
     n_particle : float
@@ -783,6 +1067,7 @@ def scat_theory_calc(radius, n_particle, n_sample, volume_fraction, angles, wave
     volume_fraction : float
         Volume fraction of the sample.
     angles : array_like (structcol.Quantity [rad])
+<<<<<<< HEAD
         Scattering angles (typically from a small angle to pi). A non-zero 
         small angle is needed because in the single scattering model, if the 
         analytic formula is used, S(q=0) returns nan. To prevent any errors or
@@ -796,12 +1081,31 @@ def scat_theory_calc(radius, n_particle, n_sample, volume_fraction, angles, wave
         If True, the scattering length is calculated from Mie theory.    
         
     Returns 
+=======
+        Scattering angles (typically from a small angle to pi). A non-zero
+        small angle is needed because in the single scattering model, if the
+        analytic formula is used, S(q=0) returns nan. To prevent any errors or
+        warnings, set the minimum value of angles to be a small value, such
+        as 0.01.
+    wavelen : float (structcol.Quantity [length])
+        Wavelength of light in vacuum.
+    phase_mie : bool
+        If True, the phase function is calculated from Mie theory. If False
+        (default), it is calculated from the single scattering model, which
+        includes a correction for the structure factor
+    lscat_mie : bool
+        If True, the scattering length is calculated from Mie theory. If False,
+        it is calculated from the single scattering model
+
+    Returns
+>>>>>>> 8cfdd8bc79e734396ff155bb4184c08fcd05ea13
     -------
     p : array_like (structcol.Quantity [dimensionless])
         Phase function from either Mie theory or single scattering model.
     lscat : float (structcol.Quantity [length])
         Scattering length from either Mie theory or single scattering model.
     labs : float (structcol.Quantity [length])
+<<<<<<< HEAD
         Absorption length from Mie theory. 
         
     Notes 
@@ -816,6 +1120,24 @@ def scat_theory_calc(radius, n_particle, n_sample, volume_fraction, angles, wave
         diff. scat. cross section = S11 / k^2
         p = S11 / (k^2 * cscat)
         (Bohren and Huffmann, chapter 13.3)
+=======
+        Absorption length from Mie theory.
+
+    Notes
+    -----
+    The phase function is given by:
+
+        p = diff. scatt. cross section / cscat
+
+    The single scattering model calculates the differential cross section and
+    the total cross section. If we choose to calculate these from Mie theory:
+
+        diff. scat. cross section = S11 / k^2
+        p = S11 / (k^2 * cscat)
+        (Bohren and Huffmann, chapter 13.3)
+
+    """
+>>>>>>> 8cfdd8bc79e734396ff155bb4184c08fcd05ea13
 
     """
     
@@ -823,37 +1145,65 @@ def scat_theory_calc(radius, n_particle, n_sample, volume_fraction, angles, wave
     ksquared = (2 * np.pi *n_sample / wavelen)**2
     m = index_ratio(n_particle, n_sample)
     x = size_parameter(wavelen, n_sample, radius)
+<<<<<<< HEAD
     
     # Calculate the absorption length from Mie theory
     ## Use wavelen/n_sample: wavelength of incident light *in media* 
     ## (usually this would be the wavelength in the effective index of the 
+=======
+
+    # Calculate the absorption length from Mie theory
+    ## Use wavelen/n_sample: wavelength of incident light *in media*
+    ## (usually this would be the wavelength in the effective index of the
+>>>>>>> 8cfdd8bc79e734396ff155bb4184c08fcd05ea13
     ## particle-matrix composite)
     cross_sections = mie.calc_cross_sections(m, x, wavelen/n_sample)
     cabs = cross_sections[2]
     labs = 1 / (cabs * number_density)
+<<<<<<< HEAD
     
     # If phase_mie is set to True, calculate the phase function from Mie theory
     if phase_mie == True: 
+=======
+
+    # If phase_mie is set to True, calculate the phase function from Mie theory
+    if phase_mie == True:
+>>>>>>> 8cfdd8bc79e734396ff155bb4184c08fcd05ea13
         S2squared, S1squared = mie.calc_ang_dist(m, x, angles)
         S11 = (S1squared + S2squared)/2
         cscat = cross_sections[0]
         p = S11 / (ksquared * cscat)
+<<<<<<< HEAD
     
     # Calculate the differential and total cross sections from the single 
+=======
+
+    # Calculate the differential and total cross sections from the single
+>>>>>>> 8cfdd8bc79e734396ff155bb4184c08fcd05ea13
     # scattering model
     diff_sigma_par, diff_sigma_per = model.differential_cross_section(m, x, angles, volume_fraction)
     sigma_total_par = model._integrate_cross_section(diff_sigma_par, 1.0/ksquared, angles)
     sigma_total_perp = model._integrate_cross_section(diff_sigma_per, 1.0/ksquared, angles)
+<<<<<<< HEAD
     sigma_total = (sigma_total_par + sigma_total_perp)/2.0    
     
     # If phase_mie is set to False, use the phase function from the model
     if phase_mie == False:
         p = (diff_sigma_par + diff_sigma_per)/(ksquared * 2 * sigma_total)  
         
+=======
+    sigma_total = (sigma_total_par + sigma_total_perp)/2.0
+
+    # If phase_mie is set to False, use the phase function from the model
+    if phase_mie == False:
+        p = (diff_sigma_par + diff_sigma_per)/(ksquared * 2 * sigma_total)
+
+>>>>>>> 8cfdd8bc79e734396ff155bb4184c08fcd05ea13
     # If lscat_mie is set to True, use the scattering length from Mie theory
     if lscat_mie == True:
         cscat = cross_sections[0]
         lscat = 1 / (cscat * number_density)
+<<<<<<< HEAD
     
     # If lscat_mie is set to False, use the scattering length from the model
     if lscat_mie == False:
@@ -864,30 +1214,42 @@ def scat_theory_calc(radius, n_particle, n_sample, volume_fraction, angles, wave
     lscat = lscat.to('um')
     labs = labs.to('um')
     
+=======
+
+    # If lscat_mie is set to False, use the scattering length from the model
+    if lscat_mie == False:
+        lscat = 1 / number_density / sigma_total
+
+    # Here, the resulting units of lscat and labs are um^3/nm^2. Thus, we
+    # simplify the units to um
+    lscat = lscat.to('um')
+    labs = labs.to('um')
+
+>>>>>>> 8cfdd8bc79e734396ff155bb4184c08fcd05ea13
     return p, lscat, labs
 
 
-def sampling(nevents, ntraj, p, angles):
+def sample_angles(nevents, ntraj, p, angles):
     """
-    Samples azimuthal angles (phi) from uniform distribution, and scattering 
+    Samples azimuthal angles (phi) from uniform distribution, and scattering
     angles (theta) from phase function distribution.
 
     Parameters
-    ---------- 
+    ----------
     nevents : int
-        Number of scattering events. 
+        Number of scattering events.
     ntraj : int
         Number of trajectories.
     p : array_like (structcol.Quantity [dimensionless])
         Phase function values returned from 'phase_function'.
     angles : array_like (structcol.Quantity [rad])
         Scattering angles (typically from 0 to pi).
-    
+
     Returns
-    ------- 
+    -------
     sintheta, costheta, sinphi, cosphi, theta, phi : ndarray
-        Sampled azimuthal and scattering angles, and their sines and cosines. 
-    
+        Sampled azimuthal and scattering angles, and their sines and cosines.
+
     """
 
     # Random sampling of azimuthal angle phi from uniform distribution [0 - 2pi]
@@ -907,6 +1269,7 @@ def sampling(nevents, ntraj, p, angles):
     return sintheta, costheta, sinphi, cosphi, theta, phi
 
 
+<<<<<<< HEAD
 def sampling_step(mu_abs, mu_scat):
     # Calculate total extinction coefficient    
     mu_total = mu_abs + mu_scat
@@ -918,6 +1281,19 @@ def sampling_step(mu_abs, mu_scat):
     
     return step_size, mu_total
     
+=======
+def sample_step(mu_abs, mu_scat):
+    # Calculate total extinction coefficient
+    mu_total = mu_abs + mu_scat
+
+    # Generate uniform random number from 0 to 1
+    rand = np.random.random(np.size(mu_total))
+
+    step_size = -np.log(1.0-rand) / mu_total
+
+    return step_size, mu_total
+
+>>>>>>> 8cfdd8bc79e734396ff155bb4184c08fcd05ea13
 
 def fresnel_refl(n_sample, n_matrix, kz, refl_event, refl_traj):
     """
@@ -931,11 +1307,16 @@ def fresnel_refl(n_sample, n_matrix, kz, refl_event, refl_traj):
     n_sample : float
         Refractive index of the sample.
     kz : array_like (structcol.Quantity [dimensionless])
+<<<<<<< HEAD
         x components of the direction cosines. 
+=======
+        x components of the direction cosines.
+>>>>>>> 8cfdd8bc79e734396ff155bb4184c08fcd05ea13
     refl_event : array
         Indices of reflection events.
     refl_traj : array_like (structcol.Quantity [dimensionless])
         Indices of reflected trajectories.
+<<<<<<< HEAD
     
     Returns
     -------
@@ -952,15 +1333,38 @@ def fresnel_refl(n_sample, n_matrix, kz, refl_event, refl_traj):
     """
     # TODO: add option to modify theta calculation to incorperate curvature of sphere    
     
+=======
+
+    Returns
+    -------
+    refl_fresnel_inc : array
+        Array of Fresnel reflectance fractions of light reflected for each
+        photon due to the interface when the trajectory first enters the sample.
+    refl_fresnel_out : array
+        Array of Fresnel reflectance fractions of light reflected for each
+        photon due to the interface when the trajectory leaves the sample.
+    theta_out : array
+        Array of the scattering angles that make it out of the sample after
+        eliminating the trajectories that get totally internally reflected.
+
+    """
+    # TODO: add option to modify theta calculation to incorperate curvature of sphere
+
+>>>>>>> 8cfdd8bc79e734396ff155bb4184c08fcd05ea13
     # Calculate fresnel for incident light going from medium to sample
     theta_inc = np.arccos(kz[0,:])
     refl_s_inc, refl_p_inc = model.fresnel_reflection(n_matrix, n_sample, sc.Quantity(theta_inc, ''))
     refl_fresnel_inc = .5*(refl_s_inc + refl_p_inc)
+<<<<<<< HEAD
     
+=======
+
+>>>>>>> 8cfdd8bc79e734396ff155bb4184c08fcd05ea13
     # Calculate fresnel for reflected light going from sample to medium
     theta_out = np.arccos(-kz[refl_event,refl_traj])
     refl_s_out, refl_p_out = model.fresnel_reflection(n_sample, n_matrix, sc.Quantity(theta_out, ''))
     refl_fresnel_out = .5*(refl_s_out + refl_p_out)
+<<<<<<< HEAD
     
     # Find the thetas that do not get TIR'd 
     theta_out = np.pi-theta_out[np.where(refl_fresnel_out < 1)]
@@ -968,3 +1372,12 @@ def fresnel_refl(n_sample, n_matrix, kz, refl_event, refl_traj):
     
     return refl_fresnel_inc, refl_fresnel_out, theta_out
     
+=======
+
+    # Find the thetas that do not get TIR'd
+    theta_out = np.pi-theta_out[np.where(refl_fresnel_out < 1)]
+    refl_fresnel_out = refl_fresnel_out[refl_fresnel_out < 1]
+
+    return refl_fresnel_inc, refl_fresnel_out, theta_out
+
+>>>>>>> 8cfdd8bc79e734396ff155bb4184c08fcd05ea13
