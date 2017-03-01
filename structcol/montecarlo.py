@@ -220,7 +220,95 @@ class Trajectory:
         self.direction = kn
 
 
-    def move(self, lscat):
+    def scatter_old(self, sintheta, costheta, sinphi, cosphi, rtol=1e-05, atol=1e-08):
+        """
+        Calculates the directions of propagation (or direction cosines) after 
+        scattering.
+
+        At a scattering event, a photon packet adopts a new direction of 
+        propagation, which is randomly sampled from the phase function. 
+        
+        Parameters
+        ----------
+        sintheta, costheta, sinphi, cosphi : array_like
+            Sines and cosines of scattering (theta) and azimuthal (phi) angles 
+            sampled from the phase function. Theta and phi are angles that are 
+            defined with respect to the previous corresponding direction of 
+            propagation. Thus, they are defined in a local spherical coordinate
+            system. All have dimensions of (nevents, ntrajectories).
+        rtol : float
+            The relative tolerance parameter (see Notes).
+        atol : float
+            The absolute tolerance parameter (see Notes).
+        
+        Notes
+        -----
+        When the value of the z-direction cosine is close to 1, the trigonometric
+        functions used to calculate the new directions of propagation are
+        computationally intensive. Reference [1] recommends using simplified 
+        formulas for these cases. To determine when this condition is met, we use 
+        np.isclose(). When the difference between the z-direction magnitude and 1 
+        is within the tolerance parameters (rtol and atol) given to np.isclose(), 
+        the simplified formulas are used.  
+        
+        For finite values, isclose uses the following equation to test whether two 
+        floating point values are equivalent.(https://docs.scipy.org/doc/numpy-1.10.0
+        /reference/generated/numpy.isclose.html)
+
+            absolute(a - b) <= (atol + rtol * absolute(b))
+        
+        This equation is not symmetric in a and b, so that isclose(a, b) might be 
+        different from isclose(b, a) in some rare cases.
+
+        References
+        ----------
+        ..  [1] L. Wang, S. L. Jacquesa, L. Zhengb, "MCML - Monte Carlo  
+            modeling of light transport in multi-la.yered. tissues," Computer  
+            Methods and Programs in Biomedicine, vol. 47, 131-146, 1995.
+
+        """
+
+        kn = self.direction
+
+        # Calculate the new x, y, z coordinates of the propagation direction 
+        # by multiplying (cross product?) the previous propagation direction 
+        # by the scattering and azimuthal angles of the corresponding event. 
+        # This is to go from the local spherical coordinate system to the 
+        # global cartesian coordinate system.
+        for n in np.arange(1,self.nevents):
+            
+            # kz is z-component of the propagation direction. If kz is not 
+            # close to 1, the set of equations to calculate the new propagation 
+            # direction are [1]:
+            denom = (1-kn[2,n-1,:]**2)**0.5
+
+            kx = sintheta[n-1,:] * (kn[0,n-1,:] * kn[2,n-1,:] * cosphi[n-1,:] -
+                    kn[1,n-1,:] * sinphi[n-1,:]) / denom + kn[0,n-1,:] * costheta[n-1,:]
+
+            ky = sintheta[n-1,:] * (kn[1,n-1,:] * kn[2,n-1,:] * cosphi[n-1,:] +
+                    kn[0,n-1,:] * sinphi[n-1,:]) / denom + kn[1,n-1,:] * costheta[n-1,:]
+
+            kz = -sintheta[n-1,:] * cosphi[n-1,:] * denom + kn[2,n-1,:] * costheta[n-1,:]
+
+            # If kz is close to 1 (propagation direction is straight down in 
+            # z-axis) and >= 0, the set of equatons are [1]:
+            kx2 = sintheta[n-1,:] * cosphi[n-1,:]
+            ky2 = sintheta[n-1,:] * sinphi[n-1,:]
+            kz2 = costheta[n-1,:]
+
+            # If kz is close to 1 and < 0, the set of equatons are [1]:
+            ky3 = -sintheta[n-1,:] * sinphi[n-1,:]
+            kz3 = -costheta[n-1,:]
+
+            # Choose which set of equations to use based on the conditions
+            # described above
+            kn[:,n,:] = np.where(np.logical_not(np.isclose(1-denom**2, 1, rtol, atol, equal_nan=False)), (kx, ky,kz), np.where(kn[2,n-1,:]>= 0., (kx2, ky2, kz2), (kx2, ky3, kz3)))
+            
+        # Update all the directions of the trajectories
+        self.direction = kn
+        
+        
+    def move(self, step):
         """
         Calculates positions of photon packets in all the trajectories.
 
@@ -230,15 +318,13 @@ class Trajectory:
 
         Parameters
         ----------
-        lscat : float (structcol.Quantity [length])
-            Scattering length (from either Mie theory or the single scattering
-            model), which is used as the step size between scattering events
-            in the trajectories.
+        step : ndarray (structcol.Quantity [length])
+            Step sizes between scattering events in each of the trajectories.
 
         """
 
         displacement = self.position
-        displacement[:, 1:, :] = lscat * self.direction
+        displacement[:, 1:, :] = step * self.direction
 
         # The array of positions is a cumulative sum of all of the
         # displacements
@@ -502,6 +588,7 @@ def calc_reflection(z, z_low, cutoff, ntraj, n_matrix, n_sample, kx, ky, kz, det
 
     return refl_fraction_corrected
 
+
 def calc_reflection_sphere(x, y, z, ntraj, n_matrix, n_sample, kx, ky, kz, radius):
     """
     Counts the fraction of reflected trajectories for a photonic glass with a
@@ -621,7 +708,7 @@ def calc_reflection_sphere(x, y, z, ntraj, n_matrix, n_sample, kx, ky, kz, radiu
     return refl_fraction
 
 
-def initialize(nevents, ntraj, seed=None, initial_weight=0.001, incidence_angle=np.pi/2, eps = 1.e-9):
+def initialize(nevents, ntraj, seed=None, initial_weight=0.001, incidence_angle=0., eps = 1.e-9):
     """
     Sets the trajectories' initial conditions (position, direction, and weight).
 
@@ -642,7 +729,8 @@ def initialize(nevents, ntraj, seed=None, initial_weight=0.001, incidence_angle=
     initial_weight : float
         Initial weight of the photon packet. (Note: we still need to decide how
         to determine this value).
-    incidence_angle = Maximum value for theta when it incides onto the sample.
+    incidence_angle : float
+        Maximum value for theta when it incides onto the sample.
         Should be between 0 and pi/2.
     eps : float
         Difference between the initial z-direction cosine value and 1. The
@@ -907,16 +995,36 @@ def sample_angles(nevents, ntraj, p, angles):
     return sintheta, costheta, sinphi, cosphi, theta, phi
 
 
-def sample_step(mu_abs, mu_scat):
+def sample_step(nevents, ntraj, mu_abs, mu_scat):
+    """
+    Samples step sizes from exponential distribution.
+
+    Parameters
+    ----------
+    nevents : int
+        Number of scattering events.
+    ntraj : int
+        Number of trajectories.
+    mu_abs : float (structcol.Quantity [1/length])
+        Absorption coefficient.
+    mu_scat : float (structcol.Quantity [1/length])
+        Scattering coefficient.
+
+    Returns
+    -------
+    step : ndarray
+        Sampled step sizes for all trajectories and scattering events.
+
+    """
     # Calculate total extinction coefficient
     mu_total = mu_abs + mu_scat
 
-    # Generate uniform random number from 0 to 1
-    rand = np.random.random(np.size(mu_total))
+    # Generate array of random numbers from 0 to 1
+    rand = np.random.random((nevents,ntraj))
 
-    step_size = -np.log(1.0-rand) / mu_total
+    step = -np.log(1.0-rand) / mu_total
 
-    return step_size, mu_total
+    return step
 
 
 def fresnel_refl(n_sample, n_matrix, kz, refl_event, refl_traj):
