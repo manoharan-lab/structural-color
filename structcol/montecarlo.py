@@ -1059,7 +1059,6 @@ def fresnel_refl(n_sample, n_matrix, kz, refl_event, refl_traj, weights):
     weights_refl = weights[refl_event, refl_traj]
     weights_refl = weights_refl[np.where(refl_fresnel_out<1)]
     refl_fresnel_out = refl_fresnel_out[refl_fresnel_out < 1]
-    print(weights_refl)
 
     return refl_fresnel_inc, refl_fresnel_out, theta_out, weights_refl
 
