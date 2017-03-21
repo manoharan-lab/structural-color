@@ -406,7 +406,7 @@ def calc_reflection(z, z_low, cutoff, ntraj, n_matrix, n_sample, kx, ky, kz, wei
         of the detector.
 
     """
-    if weights == None:
+    if weights is None:
         weights = np.ones((kx.shape[0],ntraj))
 
     refl_row_indices = []
@@ -559,8 +559,7 @@ def calc_reflection(z, z_low, cutoff, ntraj, n_matrix, n_sample, kx, ky, kz, wei
 #                # HOWEVER, I STILL APPEND ALL THE PHI, INCLUDING THE ONES THAT DO GET TIR'D.
 
         # Calculate the Fresnel reflection of all the reflected trajectories
-        refl_fresnel_inc, refl_fresnel_out, theta_r, weights_refl = fresnel_refl(n_sample, n_matrix, kz, ev, tr, weights)#*weights[ev,tr]
-
+        refl_fresnel_inc, refl_fresnel_out, theta_r, weights_refl = fresnel_refl(n_sample, n_matrix, kz, ev, tr, weights)
         # For the trajectories that make it out of the sample after the TIR
         # correction, calculate the thetas after refraction at the interface.
         # The refracted theta is the theta in the global coordinate system.
@@ -576,8 +575,7 @@ def calc_reflection(z, z_low, cutoff, ntraj, n_matrix, n_sample, kx, ky, kz, wei
         # Only keep the refracted theta that are within angle of detection
         refl_fresnel_out_avg = np.sum(detected_refl_fresnel_out) / ntraj
         refl_fresnel_inc_avg = np.sum(refl_fresnel_inc) / ntraj
-        weights_refl_avg = np.sum(weights_refl) / ntraj 
-
+        weights_refl_avg = np.sum(weights_refl) / len(weights_refl)
         refl_fraction_corrected = (refl_fresnel_inc_avg + (refl_fraction - refl_fresnel_out_avg) * (1- refl_fresnel_inc_avg))*weights_refl_avg
 
     return refl_fraction_corrected
@@ -1061,6 +1059,7 @@ def fresnel_refl(n_sample, n_matrix, kz, refl_event, refl_traj, weights):
     weights_refl = weights[refl_event, refl_traj]
     weights_refl = weights_refl[np.where(refl_fresnel_out<1)]
     refl_fresnel_out = refl_fresnel_out[refl_fresnel_out < 1]
+    print(weights_refl)
 
     return refl_fresnel_inc, refl_fresnel_out, theta_out, weights_refl
 
