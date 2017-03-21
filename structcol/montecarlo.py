@@ -209,7 +209,6 @@ class Trajectory:
         # Update all the directions of the trajectories
         self.direction = kn
 
-
     def move(self, step):
         """
         Calculates positions of photon packets in all the trajectories.
@@ -281,7 +280,6 @@ class Trajectory:
                 ax3D.scatter(self.position[0,:,n], self.position[1,:,n],
                              self.position[2,:,n], color=next(colors))
 
-
 def calc_reflection(z, z_low, cutoff, ntraj, n_matrix, n_sample, kx, ky, kz,
                     weights=None, detection_angle=np.pi/2):
     """
@@ -323,7 +321,7 @@ def calc_reflection(z, z_low, cutoff, ntraj, n_matrix, n_sample, kx, ky, kz,
         of the detector.
 
     """
-    if weights == None:
+    if weights is None:
         weights = np.ones((kx.shape[0],ntraj))
 
     refl_row_indices = []
@@ -462,8 +460,8 @@ def calc_reflection(z, z_low, cutoff, ntraj, n_matrix, n_sample, kx, ky, kz,
 
         # Calculate the Fresnel reflection of all the reflected trajectories
         refl_fresnel_inc, refl_fresnel_out, theta_r, weights_refl = \
-            fresnel_refl(n_sample, n_matrix, kz, ev, tr, weights)#*weights[ev,tr]
-
+            fresnel_refl(n_sample, n_matrix, kz, ev, tr, weights)
+            
         # For the trajectories that make it out of the sample after the TIR
         # correction, calculate the thetas after refraction at the interface.
         # The refracted theta is the theta in the global coordinate system.
@@ -483,8 +481,7 @@ def calc_reflection(z, z_low, cutoff, ntraj, n_matrix, n_sample, kx, ky, kz,
         # Only keep the refracted theta that are within angle of detection
         refl_fresnel_out_avg = np.sum(detected_refl_fresnel_out) / ntraj
         refl_fresnel_inc_avg = np.sum(refl_fresnel_inc) / ntraj
-        weights_refl_avg = np.sum(weights_refl) / ntraj 
-
+        weights_refl_avg = np.sum(weights_refl) / len(weights_refl)
         refl_fraction_corrected = (refl_fresnel_inc_avg +
                                    (refl_fraction - refl_fresnel_out_avg) *
                                    (1- refl_fresnel_inc_avg))*weights_refl_avg
@@ -742,9 +739,7 @@ def initialize_sphere(nevents, ntraj, radius, seed=None, initial_weight = 1):
 
     # Initial weight
     weight0 = np.zeros((nevents, ntraj))
-    weight0[0,:] = initial_weight                # (figure out how to determine
-                                                 # this)
-
+    weight0[0,:] = initial_weight
 
     return r0, k0, weight0
 
