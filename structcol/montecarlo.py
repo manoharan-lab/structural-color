@@ -158,9 +158,9 @@ class Trajectory:
 
         Parameters
         ----------
-        mu_abs : float (structcol.Quantity [1/length])
+        mu_abs : ndarray (structcol.Quantity [1/length])
             Absorption coefficient of packet.
-        step_size: float (structcol.Quantity [1/length])
+        step_size: ndarray (structcol.Quantity [length])
             Scattering coefficient of packet.
 
         """
@@ -925,7 +925,7 @@ def sample_step(nevents, ntraj, mu_abs, mu_scat):
 
 def fresnel_refl(n_sample, n_matrix, kz, refl_event, refl_traj, weights):
     """
-    Calculates the reflectance at the interface of two refractive indeces using
+    Calculates the reflectance at the interface of two refractive indices using
     the fresnel equations. This calculation will include total internal
     reflection
 
