@@ -390,8 +390,6 @@ def calc_reflection(z, z_low, cutoff, ntraj, n_matrix, n_sample, kx, ky, kz,
         # Now we want to find the scattering and azimuthal angles of the
         # packets as they exit the sample, to see if they would get reflected
         # back into the sample due to TIR.
-        theta_r = []
-        phi_r = []
 
         # refl_row_indices is the list of indices corresponding to the
         # scattering events immediately after a photon packet gets reflected.
@@ -413,9 +411,9 @@ def calc_reflection(z, z_low, cutoff, ntraj, n_matrix, n_sample, kx, ky, kz,
         # fraction
 
         #convert cartesian coordinates into spherical coordinate angles
-        theta_r = np.arccos(cos_z)
-        phi_r = np.arctan2(cos_y, cos_x)
-        phi_r = phi_r + 2*np.pi*(phi_r<0) #convert angle from [-pi, -pi] to [0, 2pi]
+        theta_r = sc.Quantity(np.arccos(cos_z), 'rad')
+        phi_r = np.arctan2(cos_y, cos_x) #angle from [-pi, pi]
+        phi_r = sc.Quantity(phi_r + 2*np.pi*(phi_r<0), 'rad') #angle from [0, 2pi]
 
         # Calculate the Fresnel reflection of all the reflected trajectories
         refl_fresnel_inc, refl_fresnel_out, theta_r, weights_refl = \
