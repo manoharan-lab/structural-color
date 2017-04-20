@@ -280,6 +280,78 @@ class Trajectory:
                 ax3D.scatter(self.position[0,:,n], self.position[1,:,n],
                              self.position[2,:,n], color=next(colors))
 
+def trajectory_status(z, low_lim, high_lim):
+    """
+    Determine the outcome of each trajectory for a given sample thickness.
+
+    Parameters
+    ----------
+    z : array_like (structcol.Quantity [length])
+        z-coordinates of position array.
+    low_lim : float (structcol.Quantity [length])
+        Lower limit that defines the beginning of the simulated sample.
+        Usually set to the starting trajectory position and 0.
+    high_lim : float (structcol.Quantity [length])
+        Upper limit that defines the end of the simulated sample.
+        Usually set to the sample's effective thickness.
+
+    Returns
+    -------
+    exit_low_traj : array
+        Indices of trajectories that are reflected.
+        Reflection here means exiting the sample in the lower direction.
+    exit_low_event : array
+        Event indices corresponding to exit in the lower direction.
+        Elementwise correspondence to the trajectories in exit_low_traj.
+    exit_high_traj : array
+        Indices of trajectories that are transmitted.
+        Transmission here means exiting the sample in the higher direction.
+    exit_high_event : array
+        Event indices corresponding to exit in the higher direction.
+        Elementwise correspondence to the trajectories in exit_high_traj.
+    never_exit_traj : array
+        Indices of trajectories that do not exit the sample.
+        These trajectories would eventually be reflected or transmitted,
+        if allowed to undergo more scattering events.
+    """
+
+    # find all events of all trajectories outside limits (low_lim, high_lim)
+    low_bool = (z < low_lim)
+    high_bool = (z > high_lim)
+
+    # find first exit event of each trajectory in each direction
+    # note we convert to 1D array with len = Ntraj
+    low_event = np.argmax(low_bool, axis=0)
+    high_event = np.argmax(high_bool, axis=0)
+
+    # find all trajectories that did not exit in each direction
+    no_low = (low_event == 0)
+    no_high = (high_event == 0)
+
+    # find positions where low_event is less than high_event
+    # note that either < or <= would work here. They are only equal if both 0.
+    low_smaller = (low_event < high_event)
+
+    # find all trajectory outcomes
+    # note ambiguity for trajectories that did not exit in a given direction
+    low_exit = no_high | low_smaller
+    high_exit = no_low | (~low_smaller)
+    never_exit = no_low & no_high
+
+    # find where each trajectory first exits
+    first_low = low_event * low_exit
+    first_high = high_event * high_exit
+
+    #organize values and return
+    exit_low_traj = np.where(first_low > 0)[0]
+    exit_low_event = first_low[first_low > 0]
+    exit_high_traj = np.where(first_high > 0)[0]
+    exit_high_event= first_high[first_high > 0]
+    never_exit_traj = np.where(never_exit > 0)[0]
+
+    return (exit_low_traj, exit_low_event, exit_high_traj, exit_high_event, never_exit_traj)
+
+
 def calc_reflection(z, z_low, cutoff, ntraj, n_matrix, n_sample, kx, ky, kz,
                     weights=None, detection_angle=np.pi/2):
     """
@@ -324,59 +396,7 @@ def calc_reflection(z, z_low, cutoff, ntraj, n_matrix, n_sample, kx, ky, kz,
     if weights is None:
         weights = np.ones((kx.shape[0],ntraj))
 
-    refl_row_indices = []
-    refl_col_indices = []
-    trans_row_indices = []
-    trans_col_indices = []
-
-    # For each trajectory, find the first scattering event after which the
-    # packet exits the system by either getting reflected (z-coord < z_low) or
-    # transmitted (z-coord > cutoff):
-    for tr in np.arange(ntraj):
-        z_tr = z[:,tr]
-
-        # If there are any z-positions in the trajectory that are larger
-        # than the cutoff (which means the packet has been transmitted), then
-        # find the index of the first scattering event at which this happens.
-        # If no packet gets transmitted, then leave as NaN.
-        if any(z_tr > cutoff):
-            z_trans = next(zi for zi in z_tr if zi > cutoff)
-            trans_row = z_tr.tolist().index(z_trans)
-        else:
-            trans_row = np.NaN
-
-        # If there are any z-positions in the trajectory that are smaller
-        # than z_low (which means the packet has been reflected), then find
-        # the index of the first scattering event at which this happens.
-        # If no packet gets reflected, then leave as NaN.
-        if any(z_tr < z_low):
-            z_refl = next(zi for zi in z_tr if zi < z_low)
-            refl_row = z_tr.tolist().index(z_refl)
-        else:
-            refl_row = np.NaN
-
-        # If a packet got transmitted but not reflected in the trajectory,
-        # then append the index at which it gets transmitted
-        if (type(trans_row) == int and type(refl_row) != int):
-            trans_row_indices.append(trans_row)
-            trans_col_indices.append(tr)
-
-        # If a packet got reflected but not transmitted in the trajectory,
-        # then append the index at which it gets reflected
-        if (type(refl_row) == int and type(trans_row) != int):
-            refl_row_indices.append(refl_row)
-            refl_col_indices.append(tr)
-
-        # If a packet gets both reflected and transmitted, choose whichever
-        # happens first
-        if (type(trans_row) == int and type(refl_row) == int):
-            if trans_row < refl_row:
-                trans_row_indices.append(trans_row)
-                trans_col_indices.append(tr)
-            if refl_row < trans_row:
-                refl_row_indices.append(refl_row)
-                refl_col_indices.append(tr)
-
+    refl_col_indices, refl_row_indices, trans_col_indices, trans_row_indices, _ = trajectory_status(z, z_low, cutoff)
 
     ## Include total internal reflection correction if there is any reflection:
 
