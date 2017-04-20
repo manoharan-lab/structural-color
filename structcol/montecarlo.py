@@ -410,8 +410,6 @@ def calc_reflection(z, z_low, cutoff, ntraj, n_matrix, n_sample, kx, ky, kz,
         # Now we want to find the scattering and azimuthal angles of the
         # packets as they exit the sample, to see if they would get reflected
         # back into the sample due to TIR.
-        theta_r = []
-        phi_r = []
 
         # refl_row_indices is the list of indices corresponding to the
         # scattering events immediately after a photon packet gets reflected.
@@ -431,52 +429,11 @@ def calc_reflection(z, z_low, cutoff, ntraj, n_matrix, n_sample, kx, ky, kz,
         # exiting the sample. Count how many of the angles are within the total
         # internal reflection range, and calculate a corrected reflection
         # fraction
-        for i in range(len(cos_x)):
-            # Solve for correct theta and phi from the direction cosines,
-            # accounting for parity of sin and cos functions. These theta and
-            # phi would be defined with respect to the global coordinate
-            # system, since they are calculated from the cartesian direction
-            # cosines
-            # cos_x = sinθ * cosφ cos_y = sinθ * sinφ cos_z = cosθ
 
-            # The arccos function in numpy takes values from 0 to pi. When we
-            # solve for theta, this is fine because theta goes from 0 to pi.
-            theta = np.arccos(cos_z[i])
-
-            # However, phi goes from 0 to 2 pi, which means we need to account
-            # for two possible solutions of arccos so that they span the 0 -
-            # 2pi range.
-            phi1 = np.arccos(cos_x[i] / np.sin(theta))
-
-            # I define pi as a quantity in radians, so that phi is in radians.
-            pi = sc.Quantity(np.pi,'rad')
-            phi2 = - np.arccos(cos_x[i] / np.sin(theta)) + 2*pi
-
-            # Same for arcsin.
-            phi3 = np.arcsin(cos_y[i] / np.sin(theta))
-            if phi3 < 0:
-                phi3 = phi3 + 2*pi
-            phi4 = - np.arcsin(cos_y[i] / np.sin(theta)) + pi
-
-            # Now we need to figure out which phi in each pair is the correct
-            # one, since only either phi1 or phi2 will match either phi3 or
-            # phi4
-            A = np.array([abs(phi1-phi3), abs(phi1-phi4),
-                          abs(phi2-phi3), abs(phi2-phi4)])
-
-            # Find which element in A is the minimum
-            B = A.argmin(0)
-
-            # If the first element in A is the minimum, then the correct
-            # solution is phi1 = phi3, so append their average:
-            if B == 0:
-                phi_r.append((phi1+phi3)/2)
-            elif B == 1:
-                phi_r.append((phi1+phi4)/2)
-            elif B == 2:
-                phi_r.append((phi2+phi3)/2)
-            elif B == 3:
-                phi_r.append((phi2+phi4)/2)
+        #convert cartesian coordinates into spherical coordinate angles
+        theta_r = sc.Quantity(np.arccos(cos_z), 'rad')
+        phi_r = np.arctan2(cos_y, cos_x) #angle from [-pi, pi]
+        phi_r = sc.Quantity(phi_r + 2*np.pi*(phi_r<0), 'rad') #angle from [0, 2pi]
 
         # Calculate the Fresnel reflection of all the reflected trajectories
         refl_fresnel_inc, refl_fresnel_out, theta_r, weights_refl = \
