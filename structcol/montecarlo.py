@@ -112,15 +112,16 @@ class Trajectory:
 
     Methods
     -------
-    absorb(mu_abs, mu_scat)
-        calculate absorption at each scattering event with given absorption
-        and scattering coefficients.
+    absorb(mu_abs, step_size)
+        calculate absorption at each scattering event with given absorption 
+        coefficient and step size.
     scatter(sintheta, costheta, sinphi, cosphi)
         calculate directions of propagation after each scattering event with
         given randomly sampled scattering and azimuthal angles.
-    move(lscat)
-        calculate new positions of the trajectory with given scattering length,
-        obtained from either Mie theory or the single scattering model.
+    move(mu_scat)
+        calculate new positions of the trajectory with given scattering 
+        coefficient, obtained from either Mie theory or the single scattering 
+        model.
     plot_coord(ntraj, three_dim=False)
         plot positions of trajectories as a function of number scattering
         events.
@@ -159,15 +160,16 @@ class Trajectory:
         Parameters
         ----------
         mu_abs : ndarray (structcol.Quantity [1/length])
-            Absorption coefficient of packet.
+            Absorption coefficient of packet 
         step_size: ndarray (structcol.Quantity [length])
-            Scattering coefficient of packet.
+            Step size of packet (sampled from scattering lengths).
 
         """
-
+        
         # beer lambert
-        self.weight = np.exp(-mu_abs*np.cumsum(step_size[:,:], axis=0))
-
+        weight = np.exp(-mu_abs*np.cumsum(step_size[:,:], axis=0))
+        
+        self.weight = sc.Quantity(weight)
 
 
     def scatter(self, sintheta, costheta, sinphi, cosphi):
@@ -208,6 +210,7 @@ class Trajectory:
 
         # Update all the directions of the trajectories
         self.direction = kn
+
 
     def move(self, step):
         """
@@ -279,6 +282,7 @@ class Trajectory:
             for n in np.arange(ntraj):
                 ax3D.scatter(self.position[0,:,n], self.position[1,:,n],
                              self.position[2,:,n], color=next(colors))
+
 
 def trajectory_status(z, low_lim, high_lim):
     """
@@ -352,8 +356,8 @@ def trajectory_status(z, low_lim, high_lim):
     return (exit_low_traj, exit_low_event, exit_high_traj, exit_high_event, never_exit_traj)
 
 
-def calc_reflection(z, z_low, cutoff, ntraj, n_matrix, n_sample, kx, ky, kz,
-                    weights=None, detection_angle=np.pi/2):
+def calc_reflection(trajectories, z_low, cutoff, ntraj, n_matrix, n_sample, 
+                    detection_angle=np.pi/2):
     """
     Counts the fraction of reflected trajectories after a cutoff.
 
@@ -363,8 +367,8 @@ def calc_reflection(z, z_low, cutoff, ntraj, n_matrix, n_sample, kx, ky, kz,
 
     Parameters
     ----------
-    z : array_like (structcol.Quantity [length])
-        z-coordinates of position array.
+    trajectories : Trajectory object
+        Trajectory object of which the reflection is to be calculated.
     z_low : float (structcol.Quantity [length])
         Initial z-position that defines the beginning of the simulated sample.
         Should be set to 0.
@@ -373,12 +377,12 @@ def calc_reflection(z, z_low, cutoff, ntraj, n_matrix, n_sample, kx, ky, kz,
         sample.
     ntraj : int
         Number of trajectories.
-    n_matrix : float
+    n_matrix : float (structcol.Quantity [dimensionless] or 
+        structcol.refractive_index object)
         Refractive index of the matrix.
-    n_sample : float
+    n_sample : float (structcol.Quantity [dimensionless] or 
+        structcol.refractive_index object)
         Refractive index of the sample.
-    kx, ky, kz : array_like (structcol.Quantity [dimensionless])
-        x, y, and z components of the direction cosines.
     detection_angle : float
         Range of angles of detection. Only the packets that come out of the
         sample within this range will be detected and counted. Should be
@@ -393,15 +397,17 @@ def calc_reflection(z, z_low, cutoff, ntraj, n_matrix, n_sample, kx, ky, kz,
         of the detector.
 
     """
-    if weights is None:
-        weights = np.ones((kx.shape[0],ntraj))
 
+    z = trajectories.position[2]
+    kx, ky, kz = trajectories.direction  
+    weights = trajectories.weight
+    
     refl_col_indices, refl_row_indices, trans_col_indices, trans_row_indices, _ = trajectory_status(z, z_low, cutoff)
 
     ## Include total internal reflection correction if there is any reflection:
 
     # If there aren't any reflected packets, then no need to calculate TIR
-    if not refl_row_indices.tolist():
+    if len(refl_row_indices)==0:
         refl_fraction_corrected = 0.0
         theta_r = np.NaN
         phi_r = np.NaN
@@ -417,8 +423,8 @@ def calc_reflection(z, z_low, cutoff, ntraj, n_matrix, n_sample, kx, ky, kz,
         # the sample, we subtract 1. refl_col_indices is the list of indices
         # corresponding to the trajectories in which a photon packet gets
         # reflected.
-        ev = np.array(refl_row_indices)-1
-        tr = np.array(refl_col_indices)
+        ev = refl_row_indices-1
+        tr = refl_col_indices
 
         # kx, ky, and kz are the direction cosines
         cos_x = kx[ev,tr]
@@ -464,7 +470,7 @@ def calc_reflection(z, z_low, cutoff, ntraj, n_matrix, n_sample, kx, ky, kz,
                                    (1- refl_fresnel_inc_avg))*weights_refl_avg
 
     return refl_fraction_corrected
-
+    
 
 def calc_reflection_sphere(x, y, z, ntraj, n_matrix, n_sample, kx, ky, kz,
                            radius):
@@ -663,6 +669,7 @@ def initialize(nevents, ntraj, seed=None, incidence_angle=0.):
 
     return r0, k0, weight0
 
+
 def initialize_sphere(nevents, ntraj, radius, seed=None, initial_weight = 1):
     """
     Sets the trajectories' initial conditions (position, direction, and weight).
@@ -720,47 +727,44 @@ def initialize_sphere(nevents, ntraj, radius, seed=None, initial_weight = 1):
 
     return r0, k0, weight0
 
-def calc_scat(radius, n_particle, n_sample, volume_fraction, angles, wavelen,
-              phase_mie=False, lscat_mie=False):
+
+def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
+              phase_mie=False, mu_scat_mie=False):
     """
-    Calculates the phase function and scattering length from either the single
-    scattering model or Mie theory. Calculates the absorption length from Mie
-    theory.
+    Calculates the phase function and scattering coefficient from either the
+    single scattering model or Mie theory. Calculates the absorption coefficient
+    from Mie theory.
 
     Parameters
     ----------
     radius : float (structcol.Quantity [length])
         Radius of scatterer.
-    n_particle : float
+    n_particle : float (structcol.Quantity [dimensionless] or 
+        structcol.refractive_index object)
         Refractive index of the particle.
-    n_sample : float
+    n_sample : float (structcol.Quantity [dimensionless] or 
+        structcol.refractive_index object)
         Refractive index of the sample.
-    volume_fraction : float
+    volume_fraction : float (structcol.Quantity [dimensionless])
         Volume fraction of the sample.
-    angles : array_like (structcol.Quantity [rad])
-        Scattering angles (typically from a small angle to pi). A non-zero
-        small angle is needed because in the single scattering model, if the
-        analytic formula is used, S(q=0) returns nan. To prevent any errors or
-        warnings, set the minimum value of angles to be a small value, such
-        as 0.01.
     wavelen : float (structcol.Quantity [length])
         Wavelength of light in vacuum.
     phase_mie : bool
         If True, the phase function is calculated from Mie theory. If False
         (default), it is calculated from the single scattering model, which
         includes a correction for the structure factor
-    lscat_mie : bool
-        If True, the scattering length is calculated from Mie theory. If False,
-        it is calculated from the single scattering model
+    mu_scat_mie : bool
+        If True, the scattering coefficient is calculated from Mie theory. If 
+        False, it is calculated from the single scattering model
 
     Returns
     -------
     p : array_like (structcol.Quantity [dimensionless])
         Phase function from either Mie theory or single scattering model.
-    lscat : float (structcol.Quantity [length])
-        Scattering length from either Mie theory or single scattering model.
-    labs : float (structcol.Quantity [length])
-        Absorption length from Mie theory.
+    mu_scat : float (structcol.Quantity [1/length])
+        Scattering coefficient from either Mie theory or single scattering model.
+    mu_abs : float (structcol.Quantity [1/length])
+        Absorption coefficient from Mie theory.
 
     Notes
     -----
@@ -776,19 +780,27 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, angles, wavelen,
         (Bohren and Huffmann, chapter 13.3)
 
     """
+    
+    # Scattering angles (typically from a small angle to pi). A non-zero small 
+    # angle is needed because in the single scattering model, if the analytic 
+    # formula is used, S(q=0) returns nan. To prevent any errors or warnings, 
+    # set the minimum value of angles to be a small value, such as 0.01.
+    min_angle = 0.01            
+    angles = sc.Quantity(np.linspace(min_angle,np.pi, 200), 'rad') 
 
     number_density = 3.0 * volume_fraction / (4.0 * np.pi * radius**3)
     ksquared = (2 * np.pi *n_sample / wavelen)**2
     m = index_ratio(n_particle, n_sample)
     x = size_parameter(wavelen, n_sample, radius)
 
-    # Calculate the absorption length from Mie theory
+    # Calculate the absorption coefficient from Mie theory
     ## Use wavelen/n_sample: wavelength of incident light *in media*
     ## (usually this would be the wavelength in the effective index of the
     ## particle-matrix composite)
     cross_sections = mie.calc_cross_sections(m, x, wavelen/n_sample)
     cabs = cross_sections[2]
-    labs = 1 / (cabs * number_density)
+    
+    mu_abs = (cabs * number_density)
 
     # If phase_mie is set to True, calculate the phase function from Mie theory
     if phase_mie == True:
@@ -811,24 +823,24 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, angles, wavelen,
     if phase_mie == False:
         p = (diff_sigma_par + diff_sigma_per)/(ksquared * 2 * sigma_total)
 
-    # If lscat_mie is set to True, use the scattering length from Mie theory
-    if lscat_mie == True:
+    # If mu_scat_mie is set to True, use the scattering coeff from Mie theory
+    if mu_scat_mie == True:
         cscat = cross_sections[0]
-        lscat = 1 / (cscat * number_density)
+        mu_scat = cscat * number_density
 
-    # If lscat_mie is set to False, use the scattering length from the model
-    if lscat_mie == False:
-        lscat = 1 / number_density / sigma_total
+    # If mu_scat_mie is set to False, use the scattering coeff from the model
+    if mu_scat_mie == False:
+        mu_scat = number_density * sigma_total
 
-    # Here, the resulting units of lscat and labs are um^3/nm^2. Thus, we
-    # simplify the units to um
-    lscat = lscat.to('um')
-    labs = labs.to('um')
+    # Here, the resulting units of mu_scat and mu_abs are nm^2/um^3. Thus, we 
+    # simplify the units to 1/um 
+    mu_scat = mu_scat.to('1/um')
+    mu_abs = mu_abs.to('1/um')
+    
+    return p, mu_scat, mu_abs
 
-    return p, lscat, labs
 
-
-def sample_angles(nevents, ntraj, p, angles):
+def sample_angles(nevents, ntraj, p):
     """
     Samples azimuthal angles (phi) from uniform distribution, and scattering
     angles (theta) from phase function distribution.
@@ -841,8 +853,6 @@ def sample_angles(nevents, ntraj, p, angles):
         Number of trajectories.
     p : array_like (structcol.Quantity [dimensionless])
         Phase function values returned from 'phase_function'.
-    angles : array_like (structcol.Quantity [rad])
-        Scattering angles (typically from 0 to pi).
 
     Returns
     -------
@@ -850,6 +860,12 @@ def sample_angles(nevents, ntraj, p, angles):
         Sampled azimuthal and scattering angles, and their sines and cosines.
 
     """
+    
+    # Scattering angles for the phase function calculation (typically from 0 to 
+    # pi). A non-zero minimum angle is needed because in the single scattering 
+    # model, if the analytic formula is used, S(q=0) returns nan.
+    min_angle = 0.01            
+    angles = sc.Quantity(np.linspace(min_angle,np.pi, 200), 'rad')   
 
     # Random sampling of azimuthal angle phi from uniform distribution [0 -
     # 2pi]
@@ -868,6 +884,7 @@ def sample_angles(nevents, ntraj, p, angles):
     costheta = np.cos(theta)
 
     return sintheta, costheta, sinphi, cosphi, theta, phi
+
 
 def sample_step(nevents, ntraj, mu_abs, mu_scat):
     """
@@ -908,9 +925,11 @@ def fresnel_refl(n_sample, n_matrix, kz, refl_event, refl_traj, weights):
 
     Parameters
     ----------
-    n_matrix : float
+    n_matrix : float (structcol.Quantity [dimensionless] or 
+        structcol.refractive_index object)
         Refractive index of the matrix.
-    n_sample : float
+    n_sample : float (structcol.Quantity [dimensionless] or 
+        structcol.refractive_index object)
         Refractive index of the sample.
     kz : array_like (structcol.Quantity [dimensionless])
         x components of the direction cosines.

@@ -39,8 +39,10 @@ n_sample = ri.n_eff(n_particle, n_matrix, volume_fraction)
 angles = sc.Quantity(np.linspace(0.01,np.pi, 200), 'rad')  
 wavelen = sc.Quantity('400 nm')
 
-# Define an array of z-positions and cutoff
-z_pos = sc.Quantity(np.array([[0,0,0],[2,6,6],[-1,3,-1]]), 'um')     
+# Define an array of positions and cutoff
+x_pos = sc.Quantity(np.array([[0,0,0],[0,0,0],[0,0,0]]), 'um') 
+y_pos = sc.Quantity(np.array([[0,0,0],[0,0,0],[0,0,0]]), 'um') 
+z_pos = sc.Quantity(np.array([[0,0,0],[2,6,2],[-1,3,-1]]), 'um')     
 z_low = sc.Quantity('0. um')
 cutoff = sc.Quantity('5. um')
 
@@ -61,14 +63,14 @@ weights = np.ones((nevents,ntrajectories))
     
 def test_sampling():
     # Test that 'calc_scat' runs
-    p, lscat, labs = mc.calc_scat(radius, n_particle, n_sample, volume_fraction, 
-                                  angles, wavelen, phase_mie=False, lscat_mie=False)
+    p, mu_scat, mu_abs = mc.calc_scat(radius, n_particle, n_sample, volume_fraction, 
+                                  wavelen, phase_mie=False, mu_scat_mie=False)
     
     # Test that 'sample_angles' runs
-    mc.sample_angles(nevents, ntrajectories, p, angles)
+    mc.sample_angles(nevents, ntrajectories, p)
     
     # Test that 'sample_step' runs
-    mc.sample_step(nevents, ntrajectories, 1/labs, 1/lscat)
+    mc.sample_step(nevents, ntrajectories, mu_abs, mu_scat)
     
 
 def test_fresnel_refl():
@@ -76,10 +78,12 @@ def test_fresnel_refl():
     mc.fresnel_refl(n_sample, n_matrix, kz, refl_event, refl_traj, weights)
 
 
-def test_calc_reflection():    
+def test_calc_reflection():  
     # Test that it calculates the correct number of reflected trajectories
-    R_fraction = mc.calc_reflection(z_pos, z_low, cutoff, ntrajectories, n_matrix, n_sample, kx, ky, kz)
-    assert_equal(R_fraction, 0.33696688277707043)
+    trajectories = mc.Trajectory([x_pos,y_pos,z_pos],[kx,ky,kz],weights, nevents)
+    R_fraction = mc.calc_reflection(trajectories, z_low, cutoff, ntrajectories, n_matrix, n_sample)
+
+    assert_equal(R_fraction, 0.66314941934606519)
     
     
 def test_trajectories():
@@ -93,9 +97,9 @@ def test_trajectories():
     trajectories = mc.Trajectory(r0, k0, W0, nevents)
     
     # Test the absorb function
-    mua = 1 / sc.Quantity(10, 'um')    
+    mu_abs = 1/sc.Quantity(10, 'um')    
     step = sc.Quantity(np.array([[1,1,1],[1,1,1]]), 'um')    
-    trajectories.absorb(mua, step)     
+    trajectories.absorb(mu_abs, step)     
     assert_almost_equal(trajectories.weight, 
                  np.array([[ 0.90483742,  0.90483742,  0.90483742],
                            [ 0.81873075,  0.81873075,  0.81873075]]))
