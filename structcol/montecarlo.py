@@ -401,7 +401,7 @@ def calc_reflection(z, z_low, cutoff, ntraj, n_matrix, n_sample, kx, ky, kz,
     ## Include total internal reflection correction if there is any reflection:
 
     # If there aren't any reflected packets, then no need to calculate TIR
-    if not refl_row_indices:
+    if not refl_row_indices.tolist():
         refl_fraction_corrected = 0.0
         theta_r = np.NaN
         phi_r = np.NaN
