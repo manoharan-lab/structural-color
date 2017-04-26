@@ -585,8 +585,7 @@ def calc_reflection_sphere(x, y, z, ntraj, n_matrix, n_sample, kx, ky, kz,
     #refl_indices = np.zeros(ntraj)
     #refl_indices[refl_traj] = refl_event
 
-#    refl_fresnel_1, refl_fresnel_2 = fresnel_refl(n_sample, n_matrix, kz,
-#                                                  refl_indices)
+#    refl_fresnel_1, refl_fresnel_2 = fresnel_refl(n_sample, n_matrix, kz, refl_indices)
 
     # calculate reflected fraction
     refl_fraction = np.array(len(refl_row_indices)) / ntraj
@@ -966,7 +965,7 @@ def fresnel_refl(n_sample, n_matrix, kz, refl_indices, weights):
     refl_fresnel_inc = .5*(refl_s_inc + refl_p_inc)
 
     # Calculate fresnel for reflected light going from sample to medium
-    theta_out = np.arccos(-select_events(kz, refl_indices))
+    theta_out = np.arccos(select_events(-kz, refl_indices))
     refl_s_out, refl_p_out = \
         model.fresnel_reflection(n_sample, n_matrix, sc.Quantity(theta_out, ''))
     refl_fresnel_out = .5*(refl_s_out + refl_p_out)
