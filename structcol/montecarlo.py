@@ -360,7 +360,6 @@ def select_events(inarray, events):
     '''
     ev = events[events > 0] - 1 # subtract 1 to get scattering event before step that exits
     tr = np.where(events > 0)[0]
-    print(ev, tr)
     return inarray[ev, tr]
 
 def calc_reflection(trajectories, z_low, cutoff, ntraj, n_matrix, n_sample, 
@@ -582,8 +581,12 @@ def calc_reflection_sphere(x, y, z, ntraj, n_matrix, n_sample, kx, ky, kz,
 
     # TODO: add fresnel correction for sphere instead of just for plane
     # calculate fresnel reflectances
+
+    #refl_indices = np.zeros(ntraj)
+    #refl_indices[refl_traj] = refl_event
+
 #    refl_fresnel_1, refl_fresnel_2 = fresnel_refl(n_sample, n_matrix, kz,
-#                                                  refl_event, refl_traj)
+#                                                  refl_indices)
 
     # calculate reflected fraction
     refl_fraction = np.array(len(refl_row_indices)) / ntraj
@@ -958,15 +961,12 @@ def fresnel_refl(n_sample, n_matrix, kz, refl_indices, weights):
 
     # Calculate fresnel for incident light going from medium to sample
     theta_inc = np.arccos(kz[0,:])
-    print(theta_inc)
     refl_s_inc, refl_p_inc = \
         model.fresnel_reflection(n_matrix, n_sample, sc.Quantity(theta_inc, ''))
     refl_fresnel_inc = .5*(refl_s_inc + refl_p_inc)
 
     # Calculate fresnel for reflected light going from sample to medium
     theta_out = np.arccos(-select_events(kz, refl_indices))
-    print(kz)
-    print(theta_out)
     refl_s_out, refl_p_out = \
         model.fresnel_reflection(n_sample, n_matrix, sc.Quantity(theta_out, ''))
     refl_fresnel_out = .5*(refl_s_out + refl_p_out)

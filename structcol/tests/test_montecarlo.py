@@ -54,7 +54,7 @@ kz = sc.Quantity(np.array([[1.,1.,1.],[-1.,-1.,-1.],[1.,1.,1.]]), '')
 
 # Index of the scattering event and trajectory corresponding to the reflected
 # photons
-refl_index = np.array([1,0,1])
+refl_index = np.array([2,0,2])
 
 # Assign a weight of 1 to all the trajectories (no absorption)
 weights = np.ones((nevents,ntrajectories))
