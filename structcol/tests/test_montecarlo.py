@@ -70,11 +70,6 @@ def test_sampling():
     
     # Test that 'sample_step' runs
     mc.sample_step(nevents, ntrajectories, mu_abs, mu_scat)
-    
-
-def test_fresnel_refl():
-    # Test that 'fresnel_refl' runs
-    mc.fresnel_correct(kz, weights, refl_index, n_sample, n_matrix)
 
 def test_trajectory_status():
     trajectories_z = np.array([[ 0, 0, 0, 0, 0, 0, 0],

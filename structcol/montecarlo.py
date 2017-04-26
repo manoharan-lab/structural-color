@@ -437,6 +437,10 @@ def calc_refl_trans(trajectories, z_low, cutoff, n_medium, n_sample,
     z = trajectories.position[2]
     kx, ky, kz = trajectories.direction  
     weights = trajectories.weight
+<<<<<<< HEAD
+=======
+    
+    refl_indices, trans_indices, stuck_indices = trajectory_status(z, z_low, cutoff)
 
     # determine outcomes of all trajectories
     refl_indices, trans_indices, stuck_indices = trajectory_status(z, z_low, cutoff)
