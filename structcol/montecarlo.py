@@ -301,22 +301,15 @@ def trajectory_status(z, low_lim, high_lim):
 
     Returns
     -------
-    exit_low_traj : array
-        Indices of trajectories that are reflected.
+    refl_indices : array
+        Non-zero values are reflection events for each trajectory.
         Reflection here means exiting the sample in the lower direction.
-    exit_low_event : array
-        Event indices corresponding to exit in the lower direction.
-        Elementwise correspondence to the trajectories in exit_low_traj.
-    exit_high_traj : array
-        Indices of trajectories that are transmitted.
+    trans_indices : array
+        Non-zero values are transmission events for each trajectory.
         Transmission here means exiting the sample in the higher direction.
-    exit_high_event : array
-        Event indices corresponding to exit in the higher direction.
-        Elementwise correspondence to the trajectories in exit_high_traj.
-    never_exit_traj : array
-        Indices of trajectories that do not exit the sample.
-        These trajectories would eventually be reflected or transmitted,
-        if allowed to undergo more scattering events.
+    stuck_indices : array
+        Non-zero values are non-exiting events for each trajectory.
+        The only possible values are 0 or nevents.
     """
 
     # find all events of all trajectories outside limits (low_lim, high_lim)
@@ -345,16 +338,29 @@ def trajectory_status(z, low_lim, high_lim):
     # find where each trajectory first exits
     first_low = low_event * low_exit
     first_high = high_event * high_exit
+    never_exit = never_exit * (z.shape[0]-1)
 
-    #organize values and return
-    exit_low_traj = np.where(first_low > 0)[0]
-    exit_low_event = first_low[first_low > 0]
-    exit_high_traj = np.where(first_high > 0)[0]
-    exit_high_event= first_high[first_high > 0]
-    never_exit_traj = np.where(never_exit > 0)[0]
+    return (first_low, first_high, never_exit)
 
-    return (exit_low_traj, exit_low_event, exit_high_traj, exit_high_event, never_exit_traj)
-
+def select_events(inarray, events):
+    '''
+    Selects the items of inarray according to event coordinates
+    
+    Parameters
+    ----------
+    inarray: 2D array
+        Should have axes corresponding to events, trajectories
+    events: 1D array
+        Should have length corresponding to ntrajectories.
+        Non-zero entries correspond to the event of interest
+    
+    Returns
+    -------
+    1D array: contains only the elements of inarray corresponding to non-zero events values.
+    '''
+    ev = events[events > 0] - 1 # subtract 1 to get scattering event before step that exits
+    tr = np.where(events > 0)[0]
+    return inarray[ev, tr]
 
 def calc_reflection(trajectories, z_low, cutoff, ntraj, n_matrix, n_sample, 
                     detection_angle=np.pi/2):
@@ -402,12 +408,12 @@ def calc_reflection(trajectories, z_low, cutoff, ntraj, n_matrix, n_sample,
     kx, ky, kz = trajectories.direction  
     weights = trajectories.weight
     
-    refl_col_indices, refl_row_indices, trans_col_indices, trans_row_indices, _ = trajectory_status(z, z_low, cutoff)
+    refl_indices, trans_indices, stuck_indices = trajectory_status(z, z_low, cutoff)
 
     ## Include total internal reflection correction if there is any reflection:
 
     # If there aren't any reflected packets, then no need to calculate TIR
-    if len(refl_row_indices)==0:
+    if np.all(refl_indices == 0):
         refl_fraction_corrected = 0.0
         theta_r = np.NaN
         phi_r = np.NaN
@@ -417,19 +423,10 @@ def calc_reflection(trajectories, z_low, cutoff, ntraj, n_matrix, n_sample,
         # packets as they exit the sample, to see if they would get reflected
         # back into the sample due to TIR.
 
-        # refl_row_indices is the list of indices corresponding to the
-        # scattering events immediately after a photon packet gets reflected.
-        # Thus, to get the scattering event immediately before the packet exits
-        # the sample, we subtract 1. refl_col_indices is the list of indices
-        # corresponding to the trajectories in which a photon packet gets
-        # reflected.
-        ev = refl_row_indices-1
-        tr = refl_col_indices
-
         # kx, ky, and kz are the direction cosines
-        cos_x = kx[ev,tr]
-        cos_y = ky[ev,tr]
-        cos_z = kz[ev,tr]
+        cos_x = select_events(kx, refl_indices)
+        cos_y = select_events(ky, refl_indices)
+        cos_z = select_events(kz, refl_indices)
 
         # Find the propagation angles of the photon packets when they are
         # exiting the sample. Count how many of the angles are within the total
@@ -443,7 +440,7 @@ def calc_reflection(trajectories, z_low, cutoff, ntraj, n_matrix, n_sample,
 
         # Calculate the Fresnel reflection of all the reflected trajectories
         refl_fresnel_inc, refl_fresnel_out, theta_r, weights_refl = \
-            fresnel_refl(n_sample, n_matrix, kz, ev, tr, weights)
+            fresnel_refl(n_sample, n_matrix, kz, refl_indices, weights)
             
         # For the trajectories that make it out of the sample after the TIR
         # correction, calculate the thetas after refraction at the interface.
@@ -502,6 +499,7 @@ def calc_reflection_sphere(x, y, z, ntraj, n_matrix, n_sample, kx, ky, kz,
         Fraction of reflected trajectories.
 
     """
+    #TODO this code has not been vectorized like the non-spherical case above
     refl_row_indices = []
     refl_col_indices = []
     trans_row_indices = []
@@ -583,8 +581,11 @@ def calc_reflection_sphere(x, y, z, ntraj, n_matrix, n_sample, kx, ky, kz,
 
     # TODO: add fresnel correction for sphere instead of just for plane
     # calculate fresnel reflectances
-#    refl_fresnel_1, refl_fresnel_2 = fresnel_refl(n_sample, n_matrix, kz,
-#                                                  refl_event, refl_traj)
+
+    #refl_indices = np.zeros(ntraj)
+    #refl_indices[refl_traj] = refl_event
+
+#    refl_fresnel_1, refl_fresnel_2 = fresnel_refl(n_sample, n_matrix, kz, refl_indices)
 
     # calculate reflected fraction
     refl_fraction = np.array(len(refl_row_indices)) / ntraj
@@ -917,7 +918,7 @@ def sample_step(nevents, ntraj, mu_abs, mu_scat):
     return step
 
 
-def fresnel_refl(n_sample, n_matrix, kz, refl_event, refl_traj, weights):
+def fresnel_refl(n_sample, n_matrix, kz, refl_indices, weights):
     """
     Calculates the reflectance at the interface of two refractive indices using
     the fresnel equations. This calculation will include total internal
@@ -933,10 +934,8 @@ def fresnel_refl(n_sample, n_matrix, kz, refl_event, refl_traj, weights):
         Refractive index of the sample.
     kz : array_like (structcol.Quantity [dimensionless])
         x components of the direction cosines.
-    refl_event : array
-        Indices of reflection events.
-    refl_traj : array_like (structcol.Quantity [dimensionless])
-        Indices of reflected trajectories.
+    refl_indices : array
+        Non-zero values indicate reflection events for each trajectory
 
     Returns
     -------
@@ -966,7 +965,7 @@ def fresnel_refl(n_sample, n_matrix, kz, refl_event, refl_traj, weights):
     refl_fresnel_inc = .5*(refl_s_inc + refl_p_inc)
 
     # Calculate fresnel for reflected light going from sample to medium
-    theta_out = np.arccos(-kz[refl_event,refl_traj])
+    theta_out = np.arccos(select_events(-kz, refl_indices))
     refl_s_out, refl_p_out = \
         model.fresnel_reflection(n_sample, n_matrix, sc.Quantity(theta_out, ''))
     refl_fresnel_out = .5*(refl_s_out + refl_p_out)
@@ -974,7 +973,7 @@ def fresnel_refl(n_sample, n_matrix, kz, refl_event, refl_traj, weights):
     # Find the thetas that do not get TIR'd
     theta_out = np.pi-theta_out[np.where(refl_fresnel_out < 1)]
     
-    weights_refl = weights[refl_event, refl_traj]
+    weights_refl = select_events(weights, refl_indices)
     weights_refl = weights_refl[np.where(refl_fresnel_out<1)]
     refl_fresnel_out = refl_fresnel_out[refl_fresnel_out < 1]
 
