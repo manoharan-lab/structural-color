@@ -191,7 +191,7 @@ class Trajectory:
 
         """
 
-        kn = self.direction
+        kn = self.direction.magnitude
 
         # Calculate the new x, y, z coordinates of the propagation direction
         # using the following equations, which can be derived by using matrix
@@ -209,7 +209,7 @@ class Trajectory:
             kn[:,n,:] = kx, ky, kz
 
         # Update all the directions of the trajectories
-        self.direction = kn
+        self.direction = sc.Quantity(kn, self.direction.units)
 
 
     def move(self, step):
