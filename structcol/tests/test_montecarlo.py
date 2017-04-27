@@ -74,7 +74,7 @@ def test_sampling():
 
 def test_fresnel_refl():
     # Test that 'fresnel_refl' runs
-    mc.fresnel_refl(n_sample, n_matrix, kz, refl_index, weights)
+    mc.fresnel_correct(kz, weights, refl_index, n_sample, n_matrix)
 
 def test_trajectory_status():
     trajectories_z = np.array([[ 0, 0, 0, 0, 0, 0, 0],
@@ -91,12 +91,12 @@ def test_trajectory_status():
     all_output = (refl_indices, trans_indices, stuck_indices)
     assert_equal(mc.trajectory_status(trajectories_z, 0, 10), all_output)
 
-def test_calc_reflection():  
+def test_calc_refl_trans():  
     # Test that it calculates the correct number of reflected trajectories
     trajectories = mc.Trajectory([x_pos,y_pos,z_pos],[kx,ky,kz],weights, nevents)
-    R_fraction = mc.calc_reflection(trajectories, z_low, cutoff, ntrajectories, n_matrix, n_sample)
+    R_fraction = mc.calc_refl_trans(trajectories, z_low, cutoff, n_matrix, n_sample)
 
-    assert_equal(R_fraction, 0.66314941934606519)
+    assert_equal(R_fraction, (0.67026144873602522, 0.32973855126397483))
     
 def test_trajectories():
     # Initialize runs

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 2016 Vinothan N. Manoharan, Victoria Hwang, Annie Stephenson
+# Copyright 2016 Vinothan N. Manoharan, Victoria Hwang, Anna B. Stephenson, Solomon Barkley
 #
 # This file is part of the structural-color python package.
 #
@@ -342,7 +342,7 @@ def trajectory_status(z, low_lim, high_lim):
 
     return (first_low, first_high, never_exit)
 
-def select_events(inarray, events):
+def select_events(inarray, events, compress=True):
     '''
     Selects the items of inarray according to event coordinates
     
@@ -353,23 +353,52 @@ def select_events(inarray, events):
     events: 1D array
         Should have length corresponding to ntrajectories.
         Non-zero entries correspond to the event of interest
+    comprress: Boolean
+        If true, returns only elements of inarray with non-zero events values.
+        If false, returns an array with length Ntraj (incl zero values in events)
     
     Returns
     -------
     1D array: contains only the elements of inarray corresponding to non-zero events values.
     '''
-    ev = events[events > 0] - 1 # subtract 1 to get scattering event before step that exits
-    tr = np.where(events > 0)[0]
-    return inarray[ev, tr]
+    valid_events = (events > 0)
+    ev = events[valid_events].astype(int) - 1 # subtract 1 to get scattering event before step that exits
+    tr = np.where(valid_events)[0]
+    if compress:
+        if len(ev) == 0:
+            # no events
+            return np.array([])
+        return inarray[ev, tr]
+    else:
+        #want output of the same form as events
+        outarray = np.zeros(len(events))
+        outarray[valid_events] = inarray[ev, tr]
+        if isinstance(inarray, sc.Quantity):
+            outarray = sc.Quantity(outarray, inarray.units)
+        return outarray
 
-def calc_reflection(trajectories, z_low, cutoff, ntraj, n_matrix, n_sample, 
+def fresnel_correct(kz, weights, indices, n_before, n_after):
+
+    # select scattering events and weights that resulted in exit
+    cos_z = select_events(kz, indices, False)
+    weights = select_events(weights, indices, False)
+
+    # now calculate angle to normal from cos_z component
+    # we only want magnitude, not direction up/down
+    theta = np.arccos(np.abs(cos_z))
+
+    #find fresnel 
+    trans_s, trans_p = model.fresnel_transmission(n_before, n_after, theta)
+    return weights * (trans_s + trans_p)/2
+
+def calc_refl_trans(trajectories, z_low, cutoff, n_medium, n_sample, 
                     detection_angle=np.pi/2):
     """
-    Counts the fraction of reflected trajectories after a cutoff.
+    Counts the fraction of reflected and transmitted trajectories after a cutoff.
 
     Identifies which trajectories are reflected or transmitted, and at which
-    scattering event. Includes Fresnel reflection correction. Then
-    counts the fraction of reflected trajectories that are detected.
+    scattering event. Includes Fresnel reflection correction. [Then
+    counts the fraction of reflected trajectories that are detected.]
 
     Parameters
     ----------
@@ -381,11 +410,9 @@ def calc_reflection(trajectories, z_low, cutoff, ntraj, n_matrix, n_sample,
     cutoff : float (structcol.Quantity [length])
         Final z-cutoff that determines the effective thickness of the simulated
         sample.
-    ntraj : int
-        Number of trajectories.
-    n_matrix : float (structcol.Quantity [dimensionless] or 
+    n_medium : float (structcol.Quantity [dimensionless] or 
         structcol.refractive_index object)
-        Refractive index of the matrix.
+        Refractive index of the medium.
     n_sample : float (structcol.Quantity [dimensionless] or 
         structcol.refractive_index object)
         Refractive index of the sample.
@@ -397,77 +424,43 @@ def calc_reflection(trajectories, z_low, cutoff, ntraj, n_matrix, n_sample,
 
     Returns
     -------
-    refl_fraction_corrected : float
+    reflectance: float
         Fraction of reflected trajectories, including the Fresnel correction
-        (which includes total internal reflection), and are within the range
-        of the detector.
+        but not considering the range of the detector.
+    transmittance: float
+        Fraction of transmitted trajectories, including the Fresnel correction
+        but not considering the range of the detector.
+    Note: absorbance by the sample can be found by 1 - reflectance - transmittance
 
     """
-
+    # set up the values we need
     z = trajectories.position[2]
     kx, ky, kz = trajectories.direction  
     weights = trajectories.weight
-    
+
+    # determine outcomes of all trajectories
     refl_indices, trans_indices, stuck_indices = trajectory_status(z, z_low, cutoff)
 
-    ## Include total internal reflection correction if there is any reflection:
+    # calculate absorption from all trajectories    
+    absorption = weights[0] - select_events(weights, refl_indices + trans_indices + stuck_indices)
 
-    # If there aren't any reflected packets, then no need to calculate TIR
-    if np.all(refl_indices == 0):
-        refl_fraction_corrected = 0.0
-        theta_r = np.NaN
-        phi_r = np.NaN
-        print("No photons are reflected because cutoff is too small.")
-    else:
-        # Now we want to find the scattering and azimuthal angles of the
-        # packets as they exit the sample, to see if they would get reflected
-        # back into the sample due to TIR.
+    # correct trajectory outcomes by fresnel reflection & TIR
+    transmission = fresnel_correct(kz, weights, trans_indices, n_sample, n_medium)
+    reflection = fresnel_correct(kz, weights, refl_indices, n_sample, n_medium)
 
-        # kx, ky, and kz are the direction cosines
-        cos_x = select_events(kx, refl_indices)
-        cos_y = select_events(ky, refl_indices)
-        cos_z = select_events(kz, refl_indices)
+    # find fraction of incident light that is not fresnel reflected upon entering sample
+    inc_through = fresnel_correct(kz, weights, np.ones(z.shape[1]), n_medium, n_sample)
+    inc_fraction = inc_through / weights[0]
 
-        # Find the propagation angles of the photon packets when they are
-        # exiting the sample. Count how many of the angles are within the total
-        # internal reflection range, and calculate a corrected reflection
-        # fraction
+    # calculate transmittance and reflectance for each trajectory
+    transmittance = inc_fraction * transmission / (reflection + transmission + absorption)
+    reflectance = inc_fraction * reflection / (reflection + transmission + absorption) + (1 - inc_fraction)
 
-        #convert cartesian coordinates into spherical coordinate angles
-        theta_r = sc.Quantity(np.arccos(cos_z), 'rad')
-        phi_r = np.arctan2(cos_y, cos_x) #angle from [-pi, pi]
-        phi_r = sc.Quantity(phi_r + 2*np.pi*(phi_r<0), 'rad') #angle from [0, 2pi]
+    #TODO re-implement refraction at interface
+    #TODO re-implement angle of detection cutoff
 
-        # Calculate the Fresnel reflection of all the reflected trajectories
-        refl_fresnel_inc, refl_fresnel_out, theta_r, weights_refl = \
-            fresnel_refl(n_sample, n_matrix, kz, refl_indices, weights)
-            
-        # For the trajectories that make it out of the sample after the TIR
-        # correction, calculate the thetas after refraction at the interface.
-        # The refracted theta is the theta in the global coordinate system.
-        refracted_theta = np.pi - np.arcsin(n_sample / n_matrix *
-                                            np.sin(np.pi-theta_r))
-
-        # Out of the trajectories that make it out of the sample, find the ones
-        # that are within the detector range after being refracted at the
-        # interface
-        detected_refl_fresnel_out = \
-           refl_fresnel_out[np.where(refracted_theta >
-                                     (np.pi-detection_angle))]
-        weights_refl = weights_refl[np.where(refracted_theta >
-                                             (np.pi-detection_angle))]
-        refl_fraction = np.array(len(detected_refl_fresnel_out)) / ntraj
-
-        # Only keep the refracted theta that are within angle of detection
-        refl_fresnel_out_avg = np.sum(detected_refl_fresnel_out) / ntraj
-        refl_fresnel_inc_avg = np.sum(refl_fresnel_inc) / ntraj
-        weights_refl_avg = np.sum(weights_refl) / len(weights_refl)
-        refl_fraction_corrected = (refl_fresnel_inc_avg +
-                                   (refl_fraction - refl_fresnel_out_avg) *
-                                   (1- refl_fresnel_inc_avg))*weights_refl_avg
-
-    return refl_fraction_corrected
-    
+    #calculate mean reflectance and transmittance for all trajectories
+    return (np.mean(reflectance), np.mean(transmittance))    
 
 def calc_reflection_sphere(x, y, z, ntraj, n_matrix, n_sample, kx, ky, kz,
                            radius):
@@ -916,66 +909,3 @@ def sample_step(nevents, ntraj, mu_abs, mu_scat):
     step = -np.log(1.0-rand) / mu_total
 
     return step
-
-
-def fresnel_refl(n_sample, n_matrix, kz, refl_indices, weights):
-    """
-    Calculates the reflectance at the interface of two refractive indices using
-    the fresnel equations. This calculation will include total internal
-    reflection
-
-    Parameters
-    ----------
-    n_matrix : float (structcol.Quantity [dimensionless] or 
-        structcol.refractive_index object)
-        Refractive index of the matrix.
-    n_sample : float (structcol.Quantity [dimensionless] or 
-        structcol.refractive_index object)
-        Refractive index of the sample.
-    kz : array_like (structcol.Quantity [dimensionless])
-        x components of the direction cosines.
-    refl_indices : array
-        Non-zero values indicate reflection events for each trajectory
-
-    Returns
-    -------
-    refl_fresnel_inc : array
-        Array of Fresnel reflectance fractions of light reflected for each
-        photon due to the interface when the trajectory first enters the
-        sample.
-    refl_fresnel_out : array
-        Array of Fresnel reflectance fractions of light reflected for each
-        photon due to the interface when the trajectory leaves the sample.
-    theta_out : array
-        Array of the scattering angles that make it out of the sample after
-        eliminating the trajectories that get totally internally reflected.
-    weights_refl: array
-        Array of the weights of the trajectories make it out of the sample
-        after eliminating the trajectories that get totally internally
-        reflected.
-
-    """
-    # TODO: add option to modify theta calculation to incorperate curvature of
-    # sphere
-
-    # Calculate fresnel for incident light going from medium to sample
-    theta_inc = np.arccos(kz[0,:])
-    refl_s_inc, refl_p_inc = \
-        model.fresnel_reflection(n_matrix, n_sample, sc.Quantity(theta_inc, ''))
-    refl_fresnel_inc = .5*(refl_s_inc + refl_p_inc)
-
-    # Calculate fresnel for reflected light going from sample to medium
-    theta_out = np.arccos(select_events(-kz, refl_indices))
-    refl_s_out, refl_p_out = \
-        model.fresnel_reflection(n_sample, n_matrix, sc.Quantity(theta_out, ''))
-    refl_fresnel_out = .5*(refl_s_out + refl_p_out)
-
-    # Find the thetas that do not get TIR'd
-    theta_out = np.pi-theta_out[np.where(refl_fresnel_out < 1)]
-    
-    weights_refl = select_events(weights, refl_indices)
-    weights_refl = weights_refl[np.where(refl_fresnel_out<1)]
-    refl_fresnel_out = refl_fresnel_out[refl_fresnel_out < 1]
-
-    return refl_fresnel_inc, refl_fresnel_out, theta_out, weights_refl
-
