@@ -385,7 +385,7 @@ def fresnel_correct(kz, weights, indices, n_before, n_after):
 
     # now calculate angle to normal from cos_z component
     # we only want magnitude, not direction up/down
-    theta = np.arccos(np.abs(cos_z))
+    theta = sc.Quantity(np.arccos(np.abs(cos_z)),'')
 
     #find fresnel 
     trans_s, trans_p = model.fresnel_transmission(n_before, n_after, theta)
@@ -437,16 +437,13 @@ def calc_refl_trans(trajectories, z_low, cutoff, n_medium, n_sample,
     z = trajectories.position[2]
     kx, ky, kz = trajectories.direction  
     weights = trajectories.weight
-<<<<<<< HEAD
-=======
-    
-    refl_indices, trans_indices, stuck_indices = trajectory_status(z, z_low, cutoff)
+    init_weight = weights[0]
 
     # determine outcomes of all trajectories
     refl_indices, trans_indices, stuck_indices = trajectory_status(z, z_low, cutoff)
 
     # calculate absorption from all trajectories    
-    absorption = weights[0] - select_events(weights, refl_indices + trans_indices + stuck_indices)
+    absorption = init_weight - select_events(weights, refl_indices + trans_indices + stuck_indices)
 
     # correct trajectory outcomes by fresnel reflection & TIR
     transmission = fresnel_correct(kz, weights, trans_indices, n_sample, n_medium)
@@ -454,17 +451,24 @@ def calc_refl_trans(trajectories, z_low, cutoff, n_medium, n_sample,
 
     # find fraction of incident light that is not fresnel reflected upon entering sample
     inc_through = fresnel_correct(kz, weights, np.ones(z.shape[1]), n_medium, n_sample)
-    inc_fraction = inc_through / weights[0]
+    inc_fraction = inc_through / init_weight
 
-    # calculate transmittance and reflectance for each trajectory
-    transmittance = inc_fraction * transmission / (reflection + transmission + absorption)
-    reflectance = inc_fraction * reflection / (reflection + transmission + absorption) + (1 - inc_fraction)
+    # correct outcome values by amount of light actually entering sample
+    transmission *= inc_fraction
+    reflection *= inc_fraction
+    absorption *= inc_fraction
+    all_counted = transmission + reflection + absorption
+    no_exit = inc_through - all_counted
+    
+    # calculate transmittance and reflectance for each trajectory (in terms of trajectory weights)
+    transmittance = transmission + no_exit * np.sum(transmission)/np.sum(all_counted)
+    reflectance = reflection + no_exit * np.sum(reflection)/np.sum(all_counted) + (init_weight - inc_through)
 
     #TODO re-implement refraction at interface
     #TODO re-implement angle of detection cutoff
 
     #calculate mean reflectance and transmittance for all trajectories
-    return (np.mean(reflectance), np.mean(transmittance))    
+    return (np.sum(reflectance)/np.sum(init_weight), np.sum(transmittance/np.sum(init_weight)))    
 
 def calc_reflection_sphere(x, y, z, ntraj, n_matrix, n_sample, kx, ky, kz,
                            radius):

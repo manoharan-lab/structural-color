@@ -39,27 +39,10 @@ n_sample = ri.n_eff(n_particle, n_matrix, volume_fraction)
 angles = sc.Quantity(np.linspace(0.01,np.pi, 200), 'rad')  
 wavelen = sc.Quantity('400 nm')
 
-# Define an array of positions and cutoff
-x_pos = sc.Quantity(np.array([[0,0,0],[0,0,0],[0,0,0]]), 'um') 
-y_pos = sc.Quantity(np.array([[0,0,0],[0,0,0],[0,0,0]]), 'um') 
-z_pos = sc.Quantity(np.array([[0,0,0],[2,6,2],[-1,3,-1]]), 'um')     
-z_low = sc.Quantity('0. um')
-cutoff = sc.Quantity('5. um')
-
-# Define an array of directions (trajectories travel straight down into the 
-# sample in the initial and final step, and travel upward in the middle step)
-kx = sc.Quantity(np.array([[0.,0.,0.],[0.,0.,0.],[0.,0.,0.]]), '')
-ky = sc.Quantity(np.array([[0.,0.,0.],[0.,0.,0.],[0.,0.,0.]]), '')
-kz = sc.Quantity(np.array([[1.,1.,1.],[-1.,-1.,-1.],[1.,1.,1.]]), '')
-
 # Index of the scattering event and trajectory corresponding to the reflected
 # photons
 refl_index = np.array([2,0,2])
-
-# Assign a weight of 1 to all the trajectories (no absorption)
-weights = np.ones((nevents,ntrajectories))
-    
-    
+  
 def test_sampling():
     # Test that 'calc_scat' runs
     p, mu_scat, mu_abs = mc.calc_scat(radius, n_particle, n_sample, volume_fraction, 
@@ -86,13 +69,48 @@ def test_trajectory_status():
     all_output = (refl_indices, trans_indices, stuck_indices)
     assert_equal(mc.trajectory_status(trajectories_z, 0, 10), all_output)
 
-def test_calc_refl_trans():  
-    # Test that it calculates the correct number of reflected trajectories
-    trajectories = mc.Trajectory([x_pos,y_pos,z_pos],[kx,ky,kz],weights, nevents)
-    R_fraction = mc.calc_refl_trans(trajectories, z_low, cutoff, n_matrix, n_sample)
+def test_calc_refl_trans():
+    events=3
+    dummy_array = np.zeros([3, 4])
+    low_thresh = 0
+    high_thresh = 5
+    small_n = 1
+    large_n = 2
 
-    assert_equal(R_fraction, (0.67026144873602522, 0.32973855126397483))
-    
+    # test absoprtion and stuck without fresnel
+    z_pos = np.array([[0,0,0,0],[1,1,1,1],[-1,6,2,6],[-1,6,2,6]])
+    kz = np.array([[1,1,1,1],[-1,1,0,1],[0,0,0,0]])
+    weights = np.array([[1,1,2,1],[1,0.3,1,0],[0.1,0.1,0.5,0]])
+    trajectories = mc.Trajectory([dummy_array, dummy_array, z_pos],[dummy_array, dummy_array, kz], weights, events)
+    refl, trans= mc.calc_refl_trans(trajectories, low_thresh, high_thresh, small_n, small_n)
+    expected_trans_array = np.array([0, 0.3, 0.033333333, 0])/np.sum(weights[0]) #calculated manually
+    expected_refl_array = np.array([1, 0, 0.1111111111, 0])/np.sum(weights[0]) #calculated manually
+    assert_almost_equal(refl, np.sum(expected_refl_array))
+    assert_almost_equal(trans, np.sum(expected_trans_array))
+
+    # test absorption and fresnel without stuck
+    z_pos = np.array([[0,0,0,0],[1,1,1,1],[1,1,1,1],[-1,-1,6,6]])
+    kz = np.array([[1,1,1,0.1],[1,1,1,1],[-0.8,-1,0.9,0.9]])
+    weights = np.array([[1,1,1,1],[1,1,1,1],[0.9,0.8,0.7,0.6]])
+    trajectories = mc.Trajectory([dummy_array, dummy_array, z_pos],[dummy_array, dummy_array, kz], weights, events)
+    refl, trans= mc.calc_refl_trans(trajectories, low_thresh, high_thresh, small_n, large_n)
+    expected_trans_array = np.array([ 0.28222975, 0.02787454, 0.55595101, 0.21849502])/np.sum(weights[0]) #calculated manually
+    expected_refl_array = np.array([ 0.3574732,  0.76754193, 0.14264385, 0.60482546])/np.sum(weights[0]) #calculated manually
+    assert_almost_equal(refl, np.sum(expected_refl_array))
+    assert_almost_equal(trans, np.sum(expected_trans_array))
+
+    # test fresnel and stuck without absorption
+    z_pos = np.array([[0,0,0,0],[1,1,1,1],[-1,1,1,6],[-1,1,6,6]])
+    kz = np.array([[0.1,1,1,1],[-1,1,.95,1],[-0.9,1,.8,.9]])
+    weights = np.array([[1,1,1,1],[1,1,1,1],[1.,1.,1.,1.]])
+    trajectories = mc.Trajectory([dummy_array, dummy_array, z_pos],[dummy_array, dummy_array, kz], weights, events)
+    refl, trans= mc.calc_refl_trans(trajectories, low_thresh, high_thresh, small_n, large_n)
+    expected_trans_array = np.array([ 0.03104891, 0.60944866, 0.60944866, 0.85783997])/np.sum(weights[0]) #calculated manually
+    expected_refl_array = np.array([ 0.96895109, 0.39055134, 0.39055134, 0.14216003])/np.sum(weights[0]) #calculated manually
+    assert_almost_equal(refl, np.sum(expected_refl_array))
+    assert_almost_equal(trans, np.sum(expected_trans_array))
+
+
 def test_trajectories():
     # Initialize runs
     r0, k0, W0 = mc.initialize(nevents, ntrajectories, seed=1)
