@@ -42,7 +42,7 @@ wavelen = sc.Quantity('400 nm')
 # Index of the scattering event and trajectory corresponding to the reflected
 # photons
 refl_index = np.array([2,0,2])
-  
+
 def test_sampling():
     # Test that 'calc_scat' runs
     p, mu_scat, mu_abs = mc.calc_scat(radius, n_particle, n_sample, volume_fraction, 
