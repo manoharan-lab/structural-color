@@ -377,19 +377,106 @@ def select_events(inarray, events, compress=True):
             outarray = sc.Quantity(outarray, inarray.units)
         return outarray
 
+def get_angles(kz, indices):
+    '''
+    Returns specified angles (relative to normal) from kz components
+
+    Parameters
+    ----------
+    kz: 2D array
+        kz values, with axes corresponding to events, trajectories
+    indices: 1D array
+        Length ntraj. Values represent events of interest in each trajectory
+
+    Returns
+    -------
+    1D array of pint quantities (length Ntraj)
+    '''
+
+    # select scattering events resulted in exit
+    cosz = select_events(kz, indices, False)
+
+    # calculate angle to normal from cos_z component (only want magnitude)
+    return sc.Quantity(np.arccos(np.abs(cosz)),'')
+
 def fresnel_correct(kz, weights, indices, n_before, n_after):
+    '''
+    Returns weights of interest reduced by fresnel reflection
 
-    # select scattering events and weights that resulted in exit
-    cos_z = select_events(kz, indices, False)
+    Parameters
+    ----------
+    kz: 2D array
+        kz values, with axes corresponding to events, trajectories
+    weights: 2D array
+        weights values, with axes corresponding to events, trajectories
+    indices: 1D array
+        Length ntraj. Values represent events of interest in each trajectory
+    n_before: float
+        Refractive index of the medium light is coming from
+    n_after: float
+        Refractive index of the medium light is going to
+
+    Returns
+    -------
+    1D array of length Ntraj
+    '''
+
+    #find angles when crossing interface
+    theta = get_angles(kz, indices)
     weights = select_events(weights, indices, False)
-
-    # now calculate angle to normal from cos_z component
-    # we only want magnitude, not direction up/down
-    theta = sc.Quantity(np.arccos(np.abs(cos_z)),'')
 
     #find fresnel 
     trans_s, trans_p = model.fresnel_transmission(n_before, n_after, theta)
     return weights * (trans_s + trans_p)/2
+
+def detect_correct(kz, weights, indices, n_before, n_after, thresh_angle):
+    '''
+    Returns weights of interest within detection angle
+
+    Parameters
+    ----------
+    kz: 2D array
+        kz values, with axes corresponding to events, trajectories
+    weights: 2D array
+        weights values, with axes corresponding to events, trajectories
+    indices: 1D array
+        Length ntraj. Values represent events of interest in each trajectory
+    n_before: float
+        Refractive index of the medium light is coming from
+    n_after: float
+        Refractive index of the medium light is going to
+    thresh_angle: float
+        Detection angle to compare with output angles
+    Returns
+    -------
+    1D array of length Ntraj
+    '''
+
+    # find angles when crossing interface
+    theta = refraction(get_angles(kz, indices), n_before, n_after)
+    theta[np.isnan(theta)] = np.inf # this avoids a warning
+
+    # choose only the ones inside detection angle
+    filter_weights = weights.copy()
+    filter_weights[theta > thresh_angle] = 0
+    return filter_weights
+
+def refraction(angles, n_before, n_after):
+    '''
+    Returns angles after refracting through an interface
+
+    Parameters
+    ----------
+    angles: float or array of floats
+        angles relative to normal before the interface
+    n_before: float
+        Refractive index of the medium light is coming from
+    n_after: float
+        Refractive index of the medium light is going to
+    '''
+    snell = n_before / n_after * np.sin(angles)
+    snell[abs(snell) > 1] = np.nan # this avoids a warning
+    return np.arcsin(snell)
 
 def calc_refl_trans(trajectories, z_low, cutoff, n_medium, n_sample, 
                     detection_angle=np.pi/2):
@@ -437,7 +524,10 @@ def calc_refl_trans(trajectories, z_low, cutoff, n_medium, n_sample,
     z = trajectories.position[2]
     kx, ky, kz = trajectories.direction  
     weights = trajectories.weight
+    n_substrate = n_medium # this should be changed if sample is on Si wafer, for example.
     init_weight = weights[0]
+    init_dir = np.cos(refraction(get_angles(kz, np.ones(z.shape[1])), n_sample, n_medium))
+    # init_dir is reverse-corrected for refraction - kz before medium/sample interface
 
     # determine outcomes of all trajectories
     refl_indices, trans_indices, stuck_indices = trajectory_status(z, z_low, cutoff)
@@ -446,11 +536,12 @@ def calc_refl_trans(trajectories, z_low, cutoff, n_medium, n_sample,
     absorption = init_weight - select_events(weights, refl_indices + trans_indices + stuck_indices)
 
     # correct trajectory outcomes by fresnel reflection & TIR
-    transmission = fresnel_correct(kz, weights, trans_indices, n_sample, n_medium)
+    transmission = fresnel_correct(kz, weights, trans_indices, n_sample, n_substrate)
     reflection = fresnel_correct(kz, weights, refl_indices, n_sample, n_medium)
 
     # find fraction of incident light that is not fresnel reflected upon entering sample
-    inc_through = fresnel_correct(kz, weights, np.ones(z.shape[1]), n_medium, n_sample)
+    inc_through = fresnel_correct(np.array([init_dir]), weights, np.ones(z.shape[1]), n_medium, n_sample)
+    inc_refl = init_weight - inc_through
     inc_fraction = inc_through / init_weight
 
     # correct outcome values by amount of light actually entering sample
@@ -460,12 +551,14 @@ def calc_refl_trans(trajectories, z_low, cutoff, n_medium, n_sample,
     all_counted = transmission + reflection + absorption
     no_exit = inc_through - all_counted
     
+    # correct for effect of detection angle upon leaving sample
+    inc_refl = detect_correct(np.array([init_dir]), inc_refl, np.ones(z.shape[1]), n_medium, n_medium, detection_angle)
+    transmission = detect_correct(kz, transmission, trans_indices, n_sample, n_substrate, detection_angle)
+    reflection = detect_correct(kz, reflection, refl_indices, n_sample, n_medium, detection_angle)
+
     # calculate transmittance and reflectance for each trajectory (in terms of trajectory weights)
     transmittance = transmission + no_exit * np.sum(transmission)/np.sum(all_counted)
-    reflectance = reflection + no_exit * np.sum(reflection)/np.sum(all_counted) + (init_weight - inc_through)
-
-    #TODO re-implement refraction at interface
-    #TODO re-implement angle of detection cutoff
+    reflectance = reflection + no_exit * np.sum(reflection)/np.sum(all_counted) + inc_refl
 
     #calculate mean reflectance and transmittance for all trajectories
     return (np.sum(reflectance)/np.sum(init_weight), np.sum(transmittance/np.sum(init_weight)))    
@@ -595,15 +688,15 @@ def calc_reflection_sphere(x, y, z, ntraj, n_matrix, n_sample, kx, ky, kz,
     return refl_fraction
 
 
-def initialize(nevents, ntraj, seed=None, incidence_angle=0.):
+def initialize(nevents, ntraj, n_medium, n_sample, seed=None, incidence_angle=0.):
 
     """
     Sets the trajectories' initial conditions (position, direction, and weight).
 
     The initial positions are determined randomly in the x-y plane (the initial
-    z-position is at z = 0). The initial propagation direction is set to be 1
-    at z, meaning that the photon packets point straight down in z. The initial
-    weight is currently determined to be a value of choice.
+    z-position is at z = 0). The default initial propagation direction is set to
+    be kz = 1, meaning that the photon packets point straight down in z. The 
+    initial weight is currently determined to be a value of choice.
 
     Parameters
     ----------
@@ -611,6 +704,12 @@ def initialize(nevents, ntraj, seed=None, incidence_angle=0.):
         Number of scattering events
     ntraj : int
         Number of trajectories
+    n_medium : float (structcol.Quantity [dimensionless] or 
+        structcol.refractive_index object)
+        Refractive index of the medium.
+    n_sample : float (structcol.Quantity [dimensionless] or 
+        structcol.refractive_index object)
+        Refractive index of the sample.
     seed : int or None
         If seed is int, the simulation results will be reproducible. If seed is
         None, the simulation results are actually random.
@@ -653,6 +752,9 @@ def initialize(nevents, ntraj, seed=None, incidence_angle=0.):
     # pi] for the first scattering event
     rand_theta = random((1,ntraj))
     theta = rand_theta * incidence_angle
+
+    # Refraction of incident light upon entering sample
+    theta = refraction(theta, n_medium, n_sample)
     sintheta = np.sin(theta)
     costheta = np.cos(theta)
 
