@@ -128,7 +128,7 @@ class Trajectory:
 
     """
 
-    def __init__(self, position, direction, weight, nevents):
+    def __init__(self, position, direction, weight):
         """
         Constructor for Trajectory object.
 
@@ -140,15 +140,16 @@ class Trajectory:
             Dimensions of (3, nevents, number of trajectories)
         weight : see Class attributes
             Dimensions of (nevents, number of trajectories)
-        nevents : see Class attributes
 
         """
 
         self.position = position
         self.direction = direction
         self.weight = weight
-        self.nevents = nevents
 
+    @property
+    def nevents(self):
+        return self.weight.shape[0]
 
     def absorb(self, mu_abs, step_size):
         """
@@ -284,65 +285,7 @@ class Trajectory:
                              self.position[2,:,n], color=next(colors))
 
 
-def trajectory_status(z, low_lim, high_lim):
-    """
-    Determine the outcome of each trajectory for a given sample thickness.
-
-    Parameters
-    ----------
-    z : array_like (structcol.Quantity [length])
-        z-coordinates of position array.
-    low_lim : float (structcol.Quantity [length])
-        Lower limit that defines the beginning of the simulated sample.
-        Usually set to the starting trajectory position and 0.
-    high_lim : float (structcol.Quantity [length])
-        Upper limit that defines the end of the simulated sample.
-        Usually set to the sample's effective thickness.
-
-    Returns
-    -------
-    refl_indices : array
-        Non-zero values are reflection events for each trajectory.
-        Reflection here means exiting the sample in the lower direction.
-    trans_indices : array
-        Non-zero values are transmission events for each trajectory.
-        Transmission here means exiting the sample in the higher direction.
-    stuck_indices : array
-        Non-zero values are non-exiting events for each trajectory.
-        The only possible values are 0 or nevents.
-    """
-
-    # find all events of all trajectories outside limits (low_lim, high_lim)
-    low_bool = (z < low_lim)
-    high_bool = (z > high_lim)
-
-    # find first exit event of each trajectory in each direction
-    # note we convert to 1D array with len = Ntraj
-    low_event = np.argmax(low_bool, axis=0)
-    high_event = np.argmax(high_bool, axis=0)
-
-    # find all trajectories that did not exit in each direction
-    no_low = (low_event == 0)
-    no_high = (high_event == 0)
-
-    # find positions where low_event is less than high_event
-    # note that either < or <= would work here. They are only equal if both 0.
-    low_smaller = (low_event < high_event)
-
-    # find all trajectory outcomes
-    # note ambiguity for trajectories that did not exit in a given direction
-    low_exit = no_high | low_smaller
-    high_exit = no_low | (~low_smaller)
-    never_exit = no_low & no_high
-
-    # find where each trajectory first exits
-    first_low = low_event * low_exit
-    first_high = high_event * high_exit
-    never_exit = never_exit * (z.shape[0]-1)
-
-    return (first_low, first_high, never_exit)
-
-def select_events(inarray, events, compress=True):
+def select_events(inarray, events):
     '''
     Selects the items of inarray according to event coordinates
     
@@ -353,29 +296,21 @@ def select_events(inarray, events, compress=True):
     events: 1D array
         Should have length corresponding to ntrajectories.
         Non-zero entries correspond to the event of interest
-    comprress: Boolean
-        If true, returns only elements of inarray with non-zero events values.
-        If false, returns an array with length Ntraj (incl zero values in events)
     
     Returns
     -------
     1D array: contains only the elements of inarray corresponding to non-zero events values.
     '''
     valid_events = (events > 0)
-    ev = events[valid_events].astype(int) - 1 # subtract 1 to get scattering event before step that exits
+    ev = events[valid_events].astype(int) - 1
     tr = np.where(valid_events)[0]
-    if compress:
-        if len(ev) == 0:
-            # no events
-            return np.array([])
-        return inarray[ev, tr]
-    else:
-        #want output of the same form as events
-        outarray = np.zeros(len(events))
-        outarray[valid_events] = inarray[ev, tr]
-        if isinstance(inarray, sc.Quantity):
-            outarray = sc.Quantity(outarray, inarray.units)
-        return outarray
+
+    #want output of the same form as events
+    outarray = np.zeros(len(events))
+    outarray[valid_events] = inarray[ev, tr]
+    if isinstance(inarray, sc.Quantity):
+        outarray = sc.Quantity(outarray, inarray.units)
+    return outarray
 
 def get_angles(kz, indices):
     '''
@@ -392,14 +327,12 @@ def get_angles(kz, indices):
     -------
     1D array of pint quantities (length Ntraj)
     '''
-
     # select scattering events resulted in exit
-    cosz = select_events(kz, indices, False)
-
+    cosz = select_events(kz, indices)
     # calculate angle to normal from cos_z component (only want magnitude)
     return sc.Quantity(np.arccos(np.abs(cosz)),'')
 
-def fresnel_correct(kz, weights, indices, n_before, n_after):
+def fresnel_pass_frac(kz, indices, n_before, n_after):
     '''
     Returns weights of interest reduced by fresnel reflection
 
@@ -407,8 +340,6 @@ def fresnel_correct(kz, weights, indices, n_before, n_after):
     ----------
     kz: 2D array
         kz values, with axes corresponding to events, trajectories
-    weights: 2D array
-        weights values, with axes corresponding to events, trajectories
     indices: 1D array
         Length ntraj. Values represent events of interest in each trajectory
     n_before: float
@@ -423,11 +354,10 @@ def fresnel_correct(kz, weights, indices, n_before, n_after):
 
     #find angles when crossing interface
     theta = get_angles(kz, indices)
-    weights = select_events(weights, indices, False)
 
     #find fresnel 
     trans_s, trans_p = model.fresnel_transmission(n_before, n_after, theta)
-    return weights * (trans_s + trans_p)/2
+    return (trans_s + trans_p)/2
 
 def detect_correct(kz, weights, indices, n_before, n_after, thresh_angle):
     '''
@@ -474,6 +404,7 @@ def refraction(angles, n_before, n_after):
     n_after: float
         Refractive index of the medium light is going to
     '''
+
     snell = n_before / n_after * np.sin(angles)
     snell[abs(snell) > 1] = np.nan # this avoids a warning
     return np.arcsin(snell)
@@ -484,8 +415,8 @@ def calc_refl_trans(trajectories, z_low, cutoff, n_medium, n_sample,
     Counts the fraction of reflected and transmitted trajectories after a cutoff.
 
     Identifies which trajectories are reflected or transmitted, and at which
-    scattering event. Includes Fresnel reflection correction. [Then
-    counts the fraction of reflected trajectories that are detected.]
+    scattering event. Includes Fresnel reflection correction. Then
+    counts the fraction of reflected trajectories that are detected.
 
     Parameters
     ----------
@@ -520,45 +451,106 @@ def calc_refl_trans(trajectories, z_low, cutoff, n_medium, n_sample,
     Note: absorbance by the sample can be found by 1 - reflectance - transmittance
 
     """
-    # set up the values we need
+    # set up the values we need as numpy arrays
     z = trajectories.position[2]
-    kx, ky, kz = trajectories.direction  
+    if isinstance(z, sc.Quantity):
+        z = z.to('um').magnitude
+    kx, ky, kz = trajectories.direction
+    if isinstance(kx, sc.Quantity):
+        kx = kx.magnitude
+        ky = ky.magnitude
+        kz = kz.magnitude
     weights = trajectories.weight
-    n_substrate = n_medium # this should be changed if sample is on Si wafer, for example.
-    init_weight = weights[0]
-    init_dir = np.cos(refraction(get_angles(kz, np.ones(z.shape[1])), n_sample, n_medium))
-    # init_dir is reverse-corrected for refraction - kz before medium/sample interface
+    if isinstance(weights, sc.Quantity):
+        weights = weights.magnitude
+    if isinstance(z_low, sc.Quantity):
+        z_low = z_low.to('um').magnitude
+    if isinstance(cutoff, sc.Quantity):
+        cutoff = cutoff.to('um').magnitude
 
-    # determine outcomes of all trajectories
-    refl_indices, trans_indices, stuck_indices = trajectory_status(z, z_low, cutoff)
+    ntraj = z.shape[1]
 
-    # calculate absorption from all trajectories    
-    absorption = init_weight - select_events(weights, refl_indices + trans_indices + stuck_indices)
-
-    # correct trajectory outcomes by fresnel reflection & TIR
-    transmission = fresnel_correct(kz, weights, trans_indices, n_sample, n_substrate)
-    reflection = fresnel_correct(kz, weights, refl_indices, n_sample, n_medium)
-
-    # find fraction of incident light that is not fresnel reflected upon entering sample
-    inc_through = fresnel_correct(np.array([init_dir]), weights, np.ones(z.shape[1]), n_medium, n_sample)
-    inc_refl = init_weight - inc_through
-    inc_fraction = inc_through / init_weight
-
-    # correct outcome values by amount of light actually entering sample
-    transmission *= inc_fraction
-    reflection *= inc_fraction
-    absorption *= inc_fraction
-    all_counted = transmission + reflection + absorption
-    no_exit = inc_through - all_counted
+    # rescale z in terms of integer numbers of sample thickness
+    z_floors = np.floor((z - z_low)/(cutoff - z_low))
     
+    # potential exits whenever trajectories cross any boundary
+    potential_exits = ~(np.diff(z_floors, axis = 0)==0)
+
+    # find all kz with magnitude large enough to exit
+    no_tir = abs(kz) > np.cos(np.arcsin(n_medium / n_sample))
+
+    # exit in positive direction (transmission) iff crossing odd boundary
+    pos_dir = np.mod(np.floor(np.maximum(z_floors[1:], z_floors[:-1])), 2).astype(bool)
+
+    # construct boolean arrays of all valid exits in pos & neg directions
+    high_bool = potential_exits & no_tir & pos_dir
+    low_bool = potential_exits & no_tir & ~pos_dir
+
+    # find first valid exit of each trajectory in each direction
+    # note we convert to 2 1D arrays with len = Ntraj
+    # need vstack to reproduce earlier behaviour:
+    # an initial row of zeros is used to distinguish no events case
+    low_event = np.argmax(np.vstack([np.zeros(ntraj),low_bool]), axis=0)
+    high_event = np.argmax(np.vstack([np.zeros(ntraj),high_bool]), axis=0)
+
+    # find all trajectories that did not exit in each direction
+    no_low_exit = (low_event == 0)
+    no_high_exit = (high_event == 0)
+
+    # find positions where low_event is less than high_event
+    # note that either < or <= would work here. They are only equal if both 0.
+    low_smaller = (low_event < high_event)
+
+    # find all trajectory outcomes
+    # note ambiguity for trajectories that did not exit in a given direction
+    low_first = no_high_exit | low_smaller
+    high_first = no_low_exit | (~low_smaller)
+    never_exit = no_low_exit & no_high_exit
+
+    # find where each trajectory first exits
+    refl_indices = low_event * low_first
+    trans_indices = high_event * high_first
+    stuck_indices = never_exit * (z.shape[0]-1)
+
+    # calculate initial weights that actually enter the sample after fresnel
+    init_weight = weights[0]
+    init_dir = np.cos(refraction(get_angles(kz, np.ones(ntraj)), n_sample, n_medium))
+    # init_dir is reverse-corrected for refraction. = kz before medium/sample interface
+    inc_fraction = fresnel_pass_frac(np.array([init_dir]), np.ones(ntraj), n_medium, n_sample)
+
+    # calculate outcome weights from all trajectories
+    refl_weights = inc_fraction * select_events(weights, refl_indices)
+    trans_weights = inc_fraction * select_events(weights, trans_indices)
+    stuck_weights = inc_fraction * select_events(weights, stuck_indices)
+    absorb_weights = inc_fraction * init_weight - refl_weights - trans_weights - stuck_weights
+    
+    # correct for non-TIR fresnel reflection upon exiting
+    reflected = refl_weights * fresnel_pass_frac(kz, refl_indices, n_sample, n_medium)
+    transmitted = trans_weights * fresnel_pass_frac(kz, trans_indices, n_sample, n_medium)
+    refl_fresnel = refl_weights - reflected
+    trans_fresnel = trans_weights - transmitted
+
+    # find fraction of known outcomes that are successfully transmitted or reflected
+    known_outcomes = np.sum(absorb_weights + reflected + transmitted)
+    refl_frac = np.sum(reflected) / known_outcomes
+    trans_frac = np.sum(transmitted) / known_outcomes
+    
+    # need to distribute ambiguous trajectory weights.
+    # stuck are 50/50 reflected/transmitted since they are randomized.
+    # non-TIR fresnel are treated as new trajectories at the appropriate interface.
+    # This means reversed R/T ratios for fresnel reflection at transmission interface.
+    extra_refl = refl_fresnel * refl_frac + trans_fresnel * trans_frac + stuck_weights * 0.5
+    extra_trans = trans_fresnel * refl_frac + refl_fresnel * trans_frac + stuck_weights * 0.5
+
     # correct for effect of detection angle upon leaving sample
-    inc_refl = detect_correct(np.array([init_dir]), inc_refl, np.ones(z.shape[1]), n_medium, n_medium, detection_angle)
-    transmission = detect_correct(kz, transmission, trans_indices, n_sample, n_substrate, detection_angle)
-    reflection = detect_correct(kz, reflection, refl_indices, n_sample, n_medium, detection_angle)
+    inc_refl = init_weight * (1 - inc_fraction) # fresnel reflection incident on sample
+    inc_refl = detect_correct(np.array([init_dir]), inc_refl, np.ones(ntraj), n_medium, n_medium, detection_angle)
+    trans_detected = detect_correct(kz, transmitted, trans_indices, n_sample, n_medium, detection_angle)
+    refl_detected = detect_correct(kz, reflected, refl_indices, n_sample, n_medium, detection_angle)
 
     # calculate transmittance and reflectance for each trajectory (in terms of trajectory weights)
-    transmittance = transmission + no_exit * np.sum(transmission)/np.sum(all_counted)
-    reflectance = reflection + no_exit * np.sum(reflection)/np.sum(all_counted) + inc_refl
+    transmittance = trans_detected + extra_trans * np.sum(trans_detected) / np.sum(transmitted)
+    reflectance = refl_detected + extra_refl * np.sum(refl_detected) / np.sum(reflected) + inc_refl
 
     #calculate mean reflectance and transmittance for all trajectories
     return (np.sum(reflectance)/np.sum(init_weight), np.sum(transmittance/np.sum(init_weight)))    
