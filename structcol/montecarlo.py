@@ -744,14 +744,19 @@ def initialize(nevents, ntraj, n_medium, n_sample, seed=None, incidence_angle=0.
     # Random sampling of azimuthal angle phi from uniform distribution [0 -
     # 2pi] for the first scattering event
     rand_phi = random((1,ntraj))
-    phi = 2*np.pi*rand_phi
+    phi = 2 * np.pi * rand_phi
     sinphi = np.sin(phi)
     cosphi = np.cos(phi)
 
     # Random sampling of scattering angle theta from uniform distribution [0 -
     # pi] for the first scattering event
     rand_theta = random((1,ntraj))
-    theta = rand_theta * incidence_angle
+    theta = rand_theta * incidence_angle  
+    # TODO: Think if this makes sense: should rand_theta be from 0 to 1? This 
+    # then assumes a uniform distribution of scattering angles at the first 
+    # scattering event. It is fine for incidence_angle = 0, but might not be for 
+    # diffuse incident angle, since it might mean that half of the trajectories
+    # are immediately reflected back. 
 
     # Refraction of incident light upon entering sample
     theta = refraction(theta, n_medium, n_sample)
@@ -760,9 +765,6 @@ def initialize(nevents, ntraj, n_medium, n_sample, seed=None, incidence_angle=0.
 
     # Fill up the first row (corresponding to the first scattering event) of the
     # direction cosines array with the randomly generated angles:
-    # kx = sintheta * cosphi
-    # ky = sintheta * sinphi
-    # kz = costheta
     k0[0,0,:] = sintheta * cosphi
     k0[1,0,:] = sintheta * sinphi
     k0[2,0,:] = costheta
@@ -813,10 +815,10 @@ def initialize_sphere(nevents, ntraj, radius, seed=None, initial_weight = 1):
     # and weight arrays because in includes the starting positions on the x-y
     # plane
     r0 = np.zeros((3, nevents+1, ntraj))
-    r = radius.magnitude*random((1,ntraj))
-    t = 2*np.pi*random((1,ntraj))
-    r0[0,0,:] = r*np.cos(t)
-    r0[1,0,:] = r*np.sin(t)
+    r = radius.magnitude * random((1,ntraj))
+    t = 2 * np.pi * random((1,ntraj))
+    r0[0,0,:] = r * np.cos(t)
+    r0[1,0,:] = r * np.sin(t)
     r0[2,0,:] = radius.magnitude-np.sqrt(radius.magnitude**2 -
                                          r0[0,0,:]**2 - r0[1,0,:]**2)
 
