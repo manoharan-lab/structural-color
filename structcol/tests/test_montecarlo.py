@@ -55,7 +55,6 @@ def test_sampling():
     mc.sample_step(nevents, ntrajectories, mu_abs, mu_scat)
 
 def test_calc_refl_trans():
-    events=3
     low_thresh = 0
     high_thresh = 10
     small_n = 1
@@ -65,7 +64,7 @@ def test_calc_refl_trans():
     z_pos = np.array([[0,0,0,0],[1,1,1,1],[-1,11,2,11],[-2,12,4,12]])
     kz = np.array([[1,1,1,1],[-1,1,1,1],[-1,1,1,1]])
     weights = np.array([[1,1,2,1],[1,0.3,1,0],[0.1,0.1,0.5,0]])
-    trajectories = mc.Trajectory([np.nan, np.nan, z_pos],[np.nan, np.nan, kz], weights, events)
+    trajectories = mc.Trajectory([np.nan, np.nan, z_pos],[np.nan, np.nan, kz], weights)
     refl, trans= mc.calc_refl_trans(trajectories, low_thresh, high_thresh, small_n, small_n)
     expected_trans_array = np.array([0, 0.3, 0.25, 0])/np.sum(weights[0]) #calculated manually
     expected_refl_array = np.array([1, 0, 0.25, 0])/np.sum(weights[0]) #calculated manually
@@ -76,16 +75,16 @@ def test_calc_refl_trans():
     z_pos = np.array([[0,0,0,0],[5,5,5,5],[-5,-5,15,15],[5,-15,5,25],[-5,-25,6,35]])
     kz = np.array([[1,1,1,0.86746757864487367],[-.1,-.1,.1,.1],[0.1,-.1,-.1,0.1],[-1,-.9,1,1]])
     weights = np.array([[1,2,1,1],[.9,1.8,.9,.9],[.8,1.5,.8,.8],[0.7,1.2,0.7,0.7]])
-    trajectories = mc.Trajectory([np.nan, np.nan, z_pos],[np.nan, np.nan, kz], weights, events)
+    trajectories = mc.Trajectory([np.nan, np.nan, z_pos],[np.nan, np.nan, kz], weights)
     refl, trans= mc.calc_refl_trans(trajectories, low_thresh, high_thresh, small_n, large_n)
-    expected_trans_array = np.array([ 0.00572116, 0.01452586, 0.31111111, 0.25483365])/np.sum(weights[0]) #calculated manually
+    expected_trans_array = np.array([ 0.00572116, 0.01452586, 0.31111111, 0.2685365])/np.sum(weights[0]) #calculated manually
     expected_refl_array = np.array([ 0.69677911, 1.19607871, 0.42222222, 0.59505597])/np.sum(weights[0]) #calculated manually
     assert_almost_equal(refl, np.sum(expected_refl_array))
     assert_almost_equal(trans, np.sum(expected_trans_array))
 
     # test refraction and detection_angle
     refl, trans= mc.calc_refl_trans(trajectories, low_thresh, high_thresh, small_n, large_n, detection_angle=0.1)
-    expected_trans_array = np.array([ 0.00572116, 0.01452586, 0.31111111, 0.25483365])/np.sum(weights[0]) #calculated manually
+    expected_trans_array = np.array([ 0.00572116, 0.01452586, 0.31111111, 0.2685365])/np.sum(weights[0]) #calculated manually
     expected_refl_array = np.array([ 0.67667516, 0.25390257, 0.230256, 0.00100461])/np.sum(weights[0]) #calculated manually
     assert_almost_equal(refl, np.sum(expected_refl_array))
     assert_almost_equal(trans, np.sum(expected_trans_array))
@@ -99,7 +98,7 @@ def test_trajectories():
     W0 = sc.Quantity(W0, '')
 
     # Create a Trajectory object
-    trajectories = mc.Trajectory(r0, k0, W0, nevents)
+    trajectories = mc.Trajectory(r0, k0, W0)
     
     # Test the absorb function
     mu_abs = 1/sc.Quantity(10, 'um')    

@@ -128,7 +128,7 @@ class Trajectory:
 
     """
 
-    def __init__(self, position, direction, weight, nevents):
+    def __init__(self, position, direction, weight):
         """
         Constructor for Trajectory object.
 
@@ -140,15 +140,16 @@ class Trajectory:
             Dimensions of (3, nevents, number of trajectories)
         weight : see Class attributes
             Dimensions of (nevents, number of trajectories)
-        nevents : see Class attributes
 
         """
 
         self.position = position
         self.direction = direction
         self.weight = weight
-        self.nevents = nevents
 
+    @property
+    def nevents(self):
+        return self.weight.shape[0]
 
     def absorb(self, mu_abs, step_size):
         """
@@ -295,9 +296,6 @@ def select_events(inarray, events):
     events: 1D array
         Should have length corresponding to ntrajectories.
         Non-zero entries correspond to the event of interest
-    comprress: Boolean
-        If true, returns only elements of inarray with non-zero events values.
-        If false, returns an array with length Ntraj (incl zero values in events)
     
     Returns
     -------
@@ -342,8 +340,6 @@ def fresnel_pass_frac(kz, indices, n_before, n_after):
     ----------
     kz: 2D array
         kz values, with axes corresponding to events, trajectories
-    weights: 2D array
-        weights values, with axes corresponding to events, trajectories
     indices: 1D array
         Length ntraj. Values represent events of interest in each trajectory
     n_before: float
@@ -419,8 +415,8 @@ def calc_refl_trans(trajectories, z_low, cutoff, n_medium, n_sample,
     Counts the fraction of reflected and transmitted trajectories after a cutoff.
 
     Identifies which trajectories are reflected or transmitted, and at which
-    scattering event. Includes Fresnel reflection correction. [Then
-    counts the fraction of reflected trajectories that are detected.]
+    scattering event. Includes Fresnel reflection correction. Then
+    counts the fraction of reflected trajectories that are detected.
 
     Parameters
     ----------
@@ -467,6 +463,11 @@ def calc_refl_trans(trajectories, z_low, cutoff, n_medium, n_sample,
     weights = trajectories.weight
     if isinstance(weights, sc.Quantity):
         weights = weights.magnitude
+    if isinstance(z_low, sc.Quantity):
+        z_low = z_low.to('um').magnitude
+    if isinstance(cutoff, sc.Quantity):
+        cutoff = cutoff.to('um').magnitude
+
     ntraj = z.shape[1]
 
     # rescale z in terms of integer numbers of sample thickness
@@ -487,6 +488,8 @@ def calc_refl_trans(trajectories, z_low, cutoff, n_medium, n_sample,
 
     # find first valid exit of each trajectory in each direction
     # note we convert to 2 1D arrays with len = Ntraj
+    # need vstack to reproduce earlier behaviour:
+    # an initial row of zeros is used to distinguish no events case
     low_event = np.argmax(np.vstack([np.zeros(ntraj),low_bool]), axis=0)
     high_event = np.argmax(np.vstack([np.zeros(ntraj),high_bool]), axis=0)
 
@@ -509,10 +512,10 @@ def calc_refl_trans(trajectories, z_low, cutoff, n_medium, n_sample,
     trans_indices = high_event * high_first
     stuck_indices = never_exit * (z.shape[0]-1)
 
-    # calculate initial weights that actually enter the sample
+    # calculate initial weights that actually enter the sample after fresnel
     init_weight = weights[0]
     init_dir = np.cos(refraction(get_angles(kz, np.ones(ntraj)), n_sample, n_medium))
-    # init_dir is reverse-corrected for refraction - kz before medium/sample interface
+    # init_dir is reverse-corrected for refraction. = kz before medium/sample interface
     inc_fraction = fresnel_pass_frac(np.array([init_dir]), np.ones(ntraj), n_medium, n_sample)
 
     # calculate outcome weights from all trajectories
@@ -532,15 +535,15 @@ def calc_refl_trans(trajectories, z_low, cutoff, n_medium, n_sample,
     refl_frac = np.sum(reflected) / known_outcomes
     trans_frac = np.sum(transmitted) / known_outcomes
     
-    # need to distribute ambiguous trajectories.
+    # need to distribute ambiguous trajectory weights.
     # stuck are 50/50 reflected/transmitted since they are randomized.
     # non-TIR fresnel are treated as new trajectories at the appropriate interface.
     # This means reversed R/T ratios for fresnel reflection at transmission interface.
     extra_refl = refl_fresnel * refl_frac + trans_fresnel * trans_frac + stuck_weights * 0.5
-    extra_trans = trans_fresnel * trans_frac * refl_frac + refl_fresnel * trans_frac + stuck_weights * 0.5
+    extra_trans = trans_fresnel * refl_frac + refl_fresnel * trans_frac + stuck_weights * 0.5
 
     # correct for effect of detection angle upon leaving sample
-    inc_refl = init_weight * (1 - inc_fraction) # weights of fresnel reflection incident on sample
+    inc_refl = init_weight * (1 - inc_fraction) # fresnel reflection incident on sample
     inc_refl = detect_correct(np.array([init_dir]), inc_refl, np.ones(ntraj), n_medium, n_medium, detection_angle)
     trans_detected = detect_correct(kz, transmitted, trans_indices, n_sample, n_medium, detection_angle)
     refl_detected = detect_correct(kz, reflected, refl_indices, n_sample, n_medium, detection_angle)
