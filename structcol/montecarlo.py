@@ -37,6 +37,9 @@ import structcol as sc
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 import itertools
+import warnings
+
+eps = 1.e-9
 
 # some templates to use when refactoring later
 class MCSimulation:
@@ -524,6 +527,11 @@ def calc_refl_trans(trajectories, z_low, cutoff, n_medium, n_sample,
     stuck_weights = inc_fraction * select_events(weights, stuck_indices)
     absorb_weights = inc_fraction * init_weight - refl_weights - trans_weights - stuck_weights
     
+    # warn user if too many trajectories got stuck
+    stuck_frac = np.sum(stuck_weights) / np.sum(inc_fraction * init_weight) * 100
+    stuck_traj_warn = " \n{0}% of trajectories did not exit the sample. Increase Nevents to improve accuracy.".format(str(int(stuck_frac)))
+    if stuck_frac >= 20: warnings.warn(stuck_traj_warn)
+
     # correct for non-TIR fresnel reflection upon exiting
     reflected = refl_weights * fresnel_pass_frac(kz, refl_indices, n_sample, n_medium)
     transmitted = trans_weights * fresnel_pass_frac(kz, trans_indices, n_sample, n_medium)
@@ -547,10 +555,12 @@ def calc_refl_trans(trajectories, z_low, cutoff, n_medium, n_sample,
     inc_refl = detect_correct(np.array([init_dir]), inc_refl, np.ones(ntraj), n_medium, n_medium, detection_angle)
     trans_detected = detect_correct(kz, transmitted, trans_indices, n_sample, n_medium, detection_angle)
     refl_detected = detect_correct(kz, reflected, refl_indices, n_sample, n_medium, detection_angle)
+    trans_det_frac = np.max([np.sum(trans_detected),eps]) / np.max([np.sum(transmitted), eps])
+    refl_det_frac = np.max([np.sum(refl_detected),eps]) / np.max([np.sum(reflected), eps]) 
 
     # calculate transmittance and reflectance for each trajectory (in terms of trajectory weights)
-    transmittance = trans_detected + extra_trans * np.sum(trans_detected) / np.sum(transmitted)
-    reflectance = refl_detected + extra_refl * np.sum(refl_detected) / np.sum(reflected) + inc_refl
+    transmittance = trans_detected + extra_trans * trans_det_frac
+    reflectance = refl_detected + extra_refl * refl_det_frac + inc_refl
 
     #calculate mean reflectance and transmittance for all trajectories
     return (np.sum(reflectance)/np.sum(init_weight), np.sum(transmittance/np.sum(init_weight)))    
@@ -813,7 +823,6 @@ def initialize_sphere(nevents, ntraj, radius, seed=None, initial_weight = 1):
                                          r0[0,0,:]**2 - r0[1,0,:]**2)
 
     # Initial direction
-    eps = 1.e-9
     k0 = np.zeros((3, nevents, ntraj))
     k0[2,0,:] = 1. - eps
 
