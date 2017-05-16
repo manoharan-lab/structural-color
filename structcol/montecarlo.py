@@ -439,7 +439,7 @@ def calc_refl_trans(trajectories, z_low, cutoff, n_medium, n_sample,
 
     # rescale z in terms of integer numbers of sample thickness
     z_floors = np.floor((z - z_low)/(cutoff - z_low))
-    
+
     # potential exits whenever trajectories cross any boundary
     potential_exits = ~(np.diff(z_floors, axis = 0)==0)
 
@@ -447,7 +447,7 @@ def calc_refl_trans(trajectories, z_low, cutoff, n_medium, n_sample,
     no_tir = abs(kz) > np.cos(np.arcsin(n_medium / n_sample))
 
     # exit in positive direction (transmission) iff crossing odd boundary
-    pos_dir = np.mod(np.floor(np.maximum(z_floors[1:], z_floors[:-1])), 2).astype(bool)
+    pos_dir = np.mod(z_floors[:-1]+1*(z_floors[1:]>z_floors[:-1]), 2).astype(bool)
 
     # construct boolean arrays of all valid exits in pos & neg directions
     high_bool = potential_exits & no_tir & pos_dir
@@ -490,7 +490,7 @@ def calc_refl_trans(trajectories, z_low, cutoff, n_medium, n_sample,
     trans_weights = inc_fraction * select_events(weights, trans_indices)
     stuck_weights = inc_fraction * select_events(weights, stuck_indices)
     absorb_weights = inc_fraction * init_weight - refl_weights - trans_weights - stuck_weights
-    
+
     # warn user if too many trajectories got stuck
     stuck_frac = np.sum(stuck_weights) / np.sum(inc_fraction * init_weight) * 100
     stuck_traj_warn = " \n{0}% of trajectories did not exit the sample. Increase Nevents to improve accuracy.".format(str(int(stuck_frac)))
