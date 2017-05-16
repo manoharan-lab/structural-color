@@ -89,6 +89,17 @@ def test_calc_refl_trans():
     assert_almost_equal(refl, np.sum(expected_refl_array))
     assert_almost_equal(trans, np.sum(expected_trans_array))
 
+    # test steps in z longer than sample thickness
+    z_pos = np.array([[0,0,0,0,0,0,0],[1.1,2.1,3.1,0.6,0.6,0.6,0.1],[1.2,2.2,3.2,1.6,0.7,0.7,-0.6],[1.3,2.3,3.3,3.3,-2.1,-1.1,-2.1]])
+    kz = np.array([[1,1,1,1,1,1,1],[1,1,1,0.1,1,1,-0.1],[1,1,1,1,-1,-1,-1]])
+    weights = np.array([[1,1,1,1,1,1,1],[1,1,1,1,1,1,1],[1,1,1,1,1,1,1]])
+    thin_sample_thickness = 1
+    trajectories = mc.Trajectory([np.nan, np.nan, z_pos],[np.nan, np.nan, kz], weights)
+    refl, trans= mc.calc_refl_trans(trajectories, low_thresh, thin_sample_thickness, small_n, large_n)
+    expected_trans_array = np.array([0.8324515,0.8324515,0.8324515,0.0564374,0.0564374,0.0564374,0.8324515])/np.sum(weights[0]) #calculated manually
+    expected_refl_array = np.array([0.1675485,0.1675485,0.1675485,0.9435626,0.9435626,0.9435626,0.1675485])/np.sum(weights[0]) #calculated manually
+    assert_almost_equal(refl, np.sum(expected_refl_array))
+    assert_almost_equal(trans, np.sum(expected_trans_array))
 
 def test_trajectories():
     # Initialize runs
