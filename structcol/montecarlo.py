@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 2016 Vinothan N. Manoharan, Victoria Hwang, Annie Stephenson
+# Copyright 2016 Vinothan N. Manoharan, Victoria Hwang, Anna B. Stephenson, Solomon Barkley
 #
 # This file is part of the structural-color python package.
 #
@@ -37,6 +37,9 @@ import structcol as sc
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 import itertools
+import warnings
+
+eps = 1.e-9
 
 # some templates to use when refactoring later
 class MCSimulation:
@@ -128,7 +131,7 @@ class Trajectory:
 
     """
 
-    def __init__(self, position, direction, weight, nevents):
+    def __init__(self, position, direction, weight):
         """
         Constructor for Trajectory object.
 
@@ -140,15 +143,16 @@ class Trajectory:
             Dimensions of (3, nevents, number of trajectories)
         weight : see Class attributes
             Dimensions of (nevents, number of trajectories)
-        nevents : see Class attributes
 
         """
 
         self.position = position
         self.direction = direction
         self.weight = weight
-        self.nevents = nevents
 
+    @property
+    def nevents(self):
+        return self.weight.shape[0]
 
     def absorb(self, mu_abs, step_size):
         """
@@ -210,6 +214,7 @@ class Trajectory:
 
         # Update all the directions of the trajectories
         self.direction = sc.Quantity(kn, self.direction.units)
+
 
     def move(self, step):
         """
@@ -282,88 +287,135 @@ class Trajectory:
                 ax3D.scatter(self.position[0,:,n], self.position[1,:,n],
                              self.position[2,:,n], color=next(colors))
 
-<<<<<<< HEAD
-def calc_reflection(z, z_low, cutoff, ntraj, n_matrix, n_sample, kx, ky, kz,
-                    weights=None, detection_angle=np.pi/2):
-=======
 
-def trajectory_status(z, low_lim, high_lim):
-    """
-    Determine the outcome of each trajectory for a given sample thickness.
+def select_events(inarray, events):
+    '''
+    Selects the items of inarray according to event coordinates
+    
+    Parameters
+    ----------
+    inarray: 2D array
+        Should have axes corresponding to events, trajectories
+    events: 1D array
+        Should have length corresponding to ntrajectories.
+        Non-zero entries correspond to the event of interest
+    
+    Returns
+    -------
+    1D array: contains only the elements of inarray corresponding to non-zero events values.
+    '''
+    valid_events = (events > 0)
+    ev = events[valid_events].astype(int) - 1
+    tr = np.where(valid_events)[0]
+
+    #want output of the same form as events
+    outarray = np.zeros(len(events))
+    outarray[valid_events] = inarray[ev, tr]
+    if isinstance(inarray, sc.Quantity):
+        outarray = sc.Quantity(outarray, inarray.units)
+    return outarray
+
+def get_angles(kz, indices):
+    '''
+    Returns specified angles (relative to normal) from kz components
 
     Parameters
     ----------
-    z : array_like (structcol.Quantity [length])
-        z-coordinates of position array.
-    low_lim : float (structcol.Quantity [length])
-        Lower limit that defines the beginning of the simulated sample.
-        Usually set to the starting trajectory position and 0.
-    high_lim : float (structcol.Quantity [length])
-        Upper limit that defines the end of the simulated sample.
-        Usually set to the sample's effective thickness.
+    kz: 2D array
+        kz values, with axes corresponding to events, trajectories
+    indices: 1D array
+        Length ntraj. Values represent events of interest in each trajectory
 
     Returns
     -------
-    exit_low_traj : array
-        Indices of trajectories that are reflected.
-        Reflection here means exiting the sample in the lower direction.
-    exit_low_event : array
-        Event indices corresponding to exit in the lower direction.
-        Elementwise correspondence to the trajectories in exit_low_traj.
-    exit_high_traj : array
-        Indices of trajectories that are transmitted.
-        Transmission here means exiting the sample in the higher direction.
-    exit_high_event : array
-        Event indices corresponding to exit in the higher direction.
-        Elementwise correspondence to the trajectories in exit_high_traj.
-    never_exit_traj : array
-        Indices of trajectories that do not exit the sample.
-        These trajectories would eventually be reflected or transmitted,
-        if allowed to undergo more scattering events.
-    """
+    1D array of pint quantities (length Ntraj)
+    '''
+    # select scattering events resulted in exit
+    cosz = select_events(kz, indices)
+    # calculate angle to normal from cos_z component (only want magnitude)
+    return sc.Quantity(np.arccos(np.abs(cosz)),'')
 
-    # find all events of all trajectories outside limits (low_lim, high_lim)
-    low_bool = (z < low_lim)
-    high_bool = (z > high_lim)
+def fresnel_pass_frac(kz, indices, n_before, n_after):
+    '''
+    Returns weights of interest reduced by fresnel reflection
 
-    # find first exit event of each trajectory in each direction
-    # note we convert to 1D array with len = Ntraj
-    low_event = np.argmax(low_bool, axis=0)
-    high_event = np.argmax(high_bool, axis=0)
+    Parameters
+    ----------
+    kz: 2D array
+        kz values, with axes corresponding to events, trajectories
+    indices: 1D array
+        Length ntraj. Values represent events of interest in each trajectory
+    n_before: float
+        Refractive index of the medium light is coming from
+    n_after: float
+        Refractive index of the medium light is going to
 
-    # find all trajectories that did not exit in each direction
-    no_low = (low_event == 0)
-    no_high = (high_event == 0)
+    Returns
+    -------
+    1D array of length Ntraj
+    '''
 
-    # find positions where low_event is less than high_event
-    # note that either < or <= would work here. They are only equal if both 0.
-    low_smaller = (low_event < high_event)
+    #find angles when crossing interface
+    theta = get_angles(kz, indices)
 
-    # find all trajectory outcomes
-    # note ambiguity for trajectories that did not exit in a given direction
-    low_exit = no_high | low_smaller
-    high_exit = no_low | (~low_smaller)
-    never_exit = no_low & no_high
+    #find fresnel 
+    trans_s, trans_p = model.fresnel_transmission(n_before, n_after, theta)
+    return (trans_s + trans_p)/2
 
-    # find where each trajectory first exits
-    first_low = low_event * low_exit
-    first_high = high_event * high_exit
+def detect_correct(kz, weights, indices, n_before, n_after, thresh_angle):
+    '''
+    Returns weights of interest within detection angle
 
-    #organize values and return
-    exit_low_traj = np.where(first_low > 0)[0]
-    exit_low_event = first_low[first_low > 0]
-    exit_high_traj = np.where(first_high > 0)[0]
-    exit_high_event= first_high[first_high > 0]
-    never_exit_traj = np.where(never_exit > 0)[0]
+    Parameters
+    ----------
+    kz: 2D array
+        kz values, with axes corresponding to events, trajectories
+    weights: 2D array
+        weights values, with axes corresponding to events, trajectories
+    indices: 1D array
+        Length ntraj. Values represent events of interest in each trajectory
+    n_before: float
+        Refractive index of the medium light is coming from
+    n_after: float
+        Refractive index of the medium light is going to
+    thresh_angle: float
+        Detection angle to compare with output angles
+    Returns
+    -------
+    1D array of length Ntraj
+    '''
 
-    return (exit_low_traj, exit_low_event, exit_high_traj, exit_high_event, never_exit_traj)
+    # find angles when crossing interface
+    theta = refraction(get_angles(kz, indices), n_before, n_after)
+    theta[np.isnan(theta)] = np.inf # this avoids a warning
 
+    # choose only the ones inside detection angle
+    filter_weights = weights.copy()
+    filter_weights[theta > thresh_angle] = 0
+    return filter_weights
 
-def calc_reflection(trajectories, z_low, cutoff, ntraj, n_matrix, n_sample, 
+def refraction(angles, n_before, n_after):
+    '''
+    Returns angles after refracting through an interface
+
+    Parameters
+    ----------
+    angles: float or array of floats
+        angles relative to normal before the interface
+    n_before: float
+        Refractive index of the medium light is coming from
+    n_after: float
+        Refractive index of the medium light is going to
+    '''
+
+    snell = n_before / n_after * np.sin(angles)
+    snell[abs(snell) > 1] = np.nan # this avoids a warning
+    return np.arcsin(snell)
+
+def calc_refl_trans(trajectories, z_low, cutoff, n_medium, n_sample, 
                     detection_angle=np.pi/2):
->>>>>>> 6dab248ecd2ef005bf12b846dac9dfbb0c0d8de3
     """
-    Counts the fraction of reflected trajectories after a cutoff.
+    Counts the fraction of reflected and transmitted trajectories after a cutoff.
 
     Identifies which trajectories are reflected or transmitted, and at which
     scattering event. Includes Fresnel reflection correction. Then
@@ -379,11 +431,9 @@ def calc_reflection(trajectories, z_low, cutoff, ntraj, n_matrix, n_sample,
     cutoff : float (structcol.Quantity [length])
         Final z-cutoff that determines the effective thickness of the simulated
         sample.
-    ntraj : int
-        Number of trajectories.
-    n_matrix : float (structcol.Quantity [dimensionless] or 
+    n_medium : float (structcol.Quantity [dimensionless] or 
         structcol.refractive_index object)
-        Refractive index of the matrix.
+        Refractive index of the medium.
     n_sample : float (structcol.Quantity [dimensionless] or 
         structcol.refractive_index object)
         Refractive index of the sample.
@@ -395,144 +445,125 @@ def calc_reflection(trajectories, z_low, cutoff, ntraj, n_matrix, n_sample,
 
     Returns
     -------
-    refl_fraction_corrected : float
+    reflectance: float
         Fraction of reflected trajectories, including the Fresnel correction
-        (which includes total internal reflection), and are within the range
-        of the detector.
+        but not considering the range of the detector.
+    transmittance: float
+        Fraction of transmitted trajectories, including the Fresnel correction
+        but not considering the range of the detector.
+    Note: absorbance by the sample can be found by 1 - reflectance - transmittance
 
     """
-<<<<<<< HEAD
-    if weights is None:
-        weights = np.ones((kx.shape[0],ntraj))
-
-    refl_row_indices = []
-    refl_col_indices = []
-    trans_row_indices = []
-    trans_col_indices = []
-
-    # For each trajectory, find the first scattering event after which the
-    # packet exits the system by either getting reflected (z-coord < z_low) or
-    # transmitted (z-coord > cutoff):
-    for tr in np.arange(ntraj):
-        z_tr = z[:,tr]
-
-        # If there are any z-positions in the trajectory that are larger
-        # than the cutoff (which means the packet has been transmitted), then
-        # find the index of the first scattering event at which this happens.
-        # If no packet gets transmitted, then leave as NaN.
-        if any(z_tr > cutoff):
-            z_trans = next(zi for zi in z_tr if zi > cutoff)
-            trans_row = z_tr.tolist().index(z_trans)
-        else:
-            trans_row = np.NaN
-
-        # If there are any z-positions in the trajectory that are smaller
-        # than z_low (which means the packet has been reflected), then find
-        # the index of the first scattering event at which this happens.
-        # If no packet gets reflected, then leave as NaN.
-        if any(z_tr < z_low):
-            z_refl = next(zi for zi in z_tr if zi < z_low)
-            refl_row = z_tr.tolist().index(z_refl)
-        else:
-            refl_row = np.NaN
-
-        # If a packet got transmitted but not reflected in the trajectory,
-        # then append the index at which it gets transmitted
-        if (type(trans_row) == int and type(refl_row) != int):
-            trans_row_indices.append(trans_row)
-            trans_col_indices.append(tr)
-
-        # If a packet got reflected but not transmitted in the trajectory,
-        # then append the index at which it gets reflected
-        if (type(refl_row) == int and type(trans_row) != int):
-            refl_row_indices.append(refl_row)
-            refl_col_indices.append(tr)
-
-        # If a packet gets both reflected and transmitted, choose whichever
-        # happens first
-        if (type(trans_row) == int and type(refl_row) == int):
-            if trans_row < refl_row:
-                trans_row_indices.append(trans_row)
-                trans_col_indices.append(tr)
-            if refl_row < trans_row:
-                refl_row_indices.append(refl_row)
-                refl_col_indices.append(tr)
-=======
->>>>>>> 6dab248ecd2ef005bf12b846dac9dfbb0c0d8de3
-
+    # set up the values we need as numpy arrays
     z = trajectories.position[2]
-    kx, ky, kz = trajectories.direction  
+    if isinstance(z, sc.Quantity):
+        z = z.to('um').magnitude
+    kx, ky, kz = trajectories.direction
+    if isinstance(kx, sc.Quantity):
+        kx = kx.magnitude
+        ky = ky.magnitude
+        kz = kz.magnitude
     weights = trajectories.weight
+    if isinstance(weights, sc.Quantity):
+        weights = weights.magnitude
+    if isinstance(z_low, sc.Quantity):
+        z_low = z_low.to('um').magnitude
+    if isinstance(cutoff, sc.Quantity):
+        cutoff = cutoff.to('um').magnitude
+
+    ntraj = z.shape[1]
+
+    # rescale z in terms of integer numbers of sample thickness
+    z_floors = np.floor((z - z_low)/(cutoff - z_low))
+
+    # potential exits whenever trajectories cross any boundary
+    potential_exits = ~(np.diff(z_floors, axis = 0)==0)
+
+    # find all kz with magnitude large enough to exit
+    no_tir = abs(kz) > np.cos(np.arcsin(n_medium / n_sample))
+
+    # exit in positive direction (transmission) iff crossing odd boundary
+    pos_dir = np.mod(z_floors[:-1]+1*(z_floors[1:]>z_floors[:-1]), 2).astype(bool)
+
+    # construct boolean arrays of all valid exits in pos & neg directions
+    high_bool = potential_exits & no_tir & pos_dir
+    low_bool = potential_exits & no_tir & ~pos_dir
+
+    # find first valid exit of each trajectory in each direction
+    # note we convert to 2 1D arrays with len = Ntraj
+    # need vstack to reproduce earlier behaviour:
+    # an initial row of zeros is used to distinguish no events case
+    low_event = np.argmax(np.vstack([np.zeros(ntraj),low_bool]), axis=0)
+    high_event = np.argmax(np.vstack([np.zeros(ntraj),high_bool]), axis=0)
+
+    # find all trajectories that did not exit in each direction
+    no_low_exit = (low_event == 0)
+    no_high_exit = (high_event == 0)
+
+    # find positions where low_event is less than high_event
+    # note that either < or <= would work here. They are only equal if both 0.
+    low_smaller = (low_event < high_event)
+
+    # find all trajectory outcomes
+    # note ambiguity for trajectories that did not exit in a given direction
+    low_first = no_high_exit | low_smaller
+    high_first = no_low_exit | (~low_smaller)
+    never_exit = no_low_exit & no_high_exit
+
+    # find where each trajectory first exits
+    refl_indices = low_event * low_first
+    trans_indices = high_event * high_first
+    stuck_indices = never_exit * (z.shape[0]-1)
+
+    # calculate initial weights that actually enter the sample after fresnel
+    init_weight = weights[0]
+    init_dir = np.cos(refraction(get_angles(kz, np.ones(ntraj)), n_sample, n_medium))
+    # init_dir is reverse-corrected for refraction. = kz before medium/sample interface
+    inc_fraction = fresnel_pass_frac(np.array([init_dir]), np.ones(ntraj), n_medium, n_sample)
+
+    # calculate outcome weights from all trajectories
+    refl_weights = inc_fraction * select_events(weights, refl_indices)
+    trans_weights = inc_fraction * select_events(weights, trans_indices)
+    stuck_weights = inc_fraction * select_events(weights, stuck_indices)
+    absorb_weights = inc_fraction * init_weight - refl_weights - trans_weights - stuck_weights
+
+    # warn user if too many trajectories got stuck
+    stuck_frac = np.sum(stuck_weights) / np.sum(inc_fraction * init_weight) * 100
+    stuck_traj_warn = " \n{0}% of trajectories did not exit the sample. Increase Nevents to improve accuracy.".format(str(int(stuck_frac)))
+    if stuck_frac >= 20: warnings.warn(stuck_traj_warn)
+
+    # correct for non-TIR fresnel reflection upon exiting
+    reflected = refl_weights * fresnel_pass_frac(kz, refl_indices, n_sample, n_medium)
+    transmitted = trans_weights * fresnel_pass_frac(kz, trans_indices, n_sample, n_medium)
+    refl_fresnel = refl_weights - reflected
+    trans_fresnel = trans_weights - transmitted
+
+    # find fraction of known outcomes that are successfully transmitted or reflected
+    known_outcomes = np.sum(absorb_weights + reflected + transmitted)
+    refl_frac = np.sum(reflected) / known_outcomes
+    trans_frac = np.sum(transmitted) / known_outcomes
     
-    refl_col_indices, refl_row_indices, trans_col_indices, trans_row_indices, _ = trajectory_status(z, z_low, cutoff)
+    # need to distribute ambiguous trajectory weights.
+    # stuck are 50/50 reflected/transmitted since they are randomized.
+    # non-TIR fresnel are treated as new trajectories at the appropriate interface.
+    # This means reversed R/T ratios for fresnel reflection at transmission interface.
+    extra_refl = refl_fresnel * refl_frac + trans_fresnel * trans_frac + stuck_weights * 0.5
+    extra_trans = trans_fresnel * refl_frac + refl_fresnel * trans_frac + stuck_weights * 0.5
 
-    ## Include total internal reflection correction if there is any reflection:
+    # correct for effect of detection angle upon leaving sample
+    inc_refl = init_weight * (1 - inc_fraction) # fresnel reflection incident on sample
+    inc_refl = detect_correct(np.array([init_dir]), inc_refl, np.ones(ntraj), n_medium, n_medium, detection_angle)
+    trans_detected = detect_correct(kz, transmitted, trans_indices, n_sample, n_medium, detection_angle)
+    refl_detected = detect_correct(kz, reflected, refl_indices, n_sample, n_medium, detection_angle)
+    trans_det_frac = np.max([np.sum(trans_detected),eps]) / np.max([np.sum(transmitted), eps])
+    refl_det_frac = np.max([np.sum(refl_detected),eps]) / np.max([np.sum(reflected), eps]) 
 
-    # If there aren't any reflected packets, then no need to calculate TIR
-    if len(refl_row_indices)==0:
-        refl_fraction_corrected = 0.0
-        theta_r = np.NaN
-        phi_r = np.NaN
-        print("No photons are reflected because cutoff is too small.")
-    else:
-        # Now we want to find the scattering and azimuthal angles of the
-        # packets as they exit the sample, to see if they would get reflected
-        # back into the sample due to TIR.
+    # calculate transmittance and reflectance for each trajectory (in terms of trajectory weights)
+    transmittance = trans_detected + extra_trans * trans_det_frac
+    reflectance = refl_detected + extra_refl * refl_det_frac + inc_refl
 
-        # refl_row_indices is the list of indices corresponding to the
-        # scattering events immediately after a photon packet gets reflected.
-        # Thus, to get the scattering event immediately before the packet exits
-        # the sample, we subtract 1. refl_col_indices is the list of indices
-        # corresponding to the trajectories in which a photon packet gets
-        # reflected.
-        ev = refl_row_indices-1
-        tr = refl_col_indices
-
-        # kx, ky, and kz are the direction cosines
-        cos_x = kx[ev,tr]
-        cos_y = ky[ev,tr]
-        cos_z = kz[ev,tr]
-
-        # Find the propagation angles of the photon packets when they are
-        # exiting the sample. Count how many of the angles are within the total
-        # internal reflection range, and calculate a corrected reflection
-        # fraction
-
-        #convert cartesian coordinates into spherical coordinate angles
-        theta_r = sc.Quantity(np.arccos(cos_z), 'rad')
-        phi_r = np.arctan2(cos_y, cos_x) #angle from [-pi, pi]
-        phi_r = sc.Quantity(phi_r + 2*np.pi*(phi_r<0), 'rad') #angle from [0, 2pi]
-
-        # Calculate the Fresnel reflection of all the reflected trajectories
-        refl_fresnel_inc, refl_fresnel_out, theta_r, weights_refl = \
-            fresnel_refl(n_sample, n_matrix, kz, ev, tr, weights)
-            
-        # For the trajectories that make it out of the sample after the TIR
-        # correction, calculate the thetas after refraction at the interface.
-        # The refracted theta is the theta in the global coordinate system.
-        refracted_theta = np.pi - np.arcsin(n_sample / n_matrix *
-                                            np.sin(np.pi-theta_r))
-
-        # Out of the trajectories that make it out of the sample, find the ones
-        # that are within the detector range after being refracted at the
-        # interface
-        detected_refl_fresnel_out = \
-           refl_fresnel_out[np.where(refracted_theta >
-                                     (np.pi-detection_angle))]
-        weights_refl = weights_refl[np.where(refracted_theta >
-                                             (np.pi-detection_angle))]
-        refl_fraction = np.array(len(detected_refl_fresnel_out)) / ntraj
-
-        # Only keep the refracted theta that are within angle of detection
-        refl_fresnel_out_avg = np.sum(detected_refl_fresnel_out) / ntraj
-        refl_fresnel_inc_avg = np.sum(refl_fresnel_inc) / ntraj
-        weights_refl_avg = np.sum(weights_refl) / len(weights_refl)
-        refl_fraction_corrected = (refl_fresnel_inc_avg +
-                                   (refl_fraction - refl_fresnel_out_avg) *
-                                   (1- refl_fresnel_inc_avg))*weights_refl_avg
-
-    return refl_fraction_corrected
-    
+    #calculate mean reflectance and transmittance for all trajectories
+    return (np.sum(reflectance)/np.sum(init_weight), np.sum(transmittance/np.sum(init_weight)))    
 
 def calc_reflection_sphere(x, y, z, ntraj, n_matrix, n_sample, kx, ky, kz,
                            radius):
@@ -564,6 +595,7 @@ def calc_reflection_sphere(x, y, z, ntraj, n_matrix, n_sample, kx, ky, kz,
         Fraction of reflected trajectories.
 
     """
+    #TODO this code has not been vectorized like the non-spherical case above
     refl_row_indices = []
     refl_col_indices = []
     trans_row_indices = []
@@ -645,8 +677,11 @@ def calc_reflection_sphere(x, y, z, ntraj, n_matrix, n_sample, kx, ky, kz,
 
     # TODO: add fresnel correction for sphere instead of just for plane
     # calculate fresnel reflectances
-#    refl_fresnel_1, refl_fresnel_2 = fresnel_refl(n_sample, n_matrix, kz,
-#                                                  refl_event, refl_traj)
+
+    #refl_indices = np.zeros(ntraj)
+    #refl_indices[refl_traj] = refl_event
+
+#    refl_fresnel_1, refl_fresnel_2 = fresnel_refl(n_sample, n_matrix, kz, refl_indices)
 
     # calculate reflected fraction
     refl_fraction = np.array(len(refl_row_indices)) / ntraj
@@ -655,15 +690,15 @@ def calc_reflection_sphere(x, y, z, ntraj, n_matrix, n_sample, kx, ky, kz,
     return refl_fraction
 
 
-def initialize(nevents, ntraj, seed=None, incidence_angle=0.):
+def initialize(nevents, ntraj, n_medium, n_sample, seed=None, incidence_angle=0.):
 
     """
     Sets the trajectories' initial conditions (position, direction, and weight).
 
     The initial positions are determined randomly in the x-y plane (the initial
-    z-position is at z = 0). The initial propagation direction is set to be 1
-    at z, meaning that the photon packets point straight down in z. The initial
-    weight is currently determined to be a value of choice.
+    z-position is at z = 0). The default initial propagation direction is set to
+    be kz = 1, meaning that the photon packets point straight down in z. The 
+    initial weight is currently determined to be a value of choice.
 
     Parameters
     ----------
@@ -671,6 +706,12 @@ def initialize(nevents, ntraj, seed=None, incidence_angle=0.):
         Number of scattering events
     ntraj : int
         Number of trajectories
+    n_medium : float (structcol.Quantity [dimensionless] or 
+        structcol.refractive_index object)
+        Refractive index of the medium.
+    n_sample : float (structcol.Quantity [dimensionless] or 
+        structcol.refractive_index object)
+        Refractive index of the sample.
     seed : int or None
         If seed is int, the simulation results will be reproducible. If seed is
         None, the simulation results are actually random.
@@ -713,6 +754,9 @@ def initialize(nevents, ntraj, seed=None, incidence_angle=0.):
     # pi] for the first scattering event
     rand_theta = random((1,ntraj))
     theta = rand_theta * incidence_angle
+
+    # Refraction of incident light upon entering sample
+    theta = refraction(theta, n_medium, n_sample)
     sintheta = np.sin(theta)
     costheta = np.cos(theta)
 
@@ -779,7 +823,6 @@ def initialize_sphere(nevents, ntraj, radius, seed=None, initial_weight = 1):
                                          r0[0,0,:]**2 - r0[1,0,:]**2)
 
     # Initial direction
-    eps = 1.e-9
     k0 = np.zeros((3, nevents, ntraj))
     k0[2,0,:] = 1. - eps
 
@@ -977,68 +1020,3 @@ def sample_step(nevents, ntraj, mu_abs, mu_scat):
     step = -np.log(1.0-rand) / mu_total
 
     return step
-
-
-def fresnel_refl(n_sample, n_matrix, kz, refl_event, refl_traj, weights):
-    """
-    Calculates the reflectance at the interface of two refractive indices using
-    the fresnel equations. This calculation will include total internal
-    reflection
-
-    Parameters
-    ----------
-    n_matrix : float (structcol.Quantity [dimensionless] or 
-        structcol.refractive_index object)
-        Refractive index of the matrix.
-    n_sample : float (structcol.Quantity [dimensionless] or 
-        structcol.refractive_index object)
-        Refractive index of the sample.
-    kz : array_like (structcol.Quantity [dimensionless])
-        x components of the direction cosines.
-    refl_event : array
-        Indices of reflection events.
-    refl_traj : array_like (structcol.Quantity [dimensionless])
-        Indices of reflected trajectories.
-
-    Returns
-    -------
-    refl_fresnel_inc : array
-        Array of Fresnel reflectance fractions of light reflected for each
-        photon due to the interface when the trajectory first enters the
-        sample.
-    refl_fresnel_out : array
-        Array of Fresnel reflectance fractions of light reflected for each
-        photon due to the interface when the trajectory leaves the sample.
-    theta_out : array
-        Array of the scattering angles that make it out of the sample after
-        eliminating the trajectories that get totally internally reflected.
-    weights_refl: array
-        Array of the weights of the trajectories make it out of the sample
-        after eliminating the trajectories that get totally internally
-        reflected.
-
-    """
-    # TODO: add option to modify theta calculation to incorperate curvature of
-    # sphere
-
-    # Calculate fresnel for incident light going from medium to sample
-    theta_inc = np.arccos(kz[0,:])
-    refl_s_inc, refl_p_inc = \
-        model.fresnel_reflection(n_matrix, n_sample, sc.Quantity(theta_inc, ''))
-    refl_fresnel_inc = .5*(refl_s_inc + refl_p_inc)
-
-    # Calculate fresnel for reflected light going from sample to medium
-    theta_out = np.arccos(-kz[refl_event,refl_traj])
-    refl_s_out, refl_p_out = \
-        model.fresnel_reflection(n_sample, n_matrix, sc.Quantity(theta_out, ''))
-    refl_fresnel_out = .5*(refl_s_out + refl_p_out)
-
-    # Find the thetas that do not get TIR'd
-    theta_out = np.pi-theta_out[np.where(refl_fresnel_out < 1)]
-    
-    weights_refl = weights[refl_event, refl_traj]
-    weights_refl = weights_refl[np.where(refl_fresnel_out<1)]
-    refl_fresnel_out = refl_fresnel_out[refl_fresnel_out < 1]
-
-    return refl_fresnel_inc, refl_fresnel_out, theta_out, weights_refl
-
