@@ -335,9 +335,10 @@ def get_angles(kz, indices):
     # calculate angle to normal from cos_z component (only want magnitude)
     return sc.Quantity(np.arccos(np.abs(cosz)),'')
 
-def fresnel_pass_frac(kz, indices, n_before, n_after):
+def fresnel_pass_frac(kz, indices, n_before, n_inside, n_after):
     '''
-    Returns weights of interest reduced by fresnel reflection
+    Returns weights of interest reduced by fresnel reflection across two interfaces,
+    For example passing through a coverslip.
 
     Parameters
     ----------
@@ -347,6 +348,8 @@ def fresnel_pass_frac(kz, indices, n_before, n_after):
         Length ntraj. Values represent events of interest in each trajectory
     n_before: float
         Refractive index of the medium light is coming from
+    n_inside: float
+        Refractive index of the boundary material (e.g. glass coverslip)
     n_after: float
         Refractive index of the medium light is going to
 
@@ -354,13 +357,29 @@ def fresnel_pass_frac(kz, indices, n_before, n_after):
     -------
     1D array of length Ntraj
     '''
+    #Allow single interface by passing in None as n_inside
+    if n_inside is None:
+        n_inside = n_before
 
-    #find angles when crossing interface
-    theta = get_angles(kz, indices)
+    #find angles before
+    theta_before = get_angles(kz, indices)
 
-    #find fresnel 
-    trans_s, trans_p = model.fresnel_transmission(n_before, n_after, theta)
-    return (trans_s + trans_p)/2
+    #find angles inside
+    theta_inside = refraction(theta_before, n_before, n_inside)
+
+    #find fraction passing through both interfaces
+    trans_s1, trans_p1 = model.fresnel_transmission(n_before, n_inside, theta_before) # before -> inside
+    trans_s2, trans_p2 = model.fresnel_transmission(n_inside, n_after, theta_inside)  # inside -> after
+    fresnel_trans = (trans_s1 + trans_p1)*(trans_s2 + trans_p2)/4.
+
+    #find fraction reflected off both interfaces before transmission
+    refl_s1, refl_p1 = model.fresnel_reflection(n_inside, n_after, theta_inside)  # inside -> after
+    refl_s2, refl_p2 = model.fresnel_reflection(n_inside, n_before, theta_inside) # inside -> before
+    fresnel_refl = (refl_s1 + refl_p1)*(refl_s2 + refl_p2)/4.
+
+    #Any number of higher order reflections off the two interfaces
+    #Use converging geometric series 1+a+a**2+a**3...=1/(1-a)
+    return fresnel_trans/(1-fresnel_refl+eps)
 
 def detect_correct(kz, weights, indices, n_before, n_after, thresh_angle):
     '''
@@ -412,8 +431,8 @@ def refraction(angles, n_before, n_after):
     snell[abs(snell) > 1] = np.nan # this avoids a warning
     return np.arcsin(snell)
 
-def calc_refl_trans(trajectories, z_low, cutoff, n_medium, n_sample, 
-                    detection_angle=np.pi/2):
+def calc_refl_trans(trajectories, z_low, cutoff, n_medium, n_sample,
+                    n_front=None, n_back=None, detection_angle=np.pi/2):
     """
     Counts the fraction of reflected and transmitted trajectories after a cutoff.
 
@@ -437,6 +456,12 @@ def calc_refl_trans(trajectories, z_low, cutoff, n_medium, n_sample,
     n_sample : float (structcol.Quantity [dimensionless] or 
         structcol.refractive_index object)
         Refractive index of the sample.
+    n_front : float (structcol.Quantity [dimensionless] or 
+        structcol.refractive_index object)
+        Refractive index of the front cover of the sample (default None)
+    n_back : float (structcol.Quantity [dimensionless] or 
+        structcol.refractive_index object)
+        Refractive index of the back cover of the sample (default None)
     detection_angle : float
         Range of angles of detection. Only the packets that come out of the
         sample within this range will be detected and counted. Should be
@@ -519,7 +544,7 @@ def calc_refl_trans(trajectories, z_low, cutoff, n_medium, n_sample,
     init_weight = weights[0]
     init_dir = np.cos(refraction(get_angles(kz, np.ones(ntraj)), n_sample, n_medium))
     # init_dir is reverse-corrected for refraction. = kz before medium/sample interface
-    inc_fraction = fresnel_pass_frac(np.array([init_dir]), np.ones(ntraj), n_medium, n_sample)
+    inc_fraction = fresnel_pass_frac(np.array([init_dir]), np.ones(ntraj), n_medium, n_front, n_sample)
 
     # calculate outcome weights from all trajectories
     refl_weights = inc_fraction * select_events(weights, refl_indices)
@@ -533,8 +558,8 @@ def calc_refl_trans(trajectories, z_low, cutoff, n_medium, n_sample,
     if stuck_frac >= 20: warnings.warn(stuck_traj_warn)
 
     # correct for non-TIR fresnel reflection upon exiting
-    reflected = refl_weights * fresnel_pass_frac(kz, refl_indices, n_sample, n_medium)
-    transmitted = trans_weights * fresnel_pass_frac(kz, trans_indices, n_sample, n_medium)
+    reflected = refl_weights * fresnel_pass_frac(kz, refl_indices, n_sample, n_front, n_medium)
+    transmitted = trans_weights * fresnel_pass_frac(kz, trans_indices, n_sample, n_back, n_medium)
     refl_fresnel = refl_weights - reflected
     trans_fresnel = trans_weights - transmitted
 
