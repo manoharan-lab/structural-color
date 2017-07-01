@@ -71,6 +71,13 @@ def test_calc_refl_trans():
     assert_almost_equal(refl, np.sum(expected_refl_array))
     assert_almost_equal(trans, np.sum(expected_trans_array))
 
+    # test above but with covers on front and back
+    refl, trans = mc.calc_refl_trans(trajectories, low_thresh, high_thresh, small_n, small_n, n_front=large_n, n_back=large_n)
+    expected_trans_array = np.array([0.0090566, 0.2010566, 0.2, 0])/np.sum(weights[0]) #calculated manually
+    expected_refl_array = np.array([0.87018868, 0.20271698, 0.6, 0.2])/np.sum(weights[0]) #calculated manually
+    assert_almost_equal(refl, np.sum(expected_refl_array))
+    assert_almost_equal(trans, np.sum(expected_trans_array))
+
     # test fresnel as well
     z_pos = np.array([[0,0,0,0],[5,5,5,5],[-5,-5,15,15],[5,-15,5,25],[-5,-25,6,35]])
     kz = np.array([[1,1,1,0.86746757864487367],[-.1,-.1,.1,.1],[0.1,-.1,-.1,0.1],[-1,-.9,1,1]])
