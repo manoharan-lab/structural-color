@@ -334,7 +334,6 @@ def fresnel_pass_frac(kz, indices, n_before, n_inside, n_after):
 
     #find angles before
     theta_before = get_angles(kz, indices)
-
     #find angles inside
     theta_inside = refraction(theta_before, n_before, n_inside)
 
@@ -395,7 +394,6 @@ def refraction(angles, n_before, n_after):
     n_after: float
         Refractive index of the medium light is going to
     '''
-
     snell = n_before / n_after * np.sin(angles)
     snell[abs(snell) > 1] = np.nan # this avoids a warning
     return np.arcsin(snell)
@@ -525,6 +523,8 @@ def calc_refl_trans(trajectories, z_low, cutoff, n_medium, n_sample,
     # correct for non-TIR fresnel reflection upon exiting
     reflected = refl_weights * fresnel_pass_frac(kz, refl_indices, n_sample, n_front, n_medium)
     transmitted = trans_weights * fresnel_pass_frac(kz, trans_indices, n_sample, n_back, n_medium)
+    reflected[refl_weights==0] = 0
+    transmitted[trans_weights==0] = 0
     refl_fresnel = refl_weights - reflected
     trans_fresnel = trans_weights - transmitted
 

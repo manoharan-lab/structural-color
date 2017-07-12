@@ -89,5 +89,5 @@ ENV/
 .ropeproject
 
 # others
-.DS_Store
+*.DS_Store
 *~
