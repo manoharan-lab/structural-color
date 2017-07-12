@@ -336,6 +336,10 @@ def fresnel_pass_frac(kz, indices, n_before, n_inside, n_after):
     theta_before = get_angles(kz, indices)
     #find angles inside
     theta_inside = refraction(theta_before, n_before, n_inside)
+    # if theta_inside is nan (because the trajectory doesn't exit due to TIR), 
+    # then replace it with pi/2 (the trajectory goes sideways infinitely) to 
+    # avoid errors during the calculation of stuck trajectories
+    theta_inside[np.isnan(theta_inside)] = np.pi/2.0
 
     #find fraction passing through both interfaces
     trans_s1, trans_p1 = model.fresnel_transmission(n_before, n_inside, theta_before) # before -> inside
@@ -523,8 +527,6 @@ def calc_refl_trans(trajectories, z_low, cutoff, n_medium, n_sample,
     # correct for non-TIR fresnel reflection upon exiting
     reflected = refl_weights * fresnel_pass_frac(kz, refl_indices, n_sample, n_front, n_medium)
     transmitted = trans_weights * fresnel_pass_frac(kz, trans_indices, n_sample, n_back, n_medium)
-    reflected[refl_weights==0] = 0
-    transmitted[trans_weights==0] = 0
     refl_fresnel = refl_weights - reflected
     trans_fresnel = trans_weights - transmitted
 
