@@ -24,10 +24,10 @@ References
 ----------
 [1] K. Wood, B. Whitney, J. Bjorkman, M. Wolff. “Introduction to Monte Carlo
 Radiation Transfer” (July 2013).
-
 .. moduleauthor:: Victoria Hwang <vhwang@g.harvard.edu>
 .. moduleauthor:: Annie Stephenson <stephenson@g.harvard.edu>
 .. moduleauthor:: Vinothan N. Manoharan <vnm@seas.harvard.edu>
+
 """
 
 from . import mie, model, index_ratio, size_parameter
@@ -45,53 +45,58 @@ eps = 1.e-9
 class MCSimulation:
     """
     Input parameters and methods for running a Monte Carlo calculation.
-
+    
     Attributes
     ----------
-
+    
     Methods
     -------
     run()
+    
     """
     def __init__(self):
         """
         Constructor for MCSimulation object.
-
+        
         Parameters
         ----------
+    
         """
         pass
 
     def run(self):
         """
         Run the simulation.
-
+    
         Parameters
         ----------
-
+        
         Returns
         -------
+        
         MCResult object:
             results of simulation
+        
         """
         pass
 
 class MCResult:
     """
     Results from running Monte Carlo simulation.
-
+    
     Attributes
     ----------
-
     Methods
     -------
+    
     """
     def __init__(self):
         """
         Constructor for MCResult object.
-
+        
         Parameters
         ----------
+        
         """
         pass
 
@@ -99,7 +104,7 @@ class Trajectory:
     """
     Class that describes trajectories of photons packets in a scattering
     and/or absorbing medium.
-
+    
     Attributes
     ----------
     position : ndarray (structcol.Quantity [length])
@@ -112,7 +117,7 @@ class Trajectory:
         trajectories
     nevents : int
         number of scattering events
-
+    
     Methods
     -------
     absorb(mu_abs, step_size)
@@ -128,13 +133,13 @@ class Trajectory:
     plot_coord(ntraj, three_dim=False)
         plot positions of trajectories as a function of number scattering
         events.
-
+    
     """
 
     def __init__(self, position, direction, weight):
         """
         Constructor for Trajectory object.
-
+        
         Attributes
         ----------
         position : see Class attributes
@@ -143,7 +148,7 @@ class Trajectory:
             Dimensions of (3, nevents, number of trajectories)
         weight : see Class attributes
             Dimensions of (nevents, number of trajectories)
-
+        
         """
 
         self.position = position
@@ -157,17 +162,16 @@ class Trajectory:
     def absorb(self, mu_abs, step_size):
         """
         Calculates absorption of photon packet after each scattering event.
-
         Absorption is modeled as a reduction of a photon packet's weight
         every time it gets scattered using Beer-Lambert's law.
-
+        
         Parameters
         ----------
         mu_abs : ndarray (structcol.Quantity [1/length])
             Absorption coefficient of packet 
         step_size: ndarray (structcol.Quantity [length])
             Step size of packet (sampled from scattering lengths).
-
+        
         """
         
         # beer lambert
@@ -180,10 +184,9 @@ class Trajectory:
         """
         Calculates the directions of propagation (or direction cosines) after
         scattering.
-
         At a scattering event, a photon packet adopts a new direction of
         propagation, which is randomly sampled from the phase function.
-
+        
         Parameters
         ----------
         sintheta, costheta, sinphi, cosphi : array_like
@@ -192,7 +195,7 @@ class Trajectory:
             defined with respect to the previous corresponding direction of
             propagation. Thus, they are defined in a local spherical coordinate
             system. All have dimensions of (nevents, ntrajectories).
-
+        
         """
 
         kn = self.direction.magnitude
@@ -219,16 +222,15 @@ class Trajectory:
     def move(self, step):
         """
         Calculates positions of photon packets in all the trajectories.
-
         After each scattering event, the photon packet gets a new position
         based on the previous position, the step size, and the direction of
         propagation.
-
+        
         Parameters
         ----------
         step : ndarray (structcol.Quantity [length])
             Step sizes between scattering events in each of the trajectories.
-
+        
         """
 
         displacement = self.position
@@ -245,14 +247,14 @@ class Trajectory:
         """
         Plots the cartesian coordinates of the trajectories as a function of
         the number of scattering events.
-
+        
         Parameters
         ----------
         ntraj : int
             Number of trajectories.
         three_dim : bool
             If True, it plots the trajectories' coordinates in 3D.
-
+        
         """
 
         colormap = plt.cm.gist_ncar
@@ -303,6 +305,7 @@ def select_events(inarray, events):
     Returns
     -------
     1D array: contains only the elements of inarray corresponding to non-zero events values.
+    
     '''
     valid_events = (events > 0)
     ev = events[valid_events].astype(int) - 1
@@ -318,17 +321,18 @@ def select_events(inarray, events):
 def get_angles(kz, indices):
     '''
     Returns specified angles (relative to normal) from kz components
-
+    
     Parameters
     ----------
     kz: 2D array
         kz values, with axes corresponding to events, trajectories
     indices: 1D array
         Length ntraj. Values represent events of interest in each trajectory
-
+    
     Returns
     -------
     1D array of pint quantities (length Ntraj)
+    
     '''
     # select scattering events resulted in exit
     cosz = select_events(kz, indices)
@@ -352,10 +356,11 @@ def fresnel_pass_frac(kz, indices, n_before, n_inside, n_after):
         Refractive index of the boundary material (e.g. glass coverslip)
     n_after: float
         Refractive index of the medium light is going to
-
+    
     Returns
     -------
     1D array of length Ntraj
+    
     '''
     #Allow single interface by passing in None as n_inside
     if n_inside is None:
@@ -363,9 +368,12 @@ def fresnel_pass_frac(kz, indices, n_before, n_inside, n_after):
 
     #find angles before
     theta_before = get_angles(kz, indices)
-
     #find angles inside
     theta_inside = refraction(theta_before, n_before, n_inside)
+    # if theta_inside is nan (because the trajectory doesn't exit due to TIR), 
+    # then replace it with pi/2 (the trajectory goes sideways infinitely) to 
+    # avoid errors during the calculation of stuck trajectories
+    theta_inside[np.isnan(theta_inside)] = np.pi/2.0
 
     #find fraction passing through both interfaces
     trans_s1, trans_p1 = model.fresnel_transmission(n_before, n_inside, theta_before) # before -> inside
@@ -384,7 +392,7 @@ def fresnel_pass_frac(kz, indices, n_before, n_inside, n_after):
 def detect_correct(kz, weights, indices, n_before, n_after, thresh_angle):
     '''
     Returns weights of interest within detection angle
-
+    
     Parameters
     ----------
     kz: 2D array
@@ -399,9 +407,11 @@ def detect_correct(kz, weights, indices, n_before, n_after, thresh_angle):
         Refractive index of the medium light is going to
     thresh_angle: float
         Detection angle to compare with output angles
+    
     Returns
     -------
     1D array of length Ntraj
+    
     '''
 
     # find angles when crossing interface
@@ -416,7 +426,7 @@ def detect_correct(kz, weights, indices, n_before, n_after, thresh_angle):
 def refraction(angles, n_before, n_after):
     '''
     Returns angles after refracting through an interface
-
+    
     Parameters
     ----------
     angles: float or array of floats
@@ -425,8 +435,8 @@ def refraction(angles, n_before, n_after):
         Refractive index of the medium light is coming from
     n_after: float
         Refractive index of the medium light is going to
+    
     '''
-
     snell = n_before / n_after * np.sin(angles)
     snell[abs(snell) > 1] = np.nan # this avoids a warning
     return np.arcsin(snell)
@@ -435,11 +445,10 @@ def calc_refl_trans(trajectories, z_low, cutoff, n_medium, n_sample,
                     n_front=None, n_back=None, detection_angle=np.pi/2):
     """
     Counts the fraction of reflected and transmitted trajectories after a cutoff.
-
     Identifies which trajectories are reflected or transmitted, and at which
     scattering event. Includes Fresnel reflection correction. Then
     counts the fraction of reflected trajectories that are detected.
-
+    
     Parameters
     ----------
     trajectories : Trajectory object
@@ -467,7 +476,7 @@ def calc_refl_trans(trajectories, z_low, cutoff, n_medium, n_sample,
         sample within this range will be detected and counted. Should be
         0 < detection_angle <= pi/2, where 0 means that no angles are detected,
         and pi/2 means that all the backscattering angles are detected.
-
+    
     Returns
     -------
     reflectance: float
@@ -477,7 +486,7 @@ def calc_refl_trans(trajectories, z_low, cutoff, n_medium, n_sample,
         Fraction of transmitted trajectories, including the Fresnel correction
         but not considering the range of the detector.
     Note: absorbance by the sample can be found by 1 - reflectance - transmittance
-
+    
     """
     # set up the values we need as numpy arrays
     z = trajectories.position[2]
@@ -595,10 +604,9 @@ def calc_reflection_sphere(x, y, z, ntraj, n_matrix, n_sample, kx, ky, kz,
     """
     Counts the fraction of reflected trajectories for a photonic glass with a
     spherical boundary.
-
     Identifies which trajectories are reflected or transmitted, and at which
     scattering event. Then counts the fraction of reflected trajectories.
-
+    
     Parameters
     ----------
     x, y, z : array_like (structcol.Quantity [length])
@@ -613,12 +621,12 @@ def calc_reflection_sphere(x, y, z, ntraj, n_matrix, n_sample, kx, ky, kz,
         x, y, and z components of the direction cosines.
     radius : float
         radius of spherical boundary
-
+    
     Returns
     ----------
     R_fraction : float
         Fraction of reflected trajectories.
-
+    
     """
     #TODO this code has not been vectorized like the non-spherical case above
     refl_row_indices = []
@@ -719,12 +727,11 @@ def initialize(nevents, ntraj, n_medium, n_sample, seed=None, incidence_angle=0.
 
     """
     Sets the trajectories' initial conditions (position, direction, and weight).
-
     The initial positions are determined randomly in the x-y plane (the initial
     z-position is at z = 0). The default initial propagation direction is set to
     be kz = 1, meaning that the photon packets point straight down in z. The 
     initial weight is currently determined to be a value of choice.
-
+    
     Parameters
     ----------
     nevents : int
@@ -743,7 +750,7 @@ def initialize(nevents, ntraj, n_medium, n_sample, seed=None, incidence_angle=0.
     incidence_angle : float
         Maximum value for theta when it incides onto the sample.
         Should be between 0 and pi/2.
-
+    
     Returns
     -------
     r0 : array_like (structcol.Quantity [length])
@@ -752,7 +759,7 @@ def initialize(nevents, ntraj, n_medium, n_sample, seed=None, incidence_angle=0.
         Initial direction of propagation.
     weight0 : array_like (structcol.Quantity [dimensionless])
         Initial weight.
-
+    
     """
 
     if seed is not None:
@@ -804,12 +811,11 @@ def initialize(nevents, ntraj, n_medium, n_sample, seed=None, incidence_angle=0.
 def initialize_sphere(nevents, ntraj, radius, seed=None, initial_weight = 1):
     """
     Sets the trajectories' initial conditions (position, direction, and weight).
-
     The initial positions are determined randomly in the x-y plane (the initial
     z-position is at z = 0). The initial propagation direction is set to be 1
     at z, meaning that the photon packets point straight down in z. The initial
     weight is currently determined to be a value of choice.
-
+    
     Parameters
     ----------
     nevents : int
@@ -821,7 +827,7 @@ def initialize_sphere(nevents, ntraj, radius, seed=None, initial_weight = 1):
     seed : int or None
         If seed is int, the simulation results will be reproducible. If seed is
         None, the simulation results are actually random.
-
+    
     Returns
     ----------
     r0 : array_like (structcol.Quantity [length])
@@ -830,7 +836,7 @@ def initialize_sphere(nevents, ntraj, radius, seed=None, initial_weight = 1):
         Initial direction of propagation.
     weight0 : array_like (structcol.Quantity [dimensionless])
         Initial weight.
-
+    
     """
 
     if seed is not None:
@@ -864,7 +870,7 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
     Calculates the phase function and scattering coefficient from either the
     single scattering model or Mie theory. Calculates the absorption coefficient
     from Mie theory.
-
+    
     Parameters
     ----------
     radius : float (structcol.Quantity [length])
@@ -886,7 +892,7 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
     mu_scat_mie : bool
         If True, the scattering coefficient is calculated from Mie theory. If 
         False, it is calculated from the single scattering model
-
+    
     Returns
     -------
     p : array_like (structcol.Quantity [dimensionless])
@@ -895,20 +901,17 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
         Scattering coefficient from either Mie theory or single scattering model.
     mu_abs : float (structcol.Quantity [1/length])
         Absorption coefficient from Mie theory.
-
+    
     Notes
     -----
     The phase function is given by:
-
         p = diff. scatt. cross section / cscat
-
     The single scattering model calculates the differential cross section and
     the total cross section. If we choose to calculate these from Mie theory:
-
         diff. scat. cross section = S11 / k^2
         p = S11 / (k^2 * cscat)
         (Bohren and Huffmann, chapter 13.3)
-
+    
     """
     
     # Scattering angles (typically from a small angle to pi). A non-zero small 
@@ -974,7 +977,7 @@ def sample_angles(nevents, ntraj, p):
     """
     Samples azimuthal angles (phi) from uniform distribution, and scattering
     angles (theta) from phase function distribution.
-
+    
     Parameters
     ----------
     nevents : int
@@ -983,12 +986,12 @@ def sample_angles(nevents, ntraj, p):
         Number of trajectories.
     p : array_like (structcol.Quantity [dimensionless])
         Phase function values returned from 'phase_function'.
-
+    
     Returns
     -------
     sintheta, costheta, sinphi, cosphi, theta, phi : ndarray
         Sampled azimuthal and scattering angles, and their sines and cosines.
-
+    
     """
     
     # Scattering angles for the phase function calculation (typically from 0 to 
@@ -1019,7 +1022,7 @@ def sample_angles(nevents, ntraj, p):
 def sample_step(nevents, ntraj, mu_abs, mu_scat):
     """
     Samples step sizes from exponential distribution.
-
+    
     Parameters
     ----------
     nevents : int
@@ -1030,11 +1033,12 @@ def sample_step(nevents, ntraj, mu_abs, mu_scat):
         Absorption coefficient.
     mu_scat : float (structcol.Quantity [1/length])
         Scattering coefficient.
-
+    
     Returns
     -------
     step : ndarray
         Sampled step sizes for all trajectories and scattering events.
+    
     """
     # Calculate total extinction coefficient
     mu_total = mu_abs + mu_scat
