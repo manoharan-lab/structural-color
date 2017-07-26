@@ -109,6 +109,13 @@ n_dict = {
                                       (w*w - Quantity('0.1162414**2 um^2')) +
                                       0.8974794*w*w/
                                       (w*w - Quantity('9.896161**2 um^2'))),
+    # soda lime glass data from M. Rubin. Optical properties of soda lime 
+    # silica glasses, Solar Energy Materials 12, 275-288 (1985)
+    # refractiveindex.info
+    # data for "room temperature", 0.31-4.6 micrometers
+    'soda lime glass': lambda w: 1.5130 - Quantity('0.003169 um^-2')*w*w + 
+                                                  Quantity('0.003962 um^2')/(w*w),
+                                      
     # the w/w is a crude hack to make the function output an array when the
     # input is an array
     'vacuum': lambda w: Quantity('1.0')*w/w
