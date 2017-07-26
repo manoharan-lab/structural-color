@@ -65,3 +65,7 @@ def factor_py(qd, phi):
                                      24 * np.cos(qd) - 24.0) / qd**6)
     # Structure factor at qd (eq X.34 of [2]_)
     return 1.0/(1-c)
+
+def factor_para(qd, sigma = .15):
+    r = np.exp(-(qd*sigma)**2/2)
+    return (1-r**2)/(1+r**2-2*r*np.cos(qd))
