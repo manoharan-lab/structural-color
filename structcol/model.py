@@ -97,7 +97,17 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
         total cross-section).  The default value is chosen to give good
         agreement with Mie theory for a single sphere, but it may not be
         reasonable for all calculations.
-
+    structure_type: string, dictionary, or None (optional)
+        Can be string specifying structure type. Current options are "glass" or
+        "paracrystal". Can also be dictionary specifying structure type and
+        parameters for structures that require them. Expects keys of 
+        'name': 'paracrystal', and 'sigma': int or float. Can also set to None
+        in order to only visualize effect of form factor on reflectance 
+        spectrum.
+    form_type: string or None (optional)
+        String specifying form factor type. Currently, 'sphere' is only shape 
+        option. Can also set to None in order to only visualize the effect of 
+        structure factor on reflectance spectrum. 
     Returns
     -------
     float (5-tuple):
@@ -157,12 +167,13 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
     # coefficient*sin(theta) over angles to get sigma_detected (eq 5)
     angles = Quantity(np.linspace(theta_min_refracted, theta_max, num_angles),
                       'rad')
-    diff_cs = differential_cross_section(m, x, angles, volume_fraction, structure_type, form_type)
+    diff_cs = differential_cross_section(m, x, angles, volume_fraction, 
+                                         structure_type, form_type)
     transmission = fresnel_transmission(n_sample, n_medium, np.pi-angles)
     sigma_detected_par = _integrate_cross_section(diff_cs[0],
                                                   transmission[0]/k**2, angles)
     sigma_detected_perp = _integrate_cross_section(diff_cs[1],
-                                                   transmission[1]/k**2, angles)
+                                                  transmission[1]/k**2, angles)
     sigma_detected = (sigma_detected_par + sigma_detected_perp)/2.0
 
     # now integrate from 0 to 180 degrees to get total cross-section.
@@ -170,7 +181,8 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
     # Fresnel coefficients do not appear in this integral since we're using the
     # total cross-section to account for the attenuation in intensity as light
     # propagates through the sample
-    diff_cs = differential_cross_section(m, x, angles, volume_fraction, structure_type, form_type)
+    diff_cs = differential_cross_section(m, x, angles, volume_fraction, 
+                                         structure_type, form_type)
     sigma_total_par = _integrate_cross_section(diff_cs[0], 1.0/k**2, angles)
     sigma_total_perp = _integrate_cross_section(diff_cs[1], 1.0/k**2, angles)
     sigma_total = (sigma_total_par + sigma_total_perp)/2.0
@@ -213,7 +225,8 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
         asymmetry_parameter, transport_length
 
 @ureg.check('[]', '[]', '[]', '[]')
-def differential_cross_section(m, x, angles, volume_fraction, structure_type, form_type):
+def differential_cross_section(m, x, angles, volume_fraction, structure_type, 
+                               form_type):
     """
     Calculate dimensionless differential scattering cross-section for a sphere,
     including contributions from the structure factor. Need to multiply by k**2
@@ -234,7 +247,8 @@ def differential_cross_section(m, x, angles, volume_fraction, structure_type, fo
     
     if isinstance(structure_type, dict):
         if structure_type['name'] == 'paracrystal':
-            s = structure.factor_para(qd, sigma = structure_type['sigma'])
+            s = structure.factor_para(qd, volume_fraction, 
+                                      sigma = structure_type['sigma'])
         else:
             raise ValueError('structure factor type not recognized!')
             
