@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # Copyright 2016, Vinothan N. Manoharan, Sofia Makgiriadou
 #
 # This file is part of the structural-color python package.
@@ -157,10 +158,6 @@ def n_silica_colloidal(w):
 
 def n_water(w):
     return 1.33
-
-def n_cargille(i,series,wavelength):
-    # where i is the cardinal number of the liquid (starting with 0) and w is the wavelength, in nm (converted to um)
-    return 1.45
 
 def n_keratin(w):
     return 1.532
