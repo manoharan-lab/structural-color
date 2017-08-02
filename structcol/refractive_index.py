@@ -161,6 +161,8 @@ def n_water(w):
 
 def n_cargille(i,series,w):
     """Refractive index of cargille index-matching oils
+    available at:
+    http://www.cargille.com/refractivestandards.shtml
 
     Parameters
     ----------
