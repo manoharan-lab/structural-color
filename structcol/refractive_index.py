@@ -354,7 +354,7 @@ def n_cargille(i,series,w):
         raise ValueError("""An oil of this series was not found. 
             Check your series and make sure it is valid. """)
         
-    return n
+    return Quantity(n)
 
 def n_keratin(w):
     return 1.532

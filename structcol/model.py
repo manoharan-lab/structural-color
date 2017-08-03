@@ -39,6 +39,8 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
                thickness=None,
                theta_min=Quantity('90 deg'),
                theta_max=Quantity('180 deg'),
+               phi_min=Quantity('0 deg'),
+               phi_max=Quantity('360 deg'),
                incident_angle=Quantity('0 deg'),
                num_angles = 200,
                small_angle=Quantity('5 deg'),
@@ -79,6 +81,16 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
         to a value less than 180 degrees corresponds to dark-field detection.
         Both theta_min and theta_max can carry explicit units of radians or
         degrees.
+    phi_min: structcol.Quantity [dimensionless] (optional)
+    phi_max: structcol.Quantity [dimensionless] (optional)
+        along with phi_min, specifies the azimuthal angular range over which to
+        integrate the scattered signal. The angles are the azimuthal angles
+        (measured from the incident light direction) after the
+        light exits into the medium. The function will correct for refraction
+        at the interface to map this range of exit angles onto the range of
+        scattering angles from the particles. If phi_min and phi_max are
+        unspecified, the integral is carried out over the entire backscattering
+        hemisphere (0 to 360 degrees). 
     incident_angle: structcol.Quantity [dimensionless] (optional)
         incident angle, measured from the normal (specify degrees or radians by
         using the appropriate units in Quantity())
@@ -148,6 +160,8 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
 
     theta_min = theta_min.to('rad').magnitude
     theta_max = theta_max.to('rad').magnitude
+    phi_min = phi_min.to('rad').magnitude
+    phi_max = phi_max.to('rad').magnitude
     small_angle = small_angle.to('rad').magnitude
     # calculate the min theta, taking into account refraction at the interface
     # between the medium and the sample. This is the scattering angle at which
@@ -167,13 +181,14 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
     # coefficient*sin(theta) over angles to get sigma_detected (eq 5)
     angles = Quantity(np.linspace(theta_min_refracted, theta_max, num_angles),
                       'rad')
+    azi_angle_range = Quantity(phi_max-phi_min,'rad')
     diff_cs = differential_cross_section(m, x, angles, volume_fraction, 
                                          structure_type, form_type)
     transmission = fresnel_transmission(n_sample, n_medium, np.pi-angles)
     sigma_detected_par = _integrate_cross_section(diff_cs[0],
-                                                  transmission[0]/k**2, angles)
+                                                  transmission[0]/k**2, angles, azi_angle_range)
     sigma_detected_perp = _integrate_cross_section(diff_cs[1],
-                                                  transmission[1]/k**2, angles)
+                                                  transmission[1]/k**2, angles, azi_angle_range)
     sigma_detected = (sigma_detected_par + sigma_detected_perp)/2.0
 
     # now integrate from 0 to 180 degrees to get total cross-section.
@@ -183,15 +198,15 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
     # propagates through the sample
     diff_cs = differential_cross_section(m, x, angles, volume_fraction, 
                                          structure_type, form_type)
-    sigma_total_par = _integrate_cross_section(diff_cs[0], 1.0/k**2, angles)
-    sigma_total_perp = _integrate_cross_section(diff_cs[1], 1.0/k**2, angles)
+    sigma_total_par = _integrate_cross_section(diff_cs[0], 1.0/k**2, angles, azi_angle_range)
+    sigma_total_perp = _integrate_cross_section(diff_cs[1], 1.0/k**2, angles, azi_angle_range)
     sigma_total = (sigma_total_par + sigma_total_perp)/2.0
 
     # calculate asymmetry parameter using integral from 0 to 180 degrees
     asymmetry_par = _integrate_cross_section(diff_cs[0], np.cos(angles)*1.0/k**2,
-                                             angles)
+                                             angles, azi_angle_range)
     asymmetry_perp = _integrate_cross_section(diff_cs[1], np.cos(angles)*1.0/k**2,
-                                              angles)
+                                              angles, azi_angle_range)
     # calculate for unpolarized light
     asymmetry_parameter = (asymmetry_par + asymmetry_perp)/sigma_total/2.0
 
@@ -225,8 +240,9 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
         asymmetry_parameter, transport_length
 
 @ureg.check('[]', '[]', '[]', '[]')
-def differential_cross_section(m, x, angles, volume_fraction, structure_type, 
-                               form_type):
+def differential_cross_section(m, x, angles, volume_fraction,
+                               structure_type = 'glass', 
+                               form_type = 'sphere'):
     """
     Calculate dimensionless differential scattering cross-section for a sphere,
     including contributions from the structure factor. Need to multiply by k**2
@@ -270,7 +286,8 @@ def differential_cross_section(m, x, angles, volume_fraction, structure_type,
 
     return scat_par, scat_perp
 
-def _integrate_cross_section(cross_section, factor, angles):
+def _integrate_cross_section(cross_section, factor, angles, 
+                             azi_angle_range = 2*np.pi):
     """
     Integrate differential cross-section (multiplied by factor) over angles
     using trapezoid rule
@@ -281,7 +298,8 @@ def _integrate_cross_section(cross_section, factor, angles):
     # in the same units as the integrand
     integral = np.trapz(integrand, x=angles) * integrand.units
     # multiply by 2*pi to account for integral over phi
-    sigma = 2 * np.pi * integral
+    sigma = azi_angle_range * integral
+    #sigma = 2 * np.pi * integral
 
     return sigma
 
