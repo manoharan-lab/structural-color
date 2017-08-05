@@ -30,6 +30,19 @@ def factor_py(qd, phi):
     """
     Calculate structure factor of hard spheres using the Ornstein-Zernike equation
     and Percus-Yevick approximation [1]_ [2]_.
+    
+    Parameters:
+    ----------
+    qd: 1D numpy array
+        dimensionless quantity that represents the frequency space value that 
+        the structure factor depends on        
+    phi: structcol.Quantity [dimensionless]
+        volume fraction of particles or voids in matrix       
+    
+    Returns:
+    -------
+    1D numpy array:
+        The structure factor as a function of qd.
 
     Notes
     -----
@@ -65,3 +78,49 @@ def factor_py(qd, phi):
                                      24 * np.cos(qd) - 24.0) / qd**6)
     # Structure factor at qd (eq X.34 of [2]_)
     return 1.0/(1-c)
+
+def factor_para(qd, phi, sigma = .15):
+    """
+    Calculate structure factor of a structure characterized by disorder of the 
+    second kind as defined in Guinier [1]. This type of structure is referred to as
+    paracrystalline by Hoseman [2]. See also [3] for concise description.
+    
+    Parameters:
+    ----------
+    qd: 1D numpy array
+        dimensionless quantity that represents the frequency space value that 
+        the structure factor depends on        
+    phi: structcol.Quantity [dimensionless]
+        volume fraction of particles or voids in matrix       
+    sigma: int
+        The standard deviation of a Gaussian representing the distribution of 
+        particle/void spacings in the structure. Sigma has implied units of 
+        particle diamter squared. A larger sigma will give more broad peaks,
+        and a smaller sigma more sharp peaks. 
+    
+    Returns:
+    -------
+    1D numpy array:
+        The structure factor as a function of qd.
+
+    Notes
+    -----
+    This code is fully vectorized, so you can feed it orthogonal vectors for
+    both qd and phi and it will produce a 2D output:
+        qd = np.arange(0.1, 20, 0.01)
+        phi = np.array([0.15, 0.3, 0.45])
+        s = structure.factor_py(qd.reshape(-1,1), phi.reshape(1,-1))
+
+    References
+    ----------
+    [1] Guinier, A (1963). X-Ray Diffraction. San Francisco and London: WH Freeman.
+
+    [2] Lindenmeyer, PH; Hosemann, R (1963). "Application of the Theory of 
+    Paracrystals to the Crystal Structure Analysis of Polyacrylonitrile". 
+    J. Applied Physics. 34: 42
+    
+    [3] https://en.wikipedia.org/wiki/Structure_factor#Disorder_of_the_second_kind
+    """
+    r = np.exp(-(qd*phi**(-1/3)*sigma)**2/2)
+    return (1-r**2)/(1+r**2-2*r*np.cos(qd*phi**(-1/3)))
+    
