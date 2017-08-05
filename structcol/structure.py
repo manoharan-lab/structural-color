@@ -30,6 +30,19 @@ def factor_py(qd, phi):
     """
     Calculate structure factor of hard spheres using the Ornstein-Zernike equation
     and Percus-Yevick approximation [1]_ [2]_.
+    
+    Parameters:
+    ----------
+    qd: 1D numpy array
+        dimensionless quantity that represents the frequency space value that 
+        the structure factor depends on        
+    phi: structcol.Quantity [dimensionless]
+        volume fraction of particles or voids in matrix       
+    
+    Returns:
+    -------
+    1D numpy array:
+        The structure factor as a function of qd.
 
     Notes
     -----
@@ -71,6 +84,24 @@ def factor_para(qd, phi, sigma = .15):
     Calculate structure factor of a structure characterized by disorder of the 
     second kind as defined in Guinier [1]. This type of structure is referred to as
     paracrystalline by Hoseman [2]. See also [3] for concise description.
+    
+    Parameters:
+    ----------
+    qd: 1D numpy array
+        dimensionless quantity that represents the frequency space value that 
+        the structure factor depends on        
+    phi: structcol.Quantity [dimensionless]
+        volume fraction of particles or voids in matrix       
+    sigma: int
+        The standard deviation of a Gaussian representing the distribution of 
+        particle/void spacings in the structure. Sigma has implied units of 
+        particle diamter squared. A larger sigma will give more broad peaks,
+        and a smaller sigma more sharp peaks. 
+    
+    Returns:
+    -------
+    1D numpy array:
+        The structure factor as a function of qd.
 
     Notes
     -----
