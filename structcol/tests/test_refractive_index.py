@@ -79,3 +79,29 @@ def test_fused_silica():
 def test_vacuum():
     assert_almost_equal(ri.n('vacuum', Quantity('0.400 um')), Quantity('1.0'))
     assert_almost_equal(ri.n('vacuum', Quantity('0.800 um')), Quantity('1.0'))
+    
+def test_cargille():
+    assert_almost_equal(ri.n_cargille(1,'AAA',Quantity('0.400 um')),
+                        Quantity('1.3101597437500001'))
+    assert_almost_equal(ri.n_cargille(1,'AAA',Quantity('0.700 um')),
+                        Quantity('1.303526242857143'))
+    assert_almost_equal(ri.n_cargille(1,'AA',Quantity('0.400 um')),
+                        Quantity('1.4169400062500002'))
+    assert_almost_equal(ri.n_cargille(1,'AA',Quantity('0.700 um')),
+                        Quantity('1.3987172673469388'))
+    assert_almost_equal(ri.n_cargille(1,'A',Quantity('0.400 um')),
+                        Quantity('1.4755715625000001'))
+    assert_almost_equal(ri.n_cargille(1,'A',Quantity('0.700 um')),
+                        Quantity('1.458145836734694'))
+    assert_almost_equal(ri.n_cargille(1,'B',Quantity('0.400 um')),
+                        Quantity('1.6720350625'))
+    assert_almost_equal(ri.n_cargille(1,'B',Quantity('0.700 um')),
+                        Quantity('1.6283854489795917'))
+    assert_almost_equal(ri.n_cargille(1,'E',Quantity('0.400 um')),
+                        Quantity('1.5190772875'))
+    assert_almost_equal(ri.n_cargille(1,'E',Quantity('0.700 um')),
+                        Quantity('1.4945156653061225'))
+    assert_almost_equal(ri.n_cargille(0,'acrylic',Quantity('0.400 um')),
+                        Quantity('1.50736788125'))
+    assert_almost_equal(ri.n_cargille(0,'acrylic',Quantity('0.700 um')),
+                        Quantity('1.4878716959183673'))
