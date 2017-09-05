@@ -142,7 +142,7 @@ def calc_cross_sections(m, x, wavelen_media, eps1 = DEFAULT_EPS1,
     Notes
     -----
     The backscattering cross-section is 1/(4*pi) times the radar backscattering
-    cross-secion; that is, it corresponds to the differential scattering
+    cross-section; that is, it corresponds to the differential scattering
     cross-section in the backscattering direction.  See B&H 4.6.
 
     The radiation pressure cross section C_pr is given by

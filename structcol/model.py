@@ -45,7 +45,8 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
                num_angles = 200,
                small_angle=Quantity('5 deg'),
                structure_type='glass',
-               form_type = 'sphere'):
+               form_type = 'sphere', 
+               shell_radius = None):
     """
     Calculate fraction of light reflected from an amorphous colloidal
     suspension (a "photonic glass").
@@ -62,9 +63,12 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
     wavelen: structcol.Quantity [length]
         wavelength of light in the medium (which is usually air or vacuum)
     radius: structcol.Quantity [length]
-        radius of particles or voids
+        radius of particles or voids. If particles are core-shell, it's the 
+        radius of the cores. 
     volume_fraction: structcol.Quantity [dimensionless]
-        volume fraction of particles or voids in matrix
+        volume fraction of particles or voids in matrix. If the particles are 
+        core-shell, it's the volume fraction of the entire core-shell particle
+        in the system. 
     thickness: structcol.Quantity [length] (optional)
         thickness of photonic glass.  If unspecified, assumed to be infinite
     theta_min: structcol.Quantity [dimensionless] (optional)
@@ -120,6 +124,9 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
         String specifying form factor type. Currently, 'sphere' is only shape 
         option. Can also set to None in order to only visualize the effect of 
         structure factor on reflectance spectrum. 
+    shell_radius: structcol.Quantity [length] or None
+        radius of the core + shell, if the particles are core-shell. 
+    
     Returns
     -------
     float (5-tuple):
@@ -143,14 +150,27 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
     Beetles” Physical Review E 90, no. 6 (2014): 62302.
     doi:10.1103/PhysRevE.90.062302
     """
-
+    # if particle does not have a shell (it's not a core-shell particle), set 
+    # the shell radius equal to the particle radius
+    if shell_radius == None:
+        shell_radius = radius
+    if shell_radius < radius:
+        raise ValueError('shell radius is smaller than particle core radius')
+    
+    # if particles are core-shells, calculate volume fractions of only cores 
+    # and of core-shells. If particles are not core-shells, 
+    # volume_fraction_shell = volume_fraction_core = volume fraction of particles
+    volume_fraction_shell = volume_fraction    
+    volume_fraction_core = volume_fraction * (radius / shell_radius)**3
+    
     # use Maxwell-Garnett formula to calculate effective index of
-    # particle-matrix composite
-    n_sample = ri.n_eff(n_particle, n_matrix, volume_fraction)
+    # particle-matrix composite. Assume shell index is same as matrix index.
+    n_sample = ri.n_eff(n_particle, n_matrix, volume_fraction_core)
     m = index_ratio(n_particle, n_sample)
-    x = size_parameter(wavelen, n_sample, radius)
-    k = 2*np.pi*n_sample/wavelen
-
+    k = 2*np.pi*n_sample/wavelen    
+    x_core = size_parameter(wavelen, n_sample, radius)
+    x_shell = size_parameter(wavelen, n_sample, shell_radius)
+    
     # calculate transmission and reflection coefficients at first interface
     # between medium and sample
     # (TODO: include correction for reflection off the back interface of the
@@ -182,7 +202,8 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
     angles = Quantity(np.linspace(theta_min_refracted, theta_max, num_angles),
                       'rad')
     azi_angle_range = Quantity(phi_max-phi_min,'rad')
-    diff_cs = differential_cross_section(m, x, angles, volume_fraction, 
+    diff_cs = differential_cross_section(m, x_core, angles, volume_fraction_core, 
+                                         x_shell, volume_fraction_shell, 
                                          structure_type, form_type)
     transmission = fresnel_transmission(n_sample, n_medium, np.pi-angles)
     sigma_detected_par = _integrate_cross_section(diff_cs[0],
@@ -196,7 +217,8 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
     # Fresnel coefficients do not appear in this integral since we're using the
     # total cross-section to account for the attenuation in intensity as light
     # propagates through the sample
-    diff_cs = differential_cross_section(m, x, angles, volume_fraction, 
+    diff_cs = differential_cross_section(m, x_core, angles, volume_fraction_core, 
+                                         x_shell, volume_fraction_shell, 
                                          structure_type, form_type)
     sigma_total_par = _integrate_cross_section(diff_cs[0], 1.0/k**2, angles, azi_angle_range)
     sigma_total_perp = _integrate_cross_section(diff_cs[1], 1.0/k**2, angles, azi_angle_range)
@@ -211,7 +233,7 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
     asymmetry_parameter = (asymmetry_par + asymmetry_perp)/sigma_total/2.0
 
     # now eq. 6 for the total reflection
-    rho = _number_density(volume_fraction, radius)
+    rho = _number_density(volume_fraction_shell, shell_radius)
     if thickness is None:
         # assume semi-infinite sample
         factor = 1.0
@@ -240,16 +262,66 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
         asymmetry_parameter, transport_length
 
 @ureg.check('[]', '[]', '[]', '[]')
-def differential_cross_section(m, x, angles, volume_fraction,
+def differential_cross_section(m, x, angles, volume_fraction, 
+                               x_shell = None, 
+                               volume_fraction_shell = None, 
                                structure_type = 'glass', 
                                form_type = 'sphere'):
     """
     Calculate dimensionless differential scattering cross-section for a sphere,
     including contributions from the structure factor. Need to multiply by k**2
     to get the dimensional differential cross section.
-    """
+    
+    Parameters
+    ----------
+    m: float 
+        complex particle relative refractive index, n_particle/n_sample
+    x: float
+        size parameter. If particles are core-shell, it's the size parameter 
+        calculated using the radius of the cores. If particles are not 
+        core-shell, it's the size parameter using the radius of the particle. 
+    angles: ndarray(structcol.Quantity [dimensionless])
+        array of angles. Must be entered as a Quantity to allow specifying
+        units (degrees or radians) explicitly
+    volume_fraction: float
+        volume fraction. If particles are core-shell, it's the
+        volume fraction of only the cores in the system. If particles are not 
+        core-shell, it's the volume fraction of the particles in the system. 
+    x_shell: float or None
+        size parameter. If particles are core-shell, it's the size parameter
+        calculated using the radius of the entire core + shell particle. If 
+        particles are not core-shell, set to None. 
+    volume_fraction_shell: float
+        volume fraction. If particles are core-shell, it's the
+        volume fraction of the entire core + shell particle in the system. 
+        If particles are not core-shell, set to None. 
+    structure_type: str or None
+        type of structure to calculate the structure factor. Can be 'glass', 
+        'paracrystal', or None. 
+    form_type: str or None
+        type of particle geometry to calculate the form factor. Can be 'sphere'
+        or None.
+    
+    Returns
+    -------
+    float (2-tuple):
+        parallel and perpendicular components of the differential scattering
+        cross section.
+
+    """    
+    x_core = x
+    volume_fraction_core = volume_fraction
+    
+    # if x_shell and volume_fraction_shell are None, then the particles are not 
+    # core-shell
+    if x_shell == None: 
+        x_shell = x_core
+    if volume_fraction_shell == None:
+        volume_fraction_shell = volume_fraction_core
+
+    # calculate form factor    
     if form_type == 'sphere':   
-        form_factor = mie.calc_ang_dist(m, x, angles)
+        form_factor = mie.calc_ang_dist(m, x_core, angles)
         f_par = form_factor[0]
         f_perp = form_factor[1]
     elif form_type is None:
@@ -258,19 +330,19 @@ def differential_cross_section(m, x, angles, volume_fraction,
     else:
         raise ValueError('form factor type not recognized!')
         
-
-    qd = 4*x*np.sin(angles/2)
+    # calculate structure factor
+    qd = 4*x_shell*np.sin(angles/2)
     
     if isinstance(structure_type, dict):
         if structure_type['name'] == 'paracrystal':
-            s = structure.factor_para(qd, volume_fraction, 
+            s = structure.factor_para(qd, volume_fraction_shell, 
                                       sigma = structure_type['sigma'])
         else:
             raise ValueError('structure factor type not recognized!')
             
     elif isinstance(structure_type, str):
         if structure_type == 'glass':    
-            s = structure.factor_py(qd, volume_fraction)
+            s = structure.factor_py(qd, volume_fraction_shell)
         elif structure_type == 'paracrystal':
             s = structure.factor_para(qd)
         else: 
