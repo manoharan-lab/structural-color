@@ -21,6 +21,7 @@ Tests for the structure module
 """
 
 from .. import Quantity, ureg, q, np, structure
+from .. import size_parameter
 from nose.tools import assert_raises, assert_equal
 from numpy.testing import assert_almost_equal, assert_array_almost_equal
 from pint.errors import DimensionalityError

@@ -865,7 +865,7 @@ def initialize_sphere(nevents, ntraj, radius, seed=None, initial_weight = 1):
 
 
 def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
-              shell_radius=None, phase_mie=False, mu_scat_mie=False):
+              phase_mie=False, mu_scat_mie=False):
     """
     Calculates the phase function and scattering coefficient from either the
     single scattering model or Mie theory. Calculates the absorption coefficient
@@ -874,22 +874,17 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
     Parameters
     ----------
     radius : float (structcol.Quantity [length])
-        Radius of scatterer. If particles are core-shell, should be radius of 
-        only the core. 
+        Radius of scatterer. 
     n_particle : float (structcol.Quantity [dimensionless] or 
         structcol.refractive_index object)
         Refractive index of the particle.
     n_sample : float (structcol.Quantity [dimensionless] or 
         structcol.refractive_index object)
-        Refractive index of the sample. If particles are core-shell, should be 
-        calculated with the volume fraction of only the cores. 
+        Refractive index of the sample. 
     volume_fraction : float (structcol.Quantity [dimensionless])
-        Volume fraction of the sample. If particles are core-shell, should be 
-        volume fraction of only the cores. 
+        Volume fraction of the sample. 
     wavelen : float (structcol.Quantity [length])
         Wavelength of light in vacuum.
-    shell_radius : float (structcol.Quantity [length]) or None
-        Radius of core + shell particle if particles are core-shell.
     phase_mie : bool
         If True, the phase function is calculated from Mie theory. If False
         (default), it is calculated from the single scattering model, which
@@ -926,34 +921,23 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
     min_angle = 0.01            
     angles = sc.Quantity(np.linspace(min_angle,np.pi, 200), 'rad') 
 
-    # if shell_radius is None, then the particles are not core-shell
-    if shell_radius == None: 
-        shell_radius = radius
-        
-    # if particles are core-shells, calculate volume fractions of only cores 
-    # and of core-shells. If particles are not core-shells, 
-    # volume_fraction_shell = volume_fraction_core = volume fraction of particles
-    volume_fraction_core = volume_fraction    
-    volume_fraction_shell = volume_fraction * (shell_radius / radius)**3
-    
-    number_density = 3.0 * volume_fraction_shell / (4.0 * np.pi * shell_radius**3)
+    number_density = 3.0 * volume_fraction / (4.0 * np.pi * radius**3)
     ksquared = (2 * np.pi *n_sample / wavelen)**2
     m = index_ratio(n_particle, n_sample)
-    x_core = size_parameter(wavelen, n_sample, radius)
-    x_shell = size_parameter(wavelen, n_sample, shell_radius)
+    x = size_parameter(wavelen, n_sample, radius)
     
     # Calculate the absorption coefficient from Mie theory
     ## Use wavelen/n_sample: wavelength of incident light *in media*
     ## (usually this would be the wavelength in the effective index of the
     ## particle-matrix composite)
-    cross_sections = mie.calc_cross_sections(m, x_core, wavelen/n_sample)  
+    cross_sections = mie.calc_cross_sections(m, x, wavelen/n_sample)  
     cabs = cross_sections[2]
     
     mu_abs = (cabs * number_density)
 
     # If phase_mie is set to True, calculate the phase function from Mie theory
     if phase_mie == True:
-        S2squared, S1squared = mie.calc_ang_dist(m, x_core, angles)
+        S2squared, S1squared = mie.calc_ang_dist(m, x, angles)
         S11 = (S1squared + S2squared)/2
         cscat = cross_sections[0]
         p = S11 / (ksquared * cscat)
@@ -961,8 +945,7 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
     # Calculate the differential and total cross sections from the single
     # scattering model
     diff_sigma_par, diff_sigma_per = \
-        model.differential_cross_section(m, x_core, angles, volume_fraction_core, 
-                                         x_shell, volume_fraction_shell)
+        model.differential_cross_section(m, x, angles, volume_fraction)
     sigma_total_par = model._integrate_cross_section(diff_sigma_par,
                                                      1.0/ksquared, angles)
     sigma_total_perp = model._integrate_cross_section(diff_sigma_per,
