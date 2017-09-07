@@ -240,7 +240,7 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
         asymmetry_parameter, transport_length
 
 @ureg.check('[]', '[]', '[]', '[]')
-def differential_cross_section(m, x, angles, volume_fraction,
+def differential_cross_section(m, x, angles, volume_fraction, 
                                structure_type = 'glass', 
                                form_type = 'sphere'):
     """
