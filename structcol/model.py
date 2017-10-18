@@ -32,7 +32,9 @@ Physical Review E 90, no. 6 (2014): 62302. doi:10.1103/PhysRevE.90.062302
 import numpy as np
 from . import refractive_index as ri
 from . import ureg, Quantity
-from . import mie, structure, index_ratio, size_parameter
+from . import structure
+import pymie as pm
+from pymie import mie, size_parameter, index_ratio
 
 @ureg.check('[]', '[]', '[]', '[length]', '[length]', '[]')
 def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
@@ -42,18 +44,22 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
                phi_min=Quantity('0 deg'),
                phi_max=Quantity('360 deg'),
                incident_angle=Quantity('0 deg'),
-               num_angles = 200,
+               num_angles=200,
                small_angle=Quantity('5 deg'),
                structure_type='glass',
-               form_type = 'sphere'):
+               form_type='sphere',
+               maxwell_garnett=False,
+               absorption=False):
     """
     Calculate fraction of light reflected from an amorphous colloidal
     suspension (a "photonic glass").
 
     Parameters
     ----------
-    n_particle: structcol.Quantity [dimensionless]
-        refractive index of particles or voids at wavelength=wavelen
+    n_particle: array of structcol.Quantity [dimensionless]
+        refractive index of particles or voids at wavelength=wavelen. In case 
+        of core-shell particles, define indices from the innermost to the 
+        outermost layer. 
     n_matrix: structcol.Quantity [dimensionless]
         refractive index of the matrix surrounding the particles (at wavelen)
     n_medium: structcol.Quantity [dimensionless]
@@ -61,10 +67,13 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
         usually air or vacuum
     wavelen: structcol.Quantity [length]
         wavelength of light in the medium (which is usually air or vacuum)
-    radius: structcol.Quantity [length]
-        radius of particles or voids
-    volume_fraction: structcol.Quantity [dimensionless]
-        volume fraction of particles or voids in matrix
+    radius: array of structcol.Quantity [length]
+        radii of particles or voids. In case of core-shell particles, define
+        radii from the innermost to the outermost layer. 
+    volume_fraction: array of structcol.Quantity [dimensionless]
+        volume fraction of particles or voids in matrix. If it's a core-shell 
+        particle, must be the volume fraction of the entire core-shell particle 
+        in the matrix.
     thickness: structcol.Quantity [length] (optional)
         thickness of photonic glass.  If unspecified, assumed to be infinite
     theta_min: structcol.Quantity [dimensionless] (optional)
@@ -120,6 +129,15 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
         String specifying form factor type. Currently, 'sphere' is only shape 
         option. Can also set to None in order to only visualize the effect of 
         structure factor on reflectance spectrum. 
+    maxwell_garnett: boolean
+        If true, the model uses Maxwell-Garnett's effective index for the 
+        sample. In that case, the user must specify one refractive index for 
+        the particle and one for the matrix. If false, the model uses 
+        Bruggeman's formula, which can be used for multilayer particles. 
+    absorption: boolean
+        If true, the model uses a complex refractive index for the particle, 
+        which the user should input. If false, the user should input only the 
+        real part. 
     
     Returns
     -------
@@ -143,12 +161,37 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
     of Red Structural Color in Photonic Glasses, Bird Feathers, and Certain
     Beetles” Physical Review E 90, no. 6 (2014): 62302.
     doi:10.1103/PhysRevE.90.062302
-    """   
-    # use Maxwell-Garnett formula to calculate effective index of
-    # particle-matrix composite. 
-    n_sample = ri.n_eff(n_particle, n_matrix, volume_fraction)
-    m = index_ratio(n_particle, n_sample)  
-    x = size_parameter(wavelen, n_sample, radius)
+    """
+    # check that if absorption is set to False, the particle index is real
+    if absorption==False:
+        n_particle = n_particle.real
+
+    # check that the number of indices and radii is the same
+    if len(np.atleast_1d(n_particle)) != len(np.atleast_1d(radius)):
+       raise ValueError('Arrays of indices and radii must be the same length')
+            
+    # calculate array of volume fractions of each layer in the particle. If 
+    # particle is not core-shell, volume fraction remains the same
+    vf_array = np.empty(len(np.atleast_1d(radius)))
+    r_array = np.array([0] + np.atleast_1d(radius).tolist()) 
+    for r in np.arange(len(r_array)-1):
+        vf_array[r] = (r_array[r+1]**3-r_array[r]**3) / (r_array[-1:]**3) * volume_fraction.magnitude
+    if len(vf_array) == 1:
+        vf_array = float(vf_array)
+    
+    # use Bruggeman formula to calculate effective index of
+    # particle-matrix composite. Also make sure index of particle is real 
+    # because the Mie code can't handle complex effective sample indices
+    n_sample = ri.n_eff(n_particle.real, n_matrix, vf_array, 
+                        maxwell_garnett=maxwell_garnett)
+  
+    if len(np.atleast_1d(radius)) > 1:
+        m = index_ratio(n_particle, n_sample).flatten()  
+        x = size_parameter(wavelen, n_sample, radius).flatten()
+    else:
+        m = index_ratio(n_particle, n_sample)
+        x = size_parameter(wavelen, n_sample, radius)
+
     k = 2*np.pi*n_sample/wavelen
     
     # calculate transmission and reflection coefficients at first interface
@@ -184,6 +227,7 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
     azi_angle_range = Quantity(phi_max-phi_min,'rad')
     diff_cs = differential_cross_section(m, x, angles, volume_fraction,
                                          structure_type, form_type)
+    
     transmission = fresnel_transmission(n_sample, n_medium, np.pi-angles)
     sigma_detected_par = _integrate_cross_section(diff_cs[0],
                                                   transmission[0]/k**2, angles, azi_angle_range)
@@ -209,9 +253,10 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
                                               angles, azi_angle_range)
     # calculate for unpolarized light
     asymmetry_parameter = (asymmetry_par + asymmetry_perp)/sigma_total/2.0
-
+                          
     # now eq. 6 for the total reflection
-    rho = _number_density(volume_fraction, radius)
+    rho = _number_density(volume_fraction, radius.max())
+
     if thickness is None:
         # assume semi-infinite sample
         factor = 1.0
@@ -258,7 +303,8 @@ def differential_cross_section(m, x, angles, volume_fraction,
         array of angles. Must be entered as a Quantity to allow specifying
         units (degrees or radians) explicitly
     volume_fraction: float
-        volume fraction
+        volume fraction of the particles. If core-shell, should be volume 
+        fraction of the entire core-shell particle.
     structure_type: str or None
         type of structure to calculate the structure factor. Can be 'glass', 
         'paracrystal', or None. 
@@ -285,7 +331,7 @@ def differential_cross_section(m, x, angles, volume_fraction,
         raise ValueError('form factor type not recognized!')
         
     # calculate structure factor
-    qd = 4*x*np.sin(angles/2)
+    qd = 4*np.array(x).max()*np.sin(angles/2)
     
     if isinstance(structure_type, dict):
         if structure_type['name'] == 'paracrystal':

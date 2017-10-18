@@ -21,6 +21,7 @@ Tests for the single-scattering model (in structcol/model.py)
 """
 
 from .. import Quantity, ureg, q, index_ratio, size_parameter, np, mie, model
+from .. import refractive_index as ri
 from nose.tools import assert_raises, assert_equal
 from numpy.testing import assert_almost_equal, assert_array_almost_equal
 from pint.errors import DimensionalityError
@@ -68,3 +69,134 @@ def test_fresnel():
     tperp_std = 1.0-rperp_std
     assert_array_almost_equal(tpar, tpar_std)
     assert_array_almost_equal(tperp, tperp_std)
+
+def test_differential_cross_section():
+    # Test that the differential cross sections for non-core-shell particles and
+    # core-shells are the same at low volume fractions, assuming that the 
+    # particle diameter of the non-core-shells is the same as the core 
+    # diameter in the core-shells
+    
+    #n_sample = Quantity(1.5, '')
+    n_matrix = Quantity(1.0, '')
+    wavelen = Quantity('500 nm')
+    angles = Quantity(np.linspace(np.pi/2, np.pi, 200), 'rad')
+    
+    # Differential cross section for non-core-shells
+    radius = Quantity('100 nm')    
+    n_particle = Quantity(1.5, '')
+    volume_fraction = Quantity(0.0001, '')              # IS VF TOO LOW?
+    n_sample = ri.n_eff(n_particle, n_matrix, volume_fraction)
+    m = index_ratio(n_particle, n_sample)
+    x = size_parameter(wavelen, n_sample, radius)  
+    diff = model.differential_cross_section(m, x, angles, volume_fraction)
+    
+    # Differential cross section for core-shells. Core is equal to non-core-shell particle, 
+    # and shell is made of vacuum
+    radius_cs = Quantity(np.array([100, 110]), 'nm')  
+    n_particle_cs = Quantity(np.array([1.5, 1.0]), '')
+    
+    volume_fraction_shell = volume_fraction * (radius_cs[1]**3 / radius_cs[0]**3 -1)
+    volume_fraction_cs = Quantity(np.array([volume_fraction.magnitude, volume_fraction_shell.magnitude]), '')
+    
+    n_sample_cs = ri.n_eff(n_particle_cs, n_matrix, volume_fraction_cs)
+    m_cs = index_ratio(n_particle_cs, n_sample_cs).flatten()
+    x_cs = size_parameter(wavelen, n_sample_cs, radius_cs).flatten() 
+    diff_cs = model.differential_cross_section(m_cs, x_cs, angles, np.sum(volume_fraction_cs))
+
+    assert_array_almost_equal(diff, diff_cs, decimal=5)
+    
+def test_reflection_core_shell():
+    # Test reflection, anisotropy factor, and transport length calculations to
+    # make sure the values for refl, g, and lstar remain the same after adding
+    # core-shell capability into the model
+    wavelength = Quantity(500, 'nm')
+    
+    # Non core-shell particles with Maxwell-Garnett effective index
+    volume_fraction = Quantity(0.5, '')
+    radius = Quantity('120 nm')
+    n_particle = Quantity(1.5, '')
+    n_matrix = Quantity(1.0, '')
+    n_medium = n_matrix
+
+    refl1, _, _, g1, lstar1 = model.reflection(n_particle, n_matrix, n_medium, 
+                                            wavelength, radius, volume_fraction, 
+                                            thickness = Quantity('15000.0 nm'), 
+                                            theta_min = Quantity('90 deg'), maxwell_garnett=True)
+    
+    # Non core-shell particles with Bruggeman effective index
+    volume_fraction2 = Quantity(0.00001, '')
+    refl2, _, _, g2, lstar2 = model.reflection(n_particle, n_matrix, n_medium, 
+                                            wavelength, radius, volume_fraction2, 
+                                            thickness = Quantity('15000.0 nm'), 
+                                            theta_min = Quantity('90 deg'), maxwell_garnett=False)
+        
+    # Core-shell particles of core diameter equal to non core shell particles, 
+    # and shell index of air. With Bruggeman effective index
+    n_particle3 = Quantity(np.array([1.5, 1.0]), '')
+    radius3 = Quantity(np.array([120, 130]), 'nm')
+    volume_fraction3 = volume_fraction2 * (radius3[1]**3 / radius3[0]**3)
+
+    refl3, _, _, g3, lstar3 = model.reflection(n_particle3, n_matrix, n_medium, 
+                                            wavelength, radius3, volume_fraction3, 
+                                            thickness = Quantity('15000.0 nm'), 
+                                            theta_min = Quantity('90 deg'), maxwell_garnett=False)
+    
+    # Outputs for refl, g, and lstar before adding core-shell capability
+    refl = Quantity(0.20772170840902376, '')
+    g = Quantity(-0.18931942267032678, '')
+    lstar = Quantity(10810.088573316663, 'nm')
+    
+    # Compare old outputs (before adding core-shell capability) and new outputs
+    # for a non-core-shell using Maxwell-Garnett
+    assert_array_almost_equal(refl, refl1)
+    assert_array_almost_equal(g, g1) 
+    assert_array_almost_equal(lstar, lstar1)
+
+    # Compare a non-core-shell and a core-shell with shell index of air using
+    # Bruggeman
+    assert_array_almost_equal(refl2, refl3)
+    assert_array_almost_equal(g2, g3, decimal=5)
+    assert_array_almost_equal(lstar2.to('mm'), lstar3.to('mm'), decimal=4)
+    
+def test_reflection_absorbing_particle():
+    # test that the reflections with a real n_particle and with a complex
+    # n_particle with a 0 imaginary component are the same 
+    wavelength = Quantity(500, 'nm')
+    volume_fraction = Quantity(0.5, '')
+    radius = Quantity('120 nm')
+    n_matrix = Quantity(1.0, '')
+    n_medium = n_matrix
+    n_particle_real = Quantity(1.5, '')
+    n_particle_imag = Quantity(1.5 + 0j, '')
+    
+    # With Maxwell-Garnett
+    refl_mg1, _, _, g_mg1, lstar_mg1 = model.reflection(n_particle_real, n_matrix, n_medium, 
+                                            wavelength, radius, volume_fraction, 
+                                            thickness = Quantity('15000.0 nm'), 
+                                            theta_min = Quantity('90 deg'), 
+                                            maxwell_garnett=True, absorption=False)
+    refl_mg2, _, _, g_mg2, lstar_mg2 = model.reflection(n_particle_imag, n_matrix, n_medium, 
+                                            wavelength, radius, volume_fraction, 
+                                            thickness = Quantity('15000.0 nm'), 
+                                            theta_min = Quantity('90 deg'), 
+                                            maxwell_garnett=True, absorption=True)
+    
+    assert_array_almost_equal(refl_mg1, refl_mg2)
+    assert_array_almost_equal(g_mg1, g_mg2)
+    assert_array_almost_equal(lstar_mg1, lstar_mg2)
+    
+    # With Bruggeman
+    refl_bg1, _, _, g_bg1, lstar_bg1 = model.reflection(n_particle_real, n_matrix, n_medium, 
+                                            wavelength, radius, volume_fraction, 
+                                            thickness = Quantity('15000.0 nm'), 
+                                            theta_min = Quantity('90 deg'), 
+                                            maxwell_garnett=False, absorption=False)
+    refl_bg2, _, _, g_bg2, lstar_bg2 = model.reflection(n_particle_imag, n_matrix, n_medium, 
+                                            wavelength, radius, volume_fraction, 
+                                            thickness = Quantity('15000.0 nm'), 
+                                            theta_min = Quantity('90 deg'), 
+                                            maxwell_garnett=False, absorption=True)
+    
+    assert_array_almost_equal(refl_bg1, refl_bg2)
+    assert_array_almost_equal(g_bg1, g_bg2)
+    assert_array_almost_equal(lstar_bg1, lstar_bg2)
