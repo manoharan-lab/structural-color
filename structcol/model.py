@@ -45,7 +45,7 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
                phi_max=Quantity('360 deg'),
                incident_angle=Quantity('0 deg'),
                num_angles=200,
-               small_angle=Quantity('5 deg'),
+               small_angle=Quantity('1 deg'),
                structure_type='glass',
                form_type='sphere',
                maxwell_garnett=False,
@@ -169,7 +169,7 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
     # check that the number of indices and radii is the same
     if len(np.atleast_1d(n_particle)) != len(np.atleast_1d(radius)):
        raise ValueError('Arrays of indices and radii must be the same length')
-            
+        
     # calculate array of volume fractions of each layer in the particle. If 
     # particle is not core-shell, volume fraction remains the same
     vf_array = np.empty(len(np.atleast_1d(radius)))
@@ -178,22 +178,27 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
         vf_array[r] = (r_array[r+1]**3-r_array[r]**3) / (r_array[-1:]**3) * volume_fraction.magnitude
     if len(vf_array) == 1:
         vf_array = float(vf_array)
-    
+
     # use Bruggeman formula to calculate effective index of
     # particle-matrix composite. Also make sure index of particle is real 
     # because the Mie code can't handle complex effective sample indices
-    n_sample = ri.n_eff(n_particle.real, n_matrix, vf_array, 
-                        maxwell_garnett=maxwell_garnett)
-  
+    #n_sample = ri.n_eff(n_particle.real, n_matrix, vf_array, 
+    #                    maxwell_garnett=maxwell_garnett, absorption=absorption)
+    n_sample = ri.n_eff(n_particle, n_matrix, vf_array, 
+                        maxwell_garnett=maxwell_garnett, absorption=absorption)
+    
     if len(np.atleast_1d(radius)) > 1:
         m = index_ratio(n_particle, n_sample).flatten()  
         x = size_parameter(wavelen, n_sample, radius).flatten()
+        #x = size_parameter(wavelen, n_sample.real, radius).flatten()
     else:
         m = index_ratio(n_particle, n_sample)
         x = size_parameter(wavelen, n_sample, radius)
+        #x = size_parameter(wavelen, n_sample.real, radius)
 
-    k = 2*np.pi*n_sample/wavelen
-    
+    k = 2*np.pi*n_sample.real/wavelen    # TODO: SHOULD K BE CALCULATED WITH REAL PART OF N_SAMPLE?
+    x = x.real                           # TODO: X CAN'T BE COMPLEX BECAUSE RICCATI_JN CAN'T HANDLE COMPLEX NUMBERS 
+
     # calculate transmission and reflection coefficients at first interface
     # between medium and sample
     # (TODO: include correction for reflection off the back interface of the
@@ -211,7 +216,8 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
     # light exits into the medium at (180-theta_min) degrees from the normal.
     # (Snell's law: n_medium sin(alpha_medium) = n_sample sin(alpha_sample)
     # where alpha = pi - theta)
-    sin_alpha_sample = np.sin(np.pi - theta_min) * n_medium/n_sample
+    sin_alpha_sample = np.sin(np.pi - theta_min) * n_medium/n_sample.real   # TODO: only real part of n_sample should be used                             
+                                                                            # for the calculation of angles of integration?
     if sin_alpha_sample >= 1:
         # in this case, theta_min and the ratio of n_medium/n_sample are
         # sufficiently large so that all the scattering from 90-180 degrees
@@ -225,9 +231,9 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
     angles = Quantity(np.linspace(theta_min_refracted, theta_max, num_angles),
                       'rad')
     azi_angle_range = Quantity(phi_max-phi_min,'rad')
+
     diff_cs = differential_cross_section(m, x, angles, volume_fraction,
                                          structure_type, form_type)
-    
     transmission = fresnel_transmission(n_sample, n_medium, np.pi-angles)
     sigma_detected_par = _integrate_cross_section(diff_cs[0],
                                                   transmission[0]/k**2, angles, azi_angle_range)
@@ -253,7 +259,7 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
                                               angles, azi_angle_range)
     # calculate for unpolarized light
     asymmetry_parameter = (asymmetry_par + asymmetry_perp)/sigma_total/2.0
-                          
+           
     # now eq. 6 for the total reflection
     rho = _number_density(volume_fraction, radius.max())
 

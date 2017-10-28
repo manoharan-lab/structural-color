@@ -364,7 +364,7 @@ def n_ptbma(w):
     # from http://www.sigmaaldrich.com/catalog/product/aldrich/181587?lang=en&region=US
     return 1.46
 
-def n_eff(n_particle, n_matrix, volume_fraction, maxwell_garnett=False):
+def n_eff(n_particle, n_matrix, volume_fraction, maxwell_garnett=False, absorption=False):
     """
     Calculates Bruggeman effective refractive index for a composite of n 
     dielectric media. If maxwell_garnett is set to true and there are two media, 
@@ -403,18 +403,23 @@ def n_eff(n_particle, n_matrix, volume_fraction, maxwell_garnett=False):
     """          
     if maxwell_garnett==True:    
         # check that the particle and matrix indices have the same length
-        if len(np.array([n_particle]).flatten()) != len(np.array([n_matrix]).flatten()):
+        if len(np.array([n_particle.magnitude]).flatten()) != len(np.array([n_matrix.magnitude]).flatten()):
             raise ValueError('Maxwell-Garnett requires particle and matrix index arrays to have the same length')
         ni = n_particle
         nm = n_matrix
         phi = volume_fraction
         neff =  nm * np.sqrt((2*nm**2 + ni**2 + 2*phi*((ni**2)-(nm**2))) /
                          (2*nm**2 + ni**2 - phi*((ni**2)-(nm**2))))
-        return Quantity(neff)
+        
+        if absorption==True:
+            return Quantity(neff)
+        else:
+            return Quantity(neff.real)
 
     else: 
         # convert the particle index and volume fractions into 1D arrays
-        n_particle = np.array([n_particle.real]).flatten()
+        #n_particle = np.array([n_particle.real]).flatten()
+        n_particle = np.array([n_particle]).flatten()
         volume_fraction = np.array([volume_fraction]).flatten()
         
         # check that the number of volume fractions and of indices is the same
@@ -432,21 +437,32 @@ def n_eff(n_particle, n_matrix, volume_fraction, maxwell_garnett=False):
         vf_list.append(volume_fraction_matrix.magnitude)
         vf_array = np.array(vf_list)
 
+######## With only real n_particle
+#        # define a function for Bruggeman's equation
+#        def sum_bg(n_bg, vf, n_array):
+#            N = len(n_array.flatten())
+#            S = np.sum((vf[n]*(n_array[n]**2 - n_bg**2)/(n_array[n]**2 + 2*n_bg**2)) for n in np.arange(0,N))
+#            return S
+#        
+#        # set an initial guess and solve for Bruggeman's refractive index of the composite
+#        initial_guess = 1.5    # most refractive indices range between 1 and 3
+#        n_bg = fsolve(sum_bg, initial_guess, args=(vf_array, n_array))
+#        
+#        return Quantity(float(n_bg)) 
+
+######## With complex n_particle
         # define a function for Bruggeman's equation
         def sum_bg(n_bg, vf, n_array):
             N = len(n_array.flatten())
-            S = np.sum((vf[n]*(n_array[n]**2 - n_bg**2)/(n_array[n]**2 + 2*n_bg**2)) for n in np.arange(0,N))
-            return S
-            #a, b = n_bg
-            #S = np.sum((vf[n]*(n_array[n]**2 - (a+b*1j)**2)/(n_array[n]**2 + 2*(a+b*1j)**2)) for n in np.arange(0,N))
-            #return (S.real, S.imag)
+            a, b = n_bg
+            S = np.sum((vf[n]*(n_array[n]**2 - (a+b*1j)**2)/(n_array[n]**2 + 2*(a+b*1j)**2)) for n in np.arange(0,N))
+            return (S.real, S.imag)
         
         # set an initial guess and solve for Bruggeman's refractive index of the composite
-        initial_guess = 1.5     # most refractive indices range between 1 and 3
-        n_bg = fsolve(sum_bg, initial_guess, args=(vf_array, n_array))
+        initial_guess = [1.5, 0]    # most refractive indices range between 1 and 3
+        n_bg_real, n_bg_imag = fsolve(sum_bg, initial_guess, args=(vf_array, n_array))
         
-        return Quantity(float(n_bg)) 
-        #if absorption==True:
-        #    return Quantity(n_bg_real + n_bg_imag*1j)
-        #if absorption==False:
-        #    return Quantity(n_bg_real)
+        if absorption==True:
+            return Quantity(n_bg_real + n_bg_imag*1j)
+        else:
+            return Quantity(n_bg_real)
