@@ -188,9 +188,11 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
     if len(np.atleast_1d(radius)) > 1:
         m = index_ratio(n_particle, n_sample).flatten()  
         x = size_parameter(wavelen, n_sample, radius).flatten()
+        #x = size_parameter(wavelen, n_sample.real, radius).flatten()
     else:
         m = index_ratio(n_particle, n_sample)
         x = size_parameter(wavelen, n_sample, radius)
+        #x = size_parameter(wavelen, n_sample.real, radius)
 
     k = 2*np.pi*n_sample.real/wavelen    # TODO: SHOULD K BE CALCULATED WITH REAL PART OF N_SAMPLE?
     x = x.real                           # TODO: X CAN'T BE COMPLEX BECAUSE RICCATI_JN CAN'T HANDLE COMPLEX NUMBERS 
