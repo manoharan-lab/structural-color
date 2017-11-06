@@ -488,6 +488,11 @@ def calc_refl_trans(trajectories, z_low, cutoff, n_medium, n_sample,
     Note: absorbance by the sample can be found by 1 - reflectance - transmittance
     
     """
+    # if the particle has a complex refractive index, the n_sample will be 
+    # complex too and the code will give lots of warning messages. Better to 
+    # take only the real part of n_sample from the beggining
+    n_sample = n_sample.real
+
     # set up the values we need as numpy arrays
     z = trajectories.position[2]
     if isinstance(z, sc.Quantity):
@@ -761,6 +766,10 @@ def initialize(nevents, ntraj, n_medium, n_sample, seed=None, incidence_angle=0.
         Initial weight.
     
     """
+    # if the particle has a complex refractive index, the n_sample will be 
+    # complex too and the code will give lots of warning messages. Better to 
+    # take only the real part of n_sample from the beggining
+    n_sample = n_sample.real
 
     if seed is not None:
         np.random.seed([seed])
@@ -788,7 +797,9 @@ def initialize(nevents, ntraj, n_medium, n_sample, seed=None, incidence_angle=0.
     theta = rand_theta * incidence_angle
 
     # Refraction of incident light upon entering sample
-    theta = refraction(theta, n_medium, n_sample)
+    # TODO: only real part of n_sample should be used                             
+    # for the calculation of angles of integration? Or abs(n_sample)? 
+    theta = refraction(theta, n_medium, n_sample) 
     sintheta = np.sin(theta)
     costheta = np.cos(theta)
 
@@ -921,17 +932,18 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
     min_angle = 0.01            
     angles = sc.Quantity(np.linspace(min_angle,np.pi, 200), 'rad') 
 
-    number_density = 3.0 * volume_fraction / (4.0 * np.pi * radius**3)
-    ksquared = (2 * np.pi *n_sample / wavelen)**2
+    number_density = 3.0 * volume_fraction / (4.0 * np.pi * radius.max()**3)
+    ksquared = (2 * np.pi *n_sample.real / wavelen)**2  # TODO: SHOULD K BE CALCULATED WITH REAL PART OF N_SAMPLE OR WITH ABS(N_SAMPLE)?
     m = index_ratio(n_particle, n_sample)
     x = size_parameter(wavelen, n_sample, radius)
+    x = x.real    # TODO: the mie code can't handle complex x for now
     
     # Calculate the absorption coefficient from Mie theory
     ## Use wavelen/n_sample: wavelength of incident light *in media*
     ## (usually this would be the wavelength in the effective index of the
-    ## particle-matrix composite)
-    cross_sections = mie.calc_cross_sections(m, x, wavelen/n_sample)  
-    cabs = cross_sections[2]
+    ## particle-matrix composite). 
+    cross_sections = mie.calc_cross_sections(m, x, wavelen/n_sample.real)  # TODO: IS IT OKAY TO DIVIDE BY THE REAL PART OF N_SAMPLE?
+    cabs = cross_sections[2]                                               # IF WE DON'T, WE GET COMPLEX REFLECTANCES
     
     mu_abs = (cabs * number_density)
 
