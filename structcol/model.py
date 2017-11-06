@@ -184,7 +184,7 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
     # because the Mie code can't handle complex effective sample indices
     n_sample = ri.n_eff(n_particle, n_matrix, vf_array, 
                         maxwell_garnett=maxwell_garnett, absorption=absorption)
-    
+
     if len(np.atleast_1d(radius)) > 1:
         m = index_ratio(n_particle, n_sample).flatten()  
         x = size_parameter(wavelen, n_sample, radius).flatten()
@@ -193,8 +193,10 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
         m = index_ratio(n_particle, n_sample)
         x = size_parameter(wavelen, n_sample, radius)
 
-    k = 2*np.pi*n_sample.real/wavelen    # TODO: SHOULD K BE CALCULATED WITH REAL PART OF N_SAMPLE?
+    k = 2*np.pi*n_sample.real/wavelen    # TODO: SHOULD K BE CALCULATED WITH REAL PART OF N_SAMPLE OR WITH ABS(N_SAMPLE)?
+    #k = 2*np.pi*np.abs(n_sample)/wavelen
     x = x.real                           # TODO: X CAN'T BE COMPLEX BECAUSE RICCATI_JN CAN'T HANDLE COMPLEX NUMBERS 
+    #x = np.abs(x)
 
     # calculate transmission and reflection coefficients at first interface
     # between medium and sample
@@ -202,7 +204,7 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
     # sample)
     t_medium_sample = fresnel_transmission(n_medium, n_sample, incident_angle)
     r_medium_sample = fresnel_reflection(n_medium, n_sample, incident_angle)
-
+    
     theta_min = theta_min.to('rad').magnitude
     theta_max = theta_max.to('rad').magnitude
     phi_min = phi_min.to('rad').magnitude
@@ -214,7 +216,8 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
     # (Snell's law: n_medium sin(alpha_medium) = n_sample sin(alpha_sample)
     # where alpha = pi - theta)
     sin_alpha_sample = np.sin(np.pi - theta_min) * n_medium/n_sample.real   # TODO: only real part of n_sample should be used                             
-                                                                            # for the calculation of angles of integration?
+                                                                            # for the calculation of angles of integration? Or abs(n_sample)? 
+    #sin_alpha_sample = np.sin(np.pi - theta_min) * n_medium/np.abs(n_sample)
     if sin_alpha_sample >= 1:
         # in this case, theta_min and the ratio of n_medium/n_sample are
         # sufficiently large so that all the scattering from 90-180 degrees
@@ -245,6 +248,7 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
     # propagates through the sample
     diff_cs = differential_cross_section(m, x, angles, volume_fraction,
                                          structure_type, form_type)
+
     sigma_total_par = _integrate_cross_section(diff_cs[0], 1.0/k**2, angles, azi_angle_range)
     sigma_total_perp = _integrate_cross_section(diff_cs[1], 1.0/k**2, angles, azi_angle_range)
     sigma_total = (sigma_total_par + sigma_total_perp)/2.0
@@ -278,7 +282,7 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
                     factor + r_medium_sample[0]
     reflected_perp = t_medium_sample[1] * sigma_detected_perp/sigma_total * \
                      factor + r_medium_sample[1]
-
+                     
     # and the transport length for unpolarized light
     # (see eq. 5 of Kaplan, Dinsmore, Yodh, Pine, PRE 50(6): 4827, 1994)
     transport_length = 1/(1.0-asymmetry_parameter)/rho/sigma_total
@@ -335,7 +339,7 @@ def differential_cross_section(m, x, angles, volume_fraction,
         
     # calculate structure factor
     qd = 4*np.array(x).max()*np.sin(angles/2)
-    
+
     if isinstance(structure_type, dict):
         if structure_type['name'] == 'paracrystal':
             s = structure.factor_para(qd, volume_fraction, 
@@ -411,6 +415,7 @@ def fresnel_reflection(n1, n2, incident_angle):
         r_par = np.zeros(theta.size)
         r_perp = np.zeros(theta.size)
         ms = (n2/n1)
+
         if ms < 1:
             # handle case of total internal reflection; this code is written
             # using index arrays so that theta can be input as an array
@@ -430,7 +435,7 @@ def fresnel_reflection(n1, n2, incident_angle):
                                    (n1*root + n2**2 * costheta)))**2
         r_perp[good_vals] = (np.abs((n1*costheta - root) / \
                                     (n1*costheta + root)))**2
-
+        
     return np.squeeze(r_par), np.squeeze(r_perp)
 
 @ureg.check('[]', '[]', '[]')

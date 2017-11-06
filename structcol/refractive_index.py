@@ -462,6 +462,9 @@ def n_eff(n_particle, n_matrix, volume_fraction, maxwell_garnett=False, absorpti
         n_bg_real, n_bg_imag = fsolve(sum_bg, initial_guess, args=(vf_array, n_array))
         
         if absorption==True:
-            return Quantity(n_bg_real + n_bg_imag*1j)
+            if n_bg_imag >= 0.0:
+                return Quantity(n_bg_real + n_bg_imag*1j)
+            else:
+                raise ValueError('Cannot find positive imaginary root for the effective index')
         else:
             return Quantity(n_bg_real)
