@@ -195,8 +195,6 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
 
     k = 2*np.pi*n_sample.real/wavelen    # TODO: SHOULD K BE CALCULATED WITH REAL PART OF N_SAMPLE OR WITH ABS(N_SAMPLE)?
     #k = 2*np.pi*np.abs(n_sample)/wavelen
-    x = x.real                           # TODO: X CAN'T BE COMPLEX BECAUSE RICCATI_JN CAN'T HANDLE COMPLEX NUMBERS 
-    #x = np.abs(x)
 
     # calculate transmission and reflection coefficients at first interface
     # between medium and sample
@@ -338,7 +336,7 @@ def differential_cross_section(m, x, angles, volume_fraction,
         raise ValueError('form factor type not recognized!')
         
     # calculate structure factor
-    qd = 4*np.array(x).max()*np.sin(angles/2)
+    qd = 4*np.array(x.real).max()*np.sin(angles/2)
 
     if isinstance(structure_type, dict):
         if structure_type['name'] == 'paracrystal':

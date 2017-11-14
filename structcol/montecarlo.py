@@ -936,7 +936,6 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
     ksquared = (2 * np.pi *n_sample.real / wavelen)**2  # TODO: SHOULD K BE CALCULATED WITH REAL PART OF N_SAMPLE OR WITH ABS(N_SAMPLE)?
     m = index_ratio(n_particle, n_sample)
     x = size_parameter(wavelen, n_sample, radius)
-    x = x.real    # TODO: the mie code can't handle complex x for now
     
     # Calculate the absorption coefficient from Mie theory
     ## Use wavelen/n_sample: wavelength of incident light *in media*
