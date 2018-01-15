@@ -180,12 +180,12 @@ def test_reflection_absorbing_particle():
                                             wavelength, radius, volume_fraction, 
                                             thickness = Quantity('15000.0 nm'), 
                                             theta_min = Quantity('90 deg'), 
-                                            maxwell_garnett=True, absorption=False)
+                                            maxwell_garnett=True, particle_absorption=False)
     refl_mg2, _, _, g_mg2, lstar_mg2 = model.reflection(n_particle_imag, n_matrix, n_medium, 
                                             wavelength, radius, volume_fraction, 
                                             thickness = Quantity('15000.0 nm'), 
                                             theta_min = Quantity('90 deg'), 
-                                            maxwell_garnett=True, absorption=True)
+                                            maxwell_garnett=True, particle_absorption=True)
     
     assert_array_almost_equal(refl_mg1, refl_mg2)
     assert_array_almost_equal(g_mg1, g_mg2)
@@ -196,12 +196,12 @@ def test_reflection_absorbing_particle():
                                             wavelength, radius, volume_fraction, 
                                             thickness = Quantity('15000.0 nm'), 
                                             theta_min = Quantity('90 deg'), 
-                                            maxwell_garnett=False, absorption=False)
+                                            maxwell_garnett=False, particle_absorption=False)
     refl_bg2, _, _, g_bg2, lstar_bg2 = model.reflection(n_particle_imag, n_matrix, n_medium, 
                                             wavelength, radius, volume_fraction, 
                                             thickness = Quantity('15000.0 nm'), 
                                             theta_min = Quantity('90 deg'), 
-                                            maxwell_garnett=False, absorption=True)
+                                            maxwell_garnett=False, particle_absorption=True)
     
     assert_array_almost_equal(refl_bg1, refl_bg2)
     assert_array_almost_equal(g_bg1, g_bg2)

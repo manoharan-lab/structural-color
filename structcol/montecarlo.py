@@ -159,11 +159,13 @@ class Trajectory:
     def nevents(self):
         return self.weight.shape[0]
 
-    def absorb(self, mu_abs, step_size):
+    def absorb(self, mu_abs, step_size, n_matrix=None, wavelen=None):
         """
         Calculates absorption of photon packet after each scattering event.
         Absorption is modeled as a reduction of a photon packet's weight
-        every time it gets scattered using Beer-Lambert's law.
+        every time it gets scattered using Beer-Lambert's law. If n_matrix and
+        wavelength are specified, then the absorption will include both the 
+        absorption in the particle and in the matrix. 
         
         Parameters
         ----------
@@ -171,12 +173,25 @@ class Trajectory:
             Absorption coefficient of packet 
         step_size: ndarray (structcol.Quantity [length])
             Step size of packet (sampled from scattering lengths).
-        
+        n_matrix: structcol.Quantity [dimensionless]
+            Refractive index of matrix
+        wavelen: structcol.Quantity [length]
+            Wavelength of light in vacuum
+            
         """
+        if n_matrix is not None and wavelen is None:
+            raise ValueError('Must provide wavelength in vacuum as well as matrix index')
+        
+        # the absorption coefficient can be calculated from the imaginary 
+        # component of the matrix's refractive index
+        if n_matrix is not None:
+            mu_abs_matrix = 4*np.pi*n_matrix.imag/wavelen
+        else:
+            mu_abs_matrix = 0
         
         # beer lambert
-        weight = np.exp(-mu_abs*np.cumsum(step_size[:,:], axis=0))
-        
+        weight = np.exp(-((mu_abs+mu_abs_matrix)*np.cumsum(step_size[:,:], axis=0)).to(''))
+
         self.weight = sc.Quantity(weight)
 
 

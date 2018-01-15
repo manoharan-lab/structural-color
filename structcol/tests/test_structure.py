@@ -92,8 +92,8 @@ def test_structure_factor_percus_yevick_core_shell():
     x_cs = size_parameter(wavelen, n_sample_cs, radius_cs[1]).flatten() 
     qd_cs = 4*x_cs*np.sin(angles/2) 
     s_cs = structure.factor_py(qd_cs, np.sum(volume_fraction_cs))
-
-    assert_almost_equal(s, s_cs, decimal=5)
+    print(s, s_cs)
+    assert_almost_equal(s.magnitude, s_cs.magnitude, decimal=5)
     
     
     

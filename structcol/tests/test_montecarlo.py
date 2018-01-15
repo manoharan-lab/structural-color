@@ -35,6 +35,7 @@ radius = sc.Quantity('150 nm')
 volume_fraction = 0.5
 n_particle = sc.Quantity(1.5, '')
 n_matrix = sc.Quantity(1.0, '')
+n_medium = sc.Quantity(1.0, '')
 n_sample = ri.n_eff(n_particle, n_matrix, volume_fraction) 
 angles = sc.Quantity(np.linspace(0.01,np.pi, 200), 'rad')  
 wavelen = sc.Quantity('400 nm')
@@ -146,3 +147,75 @@ def test_trajectories():
     # Test the move function    
     trajectories.move(step)
     assert_equal(trajectories.position[2], np.array([[0,0,0],[1,1,1],[0,0,0]]))
+
+def test_reflection_core_shell():
+    # test that the reflection of a non-core-shell system is the same as that
+    # of a core-shell with a shell index matched with the core
+    seed = 1
+    nevents = 60
+    ntrajectories = 30
+    
+    # Reflection using a non-core-shell system
+    R, T = calc_montecarlo(nevents, ntrajectories, radius, n_particle, 
+                           n_sample, n_medium, volume_fraction, wavelen, seed)
+    
+    # Reflection using core-shells with the shell index-matched to the core
+    radius_cs = sc.Quantity(np.array([100, 150]), 'nm')  # specify the radii from innermost to outermost layer
+    n_particle_cs = sc.Quantity(np.array([1.5,1.5]), '')  # specify the index from innermost to outermost layer           
+    
+    # calculate the volume fractions of each layer
+    vf_array = np.empty(len(radius_cs))
+    r_array = np.array([0] + radius_cs.magnitude.tolist()) 
+    for r in np.arange(len(r_array)-1):
+        vf_array[r] = (r_array[r+1]**3-r_array[r]**3) / (r_array[-1:]**3) * volume_fraction
+
+    n_sample_cs = ri.n_eff(n_particle_cs, n_matrix, vf_array) 
+    R_cs, T_cs = calc_montecarlo(nevents, ntrajectories, radius_cs, 
+                                 n_particle_cs, n_sample_cs, n_medium, 
+                                 volume_fraction, wavelen, seed)
+
+    assert_almost_equal(R, R_cs)
+    assert_almost_equal(T, T_cs)
+    
+def test_reflection_absorbing_particle():
+    # test that the reflections with a real n_particle and with a complex
+    # n_particle with a 0 imaginary component are the same 
+    seed = 1
+    nevents = 60
+    ntrajectories = 30
+    
+    # Reflection using non-absorbing particle
+    R, T = calc_montecarlo(nevents, ntrajectories, radius, n_particle, 
+                           n_sample, n_medium, volume_fraction, wavelen, seed)
+
+    # Reflection using particle with an imaginary component of 0
+    n_particle_abs = sc.Quantity(1.5 + 0j, '')
+    R_abs, T_abs = calc_montecarlo(nevents, ntrajectories, radius, 
+                                   n_particle_abs, n_sample, n_medium, 
+                                   volume_fraction, wavelen, seed)
+  
+    assert_almost_equal(R, R_abs)
+    assert_almost_equal(T, T_abs)
+    
+def calc_montecarlo(nevents, ntrajectories, radius, n_particle, n_sample, 
+                    n_medium, volume_fraction, wavelen, seed):
+    p, mu_scat, mu_abs = mc.calc_scat(radius, n_particle, n_sample, 
+                                      volume_fraction, wavelen, 
+                                      phase_mie=False, mu_scat_mie=False)
+    r0, k0, W0 = mc.initialize(nevents, ntrajectories, n_medium, n_sample, 
+                               seed=seed, incidence_angle = 0.)
+    r0 = sc.Quantity(r0, 'um')
+    k0 = sc.Quantity(k0, '')
+    W0 = sc.Quantity(W0, '')
+    sintheta, costheta, sinphi, cosphi, _, _= mc.sample_angles(nevents, 
+                                                               ntrajectories,p)
+    step = mc.sample_step(nevents, ntrajectories, mu_abs, mu_scat)
+    trajectories = mc.Trajectory(r0, k0, W0)
+    trajectories.absorb(mu_abs, step)                         
+    trajectories.scatter(sintheta, costheta, sinphi, cosphi)         
+    trajectories.move(step)
+    z_low = sc.Quantity('0.0 um')
+    cutoff = sc.Quantity('50 um')
+    R, T = mc.calc_refl_trans(trajectories, z_low, cutoff, n_medium, n_sample)
+
+    return R, T
