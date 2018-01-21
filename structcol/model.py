@@ -220,22 +220,32 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
     # light exits into the medium at (180-theta_min) degrees from the normal.
     # (Snell's law: n_medium sin(alpha_medium) = n_sample sin(alpha_sample)
     # where alpha = pi - theta)
-    sin_alpha_sample = np.sin(np.pi - theta_min) * n_medium/n_sample.real   # TODO: only real part of n_sample should be used                             
-                                                                            # for the calculation of angles of integration? Or abs(n_sample)? 
-    #sin_alpha_sample = np.sin(np.pi - theta_min) * n_medium/np.abs(n_sample)
-    
-    if sin_alpha_sample >= 1:
+    sin_alpha_sample_theta_min = np.sin(np.pi - theta_min) * n_medium/n_sample.real   # TODO: use n_sample.real or abs(n_sample)?
+    sin_alpha_sample_theta_max = np.sin(np.pi - theta_max) * n_medium/n_sample.real
+
+    if sin_alpha_sample_theta_min >= 1:
         # in this case, theta_min and the ratio of n_medium/n_sample are
         # sufficiently large so that all the scattering from 90-180 degrees
-        # exits into the range of angles captured by the detector
+        # exits into the range of angles captured by the detector (assuming
+        # that the theta_max is set to pi)
         theta_min_refracted = np.pi/2.0
     else:
-        theta_min_refracted = np.pi - np.arcsin(sin_alpha_sample)
+        theta_min_refracted = np.pi - np.arcsin(sin_alpha_sample_theta_min)
+    
+    if sin_alpha_sample_theta_max >= 1:
+        # in this case, theta_max and the ratio of n_medium/n_sample are such 
+        # that all of the scattering from 90-180 degrees exits into angles
+        # that are outside of the range of theta_min to theta_max. Thus, the
+        # reflectance will be ~0 (only fresnel will contribute to reflectance)
+        theta_max_refracted = np.pi/2.0
+    else:
+        theta_max_refracted = np.pi - np.arcsin(sin_alpha_sample_theta_max)
 
     # integrate form_factor*structure_factor*transmission
     # coefficient*sin(theta) over angles to get sigma_detected (eq 5)
-    angles = Quantity(np.linspace(theta_min_refracted, theta_max, num_angles),
+    angles = Quantity(np.linspace(theta_min_refracted, theta_max_refracted, num_angles),
                       'rad')
+
     azi_angle_range = Quantity(phi_max-phi_min,'rad')
 
     diff_cs = differential_cross_section(m, x, angles, volume_fraction,
