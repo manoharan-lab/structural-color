@@ -385,6 +385,7 @@ def exit_kz(x, y, z, indices, radius, n_inside, n_outside):
     
     '''
     # find unit vectors k1, normal vector at exit, and angle between normal and k1
+    #print('exit_kz: ' + str(exit_kz))
     k1, norm, theta_1 = get_angles_sphere(x, y, z, radius, indices)
 
     # take cross product of k1 and sphere normal vector to find vector to rotate
@@ -393,7 +394,7 @@ def exit_kz(x, y, z, indices, radius, n_inside, n_outside):
     
     # TODO make sure signs work out
     # use Snell's law to calculate angle between k2 and normal vector
-    theta_2 = refraction(theta_1, n_inside, n_outside)
+    theta_2 = refraction(theta_1, n_inside, n_outside)    
     
     # angle to rotate around is theta_2-theta_1
     theta = theta_2-theta_1
@@ -508,12 +509,16 @@ def get_angles_sphere(x, y, z, radius, indices, plot_exits = False):
     # Subtract radius from z to center the sphere at 0,0,0. This makes the 
     # following calculations much easier
     z = z - radius
-    # special case written to to calculate 
+    # special case written to to calculate initial
     if np.all(indices==1):
         # get initial positions of trajectories
+        #print('indices: ' + str(indices))
         select_x1 = select_events(x, indices)
         select_y1 = select_events(y, indices)
-        select_z1 = select_events(z, indices)      
+        select_z1 = select_events(z, indices)
+        #print('select_x1: ' + str(select_x1))
+        #print('select_y1: ' + str(select_y1))
+        #print('select_z1: ' + str(select_z1))
         
         # get positions trajectories would have some arbitrary time *before* we
         # start tracking them, assuming incident light travelling in +z
@@ -521,6 +526,9 @@ def get_angles_sphere(x, y, z, radius, indices, plot_exits = False):
         select_x0 = select_x1
         select_y0 = select_y1
         select_z0 = select_z1+1
+        #print('select_x0: ' + str(select_x0))
+        #print('select_y0: ' + str(select_y0))
+        #print('select_z0: ' + str(select_z0))
         
         # positions at sphere boundary are same as initial positions of 
         # trajectories
@@ -530,15 +538,24 @@ def get_angles_sphere(x, y, z, radius, indices, plot_exits = False):
         
         
     else:
+        
+        #print('indices: ' + str(indices))        
+        
         # get positions outside of sphere boundary from after exit
         select_x1 = select_events(x[1:,:], indices)
         select_y1 = select_events(y[1:,:], indices)
-        select_z1 = select_events(z[1:,:], indices)   
+        select_z1 = select_events(z[1:,:], indices)
+        #print('select_x1: ' + str(select_x1))
+        #print('select_y1: ' + str(select_y1))
+        #print('select_z1: ' + str(select_z1))
         
         # get positions inside sphere boundary from before exit
         select_x0 = select_events(x[1:,:],indices-1)
         select_y0 = select_events(y[1:,:],indices-1)
         select_z0 = select_events(z[1:,:],indices-1)
+        #print('select_x0: ' + str(select_x0))
+        #print('select_y0: ' + str(select_y0))
+        #print('select_z0: ' + str(select_z0))
         
         # get positions at sphere boundary from exit
         x_inter, y_inter, z_inter = find_exit_intersect_vec(select_x0,
@@ -550,27 +567,42 @@ def get_angles_sphere(x, y, z, radius, indices, plot_exits = False):
                                                         
     # calculate the magnitude of exit vector to divide to make a unit vector
     mag = np.sqrt((select_x1-select_x0)**2 + (select_y1-select_y0)**2 
-                                           + (select_z1-select_z0)**2) 
+                                           + (select_z1-select_z0)**2)
+                                           
+    # calculate the vector normal to the sphere boundary at the exit
     norm = np.zeros((3,len(x_inter)))
     norm[0,:] = x_inter
     norm[1,:] = y_inter
     norm[2,:] = z_inter
-    norm = norm/mag
+    norm = norm/radius
+    #print('norm: ' + str(norm))
+    print('x_inter: ' + str(x_inter))
+    print('y_inter: ' + str(y_inter))
+    print('z_inter: ' + str(z_inter))
+    norm_mag = np.sqrt(x_inter**2 + y_inter**2 + z_inter**2)
+    print('mag_inter: ' + str(norm_mag))
     
-    
+    # calculate the normalized k1 vector 
     k1 = np.zeros((3,len(x_inter)))
     k1[0,:] = select_x1 - select_x0
     k1[1,:] = select_y1 - select_y0
     k1[2,:] = select_z1 - select_z0
-    k1 = k1/radius
+    k1 = k1/mag
     
     # calculate the dot product between the vector normal to the sphere and the 
     # exit vector, and divide by their magnitudes. Then use arccos to find 
     # the angles 
+    print('k1x: ' + str(select_x1 - select_x0))
+    print('k1y: ' + str(select_y1 - select_y0))
+    print('k1z: ' + str(select_z1 - select_z0))
+    #print('k1mag: ' + str(mag))
+    #print('k1: ' + str(k1))
     dot_norm = np.nan_to_num(((select_x1-select_x0)*x_inter 
                        + (select_y1-select_y0)*y_inter 
-                       + (select_z1-select_z0)*z_inter)/radius/mag)    
+                       + (select_z1-select_z0)*z_inter)/radius/mag)  
+    #print('dot_norm: ' + str(dot_norm))
     angles_norm = np.nan_to_num(np.arccos(dot_norm))
+    #print('angles_norm: ' + str(angles_norm))
     angles_norm = sc.Quantity(angles_norm, '')
     
     dot_z = np.nan_to_num(abs(select_z1-select_z0)/mag)
@@ -696,6 +728,7 @@ def fresnel_pass_frac_sphere(radius, indices, n_before, n_inside, n_after,
         n_inside = n_before
 
     #find angles before
+    #print('fresnel_pass_frac_sphere: ' + str(fresnel_pass_frac_sphere))
     _, _, theta_before = get_angles_sphere(x,y,z,radius, indices, plot_exits = plot_exits)
     
     #find angles inside
@@ -707,6 +740,7 @@ def fresnel_pass_frac_sphere(radius, indices, n_before, n_inside, n_after,
     theta_inside[np.isnan(theta_inside)] = np.pi/2.0
 
     #find fraction passing through both interfaces
+    #print('theta_before: ' + str(theta_before))
     trans_s1, trans_p1 = model.fresnel_transmission(n_before, n_inside, theta_before) # before -> inside
     trans_s2, trans_p2 = model.fresnel_transmission(n_inside, n_after, theta_inside)  # inside -> after
     fresnel_trans = (trans_s1 + trans_p1)*(trans_s2 + trans_p2)/4.
@@ -881,7 +915,6 @@ def calc_refl_trans(trajectories, z_low, cutoff, n_medium, n_sample,
     stuck_indices = never_exit * (z.shape[0]-1)
 
     # calculate initial weights that actually enter the sample after fresnel
-    init_weight = weights[0]
     init_dir = np.cos(refraction(get_angles(kz, np.ones(ntraj)), n_sample, n_medium))
     # init_dir is reverse-corrected for refraction. = kz before medium/sample interface
     inc_fraction = fresnel_pass_frac(np.array([init_dir]), np.ones(ntraj), n_medium, n_front, n_sample)
@@ -890,10 +923,10 @@ def calc_refl_trans(trajectories, z_low, cutoff, n_medium, n_sample,
     refl_weights = inc_fraction * select_events(weights, refl_indices)
     trans_weights = inc_fraction * select_events(weights, trans_indices)
     stuck_weights = inc_fraction * select_events(weights, stuck_indices)
-    absorb_weights = inc_fraction * init_weight - refl_weights - trans_weights - stuck_weights
+    absorb_weights = inc_fraction - refl_weights - trans_weights - stuck_weights
 
     # warn user if too many trajectories got stuck
-    stuck_frac = np.sum(stuck_weights) / np.sum(inc_fraction * init_weight) * 100
+    stuck_frac = np.sum(stuck_weights) / np.sum(inc_fraction) * 100
     stuck_traj_warn = " \n{0}% of trajectories did not exit the sample. Increase Nevents to improve accuracy.".format(str(int(stuck_frac)))
     if stuck_frac >= 20: warnings.warn(stuck_traj_warn)
 
@@ -916,7 +949,7 @@ def calc_refl_trans(trajectories, z_low, cutoff, n_medium, n_sample,
     extra_trans = trans_fresnel * refl_frac + refl_fresnel * trans_frac + stuck_weights * 0.5
 
     # correct for effect of detection angle upon leaving sample
-    inc_refl = init_weight * (1 - inc_fraction) # fresnel reflection incident on sample
+    inc_refl = (1 - inc_fraction) # fresnel reflection incident on sample
     inc_refl = detect_correct(np.array([init_dir]), inc_refl, np.ones(ntraj), n_medium, n_medium, detection_angle)
     trans_detected = detect_correct(kz, transmitted, trans_indices, n_sample, n_medium, detection_angle)
     refl_detected = detect_correct(kz, reflected, refl_indices, n_sample, n_medium, detection_angle)
@@ -928,7 +961,7 @@ def calc_refl_trans(trajectories, z_low, cutoff, n_medium, n_sample,
     reflectance = refl_detected + extra_refl * refl_det_frac + inc_refl
 
     #calculate mean reflectance and transmittance for all trajectories
-    return (np.sum(reflectance)/np.sum(init_weight), np.sum(transmittance/np.sum(init_weight)))    
+    return (np.sum(reflectance)/ntraj, np.sum(transmittance/ntraj))
 
 
 def calc_refl_trans_sphere(trajectories, n_medium, n_sample, radius, p, mu_abs, mu_scat,
@@ -1004,6 +1037,7 @@ def calc_refl_trans_sphere(trajectories, n_medium, n_sample, radius, p, mu_abs, 
     
     # get the number of trajectories
     ntraj = z.shape[1]
+    nevents = kz.shape[0]
 
     # potential exits whenever trajectories are outside sphere boundary
     potential_exits = (x[1:,:]**2 + y[1:,:]**2 + (z[1:,:]-radius)**2) > radius**2
@@ -1014,9 +1048,8 @@ def calc_refl_trans_sphere(trajectories, n_medium, n_sample, radius, p, mu_abs, 
     pos_dir = kz_correct > 0
     
     # construct boolean arrays of all valid exits in pos & neg directions
-    high_bool = pos_dir
+    high_bool = potential_exits & pos_dir
     low_bool = potential_exits & ~pos_dir    
-    
     # find first valid exit of each trajectory in each direction
     # note we convert to 2 1D arrays with len = Ntraj
     # need vstack to reproduce earlier behaviour:
@@ -1042,29 +1075,30 @@ def calc_refl_trans_sphere(trajectories, n_medium, n_sample, radius, p, mu_abs, 
     refl_indices = low_event * low_first
     trans_indices = high_event * high_first
     stuck_indices = never_exit * (z.shape[0]-1)
+    #print('refl_indices: ' + str(refl_indices))
+    #print('trans_indices: ' + str(trans_indices))
 
     # for now, we assume initial direction is in +z
     init_dir = np.ones(ntraj)
 
     # init_dir is reverse-corrected for refraction. = kz before medium/sample interface
+    # calculate initial weights that actually enter the sample after fresnel
     if tir == False:
         inc_fraction = fresnel_pass_frac_sphere(radius, np.ones(ntraj), n_medium,
-                                                None, n_sample, x, y, z)
-        # calculate initial weights that actually enter the sample after fresnel
-        init_weight = weights[0]
+                                                None, n_sample, x, y, z)    
     else:
-        inc_fraction = 1
-        init_weight = np.ones(ntraj)
+        inc_fraction = fresnel_pass_frac_sphere(radius, np.ones(ntraj), n_medium,
+                                                None, n_sample, x, y, z)
+        #inc_fraction = np.ones(ntraj)
 
     # calculate outcome weights from all trajectories
     refl_weights = inc_fraction * select_events(weights, refl_indices)
     trans_weights = inc_fraction * select_events(weights, trans_indices)
     stuck_weights = inc_fraction * select_events(weights, stuck_indices)
-    absorb_weights = inc_fraction * init_weight - refl_weights - trans_weights - stuck_weights
+    absorb_weights = inc_fraction - refl_weights - trans_weights - stuck_weights
 
     # warn user if too many trajectories got stuck
-    #stuck_frac = np.sum(stuck_weights) / np.sum(inc_fraction * init_weight) * 100
-    stuck_frac = np.sum(stuck_weights) / np.sum(init_weight)
+    stuck_frac = np.sum(stuck_weights) / np.sum(inc_fraction) * 100
     stuck_traj_warn = " \n{0}% of trajectories did not exit the sample. Increase Nevents to improve accuracy.".format(str(int(stuck_frac)))
     if stuck_frac >= 20: warnings.warn(stuck_traj_warn)
 
@@ -1083,12 +1117,12 @@ def calc_refl_trans_sphere(trajectories, n_medium, n_sample, radius, p, mu_abs, 
     trans_fresnel = trans_weights - transmitted
 
     # find fraction that are successfully transmitted or reflected
-    refl_frac = np.sum(reflected) / np.sum(init_weight)
-    trans_frac = np.sum(transmitted) / np.sum(init_weight)
+    refl_frac = np.sum(reflected) / ntraj
+    trans_frac = np.sum(transmitted) / ntraj
 
     # correct for effect of detection angle upon leaving sample
     # TODO: get working for other detector angles
-    inc_refl = init_weight * (1 - inc_fraction) # fresnel reflection incident on sample
+    inc_refl = 1 - inc_fraction # fresnel reflection incident on sample
     inc_refl = detect_correct(np.array([init_dir]), inc_refl, np.ones(ntraj), n_medium, n_medium, detection_angle)
     
     trans_detected = transmitted
@@ -1100,12 +1134,12 @@ def calc_refl_trans_sphere(trajectories, n_medium, n_sample, radius, p, mu_abs, 
     refl_det_frac = np.max([np.sum(refl_detected),eps]) / np.max([np.sum(reflected), eps]) 
 
     # calculate mean transmittance and reflectance for all trajectories (in terms of trajectory weights)
-    reflectance_mean = refl_frac + np.sum(inc_refl)/np.sum(init_weight)
+    reflectance_mean = refl_frac + np.sum(inc_refl)/ntraj
     transmittance_mean = trans_frac
 
     # calculate new trajectories and reflectance if a significant amount of 
     # light stays inside the sphere due to fresnel reflection
-    if np.sum(refl_fresnel + trans_fresnel + stuck_weights)/np.sum(init_weight) > .01:
+    if tir and np.sum(refl_fresnel + trans_fresnel + stuck_weights)/ntraj > .01:
 
         # new weights are the weights that are fresnel reflected back into the 
         # sphere
@@ -1186,7 +1220,6 @@ def calc_refl_trans_sphere(trajectories, n_medium, n_sample, radius, p, mu_abs, 
                                                                     radius, p, mu_abs, mu_scat, 
                                                                     plot_exits = plot_exits,
                                                                     tir = True)
-
         return (reflectance_tir + reflectance_mean, transmittance_tir + transmittance_mean)
         
     else:    
@@ -1203,8 +1236,8 @@ def calc_refl_trans_sphere(trajectories, n_medium, n_sample, radius, p, mu_abs, 
         reflectance = refl_detected + extra_refl * refl_det_frac + inc_refl
         
         # calculate mean reflectance and transmittance for all trajectories
-        reflectance_mean = np.sum(reflectance)/np.sum(init_weight)
-        transmittance_mean = np.sum(transmittance/np.sum(init_weight))
+        reflectance_mean = np.sum(reflectance)/ntraj
+        transmittance_mean = np.sum(transmittance)/ntraj
         return (reflectance_mean, transmittance_mean) 
 
 def initialize(nevents, ntraj, n_medium, n_sample, seed=None, incidence_angle=0.):
@@ -1242,7 +1275,24 @@ def initialize(nevents, ntraj, n_medium, n_sample, seed=None, incidence_angle=0.
     k0 : array_like (structcol.Quantity [dimensionless])
         Initial direction of propagation.
     weight0 : array_like (structcol.Quantity [dimensionless])
-        Initial weight.
+        Initial weight. 
+        - Note that the photon weight represents the fraction of 
+        that particular photon that is propagated through the sample. It does 
+        not represent the photon's weight relative to other photons. the weight0
+        array is initialized to 1 because you start with the full weight of the 
+        initial photons. If you wanted to make the relative weights of photons
+        different, you would need to introduce a new variable (e.g relative 
+        intensity) that me, NOT change the intialization of the weights array.
+        - Also Note that the size of the weights array it nevents*ntraj, NOT
+        nevents+1, ntraj. This may at first seem counterintuitive because
+        physically, we can associate a weight to a photon at each position 
+        (which would call for a dimension nevents+1), not at each event. 
+        However, there is no need to keep track of the weight at the first 
+        event; The weight, by definition, must initially be 1 for each photon. 
+        Adding an additional row of ones to this array would be unecessary and
+        would contribute to less readable code in the calculation of absorptance,
+        reflectance, and transmittance. Therefore the weights array begins with 
+        the weight of the photons after their first event.
     
     """
 
@@ -1286,8 +1336,7 @@ def initialize(nevents, ntraj, n_medium, n_sample, seed=None, incidence_angle=0.
     k0[2,0,:] = costheta
 
     # Initial weight
-    weight0 = np.zeros((nevents, ntraj))
-    weight0[:,:] = 1.
+    weight0 = np.ones((nevents, ntraj))
 
     return r0, k0, weight0
 
@@ -1342,7 +1391,24 @@ def initialize_sphere(nevents, ntraj, n_medium, n_sample, radius, seed=None,
         and k0[2,0,:] is initalized to 1.
     weight0 : array_like (structcol.Quantity [dimensionless])
         Initial weight. Has shape of (number of events, number of trajectories)
-    
+        - Note that the photon weight represents the fraction of 
+        that particular photon that is propagated through the sample. It does 
+        not represent the photon's weight relative to other photons. the weight0
+        array is initialized to 1 because you start with the full weight of the 
+        initial photons. If you wanted to make the relative weights of photons
+        different, you would need to introduce a new variable (e.g relative 
+        intensity) that me, NOT change the intialization of the weights array.
+        - Also Note that the size of the weights array it nevents*ntraj, NOT
+        nevents+1, ntraj. This may at first seem counterintuitive because
+        physically, we can associate a weight to a photon at each position 
+        (which would call for a dimension nevents+1), not at each event. 
+        However, there is no need to keep track of the weight at the first 
+        event; The weight, by definition, must initially be 1 for each photon. 
+        Adding an additional row of ones to this array would be unecessary and
+        would contribute to less readable code in the calculation of absorptance,
+        reflectance, and transmittance. Therefore the weights array begins with 
+        the weight of the photons after their first event.
+        
     **note: currently only works for normal incidence
     """
 

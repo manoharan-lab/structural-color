@@ -29,8 +29,8 @@ import numpy as np
 from numpy.testing import assert_equal, assert_almost_equal
 
 # Define a system to be used for the tests
-nevents = 2
-ntrajectories = 3
+nevents = 3
+ntrajectories = 4
 radius = sc.Quantity('150 nm')
 volume_fraction = 0.5
 n_particle = sc.Quantity(1.5, '')
@@ -62,54 +62,59 @@ def test_calc_refl_trans():
 
     # test absoprtion and stuck without fresnel
     z_pos = np.array([[0,0,0,0],[1,1,1,1],[-1,11,2,11],[-2,12,4,12]])
+    ntrajectories = z_pos.shape[1]
     kz = np.array([[1,1,1,1],[-1,1,1,1],[-1,1,1,1]])
-    weights = np.array([[1,1,2,1],[1,0.3,1,0],[0.1,0.1,0.5,0]])
+    weights = np.array([[.8, .8, .9, .8],[.7, .3, .7, 0],[.1, .1, .5, 0]])
     trajectories = mc.Trajectory([np.nan, np.nan, z_pos],[np.nan, np.nan, kz], weights)
     refl, trans= mc.calc_refl_trans(trajectories, low_thresh, high_thresh, small_n, small_n)
-    expected_trans_array = np.array([0, 0.3, 0.25, 0])/np.sum(weights[0]) #calculated manually
-    expected_refl_array = np.array([1, 0, 0.25, 0])/np.sum(weights[0]) #calculated manually
+    expected_trans_array = np.array([0, .3, .25, 0])/ntrajectories #calculated manually
+    expected_refl_array = np.array([.7, 0, .25, 0])/ntrajectories #calculated manually
     assert_almost_equal(refl, np.sum(expected_refl_array))
     assert_almost_equal(trans, np.sum(expected_trans_array))
 
     # test above but with covers on front and back
     refl, trans = mc.calc_refl_trans(trajectories, low_thresh, high_thresh, small_n, small_n, n_front=large_n, n_back=large_n)
-    expected_trans_array = np.array([0.0090566, 0.2010566, 0.2, 0])/np.sum(weights[0]) #calculated manually
-    expected_refl_array = np.array([0.87018868, 0.20271698, 0.6, 0.2])/np.sum(weights[0]) #calculated manually
+    expected_trans_array = np.array([0.00814545, 0.20014545, 0.2, 0.])/ntrajectories #calculated manually
+    expected_refl_array = np.array([0.66700606, 0.20349091, 0.4, 0.2])/ntrajectories #calculated manually
     assert_almost_equal(refl, np.sum(expected_refl_array))
     assert_almost_equal(trans, np.sum(expected_trans_array))
 
     # test fresnel as well
     z_pos = np.array([[0,0,0,0],[5,5,5,5],[-5,-5,15,15],[5,-15,5,25],[-5,-25,6,35]])
+    ntrajectories = z_pos.shape[1]
     kz = np.array([[1,1,1,0.86746757864487367],[-.1,-.1,.1,.1],[0.1,-.1,-.1,0.1],[-1,-.9,1,1]])
-    weights = np.array([[1,2,1,1],[.9,1.8,.9,.9],[.8,1.5,.8,.8],[0.7,1.2,0.7,0.7]])
+    weights = np.array([[.8, .8, .9, .8],[.7, .3, .7, .5],[.6, .2, .6, .4], [.4, .1, .5, .3]])
     trajectories = mc.Trajectory([np.nan, np.nan, z_pos],[np.nan, np.nan, kz], weights)
     refl, trans= mc.calc_refl_trans(trajectories, low_thresh, high_thresh, small_n, large_n)
-    expected_trans_array = np.array([ 0.00572116, 0.01452586, 0.31111111, 0.2685365])/np.sum(weights[0]) #calculated manually
-    expected_refl_array = np.array([ 0.69677911, 1.19607871, 0.42222222, 0.59505597])/np.sum(weights[0]) #calculated manually
+    expected_trans_array = np.array([ .00167588, .00062052, .22222222, .11075425])/ntrajectories #calculated manually
+    expected_refl_array = np.array([ .43317894, .18760061, .33333333, .59300905])/ntrajectories #calculated manually
     assert_almost_equal(refl, np.sum(expected_refl_array))
     assert_almost_equal(trans, np.sum(expected_trans_array))
 
     # test refraction and detection_angle
     refl, trans= mc.calc_refl_trans(trajectories, low_thresh, high_thresh, small_n, large_n, detection_angle=0.1)
-    expected_trans_array = np.array([ 0.00572116, 0.01452586, 0.31111111, 0.2685365])/np.sum(weights[0]) #calculated manually
-    expected_refl_array = np.array([ 0.67667516, 0.25390257, 0.230256, 0.00100461])/np.sum(weights[0]) #calculated manually
+    expected_trans_array = np.array([ .00167588, .00062052, .22222222,  .11075425])/ntrajectories #calculated manually
+    expected_refl_array = np.array([  .43203386, .11291556, .29105299,  .00046666])/ntrajectories #calculated manually
     assert_almost_equal(refl, np.sum(expected_refl_array))
     assert_almost_equal(trans, np.sum(expected_trans_array))
 
     # test steps in z longer than sample thickness
     z_pos = np.array([[0,0,0,0,0,0,0],[1.1,2.1,3.1,0.6,0.6,0.6,0.1],[1.2,2.2,3.2,1.6,0.7,0.7,-0.6],[1.3,2.3,3.3,3.3,-2.1,-1.1,-2.1]])
+    ntrajectories = z_pos.shape[1]
     kz = np.array([[1,1,1,1,1,1,1],[1,1,1,0.1,1,1,-0.1],[1,1,1,1,-1,-1,-1]])
     weights = np.array([[1,1,1,1,1,1,1],[1,1,1,1,1,1,1],[1,1,1,1,1,1,1]])
     thin_sample_thickness = 1
     trajectories = mc.Trajectory([np.nan, np.nan, z_pos],[np.nan, np.nan, kz], weights)
     refl, trans= mc.calc_refl_trans(trajectories, low_thresh, thin_sample_thickness, small_n, large_n)
-    expected_trans_array = np.array([0.8324515,0.8324515,0.8324515,0.0564374,0.0564374,0.0564374,0.8324515])/np.sum(weights[0]) #calculated manually
-    expected_refl_array = np.array([0.1675485,0.1675485,0.1675485,0.9435626,0.9435626,0.9435626,0.1675485])/np.sum(weights[0]) #calculated manually
+    expected_trans_array = np.array([.8324515, .8324515, .8324515, .05643739, .05643739, .05643739, .8324515])/ntrajectories #calculated manually
+    expected_refl_array = np.array([.1675485, .1675485, .1675485, .94356261, .94356261, .94356261, .1675485])/ntrajectories #calculated manually
     assert_almost_equal(refl, np.sum(expected_refl_array))
     assert_almost_equal(trans, np.sum(expected_trans_array))
 
 def test_trajectories():
     # Initialize runs
+    nevents = 2
+    ntrajectories = 3
     r0, k0, W0 = mc.initialize(nevents, ntrajectories, n_matrix, n_sample, seed=1)
     r0 = sc.Quantity(r0, 'um')
     k0 = sc.Quantity(k0, '')
