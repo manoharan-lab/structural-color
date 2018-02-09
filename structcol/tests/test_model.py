@@ -113,8 +113,8 @@ def test_theta_refraction():
     assert_almost_equal(refl1, refl2)
 
 def test_differential_cross_section():
-    # Test that the differential cross sections for non-core-shell particles and
-    # core-shells are the same at low volume fractions, assuming that the 
+    # Test that the differential cross sections for non-core-shell particles 
+    # and core-shells are the same at low volume fractions, assuming that the 
     # particle diameter of the non-core-shells is the same as the core 
     # diameter in the core-shells
     
@@ -132,18 +132,20 @@ def test_differential_cross_section():
     x = size_parameter(wavelen, n_sample, radius)  
     diff = model.differential_cross_section(m, x, angles, volume_fraction)
     
-    # Differential cross section for core-shells. Core is equal to non-core-shell particle, 
-    # and shell is made of vacuum
+    # Differential cross section for core-shells. Core is equal to 
+    # non-core-shell particle, and shell is made of vacuum
     radius_cs = Quantity(np.array([100, 110]), 'nm')  
     n_particle_cs = Quantity(np.array([1.5, 1.0]), '')
     
-    volume_fraction_shell = volume_fraction * (radius_cs[1]**3 / radius_cs[0]**3 -1)
-    volume_fraction_cs = Quantity(np.array([volume_fraction.magnitude, volume_fraction_shell.magnitude]), '')
+    volume_fraction_shell = volume_fraction * (radius_cs[1]**3 / radius_cs[0]**3-1)
+    volume_fraction_cs = Quantity(np.array([volume_fraction.magnitude, 
+                                            volume_fraction_shell.magnitude]), '')
     
     n_sample_cs = ri.n_eff(n_particle_cs, n_matrix, volume_fraction_cs)
     m_cs = index_ratio(n_particle_cs, n_sample_cs).flatten()
     x_cs = size_parameter(wavelen, n_sample_cs, radius_cs).flatten() 
-    diff_cs = model.differential_cross_section(m_cs, x_cs, angles, np.sum(volume_fraction_cs))
+    diff_cs = model.differential_cross_section(m_cs, x_cs, angles, 
+                                               np.sum(volume_fraction_cs))
 
     assert_array_almost_equal(diff, diff_cs, decimal=5)
     
@@ -186,7 +188,8 @@ def test_reflection_core_shell():
                                             wavelength, radius3, volume_fraction3, 
                                             thickness = Quantity('15000.0 nm'), 
                                             small_angle=Quantity('5 deg'), 
-                                            theta_min = Quantity('90 deg'), maxwell_garnett=False)
+                                            theta_min = Quantity('90 deg'), 
+                                            maxwell_garnett=False)
     
     # Outputs for refl, g, and lstar before adding core-shell capability
     refl = Quantity(0.20772170840902376, '')
@@ -218,32 +221,28 @@ def test_reflection_absorbing_particle():
     n_particle_imag = Quantity(1.5 + 0j, '')
     
     # With Maxwell-Garnett
-    refl_mg1, _, _, g_mg1, lstar_mg1 = model.reflection(n_particle_real, n_matrix, n_medium, 
-                                            wavelength, radius, volume_fraction, 
-                                            thickness = Quantity('15000.0 nm'), 
-                                            theta_min = Quantity('90 deg'), 
-                                            maxwell_garnett=True, particle_absorption=False)
-    refl_mg2, _, _, g_mg2, lstar_mg2 = model.reflection(n_particle_imag, n_matrix, n_medium, 
-                                            wavelength, radius, volume_fraction, 
-                                            thickness = Quantity('15000.0 nm'), 
-                                            theta_min = Quantity('90 deg'), 
-                                            maxwell_garnett=True, particle_absorption=True)
+    refl_mg1, _, _, g_mg1, lstar_mg1 = model.reflection(n_particle_real, n_matrix, 
+                                                        n_medium, wavelength, 
+                                                        radius, volume_fraction, 
+                                                        maxwell_garnett=True)
+    refl_mg2, _, _, g_mg2, lstar_mg2 = model.reflection(n_particle_imag, n_matrix, 
+                                                        n_medium, wavelength, 
+                                                        radius, volume_fraction, 
+                                                        maxwell_garnett=True)
     
     assert_array_almost_equal(refl_mg1, refl_mg2)
     assert_array_almost_equal(g_mg1, g_mg2)
     assert_array_almost_equal(lstar_mg1, lstar_mg2)
     
     # With Bruggeman
-    refl_bg1, _, _, g_bg1, lstar_bg1 = model.reflection(n_particle_real, n_matrix, n_medium, 
-                                            wavelength, radius, volume_fraction, 
-                                            thickness = Quantity('15000.0 nm'), 
-                                            theta_min = Quantity('90 deg'), 
-                                            maxwell_garnett=False, particle_absorption=False)
-    refl_bg2, _, _, g_bg2, lstar_bg2 = model.reflection(n_particle_imag, n_matrix, n_medium, 
-                                            wavelength, radius, volume_fraction, 
-                                            thickness = Quantity('15000.0 nm'), 
-                                            theta_min = Quantity('90 deg'), 
-                                            maxwell_garnett=False, particle_absorption=True)
+    refl_bg1, _, _, g_bg1, lstar_bg1 = model.reflection(n_particle_real, n_matrix, 
+                                                        n_medium, wavelength, 
+                                                        radius, volume_fraction, 
+                                                        maxwell_garnett=False)
+    refl_bg2, _, _, g_bg2, lstar_bg2 = model.reflection(n_particle_imag, n_matrix, 
+                                                        n_medium, wavelength, 
+                                                        radius, volume_fraction, 
+                                                        maxwell_garnett=False)
     
     assert_array_almost_equal(refl_bg1, refl_bg2)
     assert_array_almost_equal(g_bg1, g_bg2)
@@ -262,17 +261,16 @@ def test_calc_g():
     n_medium = n_matrix
     
     _, _, _, g1, _= model.reflection(n_particle, n_matrix, n_medium, 
-                                            wavelength, radius, volume_fraction, 
-                                            thickness = Quantity('15000.0 nm'), 
-                                            theta_min = Quantity('90 deg'), 
-                                            small_angle=Quantity('0.01 deg'), 
-                                            num_angles=1000, structure_type=None)
+                                     wavelength, radius, volume_fraction, 
+                                     small_angle=Quantity('0.01 deg'), 
+                                     num_angles=1000, structure_type=None)
 
     # calculate g using calc_g in pymie
     vf_array = np.empty(len(np.atleast_1d(radius)))
     r_array = np.array([0] + np.atleast_1d(radius).tolist()) 
     for r in np.arange(len(r_array)-1):
-        vf_array[r] = (r_array[r+1]**3-r_array[r]**3) / (r_array[-1:]**3) * volume_fraction.magnitude
+        vf_array[r] = ((r_array[r+1]**3-r_array[r]**3) / (r_array[-1:]**3) * 
+                       volume_fraction.magnitude)
     
     n_sample = ri.n_eff(n_particle, n_matrix, vf_array)
     m = index_ratio(n_particle, n_sample).flatten()  
@@ -281,3 +279,42 @@ def test_calc_g():
     g2 = mie.calc_g(m,x)   
     
     assert_array_almost_equal(g1, g2)
+    
+def test_reflection_absorbing_matrix():
+    # test that the reflections with a real n_matrix and with a complex
+    # n_matrix with a 0 imaginary component are the same 
+    wavelength = Quantity(500, 'nm')
+    volume_fraction = Quantity(0.5, '')
+    radius = Quantity('120 nm')
+    n_matrix_real = Quantity(1.0, '')
+    n_matrix_imag = Quantity(1.0 + 0j, '')
+    n_medium = Quantity(1.0, '')
+    n_particle = Quantity(1.5, '')
+    
+    # With Maxwell-Garnett
+    refl_mg1, _, _, g_mg1, lstar_mg1 = model.reflection(n_particle, n_matrix_real, 
+                                                        n_medium, wavelength, 
+                                                        radius, volume_fraction, 
+                                                        maxwell_garnett=True)
+    refl_mg2, _, _, g_mg2, lstar_mg2 = model.reflection(n_particle, n_matrix_imag, 
+                                                        n_medium, wavelength, 
+                                                        radius, volume_fraction, 
+                                                        maxwell_garnett=True)
+    
+    assert_array_almost_equal(refl_mg1, refl_mg2)
+    assert_array_almost_equal(g_mg1, g_mg2)
+    assert_array_almost_equal(lstar_mg1, lstar_mg2)
+    
+    # With Bruggeman
+    refl_bg1, _, _, g_bg1, lstar_bg1 = model.reflection(n_particle, n_matrix_real, 
+                                                        n_medium, wavelength, 
+                                                        radius, volume_fraction, 
+                                                        maxwell_garnett=False)
+    refl_bg2, _, _, g_bg2, lstar_bg2 = model.reflection(n_particle, n_matrix_imag, 
+                                                        n_medium, wavelength, 
+                                                        radius, volume_fraction, 
+                                                        maxwell_garnett=False)
+    
+    assert_array_almost_equal(refl_bg1, refl_bg2)
+    assert_array_almost_equal(g_bg1, g_bg2)
+    assert_array_almost_equal(lstar_bg1, lstar_bg2)

@@ -49,9 +49,7 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
                small_angle=Quantity('1 deg'),
                structure_type='glass',
                form_type='sphere',
-               maxwell_garnett=False,
-               particle_absorption=False,
-               matrix_absorption=False):
+               maxwell_garnett=False):
     """
     Calculate fraction of light reflected from an amorphous colloidal
     suspension (a "photonic glass").
@@ -136,13 +134,6 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
         sample. In that case, the user must specify one refractive index for 
         the particle and one for the matrix. If false, the model uses 
         Bruggeman's formula, which can be used for multilayer particles. 
-    particle_absorption: boolean
-        If true, the model uses a complex refractive index for the particle, 
-        which the user should input. If false, the user should input only the 
-        real part. 
-    matrix_absorption: boolean
-        If true, the model uses Mie solutions that are valid when the medium
-        absorbs.
         
     Returns
     -------
@@ -153,12 +144,14 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
 
     Notes
     -----
-    Uses eqs. 5 and 6 from [1]_. As described in the reference, the function
-    uses the Maxwell-Garnett effective refractive index of the sample to
-    calculate the scattering from individual spheres within the matrix. It also
-    uses the effective refractive index to calculate the Fresnel coefficients
-    at the boundary between the medium (referred to as "air" in the reference)
-    and the sample.
+    Uses eqs. 5 and 6 from [1]_. If the system has absorption (either in the 
+    particle or the matrix), the model uses adapted versions of eqs. 5 and 6. 
+    The function uses an effective refractive index of the sample (computed 
+    with either the Bruggeman or the Maxwell-Garnett formulas) to calculate the 
+    scattering from individual spheres within the matrix. It also uses the 
+    effective refractive index to calculate the Fresnel coefficients at the 
+    boundary between the medium (referred to as "air" in the reference) and 
+    the sample.
 
     References
     ----------
@@ -167,12 +160,7 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
     Beetles” Physical Review E 90, no. 6 (2014): 62302.
     doi:10.1103/PhysRevE.90.062302
     """
-    # check that if absorption is set to False, the particle index is real
-    if particle_absorption==False:
-        n_particle = n_particle.real
-    if matrix_absorption==False:
-        n_matrix = n_matrix.real
-        
+    
     # check that the number of indices and radii is the same
     if len(np.atleast_1d(n_particle)) != len(np.atleast_1d(radius)):
        raise ValueError('Arrays of indices and radii must be the same length')
@@ -187,21 +175,18 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
         vf_array = float(vf_array)
 
     # use Bruggeman formula to calculate effective index of
-    # particle-matrix composite. Also make sure index of particle is real 
-    # because the Mie code can't handle complex effective sample indices
+    # particle-matrix composite
     n_sample = ri.n_eff(n_particle, n_matrix, vf_array, 
                         maxwell_garnett=maxwell_garnett)
-
+                    
     if len(np.atleast_1d(radius)) > 1:
         m = index_ratio(n_particle, n_sample).flatten()  
         x = size_parameter(wavelen, n_sample, radius).flatten()
-
     else:
         m = index_ratio(n_particle, n_sample)
         x = size_parameter(wavelen, n_sample, radius)
 
-    k = 2*np.pi*n_sample.real/wavelen    # TODO: SHOULD K BE CALCULATED WITH REAL PART OF N_SAMPLE OR WITH ABS(N_SAMPLE)?
-    #k = 2*np.pi*np.abs(n_sample)/wavelen
+    k = 2*np.pi*n_sample/wavelen  
 
     # calculate transmission and reflection coefficients at first interface
     # between medium and sample
@@ -220,8 +205,8 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
     # light exits into the medium at (180-theta_min) degrees from the normal.
     # (Snell's law: n_medium sin(alpha_medium) = n_sample sin(alpha_sample)
     # where alpha = pi - theta)
-    sin_alpha_sample_theta_min = np.sin(np.pi - theta_min) * n_medium/n_sample.real   # TODO: use n_sample.real or abs(n_sample)?
-    sin_alpha_sample_theta_max = np.sin(np.pi - theta_max) * n_medium/n_sample.real
+    sin_alpha_sample_theta_min = np.sin(np.pi-theta_min) * n_medium/np.abs(n_sample)   # TODO: use n_sample.real or abs(n_sample)?
+    sin_alpha_sample_theta_max = np.sin(np.pi-theta_max) * n_medium/np.abs(n_sample)
 
     if sin_alpha_sample_theta_min >= 1:
         # in this case, theta_min and the ratio of n_medium/n_sample are
@@ -243,71 +228,109 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
 
     # integrate form_factor*structure_factor*transmission
     # coefficient*sin(theta) over angles to get sigma_detected (eq 5)
-    angles = Quantity(np.linspace(theta_min_refracted, theta_max_refracted, num_angles),
-                      'rad')
-
+    angles = Quantity(np.linspace(theta_min_refracted, theta_max_refracted, 
+                                  num_angles), 'rad')                          
     azi_angle_range = Quantity(phi_max-phi_min,'rad')
 
-    diff_cs = differential_cross_section(m, x, angles, volume_fraction,
-                                         structure_type, form_type)
     transmission = fresnel_transmission(n_sample, n_medium, np.pi-angles)
+                             
+    # if n_sample is complex, then we must calculate the cross sections 
+    # with the exact Mie solutions that account for absorption
+    if n_sample.imag.magnitude > 0. and form_type == 'sphere':   
+        if thickness is None:
+            raise ValueError('Thickness must be specified when there is absorption')
+        
+        # calculate only the structure factor in the detected range of angles
+        struct_factor_det = differential_cross_section(m, x, angles, volume_fraction,
+                                                       form_type=None) 
+        # calculate the form factor from the exact Mie solutions                                              
+        form_factor_scat = mie.diff_scat_intensity_complex_medium(m, x, angles, 
+                                                                  k*thickness)
+        diff_cs_par = form_factor_scat[0] * struct_factor_det[0] 
+        diff_cs_perp = form_factor_scat[1] * struct_factor_det[1]     
+        # integrate the differential cross section over the reflection angles        
+        cscat = mie.integrate_intensity_complex_medium(diff_cs_par*transmission[0], 
+                                                       diff_cs_perp*transmission[1], 
+                                                       thickness, angles, k,
+                                                       phi_min=Quantity(phi_min, 'rad'), 
+                                                       phi_max=Quantity(phi_max, 'rad'))      
+        cscat_detected = cscat[0]
+        cscat_detected_par = cscat[1]
+        cscat_detected_perp = cscat[2]                                                            
+        
+        # calculate total scattering cross section
+        angles = Quantity(np.linspace(0.0+small_angle, np.pi, num_angles), 'rad')
+        struct_factor_tot = differential_cross_section(m, x, angles, volume_fraction,
+                                                       form_type=None) 
+        form_factor_tot = mie.diff_scat_intensity_complex_medium(m, x, angles, 
+                                                                 k*thickness)
+        diff_scat_tot_par = form_factor_tot[0] * struct_factor_tot[0]
+        diff_scat_tot_perp = form_factor_tot[1] * struct_factor_tot[1]
+        cscat_total = mie.integrate_intensity_complex_medium(diff_scat_tot_par, 
+                                                             diff_scat_tot_perp, 
+                                                             thickness, angles, k)[0]  
+        
+        # calculate total absorption cross section 
+        nstop = mie._nstop(np.array(x).max())
+        coeffs = mie._scatcoeffs(m, x, nstop)
+        x_scat = size_parameter(wavelen, n_particle, radius)
+        internal_coeffs = mie._internal_coeffs(m, x, nstop)
+        cabs_total = mie._cross_sections_complex_medium_fu(coeffs[0], coeffs[1], internal_coeffs[0], 
+                                                           internal_coeffs[1], radius, n_particle, 
+                                                           n_sample, x_scat, x, wavelen)[1]
+        cext_total = cscat_total + cabs_total
+        
+    else:    
+        diff_cs = differential_cross_section(m, x, angles, volume_fraction,
+                                             structure_type, form_type)                                   
+        cscat_detected_par = _integrate_cross_section(diff_cs[0],
+                                                  transmission[0]/np.abs(k)**2, 
+                                                  angles, azi_angle_range)
+        cscat_detected_perp = _integrate_cross_section(diff_cs[1],
+                                                   transmission[1]/np.abs(k)**2, 
+                                                   angles, azi_angle_range)
+        cscat_detected = (cscat_detected_par + cscat_detected_perp)/2.0
     
-    sigma_detected_par = _integrate_cross_section(diff_cs[0],
-                                                  transmission[0]/k**2, angles, 
-                                                  azi_angle_range)
-    sigma_detected_perp = _integrate_cross_section(diff_cs[1],
-                                                  transmission[1]/k**2, angles, 
-                                                  azi_angle_range)
-    sigma_detected = (sigma_detected_par + sigma_detected_perp)/2.0
-
-    # now integrate from 0 to 180 degrees to get total cross-section.
-    angles = Quantity(np.linspace(0.0+small_angle, np.pi, num_angles), 'rad')
-    # Fresnel coefficients do not appear in this integral since we're using the
-    # total cross-section to account for the attenuation in intensity as light
-    # propagates through the sample
-    diff_cs = differential_cross_section(m, x, angles, volume_fraction,
-                                         structure_type, form_type)
-    sigma_total_par = _integrate_cross_section(diff_cs[0], 1.0/k**2, angles, 
-                                               azi_angle_range)
-    sigma_total_perp = _integrate_cross_section(diff_cs[1], 1.0/k**2, angles, 
-                                                azi_angle_range)
-    sigma_total = (sigma_total_par + sigma_total_perp)/2.0
-                  
+        # now integrate from 0 to 180 degrees to get total cross-section.
+        angles = Quantity(np.linspace(0.0+small_angle, np.pi, num_angles), 'rad')
+        azi_angle_range = Quantity(2*np.pi,'rad')        
+        # Fresnel coefficients do not appear in this integral since we're using 
+        # the total cross-section to account for the attenuation in intensity 
+        # as light propagates through the sample
+        diff_cs = differential_cross_section(m, x, angles, volume_fraction,
+                                             structure_type, form_type)
+        cscat_total_par = _integrate_cross_section(diff_cs[0], 1.0/np.abs(k)**2,  
+                                               angles, azi_angle_range)
+        cscat_total_perp = _integrate_cross_section(diff_cs[1], 1.0/np.abs(k)**2, 
+                                                angles, azi_angle_range)
+        cscat_total = (cscat_total_par + cscat_total_perp)/2.0
+        
+        cext_total = cscat_total               
+        
+    # to calculate asymmetry parameter, use the far-field Mie solutions because
+    # the phase function does not change whether there is absorption or not 
     # calculate asymmetry parameter using integral from 0 to 180 degrees
-    asymmetry_par = _integrate_cross_section(diff_cs[0], np.cos(angles)*1.0/k**2,
+    angles = Quantity(np.linspace(0.0+small_angle, np.pi, num_angles), 'rad')
+    azi_angle_range = Quantity(2*np.pi,'rad')    
+    diff_cs = differential_cross_section(m, x, angles, volume_fraction,
+                                        structure_type, form_type)
+    asymmetry_par = _integrate_cross_section(diff_cs[0], np.cos(angles)*1.0/np.abs(k)**2,
                                              angles, azi_angle_range)
-    asymmetry_perp = _integrate_cross_section(diff_cs[1], np.cos(angles)*1.0/k**2,
+    asymmetry_perp = _integrate_cross_section(diff_cs[1], np.cos(angles)*1.0/np.abs(k)**2,
                                               angles, azi_angle_range)
     # calculate for unpolarized light
-    asymmetry_parameter = (asymmetry_par + asymmetry_perp)/sigma_total/2.0
-           
+    asymmetry_parameter = (asymmetry_par + asymmetry_perp)/cscat_total/2.0
+
     # now eq. 6 for the total reflection
     rho = _number_density(volume_fraction, radius.max())
-
+            
     if thickness is None:
         # assume semi-infinite sample
         factor = 1.0
     else:
-#        if matrix_absorption == True:
-#            # Calculate the extinction cross section for the Beer-Lambert term
-#            # Mie scattering preliminaries
-#            nstop = mie._nstop(np.array(x).max())  
-#            # if the index ratio m is an array with more than 1 element, it's a 
-#            # multilayer particle
-#            if len(np.atleast_1d(m)) > 1:
-#                coeffs = msl.scatcoeffs_multi(m, x)
-#            else:
-#                coeffs = mie._scatcoeffs(m, x, nstop)
-#            # calculate the cross sections
-#            cscat, cabs, cext = mie._cross_sections_abs_medium_Sudiarta(coeffs[0], 
-#                                                                    coeffs[1],
-#                                                                    np.array(x).max(), 
-#                                                                    radius=radius.max())
-#            sigma_total = cext
-        
         # use Beer-Lambert law to account for attenuation
-        factor = 1.0-np.exp(-rho*sigma_total*thickness)
-    
+        factor = (1.0 - np.exp(-rho*cext_total*thickness)) * cscat_total/cext_total               
+
     # one critical difference from Sofia's original code is that this code
     # calculates the reflected intensity in each polarization channel
     # separately, then averages them. The original code averaged the
@@ -315,19 +338,19 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
     # integrating. However, we do average the total cross section to normalize
     # the reflection cross-sections (that is, we use sigma_total rather than
     # sigma_total_par or sigma_total_perp).
-    reflected_par = t_medium_sample[0] * sigma_detected_par/sigma_total * \
-                    factor + r_medium_sample[0]
-    reflected_perp = t_medium_sample[1] * sigma_detected_perp/sigma_total * \
-                     factor + r_medium_sample[1]
-                     
+    reflected_par = t_medium_sample[0] * cscat_detected_par/cext_total * \
+                        factor + r_medium_sample[0]  
+    reflected_perp = t_medium_sample[1] * cscat_detected_perp/cext_total * \
+                         factor + r_medium_sample[1]             
+    reflectance = (reflected_par + reflected_perp)/2
+    
     # and the transport length for unpolarized light
     # (see eq. 5 of Kaplan, Dinsmore, Yodh, Pine, PRE 50(6): 4827, 1994)
-    transport_length = 1/(1.0-asymmetry_parameter)/rho/sigma_total
+    transport_length = 1/(1.0-asymmetry_parameter)/rho/cext_total  # TODO is this cscat or cext_tot?
 
-    return (reflected_par + reflected_perp)/2.0, \
-        reflected_par, reflected_perp, \
-        asymmetry_parameter, transport_length#, sigma_total
-
+    return reflectance, reflected_par, reflected_perp, asymmetry_parameter, \
+           transport_length
+    
 @ureg.check('[]', '[]', '[]', '[]')
 def differential_cross_section(m, x, angles, volume_fraction, 
                                structure_type = 'glass', 
@@ -367,16 +390,15 @@ def differential_cross_section(m, x, angles, volume_fraction,
     if form_type == 'sphere':   
         form_factor = mie.calc_ang_dist(m, x, angles)
         f_par = form_factor[0]  
-        f_perp = form_factor[1]                                     
-        
+        f_perp = form_factor[1]
     elif form_type is None:
         f_par = 1
         f_perp = 1
     else:
         raise ValueError('form factor type not recognized!')
-        
+
     # calculate structure factor
-    qd = 4*np.array(x.real).max()*np.sin(angles/2)
+    qd = 4*np.array(np.abs(x)).max()*np.sin(angles/2)  #TODO: should it be x.real or x.abs?
 
     if isinstance(structure_type, dict):
         if structure_type['name'] == 'paracrystal':
