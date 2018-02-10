@@ -272,12 +272,20 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
         
         # calculate total absorption cross section 
         nstop = mie._nstop(np.array(x).max())
-        coeffs = mie._scatcoeffs(m, x, nstop)
-        x_scat = size_parameter(wavelen, n_particle, radius)
-        internal_coeffs = mie._internal_coeffs(m, x, nstop)
-        cabs_total = mie._cross_sections_complex_medium_fu(coeffs[0], coeffs[1], internal_coeffs[0], 
-                                                           internal_coeffs[1], radius, n_particle, 
-                                                           n_sample, x_scat, x, wavelen)[1]
+        # if the index ratio m is an array with more than 1 element, it's a 
+        # multilayer particle
+        if len(np.atleast_1d(m)) > 1:
+            coeffs = msl.scatcoeffs_multi(m, x)
+            cabs_total = mie._cross_sections_complex_medium_sudiarta(coeffs[0], coeffs[1], x, radius)[1]
+            if cabs_total.magnitude < 0.0:
+                cabs_total = 0.0 * cabs_total.units
+        else:
+            coeffs = mie._scatcoeffs(m, x, nstop)   
+            internal_coeffs = mie._internal_coeffs(m, x, nstop)
+            x_scat = size_parameter(wavelen, n_particle, radius)
+            cabs_total = mie._cross_sections_complex_medium_fu(coeffs[0], coeffs[1], internal_coeffs[0], 
+                                                               internal_coeffs[1], radius, n_particle, 
+                                                               n_sample, x_scat, x, wavelen)[1]                                                      
         cext_total = cscat_total + cabs_total
         
     else:    
@@ -346,7 +354,7 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
     
     # and the transport length for unpolarized light
     # (see eq. 5 of Kaplan, Dinsmore, Yodh, Pine, PRE 50(6): 4827, 1994)
-    transport_length = 1/(1.0-asymmetry_parameter)/rho/cext_total  # TODO is this cscat or cext_tot?
+    transport_length = 1/(1.0-asymmetry_parameter)/rho/cscat_total  # TODO is this cscat or cext_tot?
 
     return reflectance, reflected_par, reflected_perp, asymmetry_parameter, \
            transport_length

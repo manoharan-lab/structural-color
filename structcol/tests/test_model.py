@@ -154,6 +154,7 @@ def test_reflection_core_shell():
     # make sure the values for refl, g, and lstar remain the same after adding
     # core-shell capability into the model
     wavelength = Quantity(500, 'nm')
+    thickness = Quantity(15, 'um')
     
     # Non core-shell particles with Maxwell-Garnett effective index
     volume_fraction = Quantity(0.5, '')
@@ -208,6 +209,44 @@ def test_reflection_core_shell():
     assert_array_almost_equal(refl2, refl3)
     assert_array_almost_equal(g2, g3, decimal=5)
     assert_array_almost_equal(lstar2.to('mm'), lstar3.to('mm'), decimal=4)
+    
+    
+    # Test that the reflectance is the same for a core-shell that absorbs (with
+    # the same refractive indices for all layers) and a non-core-shell that 
+    # absorbs with the same index
+    
+    # Absorbing non-core-shell
+    radius4 = Quantity('120 nm')
+    n_particle4 = Quantity(1.5+0.001j, '')
+    refl4 = model.reflection(n_particle4, n_matrix, n_medium, wavelength, 
+                             radius4, volume_fraction, thickness=thickness)[0]
+    
+    # Absorbing core-shell
+    n_particle5 = Quantity(np.array([1.5+0.001j, 1.5+0.001j]), '')
+    radius5 = Quantity(np.array([110, 120]), 'nm')
+    refl5 = model.reflection(n_particle5, n_matrix, n_medium, wavelength, 
+                             radius5, volume_fraction, thickness=thickness)[0]
+    
+    assert_array_almost_equal(refl4, refl5, decimal=3)
+    
+    # Same as previous test but with absorbing matrix
+    # Non-core-shell
+    radius6 = Quantity('120 nm')
+    n_particle6 = Quantity(1.5+0.001j, '')
+    n_matrix6 = Quantity(1.0+0.001j, '')
+    refl6 = model.reflection(n_particle6, n_matrix6, n_medium, wavelength, 
+                             radius6, volume_fraction, thickness=thickness)[0]
+    
+    # Core-shell
+    n_particle7 = Quantity(np.array([1.5+0.001j, 1.5+0.001j]), '')
+    radius7 = Quantity(np.array([110, 120]), 'nm')
+    n_matrix7 = Quantity(1.0+0.001j, '')    
+    refl7 = model.reflection(n_particle7, n_matrix7, n_medium, wavelength, 
+                             radius7, volume_fraction, thickness=thickness)[0]
+    
+    assert_array_almost_equal(refl6, refl7, decimal=3)
+
+    
     
 def test_reflection_absorbing_particle():
     # test that the reflections with a real n_particle and with a complex
