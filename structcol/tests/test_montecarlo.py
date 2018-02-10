@@ -46,8 +46,8 @@ refl_index = np.array([2,0,2])
 
 def test_sampling():
     # Test that 'calc_scat' runs
-    p, mu_scat, mu_abs = mc.calc_scat(radius, n_particle, n_sample, volume_fraction, 
-                                  wavelen, phase_mie=False, mu_scat_mie=False)
+    p, mu_scat, mu_abs = mc.calc_scat(radius, n_particle, n_sample,  
+                                      volume_fraction, wavelen)
     
     # Test that 'sample_angles' runs
     mc.sample_angles(nevents, ntrajectories, p)
@@ -182,7 +182,51 @@ def test_reflection_core_shell():
     assert_almost_equal(R, R_cs)
     assert_almost_equal(T, T_cs)
     
-def test_reflection_absorbing_particle():
+    
+    # Test that the reflectance is the same for a core-shell that absorbs (with
+    # the same refractive indices for all layers) and a non-core-shell that 
+    # absorbs with the same index
+    # Reflection using a non-core-shell absorbing system
+    n_particle_abs = sc.Quantity(1.5+0.001j, '')  
+    n_sample_abs = ri.n_eff(n_particle_abs, n_matrix, volume_fraction)
+    
+    R_abs, T_abs = calc_montecarlo(nevents, ntrajectories, radius, n_particle_abs, 
+                           n_sample_abs, n_medium, volume_fraction, wavelen, seed)
+    
+    # Reflection using core-shells with the shell index-matched to the core
+    n_particle_cs_abs = sc.Quantity(np.array([1.5+0.001j,1.5+0.001j]), '')  
+    n_sample_cs_abs = ri.n_eff(n_particle_cs_abs, n_matrix, vf_array) 
+    
+    R_cs_abs, T_cs_abs = calc_montecarlo(nevents, ntrajectories, radius_cs, 
+                                 n_particle_cs_abs, n_sample_cs_abs, n_medium, 
+                                 volume_fraction, wavelen, seed)
+
+    assert_almost_equal(R_abs, R_cs_abs, decimal=3)
+    assert_almost_equal(T_abs, T_cs_abs, decimal=3)
+
+
+    # Same as previous test but with absorbing matrix as well
+    # Reflection using a non-core-shell absorbing system
+    n_particle_abs = sc.Quantity(1.5+0.001j, '')  
+    n_matrix_abs = sc.Quantity(1.+0.001j, '')  
+    n_sample_abs = ri.n_eff(n_particle_abs, n_matrix_abs, volume_fraction)
+    
+    R_abs, T_abs = calc_montecarlo(nevents, ntrajectories, radius, n_particle_abs, 
+                           n_sample_abs, n_medium, volume_fraction, wavelen, seed)
+    
+    # Reflection using core-shells with the shell index-matched to the core
+    n_particle_cs_abs = sc.Quantity(np.array([1.5+0.001j,1.5+0.001j]), '')  
+    n_sample_cs_abs = ri.n_eff(n_particle_cs_abs, n_matrix_abs, vf_array) 
+    
+    R_cs_abs, T_cs_abs = calc_montecarlo(nevents, ntrajectories, radius_cs, 
+                                 n_particle_cs_abs, n_sample_cs_abs, n_medium, 
+                                 volume_fraction, wavelen, seed)
+
+    assert_almost_equal(R_abs, R_cs_abs, decimal=3)
+    assert_almost_equal(T_abs, T_cs_abs, decimal=3)
+
+
+def test_reflection_absorbing_particle_or_matrix():
     # test that the reflections with a real n_particle and with a complex
     # n_particle with a 0 imaginary component are the same 
     seed = 1
@@ -202,11 +246,23 @@ def test_reflection_absorbing_particle():
     assert_almost_equal(R, R_abs)
     assert_almost_equal(T, T_abs)
     
+    # Same as previous test but with absorbing matrix
+    # Reflection using matrix with an imaginary component of 0
+    n_matrix_abs = sc.Quantity(1. + 0j, '')
+    n_sample_abs = ri.n_eff(n_particle, n_matrix_abs, volume_fraction)
+    R_abs, T_abs = calc_montecarlo(nevents, ntrajectories, radius, 
+                                   n_particle, n_sample_abs, n_medium, 
+                                   volume_fraction, wavelen, seed)
+    
+    assert_almost_equal(R, R_abs)
+    assert_almost_equal(T, T_abs)
+    
+    
 def calc_montecarlo(nevents, ntrajectories, radius, n_particle, n_sample, 
                     n_medium, volume_fraction, wavelen, seed):
+    # Function to run montecarlo for the tests
     p, mu_scat, mu_abs = mc.calc_scat(radius, n_particle, n_sample, 
-                                      volume_fraction, wavelen, 
-                                      phase_mie=False, mu_scat_mie=False)
+                                      volume_fraction, wavelen)
     r0, k0, W0 = mc.initialize(nevents, ntrajectories, n_medium, n_sample, 
                                seed=seed, incidence_angle = 0.)
     r0 = sc.Quantity(r0, 'um')
@@ -216,7 +272,7 @@ def calc_montecarlo(nevents, ntrajectories, radius, n_particle, n_sample,
                                                                ntrajectories,p)
     step = mc.sample_step(nevents, ntrajectories, mu_abs, mu_scat)
     trajectories = mc.Trajectory(r0, k0, W0)
-    trajectories.absorb(mu_abs, step)                         
+    trajectories.absorb(mu_abs, step, n_sample=n_sample, wavelen=wavelen)                         
     trajectories.scatter(sintheta, costheta, sinphi, cosphi)         
     trajectories.move(step)
     z_low = sc.Quantity('0.0 um')

@@ -236,7 +236,7 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
                              
     # if n_sample is complex, then we must calculate the cross sections 
     # with the exact Mie solutions that account for absorption
-    if n_sample.imag.magnitude > 0. and form_type == 'sphere':   
+    if np.abs(n_sample.imag.magnitude) > 0. and form_type == 'sphere':   
         if thickness is None:
             raise ValueError('Thickness must be specified when there is absorption')
         
@@ -497,7 +497,9 @@ def fresnel_reflection(n1, n2, incident_angle):
         # see, e.g., http://www.ece.rutgers.edu/~orfanidi/ewa/ch07.pdf
         # equations 7.4.2 for fresnel coefficients in terms of the incident
         # angle only
-        root = np.sqrt(n2**2 - (n1 * np.sin(theta[good_vals]))**2)
+        # take the absolute value inside the square root because sometimes
+        # this value is very close to 0 and negative due to numerical precision
+        root = np.sqrt(np.abs(n2**2 - (n1 * np.sin(theta[good_vals]))**2))
         costheta = np.cos(theta[good_vals])
         r_par[good_vals] = (np.abs((n1*root - n2**2 * costheta)/ \
                                    (n1*root + n2**2 * costheta)))**2

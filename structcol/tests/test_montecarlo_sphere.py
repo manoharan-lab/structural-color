@@ -47,8 +47,8 @@ refl_index = np.array([2,0,2])
 
 def test_sampling():
     # Test that 'calc_scat' runs
-    p, mu_scat, mu_abs = mc.calc_scat(radius, n_particle, n_sample, volume_fraction, 
-                                  wavelen, phase_mie=False, mu_scat_mie=False)
+    p, mu_scat, mu_abs = mc.calc_scat(radius, n_particle, n_sample, 
+                                      volume_fraction, wavelen)
     
     # Test that 'sample_angles' runs
     mc.sample_angles(nevents, ntrajectories, p)

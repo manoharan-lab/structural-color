@@ -29,8 +29,10 @@ Radiation Transfer” (July 2013).
 .. moduleauthor:: Vinothan N. Manoharan <vnm@seas.harvard.edu>
 
 """
-
-from . import mie, model, index_ratio, size_parameter
+import pymie as pm
+from pymie import mie, size_parameter, index_ratio
+from pymie import multilayer_sphere_lib as msl
+from . import model
 import numpy as np
 from numpy.random import random as random
 import structcol as sc
@@ -160,7 +162,7 @@ class Trajectory:
     def nevents(self):
         return self.weight.shape[0]
 
-    def absorb(self, mu_abs, step_size, n_matrix=None, wavelen=None):
+    def absorb(self, mu_abs, step_size, n_sample=None, wavelen=None):
         """
         Calculates absorption of photon packet after each scattering event.
         Absorption is modeled as a reduction of a photon packet's weight
@@ -180,19 +182,19 @@ class Trajectory:
             Wavelength of light in vacuum
             
         """
-        if n_matrix is not None and wavelen is None:
+        if n_sample is not None and wavelen is None:
             raise ValueError('Must provide wavelength in vacuum as well as matrix index')
         
         # the absorption coefficient can be calculated from the imaginary 
-        # component of the matrix's refractive index
-        if n_matrix is not None:
-            mu_abs_matrix = 4*np.pi*n_matrix.imag/wavelen
+        # component of the samples's refractive index
+        if n_sample is not None:
+            mu_abs_sample = 4*np.pi*n_sample.imag/wavelen
         else:
-            mu_abs_matrix = 0
+            mu_abs_sample = 0
         
         # beer lambert
-        weight = np.exp(-((mu_abs+mu_abs_matrix)*np.cumsum(step_size[:,:], axis=0)).to(''))
-        #weight = self.weight*np.exp(-mu_abs*np.cumsum(step_size[:,:], axis=0))
+        weight = self.weight*np.exp(-((mu_abs+mu_abs_sample)*
+                                    np.cumsum(step_size[:,:], axis=0)).to(''))
 
         self.weight = sc.Quantity(weight)
 
@@ -1327,11 +1329,6 @@ def initialize(nevents, ntraj, n_medium, n_sample, seed=None, incidence_angle=0.
         the weight of the photons after their first event.
     
     """
-    # if the particle has a complex refractive index, the n_sample will be 
-    # complex too and the code will give lots of warning messages. Better to 
-    # take only the real part of n_sample from the beggining
-    n_sample = n_sample.real
-
     if seed is not None:
         np.random.seed([seed])
 
@@ -1360,7 +1357,7 @@ def initialize(nevents, ntraj, n_medium, n_sample, seed=None, incidence_angle=0.
     # Refraction of incident light upon entering sample
     # TODO: only real part of n_sample should be used                             
     # for the calculation of angles of integration? Or abs(n_sample)? 
-    theta = refraction(theta, n_medium, n_sample) 
+    theta = refraction(theta, n_medium, np.abs(n_sample))
     sintheta = np.sin(theta)
     costheta = np.cos(theta)
 
@@ -1486,7 +1483,7 @@ def initialize_sphere(nevents, ntraj, n_medium, n_sample, radius, seed=None,
     sinphi = neg_normal[1,:]/np.sin(theta)
     
     # refraction of incident light upon entering the sample
-    theta = refraction(theta, n_medium, n_sample) 
+    theta = refraction(theta, n_medium, np.abs(n_sample))
     sintheta = np.sin(theta)
     costheta = np.cos(theta)
     
@@ -1526,7 +1523,7 @@ def initialize_sphere(nevents, ntraj, n_medium, n_sample, radius, seed=None,
     return r0, k0, weight0
 
 def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
-              phase_mie=False, mu_scat_mie=False):
+              mie_theory = False):
     """
     Calculates the phase function and scattering coefficient from either the
     single scattering model or Mie theory. Calculates the absorption coefficient
@@ -1546,13 +1543,11 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
         Volume fraction of the sample. 
     wavelen : float (structcol.Quantity [length])
         Wavelength of light in vacuum.
-    phase_mie : bool
-        If True, the phase function is calculated from Mie theory. If False
-        (default), it is calculated from the single scattering model, which
-        includes a correction for the structure factor
-    mu_scat_mie : bool
-        If True, the scattering coefficient is calculated from Mie theory. If 
-        False, it is calculated from the single scattering model 
+    mie_theory : bool
+        If True, the phase function and scattering coefficient is calculated 
+        from Mie theory. If False (default), they are calculated from the 
+        single scattering model, which includes a correction for the structure
+        factor
     
     Returns
     -------
@@ -1561,18 +1556,18 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
     mu_scat : float (structcol.Quantity [1/length])
         Scattering coefficient from either Mie theory or single scattering model.
     mu_abs : float (structcol.Quantity [1/length])
-        Absorption coefficient from Mie theory.
+        Absorption coefficient for one particle from Mie theory.
     
     Notes
     -----
     The phase function is given by:
         p = diff. scatt. cross section / cscat
     The single scattering model calculates the differential cross section and
-    the total cross section. If we choose to calculate these from Mie theory:
+    the total cross section. In a non-absorbing system, we can choose to 
+    calculate these from Mie theory:
         diff. scat. cross section = S11 / k^2
         p = S11 / (k^2 * cscat)
         (Bohren and Huffmann, chapter 13.3)
-    
     """
     
     # Scattering angles (typically from a small angle to pi). A non-zero small 
@@ -1580,51 +1575,110 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
     # formula is used, S(q=0) returns nan. To prevent any errors or warnings, 
     # set the minimum value of angles to be a small value, such as 0.01.
     min_angle = 0.01            
-    angles = sc.Quantity(np.linspace(min_angle,np.pi, 200), 'rad') 
+    angles = sc.Quantity(np.linspace(min_angle, np.pi, 200), 'rad') 
 
     number_density = 3.0 * volume_fraction / (4.0 * np.pi * radius.max()**3)
-    ksquared = (2 * np.pi *n_sample.real / wavelen)**2  # TODO: SHOULD K BE CALCULATED WITH REAL PART OF N_SAMPLE OR WITH ABS(N_SAMPLE)?
+    k = 2 * np.pi * n_sample / wavelen    
+    ksquared = np.abs(k)**2  
     m = index_ratio(n_particle, n_sample)
     x = size_parameter(wavelen, n_sample, radius)
     
-    # Calculate the absorption coefficient from Mie theory
-    ## Use wavelen/n_sample: wavelength of incident light *in media*
-    ## (usually this would be the wavelength in the effective index of the
-    ## particle-matrix composite). 
-    cross_sections = mie.calc_cross_sections(m, x, wavelen/n_sample.real)  # TODO: IS IT OKAY TO DIVIDE BY THE REAL PART OF N_SAMPLE?
-    cabs = cross_sections[2]                                               # IF WE DON'T, WE GET COMPLEX REFLECTANCES
-    
-    mu_abs = (cabs * number_density)
+    # Define a function to calculate the phase function (the phase function is 
+    # the same for absorbing and non-absorbing systems)
+    def phase_function(m, x, angles, volume_fraction, ksquared,
+                       mie_theory=False):
+        # If mie_theory = True, calculate the phase function for 1 particle 
+        # using Mie theory (excluding the structure factor)
+        if mie_theory == True:
+            diff_cscat_par, diff_cscat_per = \
+                model.differential_cross_section(m, x, angles, volume_fraction,
+                                                 structure_type=None)
+        else:
+            diff_cscat_par, diff_cscat_per = \
+                model.differential_cross_section(m, x, angles, volume_fraction)
 
-    # If phase_mie is set to True, calculate the phase function from Mie theory
-    if phase_mie == True:
-        S2squared, S1squared = mie.calc_ang_dist(m, x, angles)
-        S11 = (S1squared + S2squared)/2
-        cscat = cross_sections[0]
-        p = S11 / (ksquared * cscat)
+        cscat_total_par = model._integrate_cross_section(diff_cscat_par,
+                                                          1.0/ksquared, angles)
+        cscat_total_perp = model._integrate_cross_section(diff_cscat_per,
+                                                          1.0/ksquared, angles)
+        cscat_total = (cscat_total_par + cscat_total_perp)/2.0
+        p = (diff_cscat_par + diff_cscat_per)/(ksquared * 2 * cscat_total)
+        return(p, cscat_total)
 
-    # Calculate the differential and total cross sections from the single
-    # scattering model
-    diff_sigma_par, diff_sigma_per = \
-        model.differential_cross_section(m, x, angles, volume_fraction)
-    sigma_total_par = model._integrate_cross_section(diff_sigma_par,
-                                                     1.0/ksquared, angles)
-    sigma_total_perp = model._integrate_cross_section(diff_sigma_per,
-                                                      1.0/ksquared, angles)
-    sigma_total = (sigma_total_par + sigma_total_perp)/2.0
+    # If n_sample is complex, then the system absorbs and we must use the exact  
+    # Mie solutions 
+    if np.abs(n_sample.imag.magnitude) > 0.0:
+        # Calculate phase function and scattering coefficient    
+        # The scattering cross section is calculated at the surface of the
+        # particle. Further absorption as photon packets travel through the 
+        # sample are accounted for in the absorb() function.   
+        if mie_theory == True:
+            p = phase_function(m, x, angles, volume_fraction, ksquared, 
+                               mie_theory=True)[0]
+            struct_factor = [1,1]
+        
+        else:
+            p = phase_function(m, x, angles, volume_fraction, ksquared, 
+                               mie_theory=False)[0]        
+            struct_factor = model.differential_cross_section(m, x, angles, 
+                                                             volume_fraction,
+                                                             form_type=None) 
+        distance = np.array(radius).max() * radius.units        
+        form_factor = mie.diff_scat_intensity_complex_medium(m, x, angles, 
+                                                             k*distance)
+        diff_cs_par = form_factor[0] * struct_factor[0]
+        diff_cs_per = form_factor[1] * struct_factor[1]
+        cscat_total = mie.integrate_intensity_complex_medium(diff_cs_par, 
+                                                             diff_cs_per, 
+                                                             distance,angles,k)[0]  
+        mu_scat = number_density * cscat_total
+        
+        # Calculate absorption coefficient for 1 particle (because there isn't
+        # a structure factor for absorption)
+        nstop = mie._nstop(np.array(x).max())
+        # if the index ratio m is an array with more than 1 element, it's a 
+        # multilayer particle
+        if len(np.atleast_1d(m)) > 1:
+            coeffs = msl.scatcoeffs_multi(m, x)
+            cabs_part = mie._cross_sections_complex_medium_sudiarta(coeffs[0], 
+                                                                    coeffs[1], 
+                                                                    x,radius)[1]
+            if cabs_part.magnitude < 0.0:
+                cabs_part = 0.0 * cabs_part.units
+        else:
+            al, bl = mie._scatcoeffs(m, x, nstop)   
+            cl, dl = mie._internal_coeffs(m, x, nstop)
+            x_scat = size_parameter(wavelen, n_particle, radius)
+            cabs_part = mie._cross_sections_complex_medium_fu(al, bl, cl, dl, 
+                                                              radius,n_particle, 
+                                                              n_sample, x_scat, 
+                                                              x, wavelen)[1]                                                      
+        mu_abs = cabs_part * number_density
 
-    # If phase_mie is set to False, use the phase function from the model
-    if phase_mie == False:
-        p = (diff_sigma_par + diff_sigma_per)/(ksquared * 2 * sigma_total)
-
-    # If mu_scat_mie is set to True, use the scattering coeff from Mie theory
-    if mu_scat_mie == True:
-        cscat = cross_sections[0]
-        mu_scat = cscat * number_density
-
-    # If mu_scat_mie is set to False, use the scattering coeff from the model
-    if mu_scat_mie == False:
-        mu_scat = number_density * sigma_total
+    else:
+        # If there is no absorption in the sample, use the standard Mie 
+        # solutions with the far-field approximation
+        # Calculate the absorption coefficient. Use wavelen/n_sample: 
+        # wavelength of incident light *in media* (usually this would be the 
+        # wavelength in the effective index of the particle-matrix composite). 
+        cross_sections = mie.calc_cross_sections(m, x, wavelen/n_sample)  
+        cabs_part = cross_sections[2]                                               
+        mu_abs = cabs_part * number_density
+        
+        # If mie is set to True, calculate the phase function and scattering 
+        # coefficient for 1 particle using Mie theory
+        if mie == True:
+            S2squared, S1squared = mie.calc_ang_dist(m, x, angles)
+            S11 = (S1squared + S2squared)/2
+            cscat_total = cross_sections[0]
+            
+            p = S11 / (ksquared * cscat_total)
+            mu_scat = cscat_total * number_density
+        
+        else:           
+            p, cscat_total = phase_function(m, x, angles, volume_fraction, 
+                                            ksquared, mie_theory=False) 
+            mu_scat = number_density * cscat_total
 
     # Here, the resulting units of mu_scat and mu_abs are nm^2/um^3. Thus, we 
     # simplify the units to 1/um 
@@ -1632,7 +1686,7 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
     mu_abs = mu_abs.to('1/um')
     
     return p, mu_scat, mu_abs
-
+    
 
 def sample_angles(nevents, ntraj, p):
     """
