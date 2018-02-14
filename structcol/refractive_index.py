@@ -41,6 +41,7 @@ http://refractiveindex.info (accessed August 14, 2016).
 
 import numpy as np
 from . import ureg, Quantity  # unit registry and Quantity constructor from pint
+from scipy.optimize import fsolve
 
 # dictionary of refractive index dispersion formulas. This is used by the 'n'
 # function below; it's outside the function definition so that it doesn't have
@@ -363,28 +364,93 @@ def n_ptbma(w):
     # from http://www.sigmaaldrich.com/catalog/product/aldrich/181587?lang=en&region=US
     return 1.46
 
-def n_eff(n_inclusion, n_matrix, volume_fraction):
+def n_eff(n_particle, n_matrix, volume_fraction, maxwell_garnett=False):
     """
-    Calculates Maxwell-Garnett effective refractive index for a composite of
-    two dielectric media.
-
+    Calculates Bruggeman effective refractive index for a composite of n 
+    dielectric media. If maxwell_garnett is set to true and there are two media, 
+    calculates the effective index using the Maxwell-Garnett formulation. 
+    Both Maxwell-Garnett and Bruggeman formulas can handle complex refractive 
+    indices.
+    
     Parameters
     ----------
-    n_inclusion: float or structcol.Quantity (dimensionless)
-        refractive index of inclusions (particles or voids)
-    n_matrix : float or structcol.Quantity (dimensionless)
-        refractive index of matrix phase
-    volume_fraction: float
-        volume fraction of inclusions
-
+    n_particle: float or structcol.Quantity (dimensionless)
+        refractive indices of the inclusion. If it's a core-shell particle, 
+        must be an array of indices from innermost to outermost layer.
+    n_matrix: float or structcol.Quantity(dimensionless)
+        refractive index of the matrix. 
+    volume_fraction: float or structcol.Quantity (dimensionless)
+        volume fraction of inclusion. If it's a core-shell particle, 
+        must be an array of volume fractions from innermost to outermost layer.
+    maxwell_garnett: boolean
+        If true, the model uses Maxwell-Garnett's effective index for the 
+        sample. In that case, the user must specify one refractive index for 
+        the particle and one for the matrix. If false, the model uses 
+        Bruggeman's formula, which can be used for multilayer particles. 
+        
     Returns
     -------
     structcol.Quantity (dimensionless)
         refractive index
-    """
-    ni = n_inclusion
-    nm = n_matrix
-    phi = volume_fraction
-    neff =  nm * np.sqrt((2*nm**2 + ni**2 + 2*phi*((ni**2)-(nm**2))) /
+        
+    References
+    ----------
+    Markel, V. A. "Introduction to the Maxwell Garnett approximation: tutorial".
+    Vol. 33, No. 7, Journal of the Optical Society of America A (2016).
+    Bruggeman's equation in Eq. 29. 
+    Maxwell-Garnett relation in Eq. 18. 
+    
+    """          
+    if maxwell_garnett==True:    
+        # check that the particle and matrix indices have the same length
+        if len(np.array([n_particle.magnitude]).flatten()) != len(np.array([n_matrix.magnitude]).flatten()):
+            raise ValueError('Maxwell-Garnett requires particle and matrix index arrays to have the same length')
+        ni = n_particle
+        nm = n_matrix
+        phi = volume_fraction
+        neff =  nm * np.sqrt((2*nm**2 + ni**2 + 2*phi*((ni**2)-(nm**2))) /
                          (2*nm**2 + ni**2 - phi*((ni**2)-(nm**2))))
-    return Quantity(neff)
+        
+        if neff.imag == 0:
+            return Quantity(neff.real)
+        else:
+            return Quantity(neff)
+
+    else: 
+        # convert the particle index and volume fractions into 1D arrays
+        n_particle = np.array([n_particle.magnitude]).flatten()
+        volume_fraction = np.array([volume_fraction]).flatten()
+        
+        # check that the number of volume fractions and of indices is the same
+        if len(n_particle) != len(volume_fraction):
+            raise ValueError('Arrays of indices and volume fractions must be the same length')
+        
+        volume_fraction_matrix = Quantity(1 - np.sum(volume_fraction), '')
+        
+        # create arrays combining the particle and the matrix' indices and vf
+        n_particle_list = n_particle.tolist()
+        n_particle_list.append(n_matrix.magnitude)
+        n_array = np.array(n_particle_list)
+
+        vf_list = volume_fraction.tolist()
+        vf_list.append(volume_fraction_matrix.magnitude)
+        vf_array = np.array(vf_list)
+
+        # define a function for Bruggeman's equation
+        def sum_bg(n_bg, vf, n_array):
+            N = len(n_array.flatten())
+            a, b = n_bg
+            S = np.sum((vf[n]*(n_array[n]**2 - (a+b*1j)**2)/(n_array[n]**2 + 2*(a+b*1j)**2)) for n in np.arange(0,N))
+            return (S.real, S.imag)
+        
+        # set an initial guess and solve for Bruggeman's refractive index of the composite
+        initial_guess = [1.5, 0]    # most refractive indices range between 1 and 3
+        n_bg_real, n_bg_imag = fsolve(sum_bg, initial_guess, args=(vf_array, n_array))
+        
+        if n_bg_imag == 0:
+            return Quantity(n_bg_real)
+        else:
+            if n_bg_imag >= 1e-10:
+                return Quantity(n_bg_real + n_bg_imag*1j)
+            else:
+                raise ValueError('Cannot find positive imaginary root for the effective index')
