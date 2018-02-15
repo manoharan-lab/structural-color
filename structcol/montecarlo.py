@@ -866,8 +866,8 @@ def calc_refl_trans(trajectories, z_low, cutoff, n_medium, n_sample,
     """
     # if the particle has a complex refractive index, the n_sample will be 
     # complex too and the code will give lots of warning messages. Better to 
-    # take only the real part of n_sample from the beggining
-    n_sample = n_sample.real
+    # take only the absolute value of n_sample from the beggining
+    n_sample = np.abs(n_sample)
 
     # set up the values we need as numpy arrays
     z = trajectories.position[2]
