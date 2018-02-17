@@ -272,7 +272,7 @@ def calc_montecarlo(nevents, ntrajectories, radius, n_particle, n_sample,
                                                                ntrajectories,p)
     step = mc.sample_step(nevents, ntrajectories, mu_abs, mu_scat)
     trajectories = mc.Trajectory(r0, k0, W0)
-    trajectories.absorb(mu_abs, step, n_sample=n_sample, wavelen=wavelen)                         
+    trajectories.absorb(mu_abs, step)                         
     trajectories.scatter(sintheta, costheta, sinphi, cosphi)         
     trajectories.move(step)
     z_low = sc.Quantity('0.0 um')
