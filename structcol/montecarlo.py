@@ -1041,6 +1041,8 @@ def calc_refl_trans_sphere(trajectories, n_medium, n_sample, radius, p, mu_abs,
     Note: absorptance of the sample can be found by 1 - reflectance - transmittance
     
     """   
+    n_sample = np.abs(n_sample)
+    
     # set up the values we need as numpy arrays
     x, y, z = trajectories.position
     if isinstance(z, sc.Quantity):
