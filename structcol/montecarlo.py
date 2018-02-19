@@ -170,12 +170,10 @@ class Trajectory:
         
         Parameters
         ----------
+        mu_abs: ndarray (structcol.Quantity [1/length])
+            Absorption coefficient of the sample as an effective medium.
         step_size: ndarray (structcol.Quantity [length])
             Step size of packet (sampled from scattering lengths).
-        n_matrix: structcol.Quantity [dimensionless]
-            Refractive index of matrix
-        wavelen: structcol.Quantity [length]
-            Wavelength of light in vacuum
             
         """
         # beer lambert
@@ -1543,7 +1541,7 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
     mu_scat : float (structcol.Quantity [1/length])
         Scattering coefficient from either Mie theory or single scattering model.
     mu_abs : float (structcol.Quantity [1/length])
-        Absorption coefficient for one particle from Mie theory.
+        Absorption coefficient of the sample as an effective medium.
     
     Notes
     -----
@@ -1704,7 +1702,7 @@ def sample_angles(nevents, ntraj, p):
     # pi). A non-zero minimum angle is needed because in the single scattering 
     # model, if the analytic formula is used, S(q=0) returns nan.
     min_angle = 0.01            
-    angles = sc.Quantity(np.linspace(min_angle,np.pi, 200), 'rad')   
+    angles = sc.Quantity(np.linspace(min_angle,np.pi, 200), 'rad')  
 
     # Random sampling of azimuthal angle phi from uniform distribution [0 -
     # 2pi]
