@@ -162,39 +162,23 @@ class Trajectory:
     def nevents(self):
         return self.weight.shape[0]
 
-    def absorb(self, mu_abs, step_size, n_sample=None, wavelen=None):
+    def absorb(self, mu_abs, step_size):
         """
-        Calculates absorption of photon packet after each scattering event.
-        Absorption is modeled as a reduction of a photon packet's weight
-        every time it gets scattered using Beer-Lambert's law. If n_matrix and
-        wavelength are specified, then the absorption will include both the 
-        absorption in the particle and in the matrix. 
+        Calculates absorption of photon packet due to traveling the sample 
+        between scattering events. Absorption is modeled as a reduction of a 
+        photon packet's weight using Beer-Lambert's law. 
         
         Parameters
         ----------
-        mu_abs : ndarray (structcol.Quantity [1/length])
-            Absorption coefficient of packet 
+        mu_abs: ndarray (structcol.Quantity [1/length])
+            Absorption coefficient of the sample as an effective medium.
         step_size: ndarray (structcol.Quantity [length])
             Step size of packet (sampled from scattering lengths).
-        n_matrix: structcol.Quantity [dimensionless]
-            Refractive index of matrix
-        wavelen: structcol.Quantity [length]
-            Wavelength of light in vacuum
             
         """
-        if n_sample is not None and wavelen is None:
-            raise ValueError('Must provide wavelength in vacuum as well as matrix index')
-        
-        # the absorption coefficient can be calculated from the imaginary 
-        # component of the samples's refractive index
-        if n_sample is not None:
-            mu_abs_sample = 4*np.pi*n_sample.imag/wavelen
-        else:
-            mu_abs_sample = 0
-        
         # beer lambert
-        weight = self.weight*np.exp(-((mu_abs+mu_abs_sample)*
-                                    np.cumsum(step_size[:,:], axis=0)).to(''))
+        weight = self.weight*np.exp(-(mu_abs * np.cumsum(step_size[:,:], 
+                                                         axis=0)).to(''))
 
         self.weight = sc.Quantity(weight)
 
@@ -980,9 +964,10 @@ def calc_refl_trans(trajectories, z_low, cutoff, n_medium, n_sample,
     return (np.sum(reflectance)/ntraj, np.sum(transmittance/ntraj))
 
 
-def calc_refl_trans_sphere(trajectories, n_medium, n_sample, radius, p, mu_abs, mu_scat,
-                           detection_angle = np.pi/2, plot_exits = False, tir = False,
-                           run_tir = True, call_depth = 0, max_call_depth = 20):
+def calc_refl_trans_sphere(trajectories, n_medium, n_sample, radius, p, mu_abs, 
+                           mu_scat, detection_angle = np.pi/2, 
+                           plot_exits = False, tir = False, run_tir = True, 
+                           call_depth = 0, max_call_depth = 20):
     """
     Counts the fraction of reflected and transmitted trajectories for an 
     assembly with a spherical boundary. Identifies which trajectories are 
@@ -1056,6 +1041,8 @@ def calc_refl_trans_sphere(trajectories, n_medium, n_sample, radius, p, mu_abs, 
     Note: absorptance of the sample can be found by 1 - reflectance - transmittance
     
     """   
+    n_sample = np.abs(n_sample)
+    
     # set up the values we need as numpy arrays
     x, y, z = trajectories.position
     if isinstance(z, sc.Quantity):
@@ -1251,7 +1238,7 @@ def calc_refl_trans_sphere(trajectories, n_medium, n_sample, radius, p, mu_abs, 
         # Calculate reflection and transmition 
         reflectance_tir, transmittance_tir = calc_refl_trans_sphere(trajectories_tir, 
                                                                     n_medium, n_sample, 
-                                                                    radius, p, mu_abs, mu_scat, 
+                                                                    radius, p, mu_abs, mu_scat,
                                                                     plot_exits = plot_exits,
                                                                     tir = True, call_depth = call_depth+1)
         return (reflectance_tir + reflectance_mean, transmittance_tir + transmittance_mean)
@@ -1556,7 +1543,7 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
     mu_scat : float (structcol.Quantity [1/length])
         Scattering coefficient from either Mie theory or single scattering model.
     mu_abs : float (structcol.Quantity [1/length])
-        Absorption coefficient for one particle from Mie theory.
+        Absorption coefficient of the sample as an effective medium.
     
     Notes
     -----
@@ -1633,27 +1620,31 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
                                                              distance,angles,k)[0]  
         mu_scat = number_density * cscat_total
         
-        # Calculate absorption coefficient for 1 particle (because there isn't
-        # a structure factor for absorption)
-        nstop = mie._nstop(np.array(x).max())
-        # if the index ratio m is an array with more than 1 element, it's a 
-        # multilayer particle
-        if len(np.atleast_1d(m)) > 1:
-            coeffs = msl.scatcoeffs_multi(m, x)
-            cabs_part = mie._cross_sections_complex_medium_sudiarta(coeffs[0], 
-                                                                    coeffs[1], 
-                                                                    x,radius)[1]
-            if cabs_part.magnitude < 0.0:
-                cabs_part = 0.0 * cabs_part.units
-        else:
-            al, bl = mie._scatcoeffs(m, x, nstop)   
-            cl, dl = mie._internal_coeffs(m, x, nstop)
-            x_scat = size_parameter(wavelen, n_particle, radius)
-            cabs_part = mie._cross_sections_complex_medium_fu(al, bl, cl, dl, 
-                                                              radius,n_particle, 
-                                                              n_sample, x_scat, 
-                                                              x, wavelen)[1]                                                      
-        mu_abs = cabs_part * number_density
+        # The absorption coefficient can be calculated from the imaginary 
+        # component of the samples's refractive index
+        mu_abs = 4*np.pi*n_sample.imag/wavelen
+        
+#        # Calculate absorption coefficient for 1 particle (because there isn't
+#        # a structure factor for absorption)
+#        nstop = mie._nstop(np.array(x).max())
+#        # if the index ratio m is an array with more than 1 element, it's a 
+#        # multilayer particle
+#        if len(np.atleast_1d(m)) > 1:
+#            coeffs = msl.scatcoeffs_multi(m, x)
+#            cabs_part = mie._cross_sections_complex_medium_sudiarta(coeffs[0], 
+#                                                                    coeffs[1], 
+#                                                                    x,radius)[1]
+#            if cabs_part.magnitude < 0.0:
+#                cabs_part = 0.0 * cabs_part.units
+#        else:
+#            al, bl = mie._scatcoeffs(m, x, nstop)   
+#            cl, dl = mie._internal_coeffs(m, x, nstop)
+#            x_scat = size_parameter(wavelen, n_particle, radius)
+#            cabs_part = mie._cross_sections_complex_medium_fu(al, bl, cl, dl, 
+#                                                              radius,n_particle, 
+#                                                              n_sample, x_scat, 
+#                                                              x, wavelen)[1]                                                      
+#        mu_abs = cabs_part * number_density
 
     else:
         # If there is no absorption in the sample, use the standard Mie 
@@ -1713,7 +1704,7 @@ def sample_angles(nevents, ntraj, p):
     # pi). A non-zero minimum angle is needed because in the single scattering 
     # model, if the analytic formula is used, S(q=0) returns nan.
     min_angle = 0.01            
-    angles = sc.Quantity(np.linspace(min_angle,np.pi, 200), 'rad')   
+    angles = sc.Quantity(np.linspace(min_angle,np.pi, 200), 'rad')  
 
     # Random sampling of azimuthal angle phi from uniform distribution [0 -
     # 2pi]
