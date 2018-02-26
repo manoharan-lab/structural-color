@@ -29,8 +29,10 @@ Radiation Transfer” (July 2013).
 .. moduleauthor:: Vinothan N. Manoharan <vnm@seas.harvard.edu>
 
 """
-
-from . import mie, model, index_ratio, size_parameter
+import pymie as pm
+from pymie import mie, size_parameter, index_ratio
+from pymie import multilayer_sphere_lib as msl
+from . import model
 import numpy as np
 from numpy.random import random as random
 import structcol as sc
@@ -162,22 +164,29 @@ class Trajectory:
 
     def absorb(self, mu_abs, step_size):
         """
-        Calculates absorption of photon packet after each scattering event.
-        Absorption is modeled as a reduction of a photon packet's weight
-        every time it gets scattered using Beer-Lambert's law.
+        Calculates absorption of photon packet due to traveling the sample 
+        between scattering events. Absorption is modeled as a reduction of a 
+        photon packet's weight using Beer-Lambert's law. 
         
         Parameters
         ----------
-        mu_abs : ndarray (structcol.Quantity [1/length])
-            Absorption coefficient of packet 
+        mu_abs: ndarray (structcol.Quantity [1/length])
+            Absorption coefficient of the sample as an effective medium.
         step_size: ndarray (structcol.Quantity [length])
             Step size of packet (sampled from scattering lengths).
-        
+            
         """
+<<<<<<< HEAD
         
         # Beer-Lambert
         #weight = np.exp(-mu_abs*np.cumsum(step_size[:,:], axis=0))
         weight = self.weight*np.exp(-mu_abs*np.cumsum(step_size[:,:], axis=0))
+=======
+        # beer lambert
+        weight = self.weight*np.exp(-(mu_abs * np.cumsum(step_size[:,:], 
+                                                         axis=0)).to(''))
+
+>>>>>>> 334cbe7c20f21f5af5f753f5b9b751a473848fd8
         self.weight = sc.Quantity(weight)
 
 
@@ -723,7 +732,11 @@ def fresnel_pass_frac_sphere(radius, indices, n_before, n_inside, n_after,
         n_inside = n_before
 
     #find angles before
+<<<<<<< HEAD
     k1, norm, theta_before = get_angles_sphere(x,y,z,radius, indices, incident = incident, plot_exits = plot_exits)
+=======
+    _, _, theta_before = get_angles_sphere(x,y,z,radius, indices, incident = incident, plot_exits = plot_exits)
+>>>>>>> 334cbe7c20f21f5af5f753f5b9b751a473848fd8
     
     #find angles inside
     theta_inside = refraction(theta_before, n_before, n_inside)
@@ -846,6 +859,11 @@ def calc_refl_trans(trajectories, z_low, cutoff, n_medium, n_sample,
     Note: absorptance of the sample can be found by 1 - reflectance - transmittance
     
     """
+    # if the particle has a complex refractive index, the n_sample will be 
+    # complex too and the code will give lots of warning messages. Better to 
+    # take only the absolute value of n_sample from the beggining
+    n_sample = np.abs(n_sample)
+
     # set up the values we need as numpy arrays
     z = trajectories.position[2]
     if isinstance(z, sc.Quantity):
@@ -954,6 +972,7 @@ def calc_refl_trans(trajectories, z_low, cutoff, n_medium, n_sample,
     reflectance = refl_detected + extra_refl * refl_det_frac + inc_refl
 
     #calculate mean reflectance and transmittance for all trajectories
+<<<<<<< HEAD
     if return_extra:
         # divide by ntraj to get reflectance per trajectory
         return refl_indices, trans_indices, reflected/ntraj, trans_frac, refl_frac, refl_fresnel/ntraj, trans_fresnel/ntraj, inc_refl/ntraj, np.sum(reflectance)/ntraj
@@ -964,6 +983,15 @@ def calc_refl_trans(trajectories, z_low, cutoff, n_medium, n_sample,
 def calc_refl_trans_sphere(trajectories, n_medium, n_sample, radius, p, mu_abs, mu_scat,
                            detection_angle = np.pi/2, plot_exits = False, tir = False,
                            run_tir = True, return_extra = False, call_depth = 0, max_call_depth = 20):
+=======
+    return (np.sum(reflectance)/ntraj, np.sum(transmittance/ntraj))
+
+
+def calc_refl_trans_sphere(trajectories, n_medium, n_sample, radius, p, mu_abs, 
+                           mu_scat, detection_angle = np.pi/2, 
+                           plot_exits = False, tir = False, run_tir = True, 
+                           call_depth = 0, max_call_depth = 20):
+>>>>>>> 334cbe7c20f21f5af5f753f5b9b751a473848fd8
     """
     Counts the fraction of reflected and transmitted trajectories for an 
     assembly with a spherical boundary. Identifies which trajectories are 
@@ -1037,6 +1065,11 @@ def calc_refl_trans_sphere(trajectories, n_medium, n_sample, radius, p, mu_abs, 
     Note: absorptance of the sample can be found by 1 - reflectance - transmittance
     
     """   
+<<<<<<< HEAD
+=======
+    n_sample = np.abs(n_sample)
+    
+>>>>>>> 334cbe7c20f21f5af5f753f5b9b751a473848fd8
     # set up the values we need as numpy arrays
     x, y, z = trajectories.position
     if isinstance(z, sc.Quantity):
@@ -1094,6 +1127,7 @@ def calc_refl_trans_sphere(trajectories, n_medium, n_sample, radius, p, mu_abs, 
     refl_indices = low_event * low_first
     trans_indices = high_event * high_first
     stuck_indices = never_exit * (z.shape[0]-1)
+<<<<<<< HEAD
 
     # for now, we assume initial direction is in +z
     init_dir = np.ones(ntraj)
@@ -1223,6 +1257,135 @@ def calc_refl_trans_sphere(trajectories, n_medium, n_sample, radius, p, mu_abs, 
         # Generate a matrix of all the randomly sampled angles first 
         sintheta, costheta, sinphi, cosphi, _, _ = sample_angles(nevents, ntraj, p)
 
+=======
+
+    # for now, we assume initial direction is in +z
+    init_dir = np.ones(ntraj)
+
+    # init_dir is reverse-corrected for refraction. = kz before medium/sample interface
+    # calculate initial weights that actually enter the sample after fresnel
+    if tir == False:
+        inc_fraction = fresnel_pass_frac_sphere(radius, np.ones(ntraj), n_medium,
+                                                None, n_sample, x, y, z, incident = True)    
+    else:
+        inc_fraction = np.ones(ntraj)
+
+    # calculate outcome weights from all trajectories
+    refl_weights = inc_fraction * select_events(weights, refl_indices)
+    trans_weights = inc_fraction * select_events(weights, trans_indices)
+    stuck_weights = inc_fraction * select_events(weights, stuck_indices)
+    absorb_weights = inc_fraction - refl_weights - trans_weights - stuck_weights
+
+    # warn user if too many trajectories got stuck
+    stuck_frac = np.sum(stuck_weights) / np.sum(inc_fraction) * 100
+    stuck_traj_warn = " \n{0}% of trajectories did not exit the sample. Increase Nevents to improve accuracy.".format(str(int(stuck_frac)))
+    if stuck_frac >= 20: warnings.warn(stuck_traj_warn)
+
+    # correct for non-TIR fresnel reflection upon exiting
+    reflected = refl_weights * fresnel_pass_frac_sphere(radius,refl_indices, n_sample, None, n_medium, x, y, z, 
+                                                        plot_exits = plot_exits)
+    if plot_exits == True:
+        plt.gca().set_title('Reflected exits')
+        plt.gca().view_init(-164,-155)
+    transmitted = trans_weights * fresnel_pass_frac_sphere(radius,trans_indices, n_sample, None, n_medium, x, y, z, 
+                                                           plot_exits = plot_exits)
+    if plot_exits == True:
+        plt.gca().set_title('Transmitted exits')
+        plt.gca().view_init(-164,-155)
+    refl_fresnel = refl_weights - reflected
+    trans_fresnel = trans_weights - transmitted
+
+    # find fraction that are successfully transmitted or reflected
+    refl_frac = np.sum(reflected) / ntraj
+    trans_frac = np.sum(transmitted) / ntraj
+
+    # correct for effect of detection angle upon leaving sample
+    # TODO: get working for other detector angles
+    inc_refl = 1 - inc_fraction # fresnel reflection incident on sample
+    inc_refl = detect_correct(np.array([init_dir]), inc_refl, np.ones(ntraj), n_medium, n_medium, detection_angle)
+    
+    trans_detected = transmitted
+    #trans_detected = detect_correct(kz, transmitted, trans_indices, n_sample, n_medium, detection_angle)
+    trans_det_frac = np.max([np.sum(trans_detected),eps]) / np.max([np.sum(transmitted), eps])
+
+    refl_detected = reflected
+    #refl_detected = detect_correct(kz, reflected, refl_indices, n_sample, n_medium, detection_angle)
+    refl_det_frac = np.max([np.sum(refl_detected),eps]) / np.max([np.sum(reflected), eps]) 
+
+    # calculate mean transmittance and reflectance for all trajectories (in terms of trajectory weights)
+    reflectance_mean = refl_frac + np.sum(inc_refl)/ntraj
+    transmittance_mean = trans_frac
+
+    # calculate new trajectories and reflectance if a significant amount of 
+    # light stays inside the sphere due to fresnel reflection
+    if run_tir and call_depth < max_call_depth and np.sum(refl_fresnel + trans_fresnel + stuck_weights)/ntraj > .01:
+        
+        # new weights are the weights that are fresnel reflected back into the 
+        # sphere
+        nevents = trajectories.nevents
+        weights_tir = np.zeros((nevents,ntraj))
+        weights_tir[:,:] = refl_fresnel + trans_fresnel + stuck_weights
+        weights_tir = sc.Quantity(weights_tir, '')
+        
+        # new positions are the positions at the exit boundary
+        positions = np.zeros((3,nevents+1,ntraj))
+        indices = refl_indices + trans_indices
+        # get positions outside of sphere boundary from after exit
+        select_x1 = select_events(x[1:,:], indices)
+        select_y1 = select_events(y[1:,:], indices)
+        select_z1 = select_events(z[1:,:], indices)   
+        
+        # get positions inside sphere boundary from before exit
+        select_x0 = select_events(x[:len(x)-1,:],indices)
+        select_y0 = select_events(y[:len(y)-1,:],indices)
+        select_z0 = select_events(z[:len(z)-1,:],indices)
+        
+        # get positions at sphere boundary from exit
+        x_inter, y_inter, z_inter = find_exit_intersect_vec(select_x0,
+                                                            select_y0,
+                                                            select_z0,
+                                                            select_x1,
+                                                            select_y1,
+                                                            select_z1, radius)
+                                                            
+        # new directions are 
+        directions = np.zeros((3,nevents,ntraj))
+        directions = sc.Quantity(directions, '')
+        
+        # dot the normal vector with the direction at exit 
+        select_kx = select_events(kx, indices)
+        select_ky = select_events(ky, indices)
+        select_kz = select_events(kz, indices)
+        
+        #
+        dot_kin_normal = np.nan_to_num(np.array([select_kx*x_inter/radius, select_ky*y_inter/radius, select_kz*z_inter/radius])) 
+        thetas = np.nan_to_num(np.arccos(dot_kin_normal))
+        k_refl = np.array([select_kx,select_ky,select_kz]*(np.cos(thetas)+np.sin(thetas)))
+
+        directions[:,0,:] = k_refl
+        directions[0,0,:] = directions[0,0,:] + select_events(kx, stuck_indices)
+        directions[1,0,:] = directions[1,0,:] + select_events(ky, stuck_indices)
+        directions[2,0,:] = directions[2,0,:] + select_events(kz, stuck_indices)
+        
+        # set the initial positions at the sphere boundary
+        positions[0,0,:] = x_inter + select_events(x[1:,:], stuck_indices)
+        positions[1,0,:] = y_inter + select_events(y[1:,:], stuck_indices)
+        positions[2,0,:] = z_inter + select_events(z[1:,:], stuck_indices)
+
+        # TODO: get rid of trajectories whose initial weights are 0
+        # find indices where initial weights are 0
+#        indices = np.where(weights_tir[0,:] == 0)
+#        if indices[0].size > 0:
+#            weights_tir = np.delete(weights_tir,indices)
+#            positions = np.delete(positions, indices, axis = 0)
+#            directions = np.delete(directions, indices,axis = 0)
+        
+        # create new trajectories object
+        trajectories_tir = Trajectory(positions, directions, weights_tir)
+        # Generate a matrix of all the randomly sampled angles first 
+        sintheta, costheta, sinphi, cosphi, _, _ = sample_angles(nevents, ntraj, p)
+
+>>>>>>> 334cbe7c20f21f5af5f753f5b9b751a473848fd8
         # Create step size distribution
         step = sample_step(nevents, ntraj, mu_abs, mu_scat)
     
@@ -1234,7 +1397,11 @@ def calc_refl_trans_sphere(trajectories, n_medium, n_sample, radius, p, mu_abs, 
         # Calculate reflection and transmition 
         reflectance_tir, transmittance_tir = calc_refl_trans_sphere(trajectories_tir, 
                                                                     n_medium, n_sample, 
+<<<<<<< HEAD
                                                                     radius, p, mu_abs, mu_scat, 
+=======
+                                                                    radius, p, mu_abs, mu_scat,
+>>>>>>> 334cbe7c20f21f5af5f753f5b9b751a473848fd8
                                                                     plot_exits = plot_exits,
                                                                     tir = True, call_depth = call_depth+1)
         return (reflectance_tir + reflectance_mean, transmittance_tir + transmittance_mean)
@@ -1255,12 +1422,16 @@ def calc_refl_trans_sphere(trajectories, n_medium, n_sample, radius, p, mu_abs, 
         # calculate mean reflectance and transmittance for all trajectories
         reflectance_mean = np.sum(reflectance)/ntraj
         transmittance_mean = np.sum(transmittance)/ntraj
+<<<<<<< HEAD
         
         if return_extra == True:
             return (k1_refl, k1_trans, norm_refl, norm_trans, reflectance_mean, transmittance_mean)
         
         else:               
             return (reflectance_mean, transmittance_mean) 
+=======
+        return (reflectance_mean, transmittance_mean) 
+>>>>>>> 334cbe7c20f21f5af5f753f5b9b751a473848fd8
 
 def initialize(nevents, ntraj, n_medium, n_sample, seed=None, incidence_angle=0.):
 
@@ -1317,7 +1488,6 @@ def initialize(nevents, ntraj, n_medium, n_sample, seed=None, incidence_angle=0.
         the weight of the photons after their first event.
     
     """
-
     if seed is not None:
         np.random.seed([seed])
 
@@ -1344,7 +1514,9 @@ def initialize(nevents, ntraj, n_medium, n_sample, seed=None, incidence_angle=0.
     theta = rand_theta * incidence_angle
 
     # Refraction of incident light upon entering sample
-    theta = refraction(theta, n_medium, n_sample)
+    # TODO: only real part of n_sample should be used                             
+    # for the calculation of angles of integration? Or abs(n_sample)? 
+    theta = refraction(theta, n_medium, np.abs(n_sample))
     sintheta = np.sin(theta)
     costheta = np.cos(theta)
 
@@ -1470,7 +1642,11 @@ def initialize_sphere(nevents, ntraj, n_medium, n_sample, radius, seed=None,
     sinphi = neg_normal[1,:]/np.sin(theta)
     
     # refraction of incident light upon entering the sample
+<<<<<<< HEAD
     theta = refraction(theta, n_medium, n_sample) 
+=======
+    theta = refraction(theta, n_medium, np.abs(n_sample))
+>>>>>>> 334cbe7c20f21f5af5f753f5b9b751a473848fd8
     sintheta = np.sin(theta)
     costheta = np.cos(theta)
     
@@ -1510,7 +1686,7 @@ def initialize_sphere(nevents, ntraj, n_medium, n_sample, radius, seed=None,
     return r0, k0, weight0
 
 def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
-              shell_radius=None, phase_mie=False, mu_scat_mie=False):
+              mie_theory = False):
     """
     Calculates the phase function and scattering coefficient from either the
     single scattering model or Mie theory. Calculates the absorption coefficient
@@ -1519,29 +1695,22 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
     Parameters
     ----------
     radius : float (structcol.Quantity [length])
-        Radius of scatterer. If particles are core-shell, should be radius of 
-        only the core. 
+        Radius of scatterer. 
     n_particle : float (structcol.Quantity [dimensionless] or 
         structcol.refractive_index object)
         Refractive index of the particle.
     n_sample : float (structcol.Quantity [dimensionless] or 
         structcol.refractive_index object)
-        Refractive index of the sample. If particles are core-shell, should be 
-        calculated with the volume fraction of only the cores. 
+        Refractive index of the sample. 
     volume_fraction : float (structcol.Quantity [dimensionless])
-        Volume fraction of the sample. If particles are core-shell, should be 
-        volume fraction of only the cores. 
+        Volume fraction of the sample. 
     wavelen : float (structcol.Quantity [length])
         Wavelength of light in vacuum.
-    shell_radius : float (structcol.Quantity [length]) or None
-        Radius of core + shell particle if particles are core-shell.
-    phase_mie : bool
-        If True, the phase function is calculated from Mie theory. If False
-        (default), it is calculated from the single scattering model, which
-        includes a correction for the structure factor
-    mu_scat_mie : bool
-        If True, the scattering coefficient is calculated from Mie theory. If 
-        False, it is calculated from the single scattering model 
+    mie_theory : bool
+        If True, the phase function and scattering coefficient is calculated 
+        from Mie theory. If False (default), they are calculated from the 
+        single scattering model, which includes a correction for the structure
+        factor
     
     Returns
     -------
@@ -1550,18 +1719,18 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
     mu_scat : float (structcol.Quantity [1/length])
         Scattering coefficient from either Mie theory or single scattering model.
     mu_abs : float (structcol.Quantity [1/length])
-        Absorption coefficient from Mie theory.
+        Absorption coefficient of the sample as an effective medium.
     
     Notes
     -----
     The phase function is given by:
         p = diff. scatt. cross section / cscat
     The single scattering model calculates the differential cross section and
-    the total cross section. If we choose to calculate these from Mie theory:
+    the total cross section. In a non-absorbing system, we can choose to 
+    calculate these from Mie theory:
         diff. scat. cross section = S11 / k^2
         p = S11 / (k^2 * cscat)
         (Bohren and Huffmann, chapter 13.3)
-    
     """
     
     # Scattering angles (typically from a small angle to pi). A non-zero small 
@@ -1569,63 +1738,114 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
     # formula is used, S(q=0) returns nan. To prevent any errors or warnings, 
     # set the minimum value of angles to be a small value, such as 0.01.
     min_angle = 0.01            
-    angles = sc.Quantity(np.linspace(min_angle,np.pi, 200), 'rad') 
+    angles = sc.Quantity(np.linspace(min_angle, np.pi, 200), 'rad') 
 
-    # if shell_radius is None, then the particles are not core-shell
-    if shell_radius == None: 
-        shell_radius = radius
-        
-    # if particles are core-shells, calculate volume fractions of only cores 
-    # and of core-shells. If particles are not core-shells, 
-    # volume_fraction_shell = volume_fraction_core = volume fraction of particles
-    volume_fraction_core = volume_fraction    
-    volume_fraction_shell = volume_fraction * (shell_radius / radius)**3
-    
-    number_density = 3.0 * volume_fraction_shell / (4.0 * np.pi * shell_radius**3)
-    ksquared = (2 * np.pi *n_sample / wavelen)**2
+    number_density = 3.0 * volume_fraction / (4.0 * np.pi * radius.max()**3)
+    k = 2 * np.pi * n_sample / wavelen    
+    ksquared = np.abs(k)**2  
     m = index_ratio(n_particle, n_sample)
-    x_core = size_parameter(wavelen, n_sample, radius)
-    x_shell = size_parameter(wavelen, n_sample, shell_radius)
+    x = size_parameter(wavelen, n_sample, radius)
     
-    # Calculate the absorption coefficient from Mie theory
-    ## Use wavelen/n_sample: wavelength of incident light *in media*
-    ## (usually this would be the wavelength in the effective index of the
-    ## particle-matrix composite)
-    cross_sections = mie.calc_cross_sections(m, x_core, wavelen/n_sample)  
-    cabs = cross_sections[2]
-    
-    mu_abs = (cabs * number_density)
+    # Define a function to calculate the phase function (the phase function is 
+    # the same for absorbing and non-absorbing systems)
+    def phase_function(m, x, angles, volume_fraction, ksquared,
+                       mie_theory=False):
+        # If mie_theory = True, calculate the phase function for 1 particle 
+        # using Mie theory (excluding the structure factor)
+        if mie_theory == True:
+            diff_cscat_par, diff_cscat_per = \
+                model.differential_cross_section(m, x, angles, volume_fraction,
+                                                 structure_type=None)
+        else:
+            diff_cscat_par, diff_cscat_per = \
+                model.differential_cross_section(m, x, angles, volume_fraction)
 
-    # If phase_mie is set to True, calculate the phase function from Mie theory
-    if phase_mie == True:
-        S2squared, S1squared = mie.calc_ang_dist(m, x_core, angles)
-        S11 = (S1squared + S2squared)/2
-        cscat = cross_sections[0]
-        p = S11 / (ksquared * cscat)
+        cscat_total_par = model._integrate_cross_section(diff_cscat_par,
+                                                          1.0/ksquared, angles)
+        cscat_total_perp = model._integrate_cross_section(diff_cscat_per,
+                                                          1.0/ksquared, angles)
+        cscat_total = (cscat_total_par + cscat_total_perp)/2.0
+        p = (diff_cscat_par + diff_cscat_per)/(ksquared * 2 * cscat_total)
+        return(p, cscat_total)
 
-    # Calculate the differential and total cross sections from the single
-    # scattering model
-    diff_sigma_par, diff_sigma_per = \
-        model.differential_cross_section(m, x_core, angles, volume_fraction_core, 
-                                         x_shell, volume_fraction_shell)
-    sigma_total_par = model._integrate_cross_section(diff_sigma_par,
-                                                     1.0/ksquared, angles)
-    sigma_total_perp = model._integrate_cross_section(diff_sigma_per,
-                                                      1.0/ksquared, angles)
-    sigma_total = (sigma_total_par + sigma_total_perp)/2.0
+    # If n_sample is complex, then the system absorbs and we must use the exact  
+    # Mie solutions 
+    if np.abs(n_sample.imag.magnitude) > 0.0:
+        # Calculate phase function and scattering coefficient    
+        # The scattering cross section is calculated at the surface of the
+        # particle. Further absorption as photon packets travel through the 
+        # sample are accounted for in the absorb() function.   
+        if mie_theory == True:
+            p = phase_function(m, x, angles, volume_fraction, ksquared, 
+                               mie_theory=True)[0]
+            struct_factor = [1,1]
+        
+        else:
+            p = phase_function(m, x, angles, volume_fraction, ksquared, 
+                               mie_theory=False)[0]        
+            struct_factor = model.differential_cross_section(m, x, angles, 
+                                                             volume_fraction,
+                                                             form_type=None) 
+        distance = np.array(radius).max() * radius.units        
+        form_factor = mie.diff_scat_intensity_complex_medium(m, x, angles, 
+                                                             k*distance)
+        diff_cs_par = form_factor[0] * struct_factor[0]
+        diff_cs_per = form_factor[1] * struct_factor[1]
+        cscat_total = mie.integrate_intensity_complex_medium(diff_cs_par, 
+                                                             diff_cs_per, 
+                                                             distance,angles,k)[0]  
+        mu_scat = number_density * cscat_total
+        
+        # The absorption coefficient can be calculated from the imaginary 
+        # component of the samples's refractive index
+        mu_abs = 4*np.pi*n_sample.imag/wavelen
+        
+#        # Calculate absorption coefficient for 1 particle (because there isn't
+#        # a structure factor for absorption)
+#        nstop = mie._nstop(np.array(x).max())
+#        # if the index ratio m is an array with more than 1 element, it's a 
+#        # multilayer particle
+#        if len(np.atleast_1d(m)) > 1:
+#            coeffs = msl.scatcoeffs_multi(m, x)
+#            cabs_part = mie._cross_sections_complex_medium_sudiarta(coeffs[0], 
+#                                                                    coeffs[1], 
+#                                                                    x,radius)[1]
+#            if cabs_part.magnitude < 0.0:
+#                cabs_part = 0.0 * cabs_part.units
+#        else:
+#            al, bl = mie._scatcoeffs(m, x, nstop)   
+#            cl, dl = mie._internal_coeffs(m, x, nstop)
+#            x_scat = size_parameter(wavelen, n_particle, radius)
+#            cabs_part = mie._cross_sections_complex_medium_fu(al, bl, cl, dl, 
+#                                                              radius,n_particle, 
+#                                                              n_sample, x_scat, 
+#                                                              x, wavelen)[1]                                                      
+#        mu_abs = cabs_part * number_density
 
-    # If phase_mie is set to False, use the phase function from the model
-    if phase_mie == False:
-        p = (diff_sigma_par + diff_sigma_per)/(ksquared * 2 * sigma_total)
-
-    # If mu_scat_mie is set to True, use the scattering coeff from Mie theory
-    if mu_scat_mie == True:
-        cscat = cross_sections[0]
-        mu_scat = cscat * number_density
-
-    # If mu_scat_mie is set to False, use the scattering coeff from the model
-    if mu_scat_mie == False:
-        mu_scat = number_density * sigma_total
+    else:
+        # If there is no absorption in the sample, use the standard Mie 
+        # solutions with the far-field approximation
+        # Calculate the absorption coefficient. Use wavelen/n_sample: 
+        # wavelength of incident light *in media* (usually this would be the 
+        # wavelength in the effective index of the particle-matrix composite). 
+        cross_sections = mie.calc_cross_sections(m, x, wavelen/n_sample)  
+        cabs_part = cross_sections[2]                                               
+        mu_abs = cabs_part * number_density
+        
+        # If mie is set to True, calculate the phase function and scattering 
+        # coefficient for 1 particle using Mie theory
+        if mie == True:
+            S2squared, S1squared = mie.calc_ang_dist(m, x, angles)
+            S11 = (S1squared + S2squared)/2
+            cscat_total = cross_sections[0]
+            
+            p = S11 / (ksquared * cscat_total)
+            mu_scat = cscat_total * number_density
+        
+        else:           
+            p, cscat_total = phase_function(m, x, angles, volume_fraction, 
+                                            ksquared, mie_theory=False) 
+            mu_scat = number_density * cscat_total
 
     # Here, the resulting units of mu_scat and mu_abs are nm^2/um^3. Thus, we 
     # simplify the units to 1/um 
@@ -1633,7 +1853,7 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
     mu_abs = mu_abs.to('1/um')
     
     return p, mu_scat, mu_abs
-
+    
 
 def sample_angles(nevents, ntraj, p):
     """
@@ -1660,7 +1880,7 @@ def sample_angles(nevents, ntraj, p):
     # pi). A non-zero minimum angle is needed because in the single scattering 
     # model, if the analytic formula is used, S(q=0) returns nan.
     min_angle = 0.01            
-    angles = sc.Quantity(np.linspace(min_angle,np.pi, 200), 'rad')   
+    angles = sc.Quantity(np.linspace(min_angle,np.pi, 200), 'rad')  
 
     # Random sampling of azimuthal angle phi from uniform distribution [0 -
     # 2pi]

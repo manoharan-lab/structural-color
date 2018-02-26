@@ -21,6 +21,8 @@ Tests for the structure module
 """
 
 from .. import Quantity, ureg, q, np, structure
+from .. import size_parameter
+from .. import refractive_index as ri
 from nose.tools import assert_raises, assert_equal
 from numpy.testing import assert_almost_equal, assert_array_almost_equal
 from pint.errors import DimensionalityError
@@ -60,3 +62,48 @@ def test_structure_factor_percus_yevick():
     assert_almost_equal(max_qds[0], 6.00, decimal=1)
     assert_almost_equal(max_qds[1], 6.37, decimal=1)
     assert_almost_equal(max_qds[2], 6.84, decimal=1)
+    
+def test_structure_factor_percus_yevick_core_shell():
+    # Test that the structure factor is the same for core-shell particles and 
+    # non-core-shell particles at low volume fraction (assuming the core diameter 
+    # is the same as the particle diameter for the non-core-shell case)
+    
+    wavelen = Quantity('400 nm')
+    angles = Quantity(np.pi, 'rad')
+    n_matrix = Quantity(1.0, '')
+    
+    # Structure factor for non-core-shell particles       
+    radius = Quantity('100 nm')    
+    n_particle = Quantity(1.5, '')
+    volume_fraction = Quantity(0.0001, '')         # IS VF TOO LOW?
+    n_sample = ri.n_eff(n_particle, n_matrix, volume_fraction)
+    x = size_parameter(wavelen, n_sample, radius)       
+    qd = 4*x*np.sin(angles/2) 
+    s = structure.factor_py(qd, volume_fraction)
+    
+    # Structure factor for core-shell particles with core size equal to radius
+    # of non-core-shell particle   
+    radius_cs = Quantity(np.array([100, 105]), 'nm')    
+    n_particle_cs = Quantity(np.array([1.5, 1.0]), '')
+    volume_fraction_shell = volume_fraction * (radius_cs[1]**3 / radius_cs[0]**3 -1)
+    volume_fraction_cs = Quantity(np.array([volume_fraction.magnitude, volume_fraction_shell.magnitude]), '')
+
+    n_sample_cs = ri.n_eff(n_particle_cs, n_matrix, volume_fraction_cs)
+    x_cs = size_parameter(wavelen, n_sample_cs, radius_cs[1]).flatten() 
+    qd_cs = 4*x_cs*np.sin(angles/2) 
+    s_cs = structure.factor_py(qd_cs, np.sum(volume_fraction_cs))
+    print(s, s_cs)
+    assert_almost_equal(s.magnitude, s_cs.magnitude, decimal=5)
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
