@@ -723,7 +723,7 @@ def fresnel_pass_frac_sphere(radius, indices, n_before, n_inside, n_after,
         n_inside = n_before
 
     #find angles before
-    _, _, theta_before = get_angles_sphere(x,y,z,radius, indices, incident = incident, plot_exits = plot_exits)
+    k1, norm, theta_before = get_angles_sphere(x,y,z,radius, indices, incident = incident, plot_exits = plot_exits)
     
     #find angles inside
     theta_inside = refraction(theta_before, n_before, n_inside)
@@ -745,7 +745,7 @@ def fresnel_pass_frac_sphere(radius, indices, n_before, n_inside, n_after,
 
     #Any number of higher order reflections off the two interfaces
     #Use converging geometric series 1+a+a**2+a**3...=1/(1-a)
-    return fresnel_trans/(1-fresnel_refl+eps)
+    return k1, norm, fresnel_trans/(1-fresnel_refl+eps)
 
 def detect_correct(kz, weights, indices, n_before, n_after, thresh_angle):
     '''
@@ -800,7 +800,7 @@ def refraction(angles, n_before, n_after):
     return np.arcsin(snell)
 
 def calc_refl_trans(trajectories, z_low, cutoff, n_medium, n_sample,
-                    n_front=None, n_back=None, detection_angle=np.pi/2):
+                    n_front=None, n_back=None, detection_angle=np.pi/2, return_extra = False):
     """
     Counts the fraction of reflected and transmitted trajectories after a cutoff.
     Identifies which trajectories are reflected or transmitted, and at which
@@ -954,12 +954,16 @@ def calc_refl_trans(trajectories, z_low, cutoff, n_medium, n_sample,
     reflectance = refl_detected + extra_refl * refl_det_frac + inc_refl
 
     #calculate mean reflectance and transmittance for all trajectories
-    return (np.sum(reflectance)/ntraj, np.sum(transmittance/ntraj))
+    if return_extra:
+        # divide by ntraj to get reflectance per trajectory
+        return refl_indices, trans_indices, reflected/ntraj, trans_frac, refl_frac, refl_fresnel/ntraj, trans_fresnel/ntraj, inc_refl/ntraj, np.sum(reflectance)/ntraj
+    else:
+        return (np.sum(reflectance)/ntraj, np.sum(transmittance/ntraj))
 
 
 def calc_refl_trans_sphere(trajectories, n_medium, n_sample, radius, p, mu_abs, mu_scat,
                            detection_angle = np.pi/2, plot_exits = False, tir = False,
-                           run_tir = True, call_depth = 0, max_call_depth = 20):
+                           run_tir = True, return_extra = False, call_depth = 0, max_call_depth = 20):
     """
     Counts the fraction of reflected and transmitted trajectories for an 
     assembly with a spherical boundary. Identifies which trajectories are 
@@ -1097,7 +1101,7 @@ def calc_refl_trans_sphere(trajectories, n_medium, n_sample, radius, p, mu_abs, 
     # init_dir is reverse-corrected for refraction. = kz before medium/sample interface
     # calculate initial weights that actually enter the sample after fresnel
     if tir == False:
-        inc_fraction = fresnel_pass_frac_sphere(radius, np.ones(ntraj), n_medium,
+        _, _, inc_fraction = fresnel_pass_frac_sphere(radius, np.ones(ntraj), n_medium,
                                                 None, n_sample, x, y, z, incident = True)    
     else:
         inc_fraction = np.ones(ntraj)
@@ -1114,13 +1118,15 @@ def calc_refl_trans_sphere(trajectories, n_medium, n_sample, radius, p, mu_abs, 
     if stuck_frac >= 20: warnings.warn(stuck_traj_warn)
 
     # correct for non-TIR fresnel reflection upon exiting
-    reflected = refl_weights * fresnel_pass_frac_sphere(radius,refl_indices, n_sample, None, n_medium, x, y, z, 
+    k1_refl, norm_refl, fresnel_pass_frac_refl = fresnel_pass_frac_sphere(radius,refl_indices, n_sample, None, n_medium, x, y, z, 
                                                         plot_exits = plot_exits)
+    reflected = refl_weights * fresnel_pass_frac_refl
     if plot_exits == True:
         plt.gca().set_title('Reflected exits')
         plt.gca().view_init(-164,-155)
-    transmitted = trans_weights * fresnel_pass_frac_sphere(radius,trans_indices, n_sample, None, n_medium, x, y, z, 
-                                                           plot_exits = plot_exits)
+    k1_trans, norm_trans, fresnel_pass_frac_trans = fresnel_pass_frac_sphere(radius, trans_indices, n_sample, None, n_medium, x, y, z, 
+                                                        plot_exits = plot_exits)
+    transmitted = trans_weights * fresnel_pass_frac_trans
     if plot_exits == True:
         plt.gca().set_title('Transmitted exits')
         plt.gca().view_init(-164,-155)
@@ -1249,7 +1255,12 @@ def calc_refl_trans_sphere(trajectories, n_medium, n_sample, radius, p, mu_abs, 
         # calculate mean reflectance and transmittance for all trajectories
         reflectance_mean = np.sum(reflectance)/ntraj
         transmittance_mean = np.sum(transmittance)/ntraj
-        return (reflectance_mean, transmittance_mean) 
+        
+        if return_extra == True:
+            return (k1_refl, k1_trans, norm_refl, norm_trans, reflectance_mean, transmittance_mean)
+        
+        else:               
+            return (reflectance_mean, transmittance_mean) 
 
 def initialize(nevents, ntraj, n_medium, n_sample, seed=None, incidence_angle=0.):
 
