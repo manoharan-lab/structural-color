@@ -176,17 +176,10 @@ class Trajectory:
             Step size of packet (sampled from scattering lengths).
             
         """
-<<<<<<< HEAD
-        
-        # Beer-Lambert
-        #weight = np.exp(-mu_abs*np.cumsum(step_size[:,:], axis=0))
-        weight = self.weight*np.exp(-mu_abs*np.cumsum(step_size[:,:], axis=0))
-=======
         # beer lambert
         weight = self.weight*np.exp(-(mu_abs * np.cumsum(step_size[:,:], 
                                                          axis=0)).to(''))
 
->>>>>>> 334cbe7c20f21f5af5f753f5b9b751a473848fd8
         self.weight = sc.Quantity(weight)
 
 
@@ -732,11 +725,7 @@ def fresnel_pass_frac_sphere(radius, indices, n_before, n_inside, n_after,
         n_inside = n_before
 
     #find angles before
-<<<<<<< HEAD
     k1, norm, theta_before = get_angles_sphere(x,y,z,radius, indices, incident = incident, plot_exits = plot_exits)
-=======
-    _, _, theta_before = get_angles_sphere(x,y,z,radius, indices, incident = incident, plot_exits = plot_exits)
->>>>>>> 334cbe7c20f21f5af5f753f5b9b751a473848fd8
     
     #find angles inside
     theta_inside = refraction(theta_before, n_before, n_inside)
@@ -972,7 +961,6 @@ def calc_refl_trans(trajectories, z_low, cutoff, n_medium, n_sample,
     reflectance = refl_detected + extra_refl * refl_det_frac + inc_refl
 
     #calculate mean reflectance and transmittance for all trajectories
-<<<<<<< HEAD
     if return_extra:
         # divide by ntraj to get reflectance per trajectory
         return refl_indices, trans_indices, reflected/ntraj, trans_frac, refl_frac, refl_fresnel/ntraj, trans_fresnel/ntraj, inc_refl/ntraj, np.sum(reflectance)/ntraj
@@ -980,18 +968,10 @@ def calc_refl_trans(trajectories, z_low, cutoff, n_medium, n_sample,
         return (np.sum(reflectance)/ntraj, np.sum(transmittance/ntraj))
 
 
-def calc_refl_trans_sphere(trajectories, n_medium, n_sample, radius, p, mu_abs, mu_scat,
-                           detection_angle = np.pi/2, plot_exits = False, tir = False,
-                           run_tir = True, return_extra = False, call_depth = 0, max_call_depth = 20):
-=======
-    return (np.sum(reflectance)/ntraj, np.sum(transmittance/ntraj))
-
-
 def calc_refl_trans_sphere(trajectories, n_medium, n_sample, radius, p, mu_abs, 
                            mu_scat, detection_angle = np.pi/2, 
                            plot_exits = False, tir = False, run_tir = True, 
-                           call_depth = 0, max_call_depth = 20):
->>>>>>> 334cbe7c20f21f5af5f753f5b9b751a473848fd8
+                           return_extra = False, call_depth = 0, max_call_depth = 20):
     """
     Counts the fraction of reflected and transmitted trajectories for an 
     assembly with a spherical boundary. Identifies which trajectories are 
@@ -1065,11 +1045,8 @@ def calc_refl_trans_sphere(trajectories, n_medium, n_sample, radius, p, mu_abs,
     Note: absorptance of the sample can be found by 1 - reflectance - transmittance
     
     """   
-<<<<<<< HEAD
-=======
     n_sample = np.abs(n_sample)
-    
->>>>>>> 334cbe7c20f21f5af5f753f5b9b751a473848fd8
+
     # set up the values we need as numpy arrays
     x, y, z = trajectories.position
     if isinstance(z, sc.Quantity):
@@ -1127,7 +1104,6 @@ def calc_refl_trans_sphere(trajectories, n_medium, n_sample, radius, p, mu_abs,
     refl_indices = low_event * low_first
     trans_indices = high_event * high_first
     stuck_indices = never_exit * (z.shape[0]-1)
-<<<<<<< HEAD
 
     # for now, we assume initial direction is in +z
     init_dir = np.ones(ntraj)
@@ -1257,15 +1233,13 @@ def calc_refl_trans_sphere(trajectories, n_medium, n_sample, radius, p, mu_abs,
         # Generate a matrix of all the randomly sampled angles first 
         sintheta, costheta, sinphi, cosphi, _, _ = sample_angles(nevents, ntraj, p)
 
-=======
-
     # for now, we assume initial direction is in +z
     init_dir = np.ones(ntraj)
 
     # init_dir is reverse-corrected for refraction. = kz before medium/sample interface
     # calculate initial weights that actually enter the sample after fresnel
     if tir == False:
-        inc_fraction = fresnel_pass_frac_sphere(radius, np.ones(ntraj), n_medium,
+        _, _, inc_fraction = fresnel_pass_frac_sphere(radius, np.ones(ntraj), n_medium,
                                                 None, n_sample, x, y, z, incident = True)    
     else:
         inc_fraction = np.ones(ntraj)
@@ -1283,12 +1257,12 @@ def calc_refl_trans_sphere(trajectories, n_medium, n_sample, radius, p, mu_abs,
 
     # correct for non-TIR fresnel reflection upon exiting
     reflected = refl_weights * fresnel_pass_frac_sphere(radius,refl_indices, n_sample, None, n_medium, x, y, z, 
-                                                        plot_exits = plot_exits)
+                                                        plot_exits = plot_exits)[2]
     if plot_exits == True:
         plt.gca().set_title('Reflected exits')
         plt.gca().view_init(-164,-155)
     transmitted = trans_weights * fresnel_pass_frac_sphere(radius,trans_indices, n_sample, None, n_medium, x, y, z, 
-                                                           plot_exits = plot_exits)
+                                                           plot_exits = plot_exits)[2]
     if plot_exits == True:
         plt.gca().set_title('Transmitted exits')
         plt.gca().view_init(-164,-155)
@@ -1385,7 +1359,6 @@ def calc_refl_trans_sphere(trajectories, n_medium, n_sample, radius, p, mu_abs,
         # Generate a matrix of all the randomly sampled angles first 
         sintheta, costheta, sinphi, cosphi, _, _ = sample_angles(nevents, ntraj, p)
 
->>>>>>> 334cbe7c20f21f5af5f753f5b9b751a473848fd8
         # Create step size distribution
         step = sample_step(nevents, ntraj, mu_abs, mu_scat)
     
@@ -1397,11 +1370,7 @@ def calc_refl_trans_sphere(trajectories, n_medium, n_sample, radius, p, mu_abs,
         # Calculate reflection and transmition 
         reflectance_tir, transmittance_tir = calc_refl_trans_sphere(trajectories_tir, 
                                                                     n_medium, n_sample, 
-<<<<<<< HEAD
                                                                     radius, p, mu_abs, mu_scat, 
-=======
-                                                                    radius, p, mu_abs, mu_scat,
->>>>>>> 334cbe7c20f21f5af5f753f5b9b751a473848fd8
                                                                     plot_exits = plot_exits,
                                                                     tir = True, call_depth = call_depth+1)
         return (reflectance_tir + reflectance_mean, transmittance_tir + transmittance_mean)
@@ -1422,16 +1391,12 @@ def calc_refl_trans_sphere(trajectories, n_medium, n_sample, radius, p, mu_abs,
         # calculate mean reflectance and transmittance for all trajectories
         reflectance_mean = np.sum(reflectance)/ntraj
         transmittance_mean = np.sum(transmittance)/ntraj
-<<<<<<< HEAD
         
         if return_extra == True:
             return (k1_refl, k1_trans, norm_refl, norm_trans, reflectance_mean, transmittance_mean)
         
         else:               
             return (reflectance_mean, transmittance_mean) 
-=======
-        return (reflectance_mean, transmittance_mean) 
->>>>>>> 334cbe7c20f21f5af5f753f5b9b751a473848fd8
 
 def initialize(nevents, ntraj, n_medium, n_sample, seed=None, incidence_angle=0.):
 
@@ -1642,11 +1607,8 @@ def initialize_sphere(nevents, ntraj, n_medium, n_sample, radius, seed=None,
     sinphi = neg_normal[1,:]/np.sin(theta)
     
     # refraction of incident light upon entering the sample
-<<<<<<< HEAD
-    theta = refraction(theta, n_medium, n_sample) 
-=======
+
     theta = refraction(theta, n_medium, np.abs(n_sample))
->>>>>>> 334cbe7c20f21f5af5f753f5b9b751a473848fd8
     sintheta = np.sin(theta)
     costheta = np.cos(theta)
     
