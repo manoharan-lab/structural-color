@@ -117,6 +117,14 @@ n_dict = {
     # data for "room temperature", 0.31-4.6 micrometers
     'soda lime glass': lambda w: 1.5130 - Quantity('0.003169 um^-2')*w*w + 
                                                   Quantity('0.003962 um^2')/(w*w),
+                                                  
+                                                  
+    # zirconia (ZrO2) data from I. Bodurov, I. Vlaeva, A. Viraneva, 
+    # T. Yovcheva, S. Sainov. Modified design of a laser refractometer, 
+    # Nanoscience & Nanotechnology 16, 31-33 (2016). 
+    # data for 24 degrees C, 0.405 - 0.635 micrometers
+    'zirconia': lambda w: np.sqrt(1 + 3.3037*w*w/
+                                  (w*w - Quantity('0.1987971**2 um**2'))),
                                       
     # the w/w is a crude hack to make the function output an array when the
     # input is an array
