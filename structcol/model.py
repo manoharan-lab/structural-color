@@ -36,9 +36,14 @@ from . import structure
 import pymie as pm
 from pymie import mie, size_parameter, index_ratio
 from pymie import multilayer_sphere_lib as msl
+import scipy
+from scipy.misc import factorial
 
 @ureg.check('[]', '[]', '[]', '[length]', '[length]', '[]')
 def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
+               radius2=None, 
+               concentration=None,
+               pdi=None,
                thickness=None,
                theta_min=Quantity('90 deg'),
                theta_max=Quantity('180 deg'),
@@ -160,7 +165,12 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
     Beetles” Physical Review E 90, no. 6 (2014): 62302.
     doi:10.1103/PhysRevE.90.062302
     """
-    
+    # radius and radius2 should be in the same units (for polydisperse samples)
+    if radius2 is not None:
+        radius2 = radius2.to(radius.units)
+    if radius2 is None:
+        radius2 = radius
+        
     # check that the number of indices and radii is the same
     if len(np.atleast_1d(n_particle)) != len(np.atleast_1d(radius)):
        raise ValueError('Arrays of indices and radii must be the same length')
@@ -178,7 +188,7 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
     # particle-matrix composite
     n_sample = ri.n_eff(n_particle, n_matrix, vf_array, 
                         maxwell_garnett=maxwell_garnett)
-                    
+                   
     if len(np.atleast_1d(radius)) > 1:
         m = index_ratio(n_particle, n_sample).flatten()  
         x = size_parameter(wavelen, n_sample, radius).flatten()
@@ -187,7 +197,7 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
         x = size_parameter(wavelen, n_sample, radius)
 
     k = 2*np.pi*n_sample/wavelen  
-
+    
     # calculate transmission and reflection coefficients at first interface
     # between medium and sample
     # (TODO: include correction for reflection off the back interface of the
@@ -242,7 +252,12 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
         
         # calculate only the structure factor in the detected range of angles
         struct_factor_det = differential_cross_section(m, x, angles, volume_fraction,
-                                                       form_type=None) 
+                                                       structure_type, form_type=None, 
+                                                       diameters=Quantity(np.array([2*radius.magnitude,
+                                                                          2*radius2.magnitude]),
+                                                                          radius.units),
+                                                       concentration=concentration,
+                                                       pdi=pdi, wavelen=wavelen, n_matrix=n_sample) 
         # calculate the form factor from the exact Mie solutions                                              
         form_factor_scat = mie.diff_scat_intensity_complex_medium(m, x, angles, 
                                                                   k*thickness)
@@ -261,7 +276,12 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
         # calculate total scattering cross section
         angles = Quantity(np.linspace(0.0+small_angle, np.pi, num_angles), 'rad')
         struct_factor_tot = differential_cross_section(m, x, angles, volume_fraction,
-                                                       form_type=None) 
+                                                       structure_type, form_type=None,
+                                                       diameters=Quantity(np.array([2*radius.magnitude,
+                                                                          2*radius2.magnitude]),
+                                                                          radius.units),
+                                                       concentration=concentration,
+                                                       pdi=pdi, wavelen=wavelen, n_matrix=n_sample) 
         form_factor_tot = mie.diff_scat_intensity_complex_medium(m, x, angles, 
                                                                  k*thickness)
         diff_scat_tot_par = form_factor_tot[0] * struct_factor_tot[0]
@@ -276,25 +296,35 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
         # multilayer particle
         if len(np.atleast_1d(m)) > 1:
             coeffs = msl.scatcoeffs_multi(m, x)
-            cabs_total = mie._cross_sections_complex_medium_sudiarta(coeffs[0], coeffs[1], x, radius)[1]
+            cabs_total = mie._cross_sections_complex_medium_sudiarta(coeffs[0], 
+                                                                     coeffs[1], 
+                                                                     x, radius)[1]
             if cabs_total.magnitude < 0.0:
                 cabs_total = 0.0 * cabs_total.units
         else:
             coeffs = mie._scatcoeffs(m, x, nstop)   
             internal_coeffs = mie._internal_coeffs(m, x, nstop)
             x_scat = size_parameter(wavelen, n_particle, radius)
-            cabs_total = mie._cross_sections_complex_medium_fu(coeffs[0], coeffs[1], internal_coeffs[0], 
-                                                               internal_coeffs[1], radius, n_particle, 
-                                                               n_sample, x_scat, x, wavelen)[1]                                                      
+            cabs_total = mie._cross_sections_complex_medium_fu(coeffs[0], coeffs[1], 
+                                                               internal_coeffs[0], 
+                                                               internal_coeffs[1], 
+                                                               radius, n_particle, 
+                                                               n_sample, x_scat, 
+                                                               x, wavelen)[1]                                                      
         cext_total = cscat_total + cabs_total
         
     else:    
-        diff_cs = differential_cross_section(m, x, angles, volume_fraction,
-                                             structure_type, form_type)                                   
-        cscat_detected_par = _integrate_cross_section(diff_cs[0],
+        diff_cs_detected = differential_cross_section(m, x, angles, volume_fraction,
+                                                      structure_type, form_type,
+                                                      diameters=Quantity(np.array([2*radius.magnitude,
+                                                                          2*radius2.magnitude]),
+                                                                          radius.units),
+                                                      concentration=concentration,
+                                                      pdi=pdi, wavelen=wavelen, n_matrix=n_sample)                                   
+        cscat_detected_par = _integrate_cross_section(diff_cs_detected[0],
                                                   transmission[0]/np.abs(k)**2, 
                                                   angles, azi_angle_range)
-        cscat_detected_perp = _integrate_cross_section(diff_cs[1],
+        cscat_detected_perp = _integrate_cross_section(diff_cs_detected[1],
                                                    transmission[1]/np.abs(k)**2, 
                                                    angles, azi_angle_range)
         cscat_detected = (cscat_detected_par + cscat_detected_perp)/2.0
@@ -305,11 +335,16 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
         # Fresnel coefficients do not appear in this integral since we're using 
         # the total cross-section to account for the attenuation in intensity 
         # as light propagates through the sample
-        diff_cs = differential_cross_section(m, x, angles, volume_fraction,
-                                             structure_type, form_type)
-        cscat_total_par = _integrate_cross_section(diff_cs[0], 1.0/np.abs(k)**2,  
+        diff_cs_total = differential_cross_section(m, x, angles, volume_fraction,
+                                                   structure_type, form_type,
+                                                   diameters=Quantity(np.array([2*radius.magnitude,
+                                                                          2*radius2.magnitude]),
+                                                                          radius.units),
+                                                   concentration=concentration,
+                                                   pdi=pdi, wavelen=wavelen, n_matrix=n_sample)
+        cscat_total_par = _integrate_cross_section(diff_cs_total[0], 1.0/np.abs(k)**2,  
                                                angles, azi_angle_range)
-        cscat_total_perp = _integrate_cross_section(diff_cs[1], 1.0/np.abs(k)**2, 
+        cscat_total_perp = _integrate_cross_section(diff_cs_total[1], 1.0/np.abs(k)**2, 
                                                 angles, azi_angle_range)
         cscat_total = (cscat_total_par + cscat_total_perp)/2.0
         
@@ -321,7 +356,12 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
     angles = Quantity(np.linspace(0.0+small_angle, np.pi, num_angles), 'rad')
     azi_angle_range = Quantity(2*np.pi,'rad')    
     diff_cs = differential_cross_section(m, x, angles, volume_fraction,
-                                        structure_type, form_type)
+                                        structure_type, form_type, 
+                                        diameters=Quantity(np.array([2*radius.magnitude,
+                                                           2*radius2.magnitude]),
+                                                           radius.units),
+                                        concentration=concentration, pdi=pdi, 
+                                        wavelen=wavelen, n_matrix=n_sample)
     asymmetry_par = _integrate_cross_section(diff_cs[0], np.cos(angles)*1.0/np.abs(k)**2,
                                              angles, azi_angle_range)
     asymmetry_perp = _integrate_cross_section(diff_cs[1], np.cos(angles)*1.0/np.abs(k)**2,
@@ -362,7 +402,9 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
 @ureg.check('[]', '[]', '[]', '[]')
 def differential_cross_section(m, x, angles, volume_fraction, 
                                structure_type = 'glass', 
-                               form_type = 'sphere'):
+                               form_type = 'sphere', 
+                               diameters=None, concentration=None, pdi=None, 
+                               wavelen=None, n_matrix=None):
     """
     Calculate dimensionless differential scattering cross-section for a sphere,
     including contributions from the structure factor. Need to multiply by k**2
@@ -380,9 +422,18 @@ def differential_cross_section(m, x, angles, volume_fraction,
     volume_fraction: float
         volume fraction of the particles. If core-shell, should be volume 
         fraction of the entire core-shell particle.
+    diameters: ndarray(structcol.Quantity [length])
+        Only for polydisperse systems. Mean diameters of each species of 
+        particles (can be one for a monospecies or two for bispecies). 
+    concentration: ndarray(structcol.Quantity [dimensionless])
+        Only for polydisperse systems. 'Number' concentration of each species. 
+        For ex, a system composed of 90 A particles and 10 B particles would 
+        have c = [0.9, 0.1].
+    pdi: array of floats
+        Only for polydisperse systems. Polydispersity index of each species. 
     structure_type: str or None
         type of structure to calculate the structure factor. Can be 'glass', 
-        'paracrystal', or None. 
+        'paracrystal', 'polydisperse', or None. 
     form_type: str or None
         type of particle geometry to calculate the form factor. Can be 'sphere'
         or None.
@@ -399,12 +450,63 @@ def differential_cross_section(m, x, angles, volume_fraction,
         form_factor = mie.calc_ang_dist(m, x, angles)
         f_par = form_factor[0]  
         f_perp = form_factor[1]
+    
+    elif form_type == 'polydisperse':
+        if diameters is None or concentration is None or pdi is None or wavelen is None or n_matrix is None:
+            raise ValueError('must specify diameters, concentration, pdi, wavelength, and n_matrix for polydisperperse systems')
+        
+        def size_distribution(diameters, mean, t):
+            if t <= 100:
+                schulz = ((t+1)/mean)**(t+1) * diameters**t / factorial(t) * np.exp(-diameters/mean*(t+1))
+                norm = np.trapz(schulz, x=diameters)
+                distr = schulz / norm      
+            else:
+                std_dev = diameters / np.sqrt(t+1)
+                distr = np.exp(-(diameters - mean)**2 / (2 * std_dev**2)) / np.sqrt(2*np.pi*std_dev**2)
+            return(distr)
+        
+        t = np.abs(1/(pdi**2)) - 1
+        
+        # define the range of diameters of the size distribution
+        three_std_dev = 3*diameters/np.sqrt(t+1)       
+        min_diameter = diameters - three_std_dev
+        min_diameter[min_diameter.magnitude < 0] = Quantity(0, diameters.units)
+        max_diameter = diameters + three_std_dev
+        
+        F_par = np.empty([len(np.atleast_1d(diameters)), len(angles)])
+        F_perp = np.empty([len(np.atleast_1d(diameters)), len(angles)])
+        
+        for d in np.arange(len(np.atleast_1d(diameters))):
+            diameter_range = np.linspace(np.atleast_1d(min_diameter)[d], np.atleast_1d(max_diameter)[d], 50)
+            distr = size_distribution(diameter_range, np.atleast_1d(diameters)[d], np.atleast_1d(t)[d])
+            distr_array = np.tile(distr, [len(angles),1])
+            angles_array = np.tile(angles, [len(diameter_range),1])
+            x_poly = size_parameter(wavelen, n_matrix, Quantity(diameter_range/2, diameters.units))
+
+            form_factor_par = np.empty([len(angles), len(diameter_range)])
+            form_factor_perp = np.empty([len(angles), len(diameter_range)])
+            integrand_par = np.empty([len(angles), len(diameter_range)])
+            integrand_perp = np.empty([len(angles), len(diameter_range)])
+
+            for s in np.arange(len(diameter_range)):
+                form_factor = mie.calc_ang_dist(m, x_poly[s], Quantity(angles_array[s], angles.units))
+                form_factor_par[:,s] = form_factor[0]
+                form_factor_perp[:,s] = form_factor[1]
+                
+            integrand_par = form_factor_par * distr_array
+            integrand_perp = form_factor_perp * distr_array
+            F_par[d,:] = np.trapz(integrand_par, x=diameter_range, axis=1) * np.atleast_1d(concentration)[d]
+            F_perp[d,:] = np.trapz(integrand_perp, x=diameter_range, axis=1) * np.atleast_1d(concentration)[d]
+            
+        f_par = np.sum(F_par, axis=0)
+        f_perp = np.sum(F_perp, axis=0)
+        
     elif form_type is None:
         f_par = 1
         f_perp = 1
     else:
         raise ValueError('form factor type not recognized!')
-
+    
     # calculate structure factor
     qd = 4*np.array(np.abs(x)).max()*np.sin(angles/2)  #TODO: should it be x.real or x.abs?
 
@@ -418,8 +520,21 @@ def differential_cross_section(m, x, angles, volume_fraction,
     elif isinstance(structure_type, str):
         if structure_type == 'glass':    
             s = structure.factor_py(qd, volume_fraction)
+            
         elif structure_type == 'paracrystal':
             s = structure.factor_para(qd)
+        
+        elif structure_type == 'polydisperse':
+            if diameters is None or concentration is None or pdi is None:
+                raise ValueError('must specify diameters, concentration, and pdi for polydisperperse systems')
+            if len(np.atleast_1d(m)) > 1:
+                raise ValueError('cannot handle polydispersity in core-shell particles')
+             
+            q = qd / diameters[0]
+   
+            s = structure.factor_poly(q, volume_fraction, diameters, 
+                                      concentration, pdi)
+                                 
         else: 
             raise ValueError('structure factor type not recognized!')
             
@@ -427,7 +542,7 @@ def differential_cross_section(m, x, angles, volume_fraction,
         s = 1
     else:
         raise ValueError('structure factor type not recognized!')
-        
+
     scat_par = s * f_par
     scat_perp = s * f_perp
 
