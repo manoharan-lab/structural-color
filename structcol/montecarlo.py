@@ -360,7 +360,14 @@ def find_exit_intersect(x0,y0,z0, x1, y1, z1, radius):
         x,y,z = params
         return((x-x0)/(x1-x0)-(y-y0)/(y1-y0), (z-z0)/(z1-z0)-(y-y0)/(y1-y0), x**2 + y**2 + z**2-radius**2 )
 
-    intersect_pt, infodict, ler, mesg = fsolve(equations,(x1,y1,z1), full_output = True) # initial guess is x0,y0,z0
+    if (x1**2 + y1**2 + z1**2 > 10**20):
+        if z1<=0:
+            guess = (x0, y0, z0 -2*radius)
+        else:
+            guess = (x0, y0, z0 + 2*radius)
+    else:
+        guess = (x1, y1, z1)
+    intersect_pt, infodict, ler, mesg = fsolve(equations, guess, full_output = True) # initial guess is x1,y1,z1
 
     return intersect_pt[0], intersect_pt[1], intersect_pt[2]
     
@@ -404,13 +411,22 @@ def exit_kz(x, y, z, indices, radius, n_inside, n_outside):
     
     # TODO make sure signs work out
     # use Snell's law to calculate angle between k2 and normal vector
+    # theta_2 is nan if photon is totally internally reflected
     theta_2 = refraction(theta_1, n_inside, n_outside)    
     
     # angle to rotate around is theta_2-theta_1
     theta = theta_2-theta_1
-    
+
     # perform the rotation
     k2z = rotate_refract(norm, kr, theta, k1)
+    
+    # if kz is nan, leave uncorrected
+    # since nan means the trajectory was totally internally reflected, the
+    # exit kz doesn't matter, but in order to calculate the fresnel reflection
+    # back into the sphere, we still need it to count as a potential exit
+    # hence we leave the kz unchanged
+    nan_indices = np.where(np.isnan(k2z))
+    k2z[nan_indices] = k1[2,nan_indices]
     
     return k2z
 
@@ -530,7 +546,7 @@ def get_angles_sphere(x, y, z, radius, indices, incident = False, plot_exits = F
     # Subtract radius from z to center the sphere at 0,0,0. This makes the 
     # following calculations much easier
     z = z - radius
-    
+
     if incident:
         select_x1 = select_events(x, indices)
         select_y1 = select_events(y, indices)
@@ -567,6 +583,8 @@ def get_angles_sphere(x, y, z, radius, indices, incident = False, plot_exits = F
     # calculate the magnitude of exit vector to divide to make a unit vector
     mag = np.sqrt((select_x1-select_x0)**2 + (select_y1-select_y0)**2 
                                            + (select_z1-select_z0)**2)
+    if mag.any() == 0:
+        mag = 1
                                            
     # calculate the vector normal to the sphere boundary at the exit
     norm = np.zeros((3,len(x_inter)))
@@ -576,6 +594,9 @@ def get_angles_sphere(x, y, z, radius, indices, incident = False, plot_exits = F
     norm = norm/radius
     
     # calculate the normalized k1 vector 
+    # note: if the indices array contains a 0, you will get a k1 of nan
+    # this could happen in a case where there is no event (e.g. a reflection event)
+    # for the trajectory, so the index is zero, and no k1 will be relevant
     k1 = np.zeros((3,len(x_inter)))
     k1[0,:] = select_x1 - select_x0
     k1[1,:] = select_y1 - select_y0
@@ -725,7 +746,7 @@ def fresnel_pass_frac_sphere(radius, indices, n_before, n_inside, n_after,
         n_inside = n_before
 
     #find angles before
-    _, _, theta_before = get_angles_sphere(x,y,z,radius, indices, incident = incident, plot_exits = plot_exits)
+    k1, norm, theta_before = get_angles_sphere(x,y,z,radius, indices, incident = incident, plot_exits = plot_exits)
     
     #find angles inside
     theta_inside = refraction(theta_before, n_before, n_inside)
@@ -747,7 +768,7 @@ def fresnel_pass_frac_sphere(radius, indices, n_before, n_inside, n_after,
 
     #Any number of higher order reflections off the two interfaces
     #Use converging geometric series 1+a+a**2+a**3...=1/(1-a)
-    return fresnel_trans/(1-fresnel_refl+eps)
+    return k1, norm, fresnel_trans/(1-fresnel_refl+eps)
 
 def detect_correct(kz, weights, indices, n_before, n_after, thresh_angle):
     '''
@@ -802,7 +823,7 @@ def refraction(angles, n_before, n_after):
     return np.arcsin(snell)
 
 def calc_refl_trans(trajectories, z_low, cutoff, n_medium, n_sample,
-                    n_front=None, n_back=None, detection_angle=np.pi/2):
+                    n_front=None, n_back=None, detection_angle=np.pi/2, return_extra = False):
     """
     Counts the fraction of reflected and transmitted trajectories after a cutoff.
     Identifies which trajectories are reflected or transmitted, and at which
@@ -880,6 +901,7 @@ def calc_refl_trans(trajectories, z_low, cutoff, n_medium, n_sample,
 
     # find all kz with magnitude large enough to exit
     no_tir = abs(kz) > np.cos(np.arcsin(n_medium / n_sample))
+    #no_tir = np.ones((trajectories.nevents, ntraj))>0#abs(kz) > np.cos(np.arcsin(n_medium / n_sample))
 
     # exit in positive direction (transmission) iff crossing odd boundary
     pos_dir = np.mod(z_floors[:-1]+1*(z_floors[1:]>z_floors[:-1]), 2).astype(bool)
@@ -931,7 +953,7 @@ def calc_refl_trans(trajectories, z_low, cutoff, n_medium, n_sample,
     if stuck_frac >= 20: warnings.warn(stuck_traj_warn)
 
     # correct for non-TIR fresnel reflection upon exiting
-    reflected = refl_weights * fresnel_pass_frac(kz, refl_indices, n_sample, n_front, n_medium)
+    reflected = refl_weights * fresnel_pass_frac(kz, refl_indices, n_sample, n_front, n_medium)#<= uncomment
     transmitted = trans_weights * fresnel_pass_frac(kz, trans_indices, n_sample, n_back, n_medium)
     refl_fresnel = refl_weights - reflected
     trans_fresnel = trans_weights - transmitted
@@ -959,15 +981,21 @@ def calc_refl_trans(trajectories, z_low, cutoff, n_medium, n_sample,
     # calculate transmittance and reflectance for each trajectory (in terms of trajectory weights)
     transmittance = trans_detected + extra_trans * trans_det_frac
     reflectance = refl_detected + extra_refl * refl_det_frac + inc_refl
-
     #calculate mean reflectance and transmittance for all trajectories
-    return (np.sum(reflectance)/ntraj, np.sum(transmittance/ntraj))
+    if return_extra:
+        # divide by ntraj to get reflectance per trajectory
+        return refl_indices, trans_indices,\
+               inc_refl/ntraj, reflected/ntraj, transmitted/ntraj,\
+               trans_frac, refl_frac,\
+               refl_fresnel/ntraj, trans_fresnel/ntraj, np.sum(reflectance)/ntraj
+    else:
+        return (np.sum(reflectance)/ntraj, np.sum(transmittance/ntraj))
 
 
 def calc_refl_trans_sphere(trajectories, n_medium, n_sample, radius, p, mu_abs, 
                            mu_scat, detection_angle = np.pi/2, 
                            plot_exits = False, tir = False, run_tir = True, 
-                           call_depth = 0, max_call_depth = 20):
+                           return_extra = False, call_depth = 0, max_call_depth = 20, max_stuck=0.01):
     """
     Counts the fraction of reflected and transmitted trajectories for an 
     assembly with a spherical boundary. Identifies which trajectories are 
@@ -1042,7 +1070,7 @@ def calc_refl_trans_sphere(trajectories, n_medium, n_sample, radius, p, mu_abs,
     
     """   
     n_sample = np.abs(n_sample)
-    
+
     # set up the values we need as numpy arrays
     x, y, z = trajectories.position
     if isinstance(z, sc.Quantity):
@@ -1069,6 +1097,7 @@ def calc_refl_trans_sphere(trajectories, n_medium, n_sample, radius, p, mu_abs,
     potential_exit_indices = np.argmax(np.vstack([np.zeros(ntraj), potential_exits]), axis=0)
     
     # exit in positive direction (transmission)
+    # kz_correct will be nan if trajectory is totally internally reflected
     kz_correct = exit_kz(x, y, z, potential_exit_indices, radius, n_sample, n_medium)
     pos_dir = kz_correct > 0
     
@@ -1081,7 +1110,6 @@ def calc_refl_trans_sphere(trajectories, n_medium, n_sample, radius, p, mu_abs,
     # an initial row of zeros is used to distinguish no events case
     low_event = np.argmax(np.vstack([np.zeros(ntraj),low_bool]), axis=0)
     high_event = np.argmax(np.vstack([np.zeros(ntraj),high_bool]), axis=0)
-
     # find all trajectories that did not exit in each direction
     no_low_exit = (low_event == 0)
     no_high_exit = (high_event == 0)
@@ -1107,7 +1135,7 @@ def calc_refl_trans_sphere(trajectories, n_medium, n_sample, radius, p, mu_abs,
     # init_dir is reverse-corrected for refraction. = kz before medium/sample interface
     # calculate initial weights that actually enter the sample after fresnel
     if tir == False:
-        inc_fraction = fresnel_pass_frac_sphere(radius, np.ones(ntraj), n_medium,
+        _, _, inc_fraction = fresnel_pass_frac_sphere(radius, np.ones(ntraj), n_medium,
                                                 None, n_sample, x, y, z, incident = True)    
     else:
         inc_fraction = np.ones(ntraj)
@@ -1124,13 +1152,16 @@ def calc_refl_trans_sphere(trajectories, n_medium, n_sample, radius, p, mu_abs,
     if stuck_frac >= 20: warnings.warn(stuck_traj_warn)
 
     # correct for non-TIR fresnel reflection upon exiting
-    reflected = refl_weights * fresnel_pass_frac_sphere(radius,refl_indices, n_sample, None, n_medium, x, y, z, 
+    k1_refl, norm_refl, fresnel_pass_frac_refl = fresnel_pass_frac_sphere(radius,refl_indices, n_sample, None, n_medium, x, y, z, 
                                                         plot_exits = plot_exits)
+    reflected = refl_weights * fresnel_pass_frac_refl
     if plot_exits == True:
         plt.gca().set_title('Reflected exits')
         plt.gca().view_init(-164,-155)
-    transmitted = trans_weights * fresnel_pass_frac_sphere(radius,trans_indices, n_sample, None, n_medium, x, y, z, 
-                                                           plot_exits = plot_exits)
+    k1_trans, norm_trans, fresnel_pass_frac_trans = fresnel_pass_frac_sphere(radius, trans_indices, n_sample, None, n_medium, x, y, z, 
+                                                        plot_exits = plot_exits)
+    transmitted = trans_weights * fresnel_pass_frac_trans
+
     if plot_exits == True:
         plt.gca().set_title('Transmitted exits')
         plt.gca().view_init(-164,-155)
@@ -1145,8 +1176,8 @@ def calc_refl_trans_sphere(trajectories, n_medium, n_sample, radius, p, mu_abs,
     # TODO: get working for other detector angles
     inc_refl = 1 - inc_fraction # fresnel reflection incident on sample
     inc_refl = detect_correct(np.array([init_dir]), inc_refl, np.ones(ntraj), n_medium, n_medium, detection_angle)
-    
     trans_detected = transmitted
+
     #trans_detected = detect_correct(kz, transmitted, trans_indices, n_sample, n_medium, detection_angle)
     trans_det_frac = np.max([np.sum(trans_detected),eps]) / np.max([np.sum(transmitted), eps])
 
@@ -1160,8 +1191,7 @@ def calc_refl_trans_sphere(trajectories, n_medium, n_sample, radius, p, mu_abs,
 
     # calculate new trajectories and reflectance if a significant amount of 
     # light stays inside the sphere due to fresnel reflection
-    if run_tir and call_depth < max_call_depth and np.sum(refl_fresnel + trans_fresnel + stuck_weights)/ntraj > .01:
-        
+    if run_tir and call_depth < max_call_depth and np.sum(refl_fresnel + trans_fresnel + stuck_weights)/ntraj > max_stuck:
         # new weights are the weights that are fresnel reflected back into the 
         # sphere
         nevents = trajectories.nevents
@@ -1195,14 +1225,15 @@ def calc_refl_trans_sphere(trajectories, n_medium, n_sample, radius, p, mu_abs,
         directions = sc.Quantity(directions, '')
         
         # dot the normal vector with the direction at exit 
+        # to find the angle between the normal and exit direction
         select_kx = select_events(kx, indices)
         select_ky = select_events(ky, indices)
         select_kz = select_events(kz, indices)
+        dot_kin_normal = np.nan_to_num(np.array([select_kx*x_inter/radius, select_ky*y_inter/radius, select_kz*(z_inter-radius)/radius])) 
         
-        #
-        dot_kin_normal = np.nan_to_num(np.array([select_kx*x_inter/radius, select_ky*y_inter/radius, select_kz*z_inter/radius])) 
-        thetas = np.nan_to_num(np.arccos(dot_kin_normal))
-        k_refl = np.array([select_kx,select_ky,select_kz]*(np.cos(thetas)+np.sin(thetas)))
+        # TODO: explain the math here
+        # Kr = K1 + 2(K dot n-hat)n-hat
+        k_refl = np.array([select_kx,select_ky,select_kz]) - 2*dot_kin_normal*np.array([x_inter/radius,y_inter/radius,(z_inter-radius)/radius])
 
         directions[:,0,:] = k_refl
         directions[0,0,:] = directions[0,0,:] + select_events(kx, stuck_indices)
@@ -1238,9 +1269,10 @@ def calc_refl_trans_sphere(trajectories, n_medium, n_sample, radius, p, mu_abs,
         # Calculate reflection and transmition 
         reflectance_tir, transmittance_tir = calc_refl_trans_sphere(trajectories_tir, 
                                                                     n_medium, n_sample, 
-                                                                    radius, p, mu_abs, mu_scat,
+                                                                    radius, p, mu_abs, mu_scat, 
                                                                     plot_exits = plot_exits,
-                                                                    tir = True, call_depth = call_depth+1)
+                                                                    tir = True, call_depth = call_depth+1,
+                                                                    max_stuck = max_stuck)
         return (reflectance_tir + reflectance_mean, transmittance_tir + transmittance_mean)
         
     else:    
@@ -1259,7 +1291,12 @@ def calc_refl_trans_sphere(trajectories, n_medium, n_sample, radius, p, mu_abs,
         # calculate mean reflectance and transmittance for all trajectories
         reflectance_mean = np.sum(reflectance)/ntraj
         transmittance_mean = np.sum(transmittance)/ntraj
-        return (reflectance_mean, transmittance_mean) 
+        
+        if return_extra == True:
+            return (k1_refl, k1_trans, norm_refl, norm_trans, reflectance_mean, transmittance_mean)
+        
+        else:               
+            return (reflectance_mean, transmittance_mean) 
 
 def initialize(nevents, ntraj, n_medium, n_sample, seed=None, incidence_angle=0.):
 
@@ -1443,13 +1480,16 @@ def initialize_sphere(nevents, ntraj, n_medium, n_sample, radius, seed=None,
     r0 = np.zeros((3, nevents+1, ntraj))
     if isinstance(radius, sc.Quantity):
         radius = radius.to('um').magnitude
-
-    # randomly choose x-positions within sphere radius
-    r0[0,0,:] = 2*radius * (random((1,ntraj))-.5)
+        
+    # randomly choose r on interval [0,radius]
+    r = radius*np.sqrt(random(ntraj))
     
-    # randomly choose y-positions within sphere radius contrained by x-positions
-    for i in range(ntraj):    
-        r0[1,0,i] = 2*np.sqrt(radius**2-r0[0,0,i]**2) * (random((1))-.5)
+    # randomly choose th on interval [0,2*pi]
+    th = 2*np.pi*random(ntraj)
+    
+    # randomly choose x and y-positions within sphere radius
+    r0[0,0,:] = r*np.cos(th) 
+    r0[1,0,:] = r*np.sin(th)
         
     # calculate z-positions from x- and y-positions
     r0[2,0,:] = radius-np.sqrt(radius**2 - r0[0,0,:]**2 - r0[1,0,:]**2)
@@ -1470,6 +1510,7 @@ def initialize_sphere(nevents, ntraj, n_medium, n_sample, radius, seed=None,
     sinphi = neg_normal[1,:]/np.sin(theta)
     
     # refraction of incident light upon entering the sample
+
     theta = refraction(theta, n_medium, np.abs(n_sample))
     sintheta = np.sin(theta)
     costheta = np.cos(theta)
@@ -1569,28 +1610,6 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
     ksquared = np.abs(k)**2  
     m = index_ratio(n_particle, n_sample)
     x = size_parameter(wavelen, n_sample, radius)
-    
-    # Define a function to calculate the phase function (the phase function is 
-    # the same for absorbing and non-absorbing systems)
-    def phase_function(m, x, angles, volume_fraction, ksquared,
-                       mie_theory=False):
-        # If mie_theory = True, calculate the phase function for 1 particle 
-        # using Mie theory (excluding the structure factor)
-        if mie_theory == True:
-            diff_cscat_par, diff_cscat_per = \
-                model.differential_cross_section(m, x, angles, volume_fraction,
-                                                 structure_type=None)
-        else:
-            diff_cscat_par, diff_cscat_per = \
-                model.differential_cross_section(m, x, angles, volume_fraction)
-
-        cscat_total_par = model._integrate_cross_section(diff_cscat_par,
-                                                          1.0/ksquared, angles)
-        cscat_total_perp = model._integrate_cross_section(diff_cscat_per,
-                                                          1.0/ksquared, angles)
-        cscat_total = (cscat_total_par + cscat_total_perp)/2.0
-        p = (diff_cscat_par + diff_cscat_per)/(ksquared * 2 * cscat_total)
-        return(p, cscat_total)
 
     # If n_sample is complex, then the system absorbs and we must use the exact  
     # Mie solutions 
@@ -1598,15 +1617,13 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
         # Calculate phase function and scattering coefficient    
         # The scattering cross section is calculated at the surface of the
         # particle. Further absorption as photon packets travel through the 
-        # sample are accounted for in the absorb() function.   
+        # sample are accounted for in the absorb() function. 
+        p = phase_function(m, x, angles, volume_fraction, ksquared, 
+                           mie_theory=mie_theory)[0]
         if mie_theory == True:
-            p = phase_function(m, x, angles, volume_fraction, ksquared, 
-                               mie_theory=True)[0]
             struct_factor = [1,1]
         
         else:
-            p = phase_function(m, x, angles, volume_fraction, ksquared, 
-                               mie_theory=False)[0]        
             struct_factor = model.differential_cross_section(m, x, angles, 
                                                              volume_fraction,
                                                              form_type=None) 
@@ -1667,7 +1684,7 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
             mu_scat = cscat_total * number_density
         
         else:           
-            p, cscat_total = phase_function(m, x, angles, volume_fraction, 
+            p, p_par, p_perp, cscat_total = phase_function(m, x, angles, volume_fraction, 
                                             ksquared, mie_theory=False) 
             mu_scat = number_density * cscat_total
 
@@ -1678,6 +1695,73 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
     
     return p, mu_scat, mu_abs
     
+
+def phase_function(m, x, angles, volume_fraction, ksquared, mie_theory=False):
+    """
+    Calculates the phase function (the phase function is the same for absorbing 
+    and non-absorbing systems)
+    
+    Parameters:
+    ----------
+    m: float
+        index ratio between the particle and sample
+        
+    x: float
+        size parameter
+        
+    angles: array
+        theta angles at which to calculate phase function
+    
+    volume_fraction: float (sc.Quantity [dimensionless])
+        
+    ksquared: float (sc.Quantity [1/length])
+        k-vector squared, where k = 2*pi*n_sample / wavelength
+        
+    mie_theory: bool
+        If TRUE, phase function is calculated according to Mie theory 
+        (assuming no contribution from structure factor). If FALSE, phase
+        function is calculated according to single scattering theory 
+        (which uses Mie and structure factor contributions)
+        
+    
+    Returns:
+    --------
+    
+    p: array
+        phase function for unpolarized light
+        
+    p_par: array
+        phase function for parallel polarized light
+        
+    p_perp: array
+        phase function for perpendicularly polarized light
+        
+    cscat_total: float
+        total scattering cross section for unpolarized light
+        
+    """
+    
+    # If mie_theory = True, calculate the phase function for 1 particle 
+    # using Mie theory (excluding the structure factor)
+    if mie_theory == True:
+        diff_cscat_par, diff_cscat_perp = \
+            model.differential_cross_section(m, x, angles, volume_fraction,
+                                             structure_type=None)
+    else:
+        diff_cscat_par, diff_cscat_perp = \
+            model.differential_cross_section(m, x, angles, volume_fraction)
+
+    cscat_total_par = model._integrate_cross_section(diff_cscat_par,
+                                                      1.0/ksquared, angles)
+    cscat_total_perp = model._integrate_cross_section(diff_cscat_perp,
+                                                      1.0/ksquared, angles)
+    cscat_total = (cscat_total_par + cscat_total_perp)/2.0
+    
+    p = (diff_cscat_par + diff_cscat_perp)/(ksquared * 2 * cscat_total)
+    p_par = diff_cscat_par/(ksquared * 2 * cscat_total_par)
+    p_perp = diff_cscat_perp/(ksquared * 2 * cscat_total_perp)
+    
+    return(p, p_par, p_perp, cscat_total)
 
 def sample_angles(nevents, ntraj, p):
     """

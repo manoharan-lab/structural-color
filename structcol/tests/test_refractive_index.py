@@ -75,6 +75,13 @@ def test_fused_silica():
                         Quantity('1.4718556531995'))
     assert_almost_equal(ri.n('fused silica', Quantity('0.8050 um')),
                         Quantity('1.4532313266004'))
+def test_zirconia():
+    # values from refractiveindex.info
+    assert_almost_equal(ri.n('zirconia', Quantity('.405 um')),
+                       Quantity('2.3135169070958'))
+    assert_almost_equal(ri.n('zirconia', Quantity('.6350 um')),
+                        Quantity('2.1593242574339'))
+
 
 def test_vacuum():
     assert_almost_equal(ri.n('vacuum', Quantity('0.400 um')), Quantity('1.0'))
