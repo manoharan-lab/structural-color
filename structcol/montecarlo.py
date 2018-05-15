@@ -1318,7 +1318,7 @@ def initialize(nevents, ntraj, n_medium, n_sample, seed=None, incidence_angle=0.
     """
     if seed is not None:
         np.random.seed([seed])
-
+    
     # Initial position. The position array has one more row than the direction
     # and weight arrays because it includes the starting positions on the x-y
     # plane
@@ -1347,7 +1347,7 @@ def initialize(nevents, ntraj, n_medium, n_sample, seed=None, incidence_angle=0.
     theta = refraction(theta, n_medium, np.abs(n_sample))
     sintheta = np.sin(theta)
     costheta = np.cos(theta)
-
+    
     # Fill up the first row (corresponding to the first scattering event) of the
     # direction cosines array with the randomly generated angles:
     # kx = sintheta * cosphi
