@@ -424,3 +424,78 @@ def test_polydisperse_reflectance():
     assert_array_almost_equal(refl5, refl6)
     assert_array_almost_equal(g5, g6)
     assert_array_almost_equal(lstar5.to('mm'), lstar6.to('mm'), decimal=4)
+    
+def test_polydisperse_with_absorption_reflectance():
+    wavelength = Quantity(500, 'nm')
+    volume_fraction = Quantity(0.5, '')
+    radius = Quantity('120 nm')
+    n_matrix = Quantity(1.0+0.0003j, '')
+    n_medium = Quantity(1.0, '')
+    n_particle = Quantity(1.5+0.0005j, '')
+    radius2 = Quantity('120 nm')
+    concentration = Quantity(np.array([0.9,0.1]), '')
+    pdi = Quantity(np.array([1e-7, 1e-7]), '')  # monodisperse limit
+    thickness = Quantity('10 um')
+    # test that the reflectance using only the form factor is the same using
+    # the polydisperse formula vs using Mie in the limit of monodispersity
+    refl, _, _, g, lstar = model.reflection(n_particle, n_matrix, n_medium, 
+                                            wavelength, radius, volume_fraction,
+                                            structure_type=None,
+                                            form_type='sphere', 
+                                            thickness=thickness)
+    refl2, _, _, g2, lstar2 = model.reflection(n_particle, n_matrix, 
+                                                  n_medium, wavelength, radius, 
+                                                  volume_fraction, 
+                                                  radius2 = radius2, 
+                                                  concentration = concentration, 
+                                                  pdi = pdi, structure_type=None,
+                                                  form_type='polydisperse',
+                                                  thickness=thickness)
+    
+    assert_array_almost_equal(refl, refl2, decimal=5)
+    assert_array_almost_equal(g, g2, decimal=4)
+    assert_array_almost_equal(lstar.to('mm'), lstar2.to('mm'), decimal=4)
+  
+    # test that the reflectance using only the structure factor is the same 
+    # using the polydisperse formula vs using Percus-Yevick in the limit of 
+    # monodispersity
+    refl3, _, _, g3, lstar3 = model.reflection(n_particle, n_matrix, n_medium, 
+                                               wavelength, radius, volume_fraction,
+                                               structure_type='glass',
+                                               form_type=None, 
+                                               thickness=thickness)
+    refl4, _, _, g4, lstar4 = model.reflection(n_particle, n_matrix, 
+                                               n_medium, wavelength, radius, 
+                                               volume_fraction, 
+                                               radius2 = radius2, 
+                                               concentration = concentration, 
+                                               pdi = pdi, 
+                                               structure_type='polydisperse',
+                                               form_type=None, 
+                                               thickness=thickness)
+    
+    assert_array_almost_equal(refl3, refl4)
+    assert_array_almost_equal(g3, g4, decimal=4)
+    assert_array_almost_equal(lstar3.to('mm'), lstar4.to('mm'), decimal=4)
+    
+    # test that the reflectance using both the structure and form factors is 
+    # the same using the polydisperse formula vs using Mie and Percus-Yevick in 
+    # the limit of monodispersity
+    refl5, _, _, g5, lstar5 = model.reflection(n_particle, n_matrix, n_medium, 
+                                               wavelength, radius, volume_fraction,
+                                               structure_type='glass',
+                                               form_type='sphere', 
+                                               thickness=thickness)
+    refl6, _, _, g6, lstar6 = model.reflection(n_particle, n_matrix, 
+                                               n_medium, wavelength, radius, 
+                                               volume_fraction, 
+                                               radius2 = radius2, 
+                                               concentration = concentration, 
+                                               pdi = pdi, 
+                                               structure_type='polydisperse',
+                                               form_type='polydisperse', 
+                                               thickness=thickness)
+    
+    assert_array_almost_equal(refl5, refl6, decimal=3)
+    assert_array_almost_equal(g5/1e6, g6/1e6)
+    assert_array_almost_equal(lstar5.to('mm'), lstar6.to('mm'), decimal=4)
