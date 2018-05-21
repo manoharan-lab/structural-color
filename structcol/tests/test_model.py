@@ -356,7 +356,7 @@ def test_reflection_absorbing_matrix():
     assert_array_almost_equal(g_bg1, g_bg2)
     assert_array_almost_equal(lstar_bg1, lstar_bg2)
     
-def test_polydisperse_reflectance():
+def test_reflection_polydispersity():
     wavelength = Quantity(500, 'nm')
     volume_fraction = Quantity(0.5, '')
     radius = Quantity('120 nm')
@@ -425,7 +425,7 @@ def test_polydisperse_reflectance():
     assert_array_almost_equal(g5, g6)
     assert_array_almost_equal(lstar5.to('mm'), lstar6.to('mm'), decimal=4)
     
-def test_polydisperse_with_absorption_reflectance():
+def test_reflection_polydispersity_with_absorption():
     wavelength = Quantity(500, 'nm')
     volume_fraction = Quantity(0.5, '')
     radius = Quantity('120 nm')

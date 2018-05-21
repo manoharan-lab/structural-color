@@ -398,6 +398,9 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
             if cabs_total.magnitude < 0.0:
                 cabs_total = 0.0 * cabs_total.units
         else:
+            # for now assume that we can just use the monodisperse absorption
+            # cross section instead of the polydisperse absorption cross section 
+            # TODO: should we implement polydispersity in the abs cross section?
             coeffs = mie._scatcoeffs(m, x, nstop)   
             internal_coeffs = mie._internal_coeffs(m, x, nstop)
             x_scat = size_parameter(wavelen, n_particle, radius)
