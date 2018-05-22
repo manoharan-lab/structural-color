@@ -256,13 +256,62 @@ def test_reflection_absorbing_particle_or_matrix():
     
     assert_almost_equal(R, R_abs)
     assert_almost_equal(T, T_abs)
+
+
+def test_reflection_polydispersity():
+    seed = 1
+    nevents = 60
+    ntrajectories = 30
     
+    radius2 = radius
+    concentration = sc.Quantity(np.array([0.9,0.1]), '')
+    pdi = sc.Quantity(np.array([1e-7, 1e-7]), '')  # monodisperse limit
+
+    # Without absorption: test that the reflectance using with very small 
+    # polydispersity is the same as the monodisperse case
+    R_mono, T_mono = calc_montecarlo(nevents, ntrajectories, radius, 
+                                     n_particle, n_sample, n_medium, 
+                                     volume_fraction, wavelen, seed, 
+                                     polydisperse=False)
+    R_poly, T_poly = calc_montecarlo(nevents, ntrajectories, radius, 
+                                     n_particle, n_sample, n_medium, 
+                                     volume_fraction, wavelen, seed, 
+                                     radius2 = radius2, 
+                                     concentration = concentration, pdi = pdi,
+                                     polydisperse=True)                               
+                                   
+    assert_almost_equal(R_mono, R_poly)
+    assert_almost_equal(T_mono, T_poly)
+
+    # With absorption: test that the reflectance using with very small 
+    # polydispersity is the same as the monodisperse case  
+    n_particle_abs = sc.Quantity(1.5+0.0001j, '')  
+    n_matrix_abs = sc.Quantity(1.+0.0001j, '')  
+    n_sample_abs = ri.n_eff(n_particle_abs, n_matrix_abs, volume_fraction)
+    
+    R_mono_abs, T_mono_abs = calc_montecarlo(nevents, ntrajectories, radius, 
+                                             n_particle_abs, n_sample_abs, 
+                                             n_medium, volume_fraction, wavelen, 
+                                             seed, polydisperse=False)
+    R_poly_abs, T_poly_abs = calc_montecarlo(nevents, ntrajectories, radius, 
+                                             n_particle_abs, n_sample_abs, 
+                                             n_medium, volume_fraction, wavelen, 
+                                             seed, radius2 = radius2, 
+                                             concentration = concentration, 
+                                             pdi = pdi, polydisperse=True)   
+
+    assert_almost_equal(R_mono_abs, R_poly_abs, decimal=3)
+    assert_almost_equal(T_mono_abs, T_poly_abs, decimal=3)
+
     
 def calc_montecarlo(nevents, ntrajectories, radius, n_particle, n_sample, 
-                    n_medium, volume_fraction, wavelen, seed):
+                    n_medium, volume_fraction, wavelen, seed, radius2=None, 
+                    concentration=None, pdi=None, polydisperse=False):
     # Function to run montecarlo for the tests
     p, mu_scat, mu_abs = mc.calc_scat(radius, n_particle, n_sample, 
-                                      volume_fraction, wavelen)
+                                      volume_fraction, wavelen, radius2=radius2, 
+                                      concentration=concentration, pdi=pdi, 
+                                      polydisperse=polydisperse)
     r0, k0, W0 = mc.initialize(nevents, ntrajectories, n_medium, n_sample, 
                                seed=seed, incidence_angle = 0.)
     r0 = sc.Quantity(r0, 'um')
