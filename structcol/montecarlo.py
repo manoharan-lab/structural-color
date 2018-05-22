@@ -1572,6 +1572,21 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
         Volume fraction of the sample. 
     wavelen : float (structcol.Quantity [length])
         Wavelength of light in vacuum.
+    radius2 : float (structcol.Quantity [length])
+        Mean radius of secondary scatterer. Specify only if the system is 
+        binary, meaning that there are two mean particle radii (for example,
+        one small and one large).
+    concentration : 2-element array (structcol.Quantity [dimensionless])
+        Concentration of each scatterer if the system is binary. For 
+        polydisperse monospecies systems, specify the concentration as 
+        [1.0, 0.0]. 
+    pdi : 2-element array (structcol.Quantity [dimensionless])
+        Polydispersity index of each scatterer if the system is polydisperse. 
+        For polydisperse monospecies systems, specify the pdi as a 2-element
+        array with repeating values (for example, [0.01, 0.01]).
+    polydisperse : bool
+        If True, it uses the polydisperse form and structure factors. If set to
+        True, radius2, concentration, and pdi must be specified. 
     mie_theory : bool
         If True, the phase function and scattering coefficient is calculated 
         from Mie theory. If False (default), they are calculated from the 
@@ -1700,7 +1715,7 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
                                                                      k*distance)
                     diff_cs_par[:,s] = diff_cs[0]
                     diff_cs_perp[:,s] = diff_cs[1]
-                
+                    
                 # multiply the form factors by the Schulz distribution 
                 integrand_par = diff_cs_par * distr_array
                 integrand_perp = diff_cs_perp * distr_array

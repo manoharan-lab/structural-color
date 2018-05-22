@@ -79,6 +79,18 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
         volume fraction of particles or voids in matrix. If it's a core-shell 
         particle, must be the volume fraction of the entire core-shell particle 
         in the matrix.
+    radius2 : float (structcol.Quantity [length])
+        Mean radius of secondary scatterer. Specify only if the system is 
+        binary, meaning that there are two mean particle radii (for example,
+        one small and one large).
+    concentration : 2-element array (structcol.Quantity [dimensionless])
+        Concentration of each scatterer if the system is binary. For 
+        polydisperse monospecies systems, specify the concentration as 
+        [1.0, 0.0]. 
+    pdi : 2-element array (structcol.Quantity [dimensionless])
+        Polydispersity index of each scatterer if the system is polydisperse. 
+        For polydisperse monospecies systems, specify the pdi as a 2-element
+        array with repeating values (for example, [0.01, 0.01]).
     thickness: structcol.Quantity [length] (optional)
         thickness of photonic glass.  If unspecified, assumed to be infinite
     theta_min: structcol.Quantity [dimensionless] (optional)
@@ -124,16 +136,16 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
         agreement with Mie theory for a single sphere, but it may not be
         reasonable for all calculations.
     structure_type: string, dictionary, or None (optional)
-        Can be string specifying structure type. Current options are "glass" or
-        "paracrystal". Can also be dictionary specifying structure type and
-        parameters for structures that require them. Expects keys of 
-        'name': 'paracrystal', and 'sigma': int or float. Can also set to None
-        in order to only visualize effect of form factor on reflectance 
+        Can be string specifying structure type. Current options are "glass",
+        "paracrystal", or "polydisperse". Can also be dictionary specifying 
+        structure type and parameters for structures that require them. Expects 
+        keys of 'name': 'paracrystal', and 'sigma': int or float. Can also set 
+        to None in order to only visualize effect of form factor on reflectance 
         spectrum.
     form_type: string or None (optional)
-        String specifying form factor type. Currently, 'sphere' is only shape 
-        option. Can also set to None in order to only visualize the effect of 
-        structure factor on reflectance spectrum. 
+        String specifying form factor type. Currently, 'sphere' or 
+        'polydisperse' are the options. Can also set to None in order to only 
+        visualize the effect of structure factor on reflectance spectrum. 
     maxwell_garnett: boolean
         If true, the model uses Maxwell-Garnett's effective index for the 
         sample. In that case, the user must specify one refractive index for 
@@ -518,21 +530,29 @@ def differential_cross_section(m, x, angles, volume_fraction,
     volume_fraction: float
         volume fraction of the particles. If core-shell, should be volume 
         fraction of the entire core-shell particle.
-    diameters: ndarray(structcol.Quantity [length])
-        Only for polydisperse systems. Mean diameters of each species of 
-        particles (can be one for a monospecies or two for bispecies). 
-    concentration: ndarray(structcol.Quantity [dimensionless])
-        Only for polydisperse systems. 'Number' concentration of each species. 
-        For ex, a system composed of 90 A particles and 10 B particles would 
-        have c = [0.9, 0.1].
-    pdi: array of floats
-        Only for polydisperse systems. Polydispersity index of each species. 
     structure_type: str or None
         type of structure to calculate the structure factor. Can be 'glass', 
         'paracrystal', 'polydisperse', or None. 
     form_type: str or None
         type of particle geometry to calculate the form factor. Can be 'sphere'
         or None.
+    diameters: ndarray(structcol.Quantity [length])
+        Only for polydisperse systems. Mean diameters of each species of 
+        particles (can be one for a monospecies or two for bispecies). 
+    concentration : 2-element array (structcol.Quantity [dimensionless])
+        'Number' concentration of each scatterer if the system is binary. For 
+        ex, a system composed of 90 A particles and 10 B particles would have 
+        c = [0.9, 0.1]. For polydisperse monospecies systems, specify the 
+        concentration as [1.0, 0.0]. 
+    pdi : 2-element array (structcol.Quantity [dimensionless])
+        Polydispersity index of each scatterer if the system is polydisperse. 
+        For polydisperse monospecies systems, specify the pdi as a 2-element
+        array with repeating values (for example, [0.01, 0.01]).
+    wavelen : float (structcol.Quantity [length])    
+        Wavelength of light in vacuum.
+    n_matrix : float (structcol.Quantity [dimensionless])
+        Refractive index of the matrix (will be the index of the sample when 
+        running the model). 
     
     Returns
     -------
