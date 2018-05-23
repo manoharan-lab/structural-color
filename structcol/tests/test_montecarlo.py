@@ -27,6 +27,7 @@ from .. import refractive_index as ri
 import os
 import numpy as np
 from numpy.testing import assert_equal, assert_almost_equal
+import pytest
 
 # Define a system to be used for the tests
 nevents = 3
@@ -182,6 +183,11 @@ def test_reflection_core_shell():
     assert_almost_equal(R, R_cs)
     assert_almost_equal(T, T_cs)
     
+    ## Outputs before refactoring structcol
+    # R = 0.81382378303119451
+    # R_cs = 0.81382378303119451
+    # T = 0.1861762169688054
+    # T_cs = 0.1861762169688054
     
     # Test that the reflectance is the same for a core-shell that absorbs (with
     # the same refractive indices for all layers) and a non-core-shell that 
@@ -203,7 +209,12 @@ def test_reflection_core_shell():
 
     assert_almost_equal(R_abs, R_cs_abs, decimal=3)
     assert_almost_equal(T_abs, T_cs_abs, decimal=3)
-
+   
+    ## Outputs before refactoring structcol
+    # R_abs = 0.50534237684703909
+    # R_cs_abs = 0.50534237684642402
+    # T_abs = 0.017215194324142709
+    # T_cs_abs = 0.017215194324029608
 
     # Same as previous test but with absorbing matrix as well
     # Reflection using a non-core-shell absorbing system
@@ -225,6 +236,11 @@ def test_reflection_core_shell():
     assert_almost_equal(R_abs, R_cs_abs, decimal=3)
     assert_almost_equal(T_abs, T_cs_abs, decimal=3)
 
+    ## Outputs before refactoring structcol
+    # R_abs = 0.37384878890851575
+    # R_cs_abs = 0.37384878890851575
+    # T_abs = 0.002180700021951509
+    # T_cs_abs = 0.002180700021951509
 
 def test_reflection_absorbing_particle_or_matrix():
     # test that the reflections with a real n_particle and with a complex
@@ -246,6 +262,12 @@ def test_reflection_absorbing_particle_or_matrix():
     assert_almost_equal(R, R_abs)
     assert_almost_equal(T, T_abs)
     
+    ## Outputs before refactoring structcol
+    # R = 0.81382378303119451
+    # R_abs = 0.81382378303119451
+    # T = 0.1861762169688054
+    # T_abs = 0.1861762169688054
+    
     # Same as previous test but with absorbing matrix
     # Reflection using matrix with an imaginary component of 0
     n_matrix_abs = sc.Quantity(1. + 0j, '')
@@ -256,7 +278,12 @@ def test_reflection_absorbing_particle_or_matrix():
     
     assert_almost_equal(R, R_abs)
     assert_almost_equal(T, T_abs)
-
+    
+    ## Outputs before refactoring structcol
+    # R = 0.81382378303119451
+    # R_abs = 0.81382378303119451
+    # T = 0.1861762169688054
+    # T_abs = 0.1861762169688054
 
 def test_reflection_polydispersity():
     seed = 1
@@ -283,6 +310,12 @@ def test_reflection_polydispersity():
     assert_almost_equal(R_mono, R_poly)
     assert_almost_equal(T_mono, T_poly)
 
+    ## Outputs before refactoring structcol
+    # R_mono = 0.81382378303119451
+    # R_poly = 0.81382378303119451
+    # T_mono = 0.1861762169688054
+    # T_poly = 0.1861762169688054
+
     # With absorption: test that the reflectance using with very small 
     # polydispersity is the same as the monodisperse case  
     n_particle_abs = sc.Quantity(1.5+0.0001j, '')  
@@ -302,8 +335,88 @@ def test_reflection_polydispersity():
 
     assert_almost_equal(R_mono_abs, R_poly_abs, decimal=3)
     assert_almost_equal(T_mono_abs, T_poly_abs, decimal=3)
-
     
+    ## Outputs before refactoring structcol
+    # R_mono_abs = 0.74182070115289855
+    # R_poly_abs = 0.74153254583803685
+    # T_mono_abs = 0.083823525277616467
+    # T_poly_abs = 0.083720861809212302
+    
+    # test that the reflectance is the same for a polydisperse monospecies
+    # and a bispecies with equal types of particles
+    concentration_mono = sc.Quantity(np.array([0.,1.]), '')
+    concentration_bi = sc.Quantity(np.array([0.3,0.7]), '')
+    pdi = sc.Quantity(np.array([1e-1, 1e-1]), '')
+    
+    R_mono, T_mono = calc_montecarlo(nevents, ntrajectories, radius, 
+                                     n_particle, n_sample, n_medium, 
+                                     volume_fraction, wavelen, seed,  
+                                     radius2 = radius2, 
+                                     concentration = concentration_mono, pdi = pdi,
+                                     polydisperse=True)
+    R_bi, T_bi = calc_montecarlo(nevents, ntrajectories, radius, 
+                                     n_particle, n_sample, n_medium, 
+                                     volume_fraction, wavelen, seed, 
+                                     radius2 = radius2, 
+                                     concentration = concentration_bi, pdi = pdi,
+                                     polydisperse=True)                               
+                                   
+    assert_equal(R_mono, R_bi)
+    assert_equal(T_mono, T_bi)
+
+
+def test_throw_valueerror_for_polydisperse_core_shells(): 
+# test that a valueerror is raised when trying to run polydisperse core-shells                 
+    with pytest.raises(ValueError):
+        seed = 1
+        nevents = 10
+        ntrajectories = 5
+        
+        radius_cs = sc.Quantity(np.array([100, 150]), 'nm')  # specify the radii from innermost to outermost layer
+        n_particle_cs = sc.Quantity(np.array([1.5,1.5]), '')  # specify the index from innermost to outermost layer           
+        radius2 = radius
+        concentration = sc.Quantity(np.array([0.9,0.1]), '')
+        pdi = sc.Quantity(np.array([1e-7, 1e-7]), '')  # monodisperse limit
+    
+        # calculate the volume fractions of each layer
+        vf_array = np.empty(len(radius_cs))
+        r_array = np.array([0] + radius_cs.magnitude.tolist()) 
+        for r in np.arange(len(r_array)-1):
+            vf_array[r] = (r_array[r+1]**3-r_array[r]**3) / (r_array[-1:]**3) * volume_fraction
+    
+        n_sample_cs = ri.n_eff(n_particle_cs, n_matrix, vf_array) 
+        R_cs, T_cs = calc_montecarlo(nevents, ntrajectories, radius_cs, 
+                                     n_particle_cs, n_sample_cs, n_medium, 
+                                     volume_fraction, wavelen, seed, radius2=radius2, 
+                                     concentration=concentration, pdi=pdi, 
+                                     polydisperse=True)
+
+def test_throw_valueerror_for_polydisperse_unspecified_parameters(): 
+# test that a valueerror is raised when the system is polydisperse and radius2
+# concentration or pdi are not specified                 
+    with pytest.raises(ValueError):
+        seed = 1
+        nevents = 10
+        ntrajectories = 5
+        
+        radius_cs = sc.Quantity(np.array([100, 150]), 'nm')  # specify the radii from innermost to outermost layer
+        n_particle_cs = sc.Quantity(np.array([1.5,1.5]), '')  # specify the index from innermost to outermost layer           
+        concentration = sc.Quantity(np.array([0.9,0.1]), '')
+        pdi = sc.Quantity(np.array([1e-7, 1e-7]), '')  # monodisperse limit
+    
+        # calculate the volume fractions of each layer
+        vf_array = np.empty(len(radius_cs))
+        r_array = np.array([0] + radius_cs.magnitude.tolist()) 
+        for r in np.arange(len(r_array)-1):
+            vf_array[r] = (r_array[r+1]**3-r_array[r]**3) / (r_array[-1:]**3) * volume_fraction
+            
+        n_sample_cs = ri.n_eff(n_particle_cs, n_matrix, vf_array) 
+        R_cs, T_cs = calc_montecarlo(nevents, ntrajectories, radius_cs, 
+                                     n_particle_cs, n_sample_cs, n_medium, 
+                                     volume_fraction, wavelen, seed,
+                                     concentration=concentration, pdi=pdi, 
+                                     polydisperse=True)  # unspecified radius2
+
 def calc_montecarlo(nevents, ntrajectories, radius, n_particle, n_sample, 
                     n_medium, volume_fraction, wavelen, seed, radius2=None, 
                     concentration=None, pdi=None, polydisperse=False):

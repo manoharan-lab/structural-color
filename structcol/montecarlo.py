@@ -1579,7 +1579,7 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
     concentration : 2-element array (structcol.Quantity [dimensionless])
         Concentration of each scatterer if the system is binary. For 
         polydisperse monospecies systems, specify the concentration as 
-        [1.0, 0.0]. 
+        [0., 1.]. The concentrations must add up to 1. 
     pdi : 2-element array (structcol.Quantity [dimensionless])
         Polydispersity index of each scatterer if the system is polydisperse. 
         For polydisperse monospecies systems, specify the pdi as a 2-element

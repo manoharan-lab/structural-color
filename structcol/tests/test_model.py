@@ -25,6 +25,7 @@ from .. import refractive_index as ri
 from nose.tools import assert_raises, assert_equal
 from numpy.testing import assert_almost_equal, assert_array_almost_equal
 from pint.errors import DimensionalityError
+import pytest
 
 def test_fresnel():
     # test the fresnel reflection and transmission coefficients
@@ -271,6 +272,14 @@ def test_reflection_absorbing_particle():
     assert_array_almost_equal(g_mg1, g_mg2)
     assert_array_almost_equal(lstar_mg1, lstar_mg2)
     
+    ## Outputs before refactoring structcol
+    # refl_mg1 = 0.2963964709617333
+    # refl_mg2 = 0.29639647096173255
+    # g_mg1 = -0.18774057969370997
+    # g_mg2 = -0.18774057969370903
+    # lstar_mg1 = 10810.069633192961
+    # lstar_mg2 = 10810.069633193001
+    
     # With Bruggeman
     refl_bg1, _, _, g_bg1, lstar_bg1 = model.reflection(n_particle_real, n_matrix, 
                                                         n_medium, wavelength, 
@@ -284,6 +293,14 @@ def test_reflection_absorbing_particle():
     assert_array_almost_equal(refl_bg1, refl_bg2)
     assert_array_almost_equal(g_bg1, g_bg2)
     assert_array_almost_equal(lstar_bg1, lstar_bg2)
+
+    ## Outputs before refactoring structcol
+    # refl_bg1 = 0.2685710414987676
+    # refl_bg2 = 0.2685710414987676
+    # g_bg1 = -0.17681566915117486
+    # g_bg2 = -0.17681566915117486
+    # lstar_bg1 = 11593.280877304634
+    # lstar_bg2 = 11593.280877304634
 
 def test_calc_g():
     # test that the anisotropy factor for multilayer spheres are the same when
@@ -316,6 +333,10 @@ def test_calc_g():
     g2 = mie.calc_g(m,x)   
     
     assert_array_almost_equal(g1, g2)
+    
+    ## Outputs before refactoring structcol
+    # g1 = 0.5064750277811477
+    # g2 = 0.5064757158664487
     
 def test_reflection_absorbing_matrix():
     # test that the reflections with a real n_matrix and with a complex
@@ -384,6 +405,14 @@ def test_reflection_polydispersity():
     assert_array_almost_equal(refl, refl2)
     assert_array_almost_equal(g, g2)
     assert_array_almost_equal(lstar.to('mm'), lstar2.to('mm'), decimal=4)
+    
+    ## Outputs before refactoring structcol
+    # refl = 0.021202873774022364
+    # refl2 = 0.02120287377402078
+    # g = 0.6149959692900278
+    # g2 = 0.6149959692900626
+    # lstar = 0.0037795694345017063
+    # lstar2 = 0.0037899271967178523
   
     # test that the reflectance using only the structure factor is the same 
     # using the polydisperse formula vs using Percus-Yevick in the limit of 
@@ -404,6 +433,14 @@ def test_reflection_polydispersity():
     assert_array_almost_equal(refl3, refl4)
     assert_array_almost_equal(g3, g4)
     assert_array_almost_equal(lstar3.to('mm'), lstar4.to('mm'), decimal=4)
+
+    ## Outputs before refactoring structcol
+    # refl3 = 0.6310965269823348
+    # refl4 = 0.6310965259195878
+    # g3 = -0.635630839621477
+    # g4 = -0.6356308390717892
+    # lstar3 = 0.0002005604473366244
+    # lstar4 = 0.00020056044751316733
     
     # test that the reflectance using both the structure and form factors is 
     # the same using the polydisperse formula vs using Mie and Percus-Yevick in 
@@ -424,6 +461,40 @@ def test_reflection_polydispersity():
     assert_array_almost_equal(refl5, refl6)
     assert_array_almost_equal(g5, g6)
     assert_array_almost_equal(lstar5.to('mm'), lstar6.to('mm'), decimal=4)
+    
+    ## Outputs before refactoring structcol
+    # refl5 = 0.2685710414987676
+    # refl6 = 0.2685710407296461
+    # g5 = -0.17681566915117486
+    # g6 = -0.1768156684026972
+    # lstar5 = 0.011593280877304636
+    # lstar6 = 0.011625051809100308
+    
+    # test that the reflectance is the same for a polydisperse monospecies
+    # and a bispecies with equal types of particles
+    concentration_mono = Quantity(np.array([0.,1.]), '')
+    concentration_bi = Quantity(np.array([0.3,0.7]), '')
+    pdi = Quantity(np.array([1e-1, 1e-1]), '') 
+    
+    refl7, _, _, g7, lstar7 = model.reflection(n_particle, n_matrix, n_medium, 
+                                               wavelength, radius, volume_fraction, 
+                                               radius2 = radius2, 
+                                               concentration = concentration_mono, 
+                                               pdi = pdi, 
+                                               structure_type='polydisperse',
+                                               form_type='polydisperse')
+    refl8, _, _, g8, lstar8 = model.reflection(n_particle, n_matrix, 
+                                               n_medium, wavelength, radius, 
+                                               volume_fraction, 
+                                               radius2 = radius2, 
+                                               concentration = concentration_bi, 
+                                               pdi = pdi, 
+                                               structure_type='polydisperse',
+                                               form_type='polydisperse')
+    
+    assert_array_almost_equal(refl7, refl8)
+    assert_array_almost_equal(g7, g8)
+    assert_array_almost_equal(lstar7.to('mm'), lstar8.to('mm'))    
     
 def test_reflection_polydispersity_with_absorption():
     wavelength = Quantity(500, 'nm')
@@ -455,6 +526,14 @@ def test_reflection_polydispersity_with_absorption():
     assert_array_almost_equal(refl, refl2, decimal=5)
     assert_array_almost_equal(g, g2, decimal=4)
     assert_array_almost_equal(lstar.to('mm'), lstar2.to('mm'), decimal=4)
+
+    ## Outputs before refactoring structcol
+    # refl = 0.020791487299024698
+    # refl2 = 0.020790446154295754
+    # g = 726274264.1349005
+    # g2 = 726274264.1349416
+    # lstar = 0.006279358811781641
+    # lstar2 = 0.006296567149019748
   
     # test that the reflectance using only the structure factor is the same 
     # using the polydisperse formula vs using Percus-Yevick in the limit of 
@@ -477,7 +556,15 @@ def test_reflection_polydispersity_with_absorption():
     assert_array_almost_equal(refl3, refl4)
     assert_array_almost_equal(g3, g4, decimal=4)
     assert_array_almost_equal(lstar3.to('mm'), lstar4.to('mm'), decimal=4)
-    
+
+    ## Outputs before refactoring structcol
+    # refl3 = 0.6311021115282328
+    # refl4 = 0.6311021104646071
+    # g3 = -27901.50120849103
+    # g4 = -27901.50118425936
+    # lstar3 = 1.4399291088853016e-08
+    # lstar4 = 1.4399291096668534e-08
+  
     # test that the reflectance using both the structure and form factors is 
     # the same using the polydisperse formula vs using Mie and Percus-Yevick in 
     # the limit of monodispersity
@@ -499,3 +586,124 @@ def test_reflection_polydispersity_with_absorption():
     assert_array_almost_equal(refl5, refl6, decimal=3)
     assert_array_almost_equal(g5/1e6, g6/1e6)
     assert_array_almost_equal(lstar5.to('mm'), lstar6.to('mm'), decimal=4)
+    
+    ## Outputs before refactoring structcol
+    # refl5 = 0.11277597784758357
+    # refl6 = 0.11254509660807652
+    # g5/1e6 = -209.15733480514967
+    # g6/1e6 = -209.1573338372998
+    # lstar5 = 0.013405648948885825
+    # lstar6 = 0.013442386605693767
+    
+def test_reflection_throws_valueerror_for_polydisperse_core_shells(): 
+# test that a valueerror is raised when trying to run polydisperse core-shells                 
+    with pytest.raises(ValueError):
+        wavelength = Quantity(500, 'nm')
+        volume_fraction = Quantity(0.5, '')
+        radius = Quantity(np.array([110, 120]), 'nm')
+        n_matrix = Quantity(1.0, '')
+        n_medium = Quantity(1.0, '')
+        n_particle = Quantity(np.array([1.5,1.5]), '')
+        volume_fraction2 = Quantity(volume_fraction * (radius[1]**3 / radius[0]**3), '')
+        thickness = Quantity('10 um')
+        
+        radius2 = Quantity('120 nm')
+        concentration = Quantity(np.array([0.9,0.1]), '')
+        pdi = Quantity(np.array([1e-7, 1e-7]), '') 
+
+        # when running polydisperse core-shells, without absorption
+        refl, _, _, _, _ = model.reflection(n_particle, n_matrix, n_medium, 
+                                            wavelength, radius, volume_fraction2, 
+                                            radius2 = radius2, 
+                                            concentration = concentration, 
+                                            pdi = pdi, structure_type='polydisperse',
+                                            form_type='polydisperse')      
+        refl2, _, _, _, _ = model.reflection(n_particle, n_matrix, n_medium, 
+                                            wavelength, radius, volume_fraction2, 
+                                            radius2 = radius2, 
+                                            concentration = concentration, 
+                                            pdi = pdi, structure_type='glass',
+                                            form_type='polydisperse')
+        refl3, _, _, _, _ = model.reflection(n_particle, n_matrix, n_medium, 
+                                            wavelength, radius, volume_fraction2, 
+                                            radius2 = radius2, 
+                                            concentration = concentration, 
+                                            pdi = pdi, structure_type=None,
+                                            form_type='polydisperse')
+        refl4, _, _, _, _ = model.reflection(n_particle, n_matrix, n_medium, 
+                                            wavelength, radius, volume_fraction2, 
+                                            radius2 = radius2, 
+                                            concentration = concentration, 
+                                            pdi = pdi, structure_type='polydisperse',
+                                            form_type='sphere')
+        refl5, _, _, _, _ = model.reflection(n_particle, n_matrix, n_medium, 
+                                            wavelength, radius, volume_fraction2, 
+                                            radius2 = radius2, 
+                                            concentration = concentration, 
+                                            pdi = pdi, structure_type='polydisperse',
+                                            form_type=None)   
+                                            
+        # when running polydisperse core-shells, with absorption
+        refl6, _, _, _, _ = model.reflection(n_particle, n_matrix, n_medium, 
+                                            wavelength, radius, volume_fraction2, 
+                                            radius2 = radius2, 
+                                            concentration = concentration, 
+                                            pdi = pdi, structure_type='polydisperse',
+                                            form_type='polydisperse',
+                                            thickness=thickness)      
+        refl7, _, _, _, _ = model.reflection(n_particle, n_matrix, n_medium, 
+                                            wavelength, radius, volume_fraction2, 
+                                            radius2 = radius2, 
+                                            concentration = concentration, 
+                                            pdi = pdi, structure_type='glass',
+                                            form_type='polydisperse',
+                                            thickness=thickness)
+        refl8, _, _, _, _ = model.reflection(n_particle, n_matrix, n_medium, 
+                                            wavelength, radius, volume_fraction2, 
+                                            radius2 = radius2, 
+                                            concentration = concentration, 
+                                            pdi = pdi, structure_type=None,
+                                            form_type='polydisperse',
+                                            thickness=thickness)
+        refl9, _, _, _, _ = model.reflection(n_particle, n_matrix, n_medium, 
+                                            wavelength, radius, volume_fraction2, 
+                                            radius2 = radius2, 
+                                            concentration = concentration, 
+                                            pdi = pdi, structure_type='polydisperse',
+                                            form_type='sphere', thickness=thickness)
+        refl10, _, _, _, _ = model.reflection(n_particle, n_matrix, n_medium, 
+                                            wavelength, radius, volume_fraction2, 
+                                            radius2 = radius2, 
+                                            concentration = concentration, 
+                                            pdi = pdi, structure_type='polydisperse',
+                                            form_type=None, thickness=thickness) 
+                                            
+def test_reflection_throws_valueerror_for_polydisperse_unspecified_parameters(): 
+# test that a valueerror is raised when trying to run polydisperse core-shells                 
+    with pytest.raises(ValueError):
+        wavelength = Quantity(500, 'nm')
+        volume_fraction = Quantity(0.5, '')
+        radius = Quantity(np.array([110, 120]), 'nm')
+        n_matrix = Quantity(1.0, '')
+        n_medium = Quantity(1.0, '')
+        n_particle = Quantity(np.array([1.5,1.5]), '')
+        volume_fraction2 = Quantity(volume_fraction * (radius[1]**3 / radius[0]**3), '')
+        
+        concentration = Quantity(np.array([0.9,0.1]), '')
+        pdi = Quantity(np.array([1e-7, 1e-7]), '') 
+
+        # when running polydisperse core-shells, without absorption, 
+        # and unspecified radius2
+        refl, _, _, _, _ = model.reflection(n_particle, n_matrix, n_medium, 
+                                            wavelength, radius, volume_fraction2, 
+                                            concentration = concentration, 
+                                            pdi = pdi, structure_type='polydisperse',
+                                            form_type='polydisperse')     
+                                            
+        # when running polydisperse core-shells, with absorption, 
+        # and unspecified radius2
+        refl, _, _, _, _ = model.reflection(n_particle+0.01j, n_matrix+0.01j, n_medium, 
+                                            wavelength, radius, volume_fraction2, 
+                                            concentration = concentration, 
+                                            pdi = pdi, structure_type='polydisperse',
+                                            form_type='polydisperse')  
