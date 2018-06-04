@@ -1621,7 +1621,6 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
     min_angle = 0.01            
     angles = sc.Quantity(np.linspace(min_angle, np.pi, 200), 'rad') 
 
-    number_density = 3.0 * volume_fraction / (4.0 * np.pi * radius.max()**3)
     k = 2 * np.pi * n_sample / wavelen    
     ksquared = np.abs(k)**2  
     m = index_ratio(n_particle, n_sample)
@@ -1632,6 +1631,13 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
         radius2 = radius2.to(radius.units)
     if radius2 is None:
         radius2 = radius    
+    
+    # For now, set the number_density to be the average number_density if the 
+    # system is polydisperse
+    # TODO: should the number_density account for polydispersity as well?
+    number_density1 = 3.0 * volume_fraction / (4.0 * np.pi * radius.max()**3)    
+    number_density2 = 3.0 * volume_fraction / (4.0 * np.pi * radius2.max()**3)
+    number_density = (number_density1 + number_density2)/2
     
     # if the system is polydisperse, use the polydisperse form and structure 
     # factors
@@ -1659,12 +1665,20 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
         # The scattering cross section is calculated at the surface of the
         # particle. Further absorption as photon packets travel through the 
         # sample are accounted for in the absorb() function. 
-        p = phase_function(m, x, angles, volume_fraction, ksquared, 
-                           mie_theory=mie_theory)[0]
+        if form_type == 'sphere': 
+            p = phase_function(m, x, angles, volume_fraction, ksquared, 
+                               mie_theory=mie_theory)[0]
+        if form_type == 'polydisperse': 
+            p = phase_function(m, x, angles, volume_fraction, ksquared, 
+                               mie_theory=mie_theory, wavelen=wavelen, 
+                               diameters=mean_diameters, concentration=concentration, 
+                               pdi=pdi, n_sample=n_sample, form_type='polydisperse', 
+                               structure_type='polydisperse')[0]
         if mie_theory == True:
             struct_factor = [1,1]
         
         else:
+            # in the polydisperse structure factor, we divide by x so the main radius dependence gets canceled out
             struct_factor = model.differential_cross_section(m, x, angles, 
                                                              volume_fraction,
                                                              structure_type=structure_type,
@@ -1672,11 +1686,14 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
                                                              diameters=mean_diameters,
                                                              concentration=concentration,
                                                              pdi=pdi, wavelen=wavelen, 
-                                                             n_matrix=n_sample) 
-        distance = np.array(radius).max() * radius.units        
+                                                             n_matrix=n_sample)        
+        
+        distance = np.array(radius).max() * radius.units         
         
         # if the system is polydisperse, calculate the polydisperse form factor
-        if form_type == 'polydisperse':         
+        if form_type == 'polydisperse':   
+            distance = np.array([radius.magnitude,radius2.magnitude]) * radius.units 
+            
             # t is a measure of the width of the Schulz distribution, and
             # pdi is the polydispersity index
             t = np.abs(1/(pdi**2)) - 1
@@ -1712,7 +1729,7 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
                 for s in np.arange(len(diameter_range)):
                     diff_cs = mie.diff_scat_intensity_complex_medium(m, x_poly[s], 
                                                                      sc.Quantity(angles_array[s], angles.units),
-                                                                     k*distance)
+                                                                     k*distance[d])
                     diff_cs_par[:,s] = diff_cs[0]
                     diff_cs_perp[:,s] = diff_cs[1]
                     
@@ -1730,19 +1747,38 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
             form_factor_par = np.sum(F_par, axis=0)
             form_factor_perp = np.sum(F_perp, axis=0)
             form_factor = np.array([form_factor_par, form_factor_perp])
-    
+            
         # if the system is not polydisperse
         else:
             form_factor = mie.diff_scat_intensity_complex_medium(m, x, angles, 
                                                                  k*distance)
         diff_cs_par = form_factor[0] * struct_factor[0]
         diff_cs_per = form_factor[1] * struct_factor[1]
-        cscat_total = mie.integrate_intensity_complex_medium(diff_cs_par, 
-                                                             diff_cs_per, 
-                                                             distance,angles,k)[0]  
-        mu_scat = number_density * cscat_total
         
-        # The absorption coefficient can be calculated from the imaginary 
+        if concentration is not None:
+            if len(concentration)>1:
+                cscat_total1 = mie.integrate_intensity_complex_medium(diff_cs_par, 
+                                                             diff_cs_per, 
+                                                             radius,angles,k)[0]  
+                cscat_total2 = mie.integrate_intensity_complex_medium(diff_cs_par, 
+                                                             diff_cs_per, 
+                                                             radius2,angles,k)[0]                                                              
+            cscat_total = cscat_total1 * concentration[0] + cscat_total2 * concentration[1]
+        
+        else: 
+            cscat_total = mie.integrate_intensity_complex_medium(diff_cs_par, 
+                                                             diff_cs_per, 
+                                                             distance,angles,k)[0]
+        mu_scat = number_density * cscat_total  
+        
+        #if form_type == 'polydisperse':
+        #    p = (diff_cs_par + diff_cs_per)/(ksquared * 2 * cscat_total)
+        # TODO: using this formula makes the results not match when the pdi tends to monodisperse, 
+        # because the monodisperse formula uses the solutions of the non-absorbing case. 
+        # The locations of the peak don't change between the two formulas, but maybe the quantities might. 
+        # Should investigate further at some point. 
+            
+       # The absorption coefficient can be calculated from the imaginary 
         # component of the samples's refractive index
         mu_abs = 4*np.pi*n_sample.imag/wavelen
         

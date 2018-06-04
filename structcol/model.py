@@ -271,13 +271,15 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
         # calculate the structure factor in the detected range of angles and 
         # in the total angles 
         struct_factor_det = differential_cross_section(m, x, angles, volume_fraction,
-                                                       structure_type, form_type=None, 
+                                                       structure_type=structure_type, 
+                                                       form_type=None, 
                                                        diameters=mean_diameters,
                                                        concentration=concentration,
                                                        pdi=pdi, wavelen=wavelen, 
                                                        n_matrix=n_sample) 
         struct_factor_tot = differential_cross_section(m, x, angles_tot, volume_fraction,
-                                                       structure_type, form_type=None,
+                                                       structure_type=structure_type, 
+                                                       form_type=None,
                                                        diameters=mean_diameters,
                                                        concentration=concentration,
                                                        pdi=pdi, wavelen=wavelen, 
@@ -288,6 +290,7 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
         if form_type is None:
             form_factor_scat = np.array([1,1])
             form_factor_tot = np.array([1,1])
+            cabs_total = Quantity(0.0, 'um^2')
         
         elif form_type == 'polydisperse':
             if radius2 is None or concentration is None or pdi is None:
@@ -295,7 +298,7 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
         
             if len(np.atleast_1d(m)) > 1:
                 raise ValueError('cannot handle polydispersity in core-shell particles')
-            
+                                                                                                                         
             # t is a measure of the width of the Schulz distribution, and
             # pdi is the polydispersity index
             t = np.abs(1/(pdi**2)) - 1
@@ -310,6 +313,7 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
             F_perp = np.empty([len(np.atleast_1d(mean_diameters)), len(angles)])
             F_par_tot = np.empty([len(np.atleast_1d(mean_diameters)), len(angles)])
             F_perp_tot = np.empty([len(np.atleast_1d(mean_diameters)), len(angles)])
+            cabs_poly = np.empty(len(np.atleast_1d(mean_diameters)))
             
             # for each mean diameter, calculate the Schulz distribution and 
             # the size parameter x_poly
@@ -323,7 +327,10 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
                 angles_array_tot = np.tile(angles_tot, [len(diameter_range),1])
                 
                 x_poly = size_parameter(wavelen, n_sample, Quantity(diameter_range/2, mean_diameters.units))
-
+                
+                # for polydisperse mu_abs calculation                
+                x_scat = size_parameter(wavelen, n_particle, mean_diameters[d]/2)
+                
                 form_factor_par = np.empty([len(angles), len(diameter_range)])
                 form_factor_perp = np.empty([len(angles), len(diameter_range)])
                 form_factor_par_tot = np.empty([len(angles), len(diameter_range)])
@@ -332,6 +339,7 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
                 integrand_perp = np.empty([len(angles), len(diameter_range)])
                 integrand_par_tot = np.empty([len(angles), len(diameter_range)])
                 integrand_perp_tot = np.empty([len(angles), len(diameter_range)])
+                cabs_magn = np.empty(len(diameter_range))
                 
                 # for each diameter in the distribution, calculate the detected 
                 # and the total form factors for absorbing systems
@@ -348,6 +356,19 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
                     form_factor_par_tot[:,s] = form_factor_tot[0]
                     form_factor_perp_tot[:,s] = form_factor_tot[1]
                 
+                    # for polydisperse mu_abs calculation
+                    nstop = mie._nstop(np.array(x_poly[s]).max())
+                    coeffs = mie._scatcoeffs(m, x_poly[s], nstop)
+                    internal_coeffs = mie._internal_coeffs(m, x_poly[s], nstop)
+                    
+                    cabs = mie._cross_sections_complex_medium_fu(coeffs[0], coeffs[1], 
+                                                                 internal_coeffs[0], 
+                                                                 internal_coeffs[1], 
+                                                                 Quantity(diameter_range[s], mean_diameters.units), 
+                                                                 n_particle, 
+                                                                 n_sample, x_scat, 
+                                                                 x_poly[s], wavelen)[1]
+                    cabs_magn[s] = cabs.magnitude
                 # multiply the form factors by the Schulz distribution 
                 integrand_par = form_factor_par * distr_array
                 integrand_perp = form_factor_perp * distr_array
@@ -360,7 +381,10 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
                 F_perp[d,:] = np.trapz(integrand_perp, x=diameter_range, axis=1) * np.atleast_1d(concentration)[d]
                 F_par_tot[d,:] = np.trapz(integrand_par_tot, x=diameter_range, axis=1) * np.atleast_1d(concentration)[d]
                 F_perp_tot[d,:] = np.trapz(integrand_perp_tot, x=diameter_range, axis=1) * np.atleast_1d(concentration)[d]
-            
+                
+                # integrate and multiply the mu_abs by the concentrations to get the polydisperse mu_abs
+                cabs_poly[d] = np.trapz(cabs_magn*distr, x=diameter_range) * np.atleast_1d(concentration)[d]
+
             # the final polydisperse form factor as a function of angle is 
             # calculated as the average of each mean diameter's form factor
             form_factor_scat_par = np.sum(F_par, axis=0)
@@ -370,7 +394,9 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
             form_factor_tot_par = np.sum(F_par_tot, axis=0)
             form_factor_tot_perp = np.sum(F_perp_tot, axis=0)
             form_factor_tot = np.array([form_factor_tot_par, form_factor_tot_perp])
-        
+            
+            cabs_total = Quantity(np.sum(cabs_poly), cabs.units)
+            
         # if the form factor is not None or polydisperse (eg, sphere)
         else:        
             form_factor_scat = mie.diff_scat_intensity_complex_medium(m, x, angles, 
@@ -408,14 +434,16 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
                                                                      coeffs[1], 
                                                                      x, radius)[1]
             if cabs_total.magnitude < 0.0:
-                cabs_total = 0.0 * cabs_total.units
-        else:
+                cabs_total = 0.0 * cabs_total.units 
+        
+        elif form_type == 'sphere': 
             # for now assume that we can just use the monodisperse absorption
             # cross section instead of the polydisperse absorption cross section 
-            # TODO: should we implement polydispersity in the abs cross section?
+            # TODO: should we implement polydispersity in the abs cross section? Yes
             coeffs = mie._scatcoeffs(m, x, nstop)   
             internal_coeffs = mie._internal_coeffs(m, x, nstop)
             x_scat = size_parameter(wavelen, n_particle, radius)
+
             cabs_total = mie._cross_sections_complex_medium_fu(coeffs[0], coeffs[1], 
                                                                internal_coeffs[0], 
                                                                internal_coeffs[1], 
@@ -424,11 +452,12 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
                                                                x, wavelen)[1]                                                      
         cext_total = cscat_total + cabs_total
         
-    
+        
     # if there is no absorption in the system
     else:    
         diff_cs_detected = differential_cross_section(m, x, angles, volume_fraction,
-                                                      structure_type, form_type,
+                                                      structure_type=structure_type, 
+                                                      form_type=form_type,
                                                       diameters=mean_diameters,
                                                       concentration=concentration,
                                                       pdi=pdi, wavelen=wavelen, n_matrix=n_sample)                                   
@@ -447,7 +476,8 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
         # the total cross-section to account for the attenuation in intensity 
         # as light propagates through the sample
         diff_cs_total = differential_cross_section(m, x, angles_tot, volume_fraction,
-                                                   structure_type, form_type,
+                                                   structure_type=structure_type, 
+                                                   form_type=form_type,
                                                    diameters=mean_diameters,
                                                    concentration=concentration,
                                                    pdi=pdi, wavelen=wavelen, n_matrix=n_sample)
@@ -466,7 +496,8 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
     #angles = Quantity(np.linspace(0.0+small_angle, np.pi, num_angles), 'rad')
     #azi_angle_range = Quantity(2*np.pi,'rad')    
     diff_cs = differential_cross_section(m, x, angles_tot, volume_fraction,
-                                        structure_type, form_type, 
+                                        structure_type=structure_type, 
+                                        form_type=form_type, 
                                         diameters=mean_diameters,
                                         concentration=concentration, pdi=pdi, 
                                         wavelen=wavelen, n_matrix=n_sample)
@@ -476,10 +507,12 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
                                               angles_tot, azi_angle_range_tot)
     # calculate for unpolarized light
     asymmetry_parameter = (asymmetry_par + asymmetry_perp)/cscat_total/2.0
-
+    
     # now eq. 6 for the total reflection
-    rho = _number_density(volume_fraction, radius.max())
-            
+    rho1 = _number_density(volume_fraction, radius.max())
+    rho2 = _number_density(volume_fraction, radius2.max())
+    rho = (rho1 + rho2) / 2    # TODO: CHECK THAT THIS AVERAGE IS OKAY
+    
     if thickness is None:
         # assume semi-infinite sample
         factor = 1.0
@@ -652,8 +685,8 @@ def differential_cross_section(m, x, angles, volume_fraction,
             if len(np.atleast_1d(m)) > 1:
                 raise ValueError('cannot handle polydispersity in core-shell particles')
              
-            q = qd / diameters[0]
-   
+            q = qd / diameters[0]  # I think it's okay to divide by the first 
+                                   # radius because it cancels out the radius dependence from qd
             s = structure.factor_poly(q, volume_fraction, diameters, 
                                       concentration, pdi)
                                  
