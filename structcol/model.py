@@ -263,163 +263,28 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
     transmission = fresnel_transmission(n_sample, n_medium, np.pi-angles)
     
     # calculate the absorption cross section
-    
     cabs_total = absorption_cross_section(form_type, m, mean_diameters, n_sample, 
                                           x, wavelen, n_particle,
                                           concentration=concentration, pdi=pdi)                                                                                                               
-    
-#    # calculate the structure factor in the detected range of angles and 
-#    # in the total angles 
-#    struct_factor_det = differential_cross_section(m, x, angles, volume_fraction,
-#                                                   structure_type=structure_type, 
-#                                                   form_type=None, 
-#                                                   diameters=mean_diameters,
-#                                                   concentration=concentration,
-#                                                   pdi=pdi, wavelen=wavelen, 
-#                                                   n_matrix=n_sample) 
-#    struct_factor_tot = differential_cross_section(m, x, angles_tot, volume_fraction,
-#                                                   structure_type=structure_type, 
-#                                                   form_type=None,
-#                                                   diameters=mean_diameters,
-#                                                   concentration=concentration,
-#                                                   pdi=pdi, wavelen=wavelen, 
-#                                                   n_matrix=n_sample) 
-                                                   
-#    # if n_sample is complex, then we must calculate the cross sections 
-#    # with the exact Mie solutions that account for absorption  
-#    if np.abs(n_sample.imag.magnitude) > 0.: 
-#        if thickness is None:
-#            raise ValueError('Thickness must be specified when there is absorption')
-#           
-#        # calculate the structure factor in the detected range of angles and 
-#        # in the total angles 
-#        struct_factor_det = differential_cross_section(m, x, angles, volume_fraction,
-#                                                       structure_type=structure_type, 
-#                                                       form_type=None, 
-#                                                       diameters=mean_diameters,
-#                                                       concentration=concentration,
-#                                                       pdi=pdi, wavelen=wavelen, 
-#                                                       n_matrix=n_sample) 
-#        struct_factor_tot = differential_cross_section(m, x, angles_tot, volume_fraction,
-#                                                       structure_type=structure_type, 
-#                                                       form_type=None,
-#                                                       diameters=mean_diameters,
-#                                                       concentration=concentration,
-#                                                       pdi=pdi, wavelen=wavelen, 
-#                                                       n_matrix=n_sample)                                                                                                      
-
-        # calculate the form factor in the detected range of angles and 
-        # in the total angles using the exact Mie solutions                                      
-#        if form_type is None:
-#            form_factor_scat = np.array([1,1])
-#            form_factor_tot = np.array([1,1])
-  
-#        elif form_type == 'polydisperse':
-#            if radius2 is None or concentration is None or pdi is None:
-#                raise ValueError('must specify diameters, concentration, and pdi for polydisperse systems')
-#        
-#            if len(np.atleast_1d(m)) > 1:
-#                raise ValueError('cannot handle polydispersity in core-shell particles')
-#            
-#            form_factor_scat = differential_cross_section(m, x, angles, volume_fraction,
-#                                                      structure_type=None, 
-#                                                      form_type=form_type,
-#                                                      diameters=mean_diameters,
-#                                                      concentration=concentration,
-#                                                      pdi=pdi, wavelen=wavelen, n_matrix=n_sample, 
-#                                                      k=k, distance=thickness)    
-#            form_factor_tot = differential_cross_section(m, x, angles_tot, volume_fraction,
-#                                                      structure_type=None, 
-#                                                      form_type=form_type,
-#                                                      diameters=mean_diameters,
-#                                                      concentration=concentration,
-#                                                      pdi=pdi, wavelen=wavelen, n_matrix=n_sample, 
-#                                                      k=k, distance=thickness)              
-
-        # if the form factor is not None or polydisperse (eg, sphere)
-#        else:        
-#            form_factor_scat = mie.diff_scat_intensity_complex_medium(m, x, angles, k*thickness)
-#            form_factor_tot = mie.diff_scat_intensity_complex_medium(m, x, angles_tot, k*thickness)
-                                                 
-#        # calculate the detected scattering cross section by integrating the
-#        # differential cross section over the reflection angles
-#        diff_cs_par = form_factor_scat[0] * struct_factor_det[0] 
-#        diff_cs_perp = form_factor_scat[1] * struct_factor_det[1]           
-#        cscat = mie.integrate_intensity_complex_medium(diff_cs_par*transmission[0], 
-#                                                       diff_cs_perp*transmission[1], 
-#                                                       thickness, angles, k,
-#                                                       phi_min=Quantity(phi_min, 'rad'), 
-#                                                       phi_max=Quantity(phi_max, 'rad'))      
-#        cscat_detected = cscat[0]
-#        cscat_detected_par = cscat[1]
-#        cscat_detected_perp = cscat[2]                                                            
-#        
-#        # calculate total scattering cross section
-#        diff_scat_tot_par = form_factor_tot[0] * struct_factor_tot[0]
-#        diff_scat_tot_perp = form_factor_tot[1] * struct_factor_tot[1]
-#        cscat_total = mie.integrate_intensity_complex_medium(diff_scat_tot_par, 
-#                                                             diff_scat_tot_perp, 
-#                                                             thickness, angles_tot, k)[0]  
-#                            
-#        cext_total = cscat_total + cabs_total
-        
-        
-#    # if there is no absorption in the system
-#    else:    
-#        diff_cs_detected = differential_cross_section(m, x, angles, volume_fraction,
-#                                                      structure_type=structure_type, 
-#                                                      form_type=form_type,
-#                                                      diameters=mean_diameters,
-#                                                      concentration=concentration,
-#                                                      pdi=pdi, wavelen=wavelen, n_matrix=n_sample)                                   
-#        cscat_detected_par = _integrate_cross_section(diff_cs_detected[0],
-#                                                  transmission[0]/np.abs(k)**2, 
-#                                                  angles, azi_angle_range)
-#        cscat_detected_perp = _integrate_cross_section(diff_cs_detected[1],
-#                                                   transmission[1]/np.abs(k)**2, 
-#                                                   angles, azi_angle_range)
-#        cscat_detected = (cscat_detected_par + cscat_detected_perp)/2.0
-#    
-#        # now integrate from 0 to 180 degrees to get total cross-section.
-#        #angles = Quantity(np.linspace(0.0+small_angle, np.pi, num_angles), 'rad')
-#        #azi_angle_range = Quantity(2*np.pi,'rad')        
-#        # Fresnel coefficients do not appear in this integral since we're using 
-#        # the total cross-section to account for the attenuation in intensity 
-#        # as light propagates through the sample
-#        diff_cs_total = differential_cross_section(m, x, angles_tot, volume_fraction,
-#                                                   structure_type=structure_type, 
-#                                                   form_type=form_type,
-#                                                   diameters=mean_diameters,
-#                                                   concentration=concentration,
-#                                                   pdi=pdi, wavelen=wavelen, n_matrix=n_sample)
-#        cscat_total_par = _integrate_cross_section(diff_cs_total[0], 1.0/np.abs(k)**2,  
-#                                               angles_tot, azi_angle_range_tot)
-#        cscat_total_perp = _integrate_cross_section(diff_cs_total[1], 1.0/np.abs(k)**2, 
-#                                                angles_tot, azi_angle_range_tot)
-#        cscat_total = (cscat_total_par + cscat_total_perp)/2.0
-#        
-#        cext_total = cscat_total               
-#        
-        
-        
-    # calculate the structure factor in the detected range of angles and 
-    # in the total angles 
+     
+    # calculate the differential cross section in the detected range of angles  
+    # and in the total angles 
     diff_cs_detected = differential_cross_section(m, x, angles, volume_fraction,
-                                                   structure_type=structure_type, 
-                                                   form_type=form_type, 
-                                                   diameters=mean_diameters,
-                                                   concentration=concentration,
-                                                   pdi=pdi, wavelen=wavelen, 
-                                                   n_matrix=n_sample, k=k, distance=thickness) 
+                                                  structure_type=structure_type, 
+                                                  form_type=form_type, 
+                                                  diameters=mean_diameters,
+                                                  concentration=concentration,
+                                                  pdi=pdi, wavelen=wavelen, 
+                                                  n_matrix=n_sample, k=k, distance=thickness) 
     diff_cs_total = differential_cross_section(m, x, angles_tot, volume_fraction,
-                                                   structure_type=structure_type, 
-                                                   form_type=form_type,
-                                                   diameters=mean_diameters,
-                                                   concentration=concentration,
-                                                   pdi=pdi, wavelen=wavelen, 
-                                                   n_matrix=n_sample, k=k, distance=thickness) 
+                                               structure_type=structure_type, 
+                                               form_type=form_type,
+                                               diameters=mean_diameters,
+                                               concentration=concentration,
+                                               pdi=pdi, wavelen=wavelen, 
+                                               n_matrix=n_sample, k=k, distance=thickness) 
     
-    
+    # integrate the differential cross sections to get the total cross section    
     if np.abs(n_sample.imag.magnitude) > 0.: 
         cscat = mie.integrate_intensity_complex_medium(diff_cs_detected[0]*transmission[0], 
                                                        diff_cs_detected[1]*transmission[1], 
@@ -452,10 +317,7 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
     
     # to calculate asymmetry parameter, use the far-field Mie solutions because
     # the phase function does not change whether there is absorption or not 
-    # calculate asymmetry parameter using integral from 0 to 180 degrees
-    
-    #angles = Quantity(np.linspace(0.0+small_angle, np.pi, num_angles), 'rad')
-    #azi_angle_range = Quantity(2*np.pi,'rad')    
+    # calculate asymmetry parameter using integral from 0 to 180 degrees   
     diff_cs = differential_cross_section(m, x, angles_tot, volume_fraction,
                                         structure_type=structure_type, 
                                         form_type=form_type, 
@@ -466,6 +328,7 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
                                              angles_tot, azi_angle_range_tot)
     asymmetry_perp = _integrate_cross_section(diff_cs[1], np.cos(angles_tot)*1.0/np.abs(k)**2,
                                               angles_tot, azi_angle_range_tot)
+    
     # calculate for unpolarized light
     asymmetry_parameter = (asymmetry_par + asymmetry_perp)/cscat_total/2.0
     
@@ -559,6 +422,8 @@ def differential_cross_section(m, x, angles, volume_fraction,
     # calculate form factor    
     if form_type == 'sphere': 
         if k is not None and np.abs(k.imag.magnitude) > 0.:
+            if distance is None:
+                raise ValueError('must specify distance for absorbing polydisperperse systems')
             form_factor = mie.diff_scat_intensity_complex_medium(m, x, angles, k*distance)
         else:
             form_factor = mie.calc_ang_dist(m, x, angles)
@@ -566,6 +431,8 @@ def differential_cross_section(m, x, angles, volume_fraction,
         f_perp = form_factor[1]
     
     elif form_type == 'polydisperse':
+        if diameters is None or concentration is None or pdi is None or wavelen is None or n_matrix is None:
+            raise ValueError('must specify diameters, concentration, pdi, wavelength, and n_matrix for polydisperperse systems')
         form_factor = polydisperse_form_factor(m, angles, diameters, concentration, pdi, wavelen, n_matrix, k=k, distance=distance)
         f_par = form_factor[0]  
         f_perp = form_factor[1]
@@ -619,10 +486,8 @@ def differential_cross_section(m, x, angles, volume_fraction,
 
 
 def polydisperse_form_factor(m, angles, diameters, concentration, pdi, wavelen, n_matrix, k=None, distance=None):
-    if diameters is None or concentration is None or pdi is None or wavelen is None or n_matrix is None:
-            raise ValueError('must specify diameters, concentration, pdi, wavelength, and n_matrix for polydisperse systems')
     if len(np.atleast_1d(m)) > 1:
-                raise ValueError('cannot handle polydispersity in core-shell particles')
+        raise ValueError('cannot handle polydispersity in core-shell particles')
     
     # t is a measure of the width of the Schulz distribution, and
     # pdi is the polydispersity index
@@ -658,7 +523,6 @@ def polydisperse_form_factor(m, angles, diameters, concentration, pdi, wavelen, 
         for s in np.arange(len(diameter_range)):
             # if the system has absorption, use the absorption formula from Mie            
             if np.abs(n_matrix.imag.magnitude) > 0. and k is not None and distance is not None:
-                #raise ValueError('must specify k and distance for absorbing polydisperse systems')
                 distance_array = np.resize(distance, len(np.atleast_1d(diameters)))
                 form_factor = mie.diff_scat_intensity_complex_medium(m, x_poly[s], 
                                                                      Quantity(angles_array[s], angles.units),
@@ -692,8 +556,8 @@ def absorption_cross_section(form_type, m, diameters, n_matrix, x, wavelen, n_pa
         cabs_total = Quantity(0.0, 'um^2')
         
     if form_type == 'polydisperse': 
-        if diameters is None or concentration is None or pdi is None or wavelen is None or n_matrix is None or n_particle is None:
-            raise ValueError('must specify diameters, concentration, pdi, wavelength, n_matrix, and n_particle for polydisperse systems')
+        if concentration is None or pdi is None:
+            raise ValueError('must specify concentration and pdi for absorbing polydisperse systems')
         if len(np.atleast_1d(m)) > 1:
             raise ValueError('cannot handle polydispersity in core-shell particles')
 
