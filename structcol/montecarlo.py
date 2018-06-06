@@ -1692,61 +1692,14 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
         
         # if the system is polydisperse, calculate the polydisperse form factor
         if form_type == 'polydisperse':   
-            distance = np.array([radius.magnitude,radius2.magnitude]) * radius.units 
-            
-            # t is a measure of the width of the Schulz distribution, and
-            # pdi is the polydispersity index
-            t = np.abs(1/(pdi**2)) - 1
-        
-            # define the range of diameters of the size distribution
-            three_std_dev = 3*mean_diameters/np.sqrt(t+1)       
-            min_diameter = mean_diameters - three_std_dev
-            min_diameter[min_diameter.magnitude < 0] = sc.Quantity(0, mean_diameters.units)
-            max_diameter = mean_diameters + three_std_dev
-        
-            F_par = np.empty([len(np.atleast_1d(mean_diameters)), len(angles)])
-            F_perp = np.empty([len(np.atleast_1d(mean_diameters)), len(angles)])
-            
-            # for each mean diameter, calculate the Schulz distribution and 
-            # the size parameter x_poly
-            for d in np.arange(len(np.atleast_1d(mean_diameters))):
-                # the diameter range is the range between the min diameter and 
-                # the max diameter of the Schulz distribution                
-                diameter_range = np.linspace(np.atleast_1d(min_diameter)[d], np.atleast_1d(max_diameter)[d], 50)
-                distr = model.size_distribution(diameter_range, np.atleast_1d(mean_diameters)[d], np.atleast_1d(t)[d])
-                distr_array = np.tile(distr, [len(angles),1])
-                angles_array = np.tile(angles, [len(diameter_range),1])
-                
-                x_poly = size_parameter(wavelen, n_sample, sc.Quantity(diameter_range/2, mean_diameters.units))
-    
-                diff_cs_par = np.empty([len(angles), len(diameter_range)])
-                diff_cs_perp = np.empty([len(angles), len(diameter_range)])
-                integrand_par = np.empty([len(angles), len(diameter_range)])
-                integrand_perp = np.empty([len(angles), len(diameter_range)])
-                
-                # for each diameter in the distribution, calculate the form 
-                # factor for absorbing systems
-                for s in np.arange(len(diameter_range)):
-                    diff_cs = mie.diff_scat_intensity_complex_medium(m, x_poly[s], 
-                                                                     sc.Quantity(angles_array[s], angles.units),
-                                                                     k*distance[d])
-                    diff_cs_par[:,s] = diff_cs[0]
-                    diff_cs_perp[:,s] = diff_cs[1]
-                    
-                # multiply the form factors by the Schulz distribution 
-                integrand_par = diff_cs_par * distr_array
-                integrand_perp = diff_cs_perp * distr_array
-                
-                # integrate and multiply by the concentration of the mean 
-                # diameter to get the polydisperse form factor
-                F_par[d,:] = np.trapz(integrand_par, x=diameter_range, axis=1) * np.atleast_1d(concentration)[d]
-                F_perp[d,:] = np.trapz(integrand_perp, x=diameter_range, axis=1) * np.atleast_1d(concentration)[d]
-            
-            # the final polydisperse form factor as a function of angle is 
-            # calculated as the average of each mean diameter's form factor
-            form_factor_par = np.sum(F_par, axis=0)
-            form_factor_perp = np.sum(F_perp, axis=0)
-            form_factor = np.array([form_factor_par, form_factor_perp])
+            distance = np.array([radius.magnitude,radius2.magnitude]) * radius.units             
+            form_factor = model.differential_cross_section(m, x, angles, volume_fraction,
+                                                      structure_type=None, 
+                                                      form_type=form_type,
+                                                      diameters=mean_diameters,
+                                                      concentration=concentration,
+                                                      pdi=pdi, wavelen=wavelen, n_matrix=n_sample, 
+                                                      k=k, distance=distance)    
             
         # if the system is not polydisperse
         else:
