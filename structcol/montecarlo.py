@@ -901,6 +901,7 @@ def calc_refl_trans(trajectories, z_low, cutoff, n_medium, n_sample,
 
     # find all kz with magnitude large enough to exit
     no_tir = abs(kz) > np.cos(np.arcsin(n_medium / n_sample))
+    #no_tir = np.ones((trajectories.nevents, ntraj))>0#abs(kz) > np.cos(np.arcsin(n_medium / n_sample))
 
     # exit in positive direction (transmission) iff crossing odd boundary
     pos_dir = np.mod(z_floors[:-1]+1*(z_floors[1:]>z_floors[:-1]), 2).astype(bool)
@@ -952,7 +953,7 @@ def calc_refl_trans(trajectories, z_low, cutoff, n_medium, n_sample,
     if stuck_frac >= 20: warnings.warn(stuck_traj_warn)
 
     # correct for non-TIR fresnel reflection upon exiting
-    reflected = refl_weights * fresnel_pass_frac(kz, refl_indices, n_sample, n_front, n_medium)
+    reflected = refl_weights * fresnel_pass_frac(kz, refl_indices, n_sample, n_front, n_medium)#<= uncomment
     transmitted = trans_weights * fresnel_pass_frac(kz, trans_indices, n_sample, n_back, n_medium)
     refl_fresnel = refl_weights - reflected
     trans_fresnel = trans_weights - transmitted
@@ -983,7 +984,10 @@ def calc_refl_trans(trajectories, z_low, cutoff, n_medium, n_sample,
     #calculate mean reflectance and transmittance for all trajectories
     if return_extra:
         # divide by ntraj to get reflectance per trajectory
-        return refl_indices, trans_indices, reflected/ntraj, trans_frac, refl_frac, refl_fresnel/ntraj, trans_fresnel/ntraj, inc_refl/ntraj, np.sum(reflectance)/ntraj
+        return refl_indices, trans_indices,\
+               inc_refl/ntraj, reflected/ntraj, transmitted/ntraj,\
+               trans_frac, refl_frac,\
+               refl_fresnel/ntraj, trans_fresnel/ntraj, np.sum(reflectance)/ntraj
     else:
         return (np.sum(reflectance)/ntraj, np.sum(transmittance/ntraj))
 
@@ -1479,7 +1483,7 @@ def initialize_sphere(nevents, ntraj, n_medium, n_sample, radius, seed=None,
         
     # randomly choose r on interval [0,radius]
     r = radius*np.sqrt(random(ntraj))
-    
+
     # randomly choose th on interval [0,2*pi]
     th = 2*np.pi*random(ntraj)
     
@@ -1606,28 +1610,6 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
     ksquared = np.abs(k)**2  
     m = index_ratio(n_particle, n_sample)
     x = size_parameter(wavelen, n_sample, radius)
-    
-    # Define a function to calculate the phase function (the phase function is 
-    # the same for absorbing and non-absorbing systems)
-    def phase_function(m, x, angles, volume_fraction, ksquared,
-                       mie_theory=False):
-        # If mie_theory = True, calculate the phase function for 1 particle 
-        # using Mie theory (excluding the structure factor)
-        if mie_theory == True:
-            diff_cscat_par, diff_cscat_per = \
-                model.differential_cross_section(m, x, angles, volume_fraction,
-                                                 structure_type=None)
-        else:
-            diff_cscat_par, diff_cscat_per = \
-                model.differential_cross_section(m, x, angles, volume_fraction)
-
-        cscat_total_par = model._integrate_cross_section(diff_cscat_par,
-                                                          1.0/ksquared, angles)
-        cscat_total_perp = model._integrate_cross_section(diff_cscat_per,
-                                                          1.0/ksquared, angles)
-        cscat_total = (cscat_total_par + cscat_total_perp)/2.0
-        p = (diff_cscat_par + diff_cscat_per)/(ksquared * 2 * cscat_total)
-        return(p, cscat_total)
 
     # If n_sample is complex, then the system absorbs and we must use the exact  
     # Mie solutions 
@@ -1635,15 +1617,13 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
         # Calculate phase function and scattering coefficient    
         # The scattering cross section is calculated at the surface of the
         # particle. Further absorption as photon packets travel through the 
-        # sample are accounted for in the absorb() function.   
+        # sample are accounted for in the absorb() function. 
+        p = phase_function(m, x, angles, volume_fraction, ksquared, 
+                           mie_theory=mie_theory)[0]
         if mie_theory == True:
-            p = phase_function(m, x, angles, volume_fraction, ksquared, 
-                               mie_theory=True)[0]
             struct_factor = [1,1]
         
         else:
-            p = phase_function(m, x, angles, volume_fraction, ksquared, 
-                               mie_theory=False)[0]        
             struct_factor = model.differential_cross_section(m, x, angles, 
                                                              volume_fraction,
                                                              form_type=None) 
@@ -1704,7 +1684,7 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
             mu_scat = cscat_total * number_density
         
         else:           
-            p, cscat_total = phase_function(m, x, angles, volume_fraction, 
+            p, p_par, p_perp, cscat_total = phase_function(m, x, angles, volume_fraction, 
                                             ksquared, mie_theory=False) 
             mu_scat = number_density * cscat_total
 
@@ -1715,6 +1695,73 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
     
     return p, mu_scat, mu_abs
     
+
+def phase_function(m, x, angles, volume_fraction, ksquared, mie_theory=False):
+    """
+    Calculates the phase function (the phase function is the same for absorbing 
+    and non-absorbing systems)
+    
+    Parameters:
+    ----------
+    m: float
+        index ratio between the particle and sample
+        
+    x: float
+        size parameter
+        
+    angles: array
+        theta angles at which to calculate phase function
+    
+    volume_fraction: float (sc.Quantity [dimensionless])
+        
+    ksquared: float (sc.Quantity [1/length])
+        k-vector squared, where k = 2*pi*n_sample / wavelength
+        
+    mie_theory: bool
+        If TRUE, phase function is calculated according to Mie theory 
+        (assuming no contribution from structure factor). If FALSE, phase
+        function is calculated according to single scattering theory 
+        (which uses Mie and structure factor contributions)
+        
+    
+    Returns:
+    --------
+    
+    p: array
+        phase function for unpolarized light
+        
+    p_par: array
+        phase function for parallel polarized light
+        
+    p_perp: array
+        phase function for perpendicularly polarized light
+        
+    cscat_total: float
+        total scattering cross section for unpolarized light
+        
+    """
+    
+    # If mie_theory = True, calculate the phase function for 1 particle 
+    # using Mie theory (excluding the structure factor)
+    if mie_theory == True:
+        diff_cscat_par, diff_cscat_perp = \
+            model.differential_cross_section(m, x, angles, volume_fraction,
+                                             structure_type=None)
+    else:
+        diff_cscat_par, diff_cscat_perp = \
+            model.differential_cross_section(m, x, angles, volume_fraction)
+
+    cscat_total_par = model._integrate_cross_section(diff_cscat_par,
+                                                      1.0/ksquared, angles)
+    cscat_total_perp = model._integrate_cross_section(diff_cscat_perp,
+                                                      1.0/ksquared, angles)
+    cscat_total = (cscat_total_par + cscat_total_perp)/2.0
+    
+    p = (diff_cscat_par + diff_cscat_perp)/(ksquared * 2 * cscat_total)
+    p_par = diff_cscat_par/(ksquared * 2 * cscat_total_par)
+    p_perp = diff_cscat_perp/(ksquared * 2 * cscat_total_perp)
+    
+    return(p, p_par, p_perp, cscat_total)
 
 def sample_angles(nevents, ntraj, p):
     """
