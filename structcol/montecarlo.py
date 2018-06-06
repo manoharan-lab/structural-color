@@ -179,7 +179,6 @@ class Trajectory:
         # beer lambert
         weight = self.weight*np.exp(-(mu_abs * np.cumsum(step_size[:,:], 
                                                          axis=0)).to(''))
-
         self.weight = sc.Quantity(weight)
 
 
@@ -427,6 +426,9 @@ def exit_kz(x, y, z, indices, radius, n_inside, n_outside):
     # hence we leave the kz unchanged
     nan_indices = np.where(np.isnan(k2z))
     k2z[nan_indices] = k1[2,nan_indices]
+    
+    # perform the rotation
+    k2z = rotate_refract(norm, kr, theta, k1)
     
     return k2z
 
@@ -1161,6 +1163,7 @@ def calc_refl_trans_sphere(trajectories, n_medium, n_sample, radius, p, mu_abs,
     k1_trans, norm_trans, fresnel_pass_frac_trans = fresnel_pass_frac_sphere(radius, trans_indices, n_sample, None, n_medium, x, y, z, 
                                                         plot_exits = plot_exits)
     transmitted = trans_weights * fresnel_pass_frac_trans
+    
 
     if plot_exits == True:
         plt.gca().set_title('Transmitted exits')
@@ -1480,7 +1483,7 @@ def initialize_sphere(nevents, ntraj, n_medium, n_sample, radius, seed=None,
     r0 = np.zeros((3, nevents+1, ntraj))
     if isinstance(radius, sc.Quantity):
         radius = radius.to('um').magnitude
-        
+
     # randomly choose r on interval [0,radius]
     r = radius*np.sqrt(random(ntraj))
 
@@ -1510,7 +1513,6 @@ def initialize_sphere(nevents, ntraj, n_medium, n_sample, radius, seed=None,
     sinphi = neg_normal[1,:]/np.sin(theta)
     
     # refraction of incident light upon entering the sample
-
     theta = refraction(theta, n_medium, np.abs(n_sample))
     sintheta = np.sin(theta)
     costheta = np.cos(theta)
