@@ -183,11 +183,16 @@ def test_reflection_core_shell():
     assert_almost_equal(R, R_cs)
     assert_almost_equal(T, T_cs)
     
-    ## Outputs before refactoring structcol
-    # R = 0.81382378303119451
-    # R_cs = 0.81382378303119451
-    # T = 0.1861762169688054
-    # T_cs = 0.1861762169688054
+    # Outputs before refactoring structcol
+    R_before = 0.81382378303119451
+    R_cs_before = 0.81382378303119451
+    T_before = 0.1861762169688054
+    T_cs_before = 0.1861762169688054
+    
+    assert_equal(R_before, R)
+    assert_equal(R_cs_before, R_cs)
+    assert_equal(T_before, T)
+    assert_equal(T_cs_before, T_cs)
     
     # Test that the reflectance is the same for a core-shell that absorbs (with
     # the same refractive indices for all layers) and a non-core-shell that 
@@ -210,12 +215,17 @@ def test_reflection_core_shell():
     assert_almost_equal(R_abs, R_cs_abs, decimal=3)
     assert_almost_equal(T_abs, T_cs_abs, decimal=3)
    
-    ## Outputs before refactoring structcol
-    # R_abs = 0.50534237684703909
-    # R_cs_abs = 0.50534237684642402
-    # T_abs = 0.017215194324142709
-    # T_cs_abs = 0.017215194324029608
+    # Outputs before refactoring structcol
+    R_abs_before = 0.50534237684703909
+    R_cs_abs_before = 0.50534237684642402
+    T_abs_before = 0.017215194324142709
+    T_cs_abs_before = 0.017215194324029608
 
+    assert_equal(R_abs_before, R_abs)
+    assert_equal(R_cs_abs_before, R_cs_abs)
+    assert_equal(T_abs_before, T_abs)
+    assert_equal(T_cs_abs_before, T_cs_abs)
+    
     # Same as previous test but with absorbing matrix as well
     # Reflection using a non-core-shell absorbing system
     n_particle_abs = sc.Quantity(1.5+0.001j, '')  
@@ -236,12 +246,18 @@ def test_reflection_core_shell():
     assert_almost_equal(R_abs, R_cs_abs, decimal=3)
     assert_almost_equal(T_abs, T_cs_abs, decimal=3)
 
-    ## Outputs before refactoring structcol
-    # R_abs = 0.37384878890851575
-    # R_cs_abs = 0.37384878890851575
-    # T_abs = 0.002180700021951509
-    # T_cs_abs = 0.002180700021951509
+    # Outputs before refactoring structcol
+    R_abs_before = 0.37384878890851575
+    R_cs_abs_before = 0.37384878890851575
+    T_abs_before = 0.002180700021951509
+    T_cs_abs_before = 0.002180700021951509
 
+    assert_equal(R_abs_before, R_abs)
+    assert_equal(R_cs_abs_before, R_cs_abs)
+    assert_equal(T_abs_before, T_abs)
+    assert_equal(T_cs_abs_before, T_cs_abs)
+    
+    
 def test_reflection_absorbing_particle_or_matrix():
     # test that the reflections with a real n_particle and with a complex
     # n_particle with a 0 imaginary component are the same 
@@ -262,11 +278,16 @@ def test_reflection_absorbing_particle_or_matrix():
     assert_almost_equal(R, R_abs)
     assert_almost_equal(T, T_abs)
     
-    ## Outputs before refactoring structcol
-    # R = 0.81382378303119451
-    # R_abs = 0.81382378303119451
-    # T = 0.1861762169688054
-    # T_abs = 0.1861762169688054
+    # Outputs before refactoring structcol
+    R_before = 0.81382378303119451
+    R_abs_before = 0.81382378303119451
+    T_before = 0.1861762169688054
+    T_abs_before = 0.1861762169688054
+    
+    assert_equal(R_before, R)
+    assert_equal(R_abs_before, R_abs)
+    assert_equal(T_before, T)
+    assert_equal(T_abs_before, T_abs)
     
     # Same as previous test but with absorbing matrix
     # Reflection using matrix with an imaginary component of 0
@@ -279,12 +300,18 @@ def test_reflection_absorbing_particle_or_matrix():
     assert_almost_equal(R, R_abs)
     assert_almost_equal(T, T_abs)
     
-    ## Outputs before refactoring structcol
-    # R = 0.81382378303119451
-    # R_abs = 0.81382378303119451
-    # T = 0.1861762169688054
-    # T_abs = 0.1861762169688054
+    # Outputs before refactoring structcol
+    R_before = 0.81382378303119451
+    R_abs_before = 0.81382378303119451
+    T_before = 0.1861762169688054
+    T_abs_before = 0.1861762169688054
 
+    assert_equal(R_before, R)
+    assert_equal(R_abs_before, R_abs)
+    assert_equal(T_before, T)
+    assert_equal(T_abs_before, T_abs)
+    
+    
 def test_reflection_polydispersity():
     seed = 1
     nevents = 60
@@ -310,12 +337,17 @@ def test_reflection_polydispersity():
     assert_almost_equal(R_mono, R_poly)
     assert_almost_equal(T_mono, T_poly)
 
-    ## Outputs before refactoring structcol
-    # R_mono = 0.81382378303119451
-    # R_poly = 0.81382378303119451
-    # T_mono = 0.1861762169688054
-    # T_poly = 0.1861762169688054
+    # Outputs before refactoring structcol
+    R_mono_before = 0.81382378303119451
+    R_poly_before = 0.81382378303119451
+    T_mono_before = 0.1861762169688054
+    T_poly_before = 0.1861762169688054
 
+    assert_equal(R_mono_before, R_mono)
+    assert_equal(R_poly_before, R_poly)
+    assert_equal(T_mono_before, T_mono)
+    assert_equal(T_poly_before, T_poly)
+    
     # With absorption: test that the reflectance using with very small 
     # polydispersity is the same as the monodisperse case  
     n_particle_abs = sc.Quantity(1.5+0.0001j, '')  
@@ -336,11 +368,16 @@ def test_reflection_polydispersity():
     assert_almost_equal(R_mono_abs, R_poly_abs, decimal=3)
     assert_almost_equal(T_mono_abs, T_poly_abs, decimal=3)
     
-    ## Outputs before refactoring structcol
-    # R_mono_abs = 0.74182070115289855
-    # R_poly_abs = 0.74153254583803685
-    # T_mono_abs = 0.083823525277616467
-    # T_poly_abs = 0.083720861809212302
+    # Outputs before refactoring structcol
+    R_mono_abs_before = 0.74182070115289855
+    R_poly_abs_before = 0.74153254583803685
+    T_mono_abs_before = 0.083823525277616467
+    T_poly_abs_before = 0.083720861809212316
+    
+    assert_equal(R_mono_abs_before, R_mono_abs)
+    assert_equal(R_poly_abs_before, R_poly_abs)
+    assert_equal(T_mono_abs_before, T_mono_abs)
+    assert_equal(T_poly_abs_before, T_poly_abs)
     
     # test that the reflectance is the same for a polydisperse monospecies
     # and a bispecies with equal types of particles

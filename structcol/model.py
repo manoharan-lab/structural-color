@@ -298,6 +298,12 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
         cscat_total = mie.integrate_intensity_complex_medium(diff_cs_total[0], 
                                                              diff_cs_total[1], 
                                                              thickness, angles_tot, k)[0]  
+        factor = np.cos(angles_tot)
+        asymmetry_unpolarized = mie.integrate_intensity_complex_medium(diff_cs_total[0]*factor, 
+                                                           diff_cs_total[1]*factor, 
+                                                           thickness, angles_tot, k)[0]  
+        asymmetry_parameter = asymmetry_unpolarized/cscat_total
+    
     else:
         cscat_detected_par = _integrate_cross_section(diff_cs_detected[0],
                                                   transmission[0]/np.abs(k)**2, 
@@ -308,29 +314,35 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
         cscat_detected = (cscat_detected_par + cscat_detected_perp)/2.0
         
         cscat_total_par = _integrate_cross_section(diff_cs_total[0], 1.0/np.abs(k)**2,  
-                                               angles_tot, azi_angle_range_tot)
+                                                   angles_tot, azi_angle_range_tot)
         cscat_total_perp = _integrate_cross_section(diff_cs_total[1], 1.0/np.abs(k)**2, 
-                                                angles_tot, azi_angle_range_tot)
+                                                    angles_tot, azi_angle_range_tot)
         cscat_total = (cscat_total_par + cscat_total_perp)/2.0
 
+        asymmetry_par = _integrate_cross_section(diff_cs_total[0], np.cos(angles_tot)*1.0/np.abs(k)**2,
+                                                 angles_tot, azi_angle_range_tot)
+        asymmetry_perp = _integrate_cross_section(diff_cs_total[1], np.cos(angles_tot)*1.0/np.abs(k)**2,
+                                                  angles_tot, azi_angle_range_tot)
+        asymmetry_parameter = (asymmetry_par + asymmetry_perp)/cscat_total/2.0
+    
     cext_total = cscat_total + cabs_total
     
     # to calculate asymmetry parameter, use the far-field Mie solutions because
-    # the phase function does not change whether there is absorption or not 
-    # calculate asymmetry parameter using integral from 0 to 180 degrees   
-    diff_cs = differential_cross_section(m, x, angles_tot, volume_fraction,
-                                        structure_type=structure_type, 
-                                        form_type=form_type, 
-                                        diameters=mean_diameters,
-                                        concentration=concentration, pdi=pdi, 
-                                        wavelen=wavelen, n_matrix=n_sample)
-    asymmetry_par = _integrate_cross_section(diff_cs[0], np.cos(angles_tot)*1.0/np.abs(k)**2,
-                                             angles_tot, azi_angle_range_tot)
-    asymmetry_perp = _integrate_cross_section(diff_cs[1], np.cos(angles_tot)*1.0/np.abs(k)**2,
-                                              angles_tot, azi_angle_range_tot)
+    # the phase function does not change whether we use far or near field solutions.
+    # Calculate asymmetry parameter using integral from 0 to 180 degrees   
+#    diff_cs = differential_cross_section(m, x, angles_tot, volume_fraction,
+#                                        structure_type=structure_type, 
+#                                        form_type=form_type, 
+#                                        diameters=mean_diameters,
+#                                        concentration=concentration, pdi=pdi, 
+#                                        wavelen=wavelen, n_matrix=n_sample, k=k, distance=thickness)
+#    asymmetry_par = _integrate_cross_section(diff_cs[0], np.cos(angles_tot)*1.0/np.abs(k)**2,
+#                                             angles_tot, azi_angle_range_tot)
+#    asymmetry_perp = _integrate_cross_section(diff_cs[1], np.cos(angles_tot)*1.0/np.abs(k)**2,
+#                                              angles_tot, azi_angle_range_tot)
     
     # calculate for unpolarized light
-    asymmetry_parameter = (asymmetry_par + asymmetry_perp)/cscat_total/2.0
+#    asymmetry_parameter = (asymmetry_par + asymmetry_perp)/cscat_total/2.0
     
     # now eq. 6 for the total reflection
     rho1 = _number_density(volume_fraction, radius.max())
@@ -425,6 +437,7 @@ def differential_cross_section(m, x, angles, volume_fraction,
             if distance is None:
                 raise ValueError('must specify distance for absorbing polydisperperse systems')
             form_factor = mie.diff_scat_intensity_complex_medium(m, x, angles, k*distance)
+            
         else:
             form_factor = mie.calc_ang_dist(m, x, angles)
         f_par = form_factor[0]  
