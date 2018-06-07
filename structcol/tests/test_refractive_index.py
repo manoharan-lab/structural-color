@@ -25,7 +25,7 @@ from .. import Quantity
 from nose.tools import assert_raises, assert_equal
 from numpy.testing import assert_almost_equal, assert_array_almost_equal
 from pint.errors import DimensionalityError
-
+import numpy as np
 
 def test_n():
     # make sure that a material not in the dictionary raises a KeyError
@@ -75,6 +75,13 @@ def test_fused_silica():
                         Quantity('1.4718556531995'))
     assert_almost_equal(ri.n('fused silica', Quantity('0.8050 um')),
                         Quantity('1.4532313266004'))
+def test_zirconia():
+    # values from refractiveindex.info
+    assert_almost_equal(ri.n('zirconia', Quantity('.405 um')),
+                       Quantity('2.3135169070958'))
+    assert_almost_equal(ri.n('zirconia', Quantity('.6350 um')),
+                        Quantity('2.1593242574339'))
+
 
 def test_vacuum():
     assert_almost_equal(ri.n('vacuum', Quantity('0.400 um')), Quantity('1.0'))
@@ -105,3 +112,34 @@ def test_cargille():
                         Quantity('1.50736788125'))
     assert_almost_equal(ri.n_cargille(0,'acrylic',Quantity('0.700 um')),
                         Quantity('1.4878716959183673'))
+    
+def test_neff():
+    # test that at low volume fractions, Maxwell-Garnett and Bruggeman roughly
+    # match for a non-core-shell particle
+    n_particle = Quantity(2.7, '')
+    n_matrix = Quantity(2.2, '')
+    vf = Quantity(0.001, '')
+    
+    neff_mg = ri.n_eff(n_particle, n_matrix, vf, maxwell_garnett=True)
+    neff_bg = ri.n_eff(n_particle, n_matrix, vf, maxwell_garnett=False)
+
+    assert_almost_equal(neff_mg, neff_bg)
+    
+    # test that the non-core-shell particle with Maxwell-Garnett matches with 
+    # the core-shell of shell index of air with Bruggeman at low volume fractions
+    n_particle2 = Quantity(np.array([2.7, 2.2]), '')
+    vf2 = Quantity(np.array([0.001, 0.1]), '')
+    neff_bg2 = ri.n_eff(n_particle2, n_matrix, vf2, maxwell_garnett=False)
+    
+    assert_almost_equal(neff_mg, neff_bg2)
+    assert_almost_equal(neff_bg, neff_bg2)
+    
+    # test that the effective indices for a non-core-shell and a core-shell of
+    # shell index of air match using Bruggeman at intermediate volume fractions
+    vf3 = Quantity(0.5, '')
+    neff_bg3 = ri.n_eff(n_particle, n_matrix, vf3, maxwell_garnett=False)
+    
+    vf3_cs = Quantity(np.array([0.5, 0.1]), '')
+    neff_bg3_cs = ri.n_eff(n_particle2, n_matrix, vf3_cs, maxwell_garnett=False)
+    
+    assert_almost_equal(neff_bg3, neff_bg3_cs)

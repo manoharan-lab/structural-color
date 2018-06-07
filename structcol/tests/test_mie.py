@@ -147,8 +147,6 @@ def test_efficiencies():
     # point for large size parameters)
     assert_array_almost_equal(qback, qback_bhmie, decimal=2)
 
-
-
 def test_absorbing_materials():
     # test calculations for gold, which has a high imaginary refractive index
     wavelen = Quantity('658 nm')
@@ -174,3 +172,4 @@ def test_absorbing_materials():
     ipar, iperp = mie.calc_ang_dist(m, x, angles)
     assert_array_almost_equal(ipar, ipar_bhmie)
     assert_array_almost_equal(iperp, iperp_bhmie)
+
