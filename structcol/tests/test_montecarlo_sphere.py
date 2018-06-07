@@ -47,8 +47,8 @@ refl_index = np.array([2,0,2])
 
 def test_sampling():
     # Test that 'calc_scat' runs
-    p, mu_scat, mu_abs = mc.calc_scat(radius, n_particle, n_sample, volume_fraction, 
-                                  wavelen, phase_mie=False, mu_scat_mie=False)
+    p, mu_scat, mu_abs = mc.calc_scat(radius, n_particle, n_sample, 
+                                      volume_fraction, wavelen)
     
     # Test that 'sample_angles' runs
     mc.sample_angles(nevents, ntrajectories, p)
@@ -124,15 +124,54 @@ def test_get_angles_sphere():
     _, _, thetas = mc.get_angles_sphere(x_pos, y_pos, z_pos, assembly_radius, indices, incident = True)
     assert_almost_equal(np.sum(thetas), 0.) 
 
+def test_index_match():
+    ntrajectories = 2
+    nevents = 3
+    wavelen = sc.Quantity('600 nm')
+    radius = sc.Quantity('0.140 um')
+    microsphere_radius = sc.Quantity('10 um')
+    volume_fraction = sc.Quantity(0.55,'')
+    n_particle = sc.Quantity(1.6,'')
+    n_matrix = sc.Quantity(1.6,'')
+    n_sample = n_matrix
+    n_medium = sc.Quantity(1,'')
+    
+    p, mu_scat, mu_abs = mc.calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen)
+    
+    # initialize all at center top edge of the sphere going down
+    r0_sphere = np.zeros((3,nevents+1,ntrajectories))
+    k0_sphere = np.zeros((3,nevents,ntrajectories))
+    k0_sphere[2,0,:] = 1
+    W0_sphere = np.ones((nevents, ntrajectories))
+    
+    # make into quantities with units
+    r0_sphere = sc.Quantity(r0_sphere, 'um')
+    k0_sphere = sc.Quantity(k0_sphere, '')
+    W0_sphere = sc.Quantity(W0_sphere, '')
+    
+    # Generate a matrix of all the randomly sampled angles first 
+    sintheta, costheta, sinphi, cosphi, _, _ = mc.sample_angles(nevents, ntrajectories, p)
 
+    # Create step size distribution
+    step = mc.sample_step(nevents, ntrajectories, mu_abs, mu_scat)
     
+    # make trajectories object
+    trajectories_sphere = mc.Trajectory(r0_sphere, k0_sphere, W0_sphere)
+    trajectories_sphere.absorb(mu_abs, step)                         
+    trajectories_sphere.scatter(sintheta, costheta, sinphi, cosphi)         
+    trajectories_sphere.move(step)
     
+    # calculate reflectance
+    refl_sphere, trans = mc.calc_refl_trans_sphere(trajectories_sphere, 
+                                                   n_medium, n_sample, 
+                                                   microsphere_radius, 
+                                                   p, mu_abs, mu_scat, max_stuck = 0.0001)    
     
-    
-    
-    
-    
-    
+    # calculated by hand from fresnel infinite sum
+    refl_fresnel_int = 0.053 # calculated by hand
+    refl_exact = refl_fresnel_int + (1-refl_fresnel_int)**2*refl_fresnel_int/(1-refl_fresnel_int**2)
+    assert_almost_equal(refl_sphere, refl_exact, decimal=3) 
+
     
     
     
