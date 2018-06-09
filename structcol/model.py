@@ -286,13 +286,18 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
     
     # integrate the differential cross sections to get the total cross section    
     if np.abs(n_sample.imag.magnitude) > 0.: 
+        # we calculate the detected and total cross sections using the exact
+        # Mie solutions in the far-field because the phase function using the 
+        # exact solutions in the far-field yields the same results as when 
+        # using the far-field Mie solutions. To calculate the parameters in the
+        # far field, we set the distance = thickness of the sample.
         cscat = mie.integrate_intensity_complex_medium(diff_cs_detected[0]*transmission[0], 
                                                        diff_cs_detected[1]*transmission[1], 
                                                        thickness, angles, k,
                                                        phi_min=Quantity(phi_min, 'rad'), 
                                                        phi_max=Quantity(phi_max, 'rad'))      
-        cscat_detected = cscat[0]
-        cscat_detected_par = cscat[1]
+        cscat_detected = cscat[0]    
+        cscat_detected_par = cscat[1]   
         cscat_detected_perp = cscat[2]                                                
     
         cscat_total = mie.integrate_intensity_complex_medium(diff_cs_total[0], 
@@ -304,6 +309,7 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
                                                            thickness, angles_tot, k)[0]  
         asymmetry_parameter = asymmetry_unpolarized/cscat_total
     
+    # if there is no absorption in the system
     else:
         cscat_detected_par = _integrate_cross_section(diff_cs_detected[0],
                                                   transmission[0]/np.abs(k)**2, 
@@ -326,23 +332,6 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
         asymmetry_parameter = (asymmetry_par + asymmetry_perp)/cscat_total/2.0
     
     cext_total = cscat_total + cabs_total
-    
-    # to calculate asymmetry parameter, use the far-field Mie solutions because
-    # the phase function does not change whether we use far or near field solutions.
-    # Calculate asymmetry parameter using integral from 0 to 180 degrees   
-#    diff_cs = differential_cross_section(m, x, angles_tot, volume_fraction,
-#                                        structure_type=structure_type, 
-#                                        form_type=form_type, 
-#                                        diameters=mean_diameters,
-#                                        concentration=concentration, pdi=pdi, 
-#                                        wavelen=wavelen, n_matrix=n_sample, k=k, distance=thickness)
-#    asymmetry_par = _integrate_cross_section(diff_cs[0], np.cos(angles_tot)*1.0/np.abs(k)**2,
-#                                             angles_tot, azi_angle_range_tot)
-#    asymmetry_perp = _integrate_cross_section(diff_cs[1], np.cos(angles_tot)*1.0/np.abs(k)**2,
-#                                              angles_tot, azi_angle_range_tot)
-    
-    # calculate for unpolarized light
-#    asymmetry_parameter = (asymmetry_par + asymmetry_perp)/cscat_total/2.0
     
     # now eq. 6 for the total reflection
     rho1 = _number_density(volume_fraction, radius.max())
@@ -378,11 +367,11 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
     
     
 @ureg.check('[]', '[]', '[]', '[]')
-def differential_cross_section(m, x, angles, volume_fraction, 
-                               structure_type = 'glass', 
-                               form_type = 'sphere', 
+def differential_cross_section(m, x, angles, volume_fraction,
+                               structure_type = 'glass', form_type = 'sphere', 
                                diameters=None, concentration=None, pdi=None, 
-                               wavelen=None, n_matrix=None, k=None, distance=None):
+                               wavelen=None, n_matrix=None, k=None, 
+                               distance=None):
     """
     Calculate dimensionless differential scattering cross-section for a sphere,
     including contributions from the structure factor. Need to multiply by k**2
@@ -423,6 +412,13 @@ def differential_cross_section(m, x, angles, volume_fraction,
     n_matrix : float (structcol.Quantity [dimensionless])
         Refractive index of the matrix (will be the index of the sample when 
         running the model). 
+    k: float (sc.Quantity [1/length])
+        k vector. k = 2*pi*n_sample / wavelength 
+    distance: float (sc.Quantity [length])
+        distance at which we perform the integration of the differential 
+        cross section to get the total cross section. If distance >> radius,
+        the integration will be done in the far-field, and if it's close to the
+        radius, it will be done in the near-field. 
     
     Returns
     -------
@@ -436,7 +432,8 @@ def differential_cross_section(m, x, angles, volume_fraction,
         if k is not None and np.abs(k.imag.magnitude) > 0.:
             if distance is None:
                 raise ValueError('must specify distance for absorbing polydisperperse systems')
-            form_factor = mie.diff_scat_intensity_complex_medium(m, x, angles, k*distance)
+            form_factor = mie.diff_scat_intensity_complex_medium(m, x, angles, 
+                                                                 k*distance)
             
         else:
             form_factor = mie.calc_ang_dist(m, x, angles)
@@ -446,7 +443,9 @@ def differential_cross_section(m, x, angles, volume_fraction,
     elif form_type == 'polydisperse':
         if diameters is None or concentration is None or pdi is None or wavelen is None or n_matrix is None:
             raise ValueError('must specify diameters, concentration, pdi, wavelength, and n_matrix for polydisperperse systems')
-        form_factor = polydisperse_form_factor(m, angles, diameters, concentration, pdi, wavelen, n_matrix, k=k, distance=distance)
+        form_factor = polydisperse_form_factor(m, angles, diameters, 
+                                               concentration, pdi, wavelen, 
+                                               n_matrix, k=k, distance=distance)
         f_par = form_factor[0]  
         f_perp = form_factor[1]
         
@@ -498,7 +497,50 @@ def differential_cross_section(m, x, angles, volume_fraction,
     return scat_par, scat_perp
 
 
-def polydisperse_form_factor(m, angles, diameters, concentration, pdi, wavelen, n_matrix, k=None, distance=None):
+def polydisperse_form_factor(m, angles, diameters, concentration, pdi, wavelen, 
+                             n_matrix, k=None, distance=None):
+    """   
+    Calculate the form factor for polydisperse systems. 
+    
+    Parameters
+    ----------
+    m: float 
+        complex particle relative refractive index, n_particle/n_sample
+    angles: ndarray(structcol.Quantity [dimensionless])
+        array of angles. Must be entered as a Quantity to allow specifying
+        units (degrees or radians) explicitly
+    diameters: ndarray(structcol.Quantity [length])
+        Only for polydisperse systems. Mean diameters of each species of 
+        particles (can be one for a monospecies or two for bispecies). 
+    concentration : 2-element array (structcol.Quantity [dimensionless])
+        'Number' concentration of each scatterer if the system is binary. For 
+        ex, a system composed of 90 A particles and 10 B particles would have 
+        c = [0.9, 0.1]. For polydisperse monospecies systems, specify the 
+        concentration as [1.0, 0.0]. 
+    pdi : 2-element array (structcol.Quantity [dimensionless])
+        Polydispersity index of each scatterer if the system is polydisperse. 
+        For polydisperse monospecies systems, specify the pdi as a 2-element
+        array with repeating values (for example, [0.01, 0.01]).
+    wavelen : float (structcol.Quantity [length])    
+        Wavelength of light in vacuum.
+    n_matrix : float (structcol.Quantity [dimensionless])
+        Refractive index of the matrix (will be the index of the sample when 
+        running the model). 
+    k: float (sc.Quantity [1/length])
+        k vector. k = 2*pi*n_sample / wavelength 
+    distance: float (sc.Quantity [length])
+        distance at which we perform the integration of the differential 
+        cross section to get the total cross section. If distance >> radius,
+        the integration will be done in the far-field, and if it's close to the
+        radius, it will be done in the near-field.     
+    
+    Returns
+    -------
+    float (2-tuple):
+        polydisperse form factor for parallel and perpendicular polarizations as a 
+        function of scattering angle. 
+    """
+    
     if len(np.atleast_1d(m)) > 1:
         raise ValueError('cannot handle polydispersity in core-shell particles')
     
@@ -564,6 +606,43 @@ def polydisperse_form_factor(m, angles, diameters, concentration, pdi, wavelen, 
 
 
 def absorption_cross_section(form_type, m, diameters, n_matrix, x, wavelen, n_particle, concentration=None, pdi=None):
+    """   
+    Calculate the absorption cross section. 
+    
+    Parameters
+    ----------
+    form_type: str or None
+        type of particle geometry to calculate the form factor. Can be 'sphere'
+        or None.
+    m: float 
+        complex particle relative refractive index, n_particle/n_sample
+    diameters: ndarray(structcol.Quantity [length])
+        Only for polydisperse systems. Mean diameters of each species of 
+        particles (can be one for a monospecies or two for bispecies). 
+    n_matrix : float (structcol.Quantity [dimensionless])
+        Refractive index of the matrix (will be the index of the sample when 
+        running the model). 
+    x: float
+        size parameter 
+    wavelen : float (structcol.Quantity [length])    
+        Wavelength of light in vacuum.
+    n_particle: float (structcol.Quantity [dimensionless])
+        Refractive index of the scatterer. 
+    concentration : 2-element array (structcol.Quantity [dimensionless])
+        'Number' concentration of each scatterer if the system is binary. For 
+        ex, a system composed of 90 A particles and 10 B particles would have 
+        c = [0.9, 0.1]. For polydisperse monospecies systems, specify the 
+        concentration as [1.0, 0.0]. 
+    pdi : 2-element array (structcol.Quantity [dimensionless])
+        Polydispersity index of each scatterer if the system is polydisperse. 
+        For polydisperse monospecies systems, specify the pdi as a 2-element
+        array with repeating values (for example, [0.01, 0.01]).
+
+    Returns
+    -------
+    float (2-tuple):
+        absorption cross section.
+    """
     
     if np.abs(n_matrix.imag.magnitude) == 0.:
         cabs_total = Quantity(0.0, 'um^2')
@@ -610,12 +689,12 @@ def absorption_cross_section(form_type, m, diameters, n_matrix, x, wavelen, n_pa
                 internal_coeffs = mie._internal_coeffs(m, x_poly[s], nstop)
                     
                 cabs = mie._cross_sections_complex_medium_fu(coeffs[0], coeffs[1], 
-                                                                 internal_coeffs[0], 
-                                                                 internal_coeffs[1], 
-                                                                 Quantity(diameter_range[s], diameters.units), 
-                                                                 n_particle, 
-                                                                 n_matrix, x_scat, 
-                                                                 x_poly[s], wavelen)[1]
+                                                             internal_coeffs[0], 
+                                                             internal_coeffs[1], 
+                                                             Quantity(diameter_range[s], diameters.units), 
+                                                             n_particle, 
+                                                             n_matrix, x_scat, 
+                                                             x_poly[s], wavelen)[1]
                 cabs_magn[s] = cabs.magnitude
             # integrate and multiply the mu_abs by the concentrations to get the polydisperse mu_abs
             cabs_poly[d] = np.trapz(cabs_magn*distr, x=diameter_range) * np.atleast_1d(concentration)[d]            
