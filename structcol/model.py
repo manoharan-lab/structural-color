@@ -431,7 +431,7 @@ def differential_cross_section(m, x, angles, volume_fraction,
     if form_type == 'sphere': 
         if k is not None and np.abs(k.imag.magnitude) > 0.:
             if distance is None:
-                raise ValueError('must specify distance for absorbing polydisperperse systems')
+                raise ValueError('must specify distance for absorbing systems')
             form_factor = mie.diff_scat_intensity_complex_medium(m, x, angles, 
                                                                  k*distance)
             
@@ -442,7 +442,7 @@ def differential_cross_section(m, x, angles, volume_fraction,
     
     elif form_type == 'polydisperse':
         if diameters is None or concentration is None or pdi is None or wavelen is None or n_matrix is None:
-            raise ValueError('must specify diameters, concentration, pdi, wavelength, and n_matrix for polydisperperse systems')
+            raise ValueError('must specify diameters, concentration, pdi, wavelength, and n_matrix for polydisperse systems')
         form_factor = polydisperse_form_factor(m, angles, diameters, 
                                                concentration, pdi, wavelen, 
                                                n_matrix, k=k, distance=distance)
@@ -474,7 +474,7 @@ def differential_cross_section(m, x, angles, volume_fraction,
         
         elif structure_type == 'polydisperse':
             if diameters is None or concentration is None or pdi is None:
-                raise ValueError('must specify diameters, concentration, and pdi for polydisperperse systems')
+                raise ValueError('must specify diameters, concentration, and pdi for polydisperse systems')
             if len(np.atleast_1d(m)) > 1:
                 raise ValueError('cannot handle polydispersity in core-shell particles')
              

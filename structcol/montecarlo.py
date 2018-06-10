@@ -1856,10 +1856,9 @@ def phase_function(m, x, angles, volume_fraction, k, number_density,
     return(p, p_par, p_perp, cscat_total)
 
 
-"""
 def calc_distance(m, x, angles, volume_fraction, k, number_density, 
                   diameters, form_type='sphere'):
-    
+    """    
     Use the exact Mie solutions to calculate the total scattering cross 
     section at the surface of the scatterer. Then calculate the scattering
     length associated to this cross section, and calculate the cross section
@@ -1867,7 +1866,7 @@ def calc_distance(m, x, angles, volume_fraction, k, number_density,
     the new scattering length matches the previous scattering length 
     (converges). Then choose the converged scattering length as the distance
     for the integration of the differential cross sections. 
-    
+    """ 
     if form_type=='polydisperse':
         distance = diameters.to('um').magnitude / 2
     else:
@@ -1897,8 +1896,7 @@ def calc_distance(m, x, angles, volume_fraction, k, number_density,
         lscat_array[1] = lscat.magnitude
         
     return sc.Quantity(lscat_array[1], 'um')
-"""  
-    
+
     
 def sample_angles(nevents, ntraj, p):
     """
