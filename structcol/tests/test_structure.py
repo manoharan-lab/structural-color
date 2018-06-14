@@ -92,18 +92,24 @@ def test_structure_factor_percus_yevick_core_shell():
     x_cs = size_parameter(wavelen, n_sample_cs, radius_cs[1]).flatten() 
     qd_cs = 4*x_cs*np.sin(angles/2) 
     s_cs = structure.factor_py(qd_cs, np.sum(volume_fraction_cs))
-    print(s, s_cs)
+
     assert_almost_equal(s.magnitude, s_cs.magnitude, decimal=5)
     
+def test_structure_factor_polydisperse():
+    # test that the analytical structure factor for polydisperse systems matches
+    # Percus-Yevick in the monodisperse limit
     
+    # Percus-Yevick
+    qd = Quantity(5, '')
+    phi = Quantity(0.5, '')
+    S_py = structure.factor_py(qd, phi)
+
+    # Polydisperse S
+    d = Quantity('100 nm')
+    c = Quantity(1, '')
+    pdi = Quantity(1e-5, '')
+    q2 = qd / d
     
+    S_poly = structure.factor_poly(q2, phi, d, c, pdi)    
     
-    
-    
-    
-    
-    
-    
-    
-    
-    
+    assert_almost_equal(S_py.magnitude, S_poly.magnitude)
