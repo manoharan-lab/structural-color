@@ -427,9 +427,6 @@ def exit_kz(x, y, z, indices, radius, n_inside, n_outside):
     nan_indices = np.where(np.isnan(k2z))
     k2z[nan_indices] = k1[2,nan_indices]
     
-    # perform the rotation
-    k2z = rotate_refract(norm, kr, theta, k1)
-    
     return k2z
 
 def rotate_refract(abc, uvw, theta, xyz):
@@ -1163,7 +1160,6 @@ def calc_refl_trans_sphere(trajectories, n_medium, n_sample, radius, p, mu_abs,
     k1_trans, norm_trans, fresnel_pass_frac_trans = fresnel_pass_frac_sphere(radius, trans_indices, n_sample, None, n_medium, x, y, z, 
                                                         plot_exits = plot_exits)
     transmitted = trans_weights * fresnel_pass_frac_trans
-    
 
     if plot_exits == True:
         plt.gca().set_title('Transmitted exits')
@@ -1358,7 +1354,7 @@ def initialize(nevents, ntraj, n_medium, n_sample, seed=None, incidence_angle=0.
     """
     if seed is not None:
         np.random.seed([seed])
-
+    
     # Initial position. The position array has one more row than the direction
     # and weight arrays because it includes the starting positions on the x-y
     # plane
@@ -1387,7 +1383,7 @@ def initialize(nevents, ntraj, n_medium, n_sample, seed=None, incidence_angle=0.
     theta = refraction(theta, n_medium, np.abs(n_sample))
     sintheta = np.sin(theta)
     costheta = np.cos(theta)
-
+    
     # Fill up the first row (corresponding to the first scattering event) of the
     # direction cosines array with the randomly generated angles:
     # kx = sintheta * cosphi
@@ -1486,7 +1482,7 @@ def initialize_sphere(nevents, ntraj, n_medium, n_sample, radius, seed=None,
 
     # randomly choose r on interval [0,radius]
     r = radius*np.sqrt(random(ntraj))
-
+    
     # randomly choose th on interval [0,2*pi]
     th = 2*np.pi*random(ntraj)
     
@@ -1553,6 +1549,7 @@ def initialize_sphere(nevents, ntraj, n_medium, n_sample, radius, seed=None,
     return r0, k0, weight0
 
 def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
+              radius2=None, concentration=None, pdi=None, polydisperse=False,
               mie_theory = False):
     """
     Calculates the phase function and scattering coefficient from either the
@@ -1573,6 +1570,21 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
         Volume fraction of the sample. 
     wavelen : float (structcol.Quantity [length])
         Wavelength of light in vacuum.
+    radius2 : float (structcol.Quantity [length])
+        Mean radius of secondary scatterer. Specify only if the system is 
+        binary, meaning that there are two mean particle radii (for example,
+        one small and one large).
+    concentration : 2-element array (structcol.Quantity [dimensionless])
+        Concentration of each scatterer if the system is binary. For 
+        polydisperse monospecies systems, specify the concentration as 
+        [0., 1.]. The concentrations must add up to 1. 
+    pdi : 2-element array (structcol.Quantity [dimensionless])
+        Polydispersity index of each scatterer if the system is polydisperse. 
+        For polydisperse monospecies systems, specify the pdi as a 2-element
+        array with repeating values (for example, [0.01, 0.01]).
+    polydisperse : bool
+        If True, it uses the polydisperse form and structure factors. If set to
+        True, radius2, concentration, and pdi must be specified. 
     mie_theory : bool
         If True, the phase function and scattering coefficient is calculated 
         from Mie theory. If False (default), they are calculated from the 
@@ -1607,39 +1619,46 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
     min_angle = 0.01            
     angles = sc.Quantity(np.linspace(min_angle, np.pi, 200), 'rad') 
 
-    number_density = 3.0 * volume_fraction / (4.0 * np.pi * radius.max()**3)
-    k = 2 * np.pi * n_sample / wavelen    
-    ksquared = np.abs(k)**2  
+    k = 2 * np.pi * n_sample / wavelen     
     m = index_ratio(n_particle, n_sample)
     x = size_parameter(wavelen, n_sample, radius)
 
-    # If n_sample is complex, then the system absorbs and we must use the exact  
-    # Mie solutions 
+    # radius and radius2 should be in the same units (for polydisperse samples)    
+    if radius2 is not None:
+        radius2 = radius2.to(radius.units)
+    if radius2 is None:
+        radius2 = radius    
+    
+    # For now, set the number_density to be the average number_density if the 
+    # system is polydisperse
+    # TODO: should the number_density account for polydispersity as well?
+    number_density1 = 3.0 * volume_fraction / (4.0 * np.pi * radius.max()**3)    
+    number_density2 = 3.0 * volume_fraction / (4.0 * np.pi * radius2.max()**3)
+    number_density = (number_density1 + number_density2)/2
+    
+    # if the system is polydisperse, use the polydisperse form and structure 
+    # factors
+    if polydisperse == True:
+        if radius2 is None or concentration is None or pdi is None:
+            raise ValueError('must specify diameters, concentration, and pdi for polydisperperse systems')
+        
+        if len(np.atleast_1d(m)) > 1:
+            raise ValueError('cannot handle polydispersity in core-shell particles')
+        
+        form_type = 'polydisperse'
+        structure_type = 'polydisperse'
+    else:
+        form_type = 'sphere'
+        structure_type = 'glass'
+        
+    # define the mean diameters in case the system is polydisperse    
+    mean_diameters = sc.Quantity(np.array([2*radius.magnitude, 2*radius2.magnitude]),
+                                 radius.units)
+                         
+    # calculate the absorption coefficient
     if np.abs(n_sample.imag.magnitude) > 0.0:
-        # Calculate phase function and scattering coefficient    
-        # The scattering cross section is calculated at the surface of the
-        # particle. Further absorption as photon packets travel through the 
-        # sample are accounted for in the absorb() function. 
-        p = phase_function(m, x, angles, volume_fraction, ksquared, 
-                           mie_theory=mie_theory)[0]
-        if mie_theory == True:
-            struct_factor = [1,1]
-        
-        else:
-            struct_factor = model.differential_cross_section(m, x, angles, 
-                                                             volume_fraction,
-                                                             form_type=None) 
-        distance = np.array(radius).max() * radius.units        
-        form_factor = mie.diff_scat_intensity_complex_medium(m, x, angles, 
-                                                             k*distance)
-        diff_cs_par = form_factor[0] * struct_factor[0]
-        diff_cs_per = form_factor[1] * struct_factor[1]
-        cscat_total = mie.integrate_intensity_complex_medium(diff_cs_par, 
-                                                             diff_cs_per, 
-                                                             distance,angles,k)[0]  
-        mu_scat = number_density * cscat_total
-        
-        # The absorption coefficient can be calculated from the imaginary 
+            
+       # The absorption coefficient can be calculated from the imaginary 
         # component of the samples's refractive index
         mu_abs = 4*np.pi*n_sample.imag/wavelen
         
@@ -1666,29 +1685,22 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
 #        mu_abs = cabs_part * number_density
 
     else:
-        # If there is no absorption in the sample, use the standard Mie 
-        # solutions with the far-field approximation
-        # Calculate the absorption coefficient. Use wavelen/n_sample: 
-        # wavelength of incident light *in media* (usually this would be the 
-        # wavelength in the effective index of the particle-matrix composite). 
         cross_sections = mie.calc_cross_sections(m, x, wavelen/n_sample)  
         cabs_part = cross_sections[2]                                               
         mu_abs = cabs_part * number_density
-        
-        # If mie is set to True, calculate the phase function and scattering 
-        # coefficient for 1 particle using Mie theory
-        if mie == True:
-            S2squared, S1squared = mie.calc_ang_dist(m, x, angles)
-            S11 = (S1squared + S2squared)/2
-            cscat_total = cross_sections[0]
-            
-            p = S11 / (ksquared * cscat_total)
-            mu_scat = cscat_total * number_density
-        
-        else:           
-            p, p_par, p_perp, cscat_total = phase_function(m, x, angles, volume_fraction, 
-                                            ksquared, mie_theory=False) 
-            mu_scat = number_density * cscat_total
+      
+    # calculate the phase function
+    p, p_par, p_perp, cscat_total = phase_function(m, x, angles, volume_fraction, 
+                                                   k, number_density,
+                                                   wavelen=wavelen, 
+                                                   diameters=mean_diameters, 
+                                                   concentration=concentration, 
+                                                   pdi=pdi, n_sample=n_sample,
+                                                   form_type=form_type,
+                                                   structure_type=structure_type,
+                                                   mie_theory=mie_theory)
+
+    mu_scat = number_density * cscat_total
 
     # Here, the resulting units of mu_scat and mu_abs are nm^2/um^3. Thus, we 
     # simplify the units to 1/um 
@@ -1698,7 +1710,10 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
     return p, mu_scat, mu_abs
     
 
-def phase_function(m, x, angles, volume_fraction, ksquared, mie_theory=False):
+def phase_function(m, x, angles, volume_fraction, k, number_density,
+                   wavelen=None, diameters=None, concentration=None, pdi=None, 
+                   n_sample=None, form_type='sphere', structure_type='glass', 
+                   mie_theory=False):
     """
     Calculates the phase function (the phase function is the same for absorbing 
     and non-absorbing systems)
@@ -1707,64 +1722,180 @@ def phase_function(m, x, angles, volume_fraction, ksquared, mie_theory=False):
     ----------
     m: float
         index ratio between the particle and sample
-        
     x: float
         size parameter
-        
-    angles: array
+    angles: array (sc.Quantity [rad])
         theta angles at which to calculate phase function
-    
     volume_fraction: float (sc.Quantity [dimensionless])
-        
-    ksquared: float (sc.Quantity [1/length])
-        k-vector squared, where k = 2*pi*n_sample / wavelength
-        
+    k: float (sc.Quantity [1/length])
+        k vector. k = 2*pi*n_sample / wavelength
+    number_density: float (sc.Quantity [1/length^3])
+    wavelen: float (structcol.Quantity [length])
+        Wavelength of light in vacuum.
+    diameters: float (structcol.Quantity [length])
+        Mean diameters of secondary scatterer. Specify only if the system is 
+        binary, meaning that there are two mean particle radii (for example,
+        one small and one large).
+    concentration: 2-element array (structcol.Quantity [dimensionless])
+        Concentration of each scatterer if the system is binary. For 
+        polydisperse monospecies systems, specify the concentration as 
+        [0., 1.]. The concentrations must add up to 1. 
+    pdi: 2-element array (structcol.Quantity [dimensionless])
+        Polydispersity index of each scatterer if the system is polydisperse. 
+        For polydisperse monospecies systems, specify the pdi as a 2-element
+        array with repeating values (for example, [0.01, 0.01]).
+    n_sample : float (structcol.Quantity [dimensionless] or 
+        structcol.refractive_index object)
+        Refractive index of the sample. 
+    form_type: str or None
+        form factor desired for calculation. Can be 'sphere', 'polydisperse', 
+        or None.
+    structure_type: str or None
+        structure factor desired for calculation. Can be 'glass', 'paracrystal', 
+        'polydisperse', or None. 
     mie_theory: bool
         If TRUE, phase function is calculated according to Mie theory 
         (assuming no contribution from structure factor). If FALSE, phase
         function is calculated according to single scattering theory 
         (which uses Mie and structure factor contributions)
         
-    
     Returns:
     --------
-    
     p: array
-        phase function for unpolarized light
-        
+        phase function for unpolarized light 
     p_par: array
-        phase function for parallel polarized light
-        
+        phase function for parallel polarized light   
     p_perp: array
-        phase function for perpendicularly polarized light
-        
+        phase function for perpendicularly polarized light   
     cscat_total: float
         total scattering cross section for unpolarized light
         
-    """
+    """  
+    ksquared = np.abs(k)**2  
     
+    if form_type=='polydisperse':
+        distance = diameters/2
+    else:
+        distance = diameters.max()/2 # TODO: need to figure out which integration distance to use 
+
     # If mie_theory = True, calculate the phase function for 1 particle 
     # using Mie theory (excluding the structure factor)
     if mie_theory == True:
-        diff_cscat_par, diff_cscat_perp = \
+        structure_type = None
+  
+    diff_cscat_par, diff_cscat_perp = \
+         model.differential_cross_section(m, x, angles, volume_fraction,
+                                             structure_type=structure_type,
+                                             form_type=form_type,
+                                             diameters=diameters,
+                                             concentration=concentration,
+                                             pdi=pdi, wavelen=wavelen, 
+                                             n_matrix=n_sample, k=k, 
+                                             distance=distance)
+                                       
+    # Integrate the differential cross section to get the total cross section
+    if np.abs(k.imag.magnitude) > 0.:      
+        if form_type=='polydisperse' and len(concentration)>1:
+            cscat_total1, cscat_total_par1, cscat_total_perp1, _, _ = \
+                mie.integrate_intensity_complex_medium(diff_cscat_par, 
+                                                       diff_cscat_perp, 
+                                                       distance[0],angles,k)  
+            cscat_total2, cscat_total_par2, cscat_total_perp2, _, _ = \
+                mie.integrate_intensity_complex_medium(diff_cscat_par, 
+                                                       diff_cscat_perp, 
+                                                       distance[1],angles,k)
+            cscat_total = cscat_total1 * concentration[0] + cscat_total2 * concentration[1]
+            cscat_total_par = cscat_total_par1 * concentration[0] + cscat_total_par2 * concentration[1]
+            cscat_total_perp = cscat_total_perp1 * concentration[0] + cscat_total_perp2 * concentration[1]
+        
+        else: 
+            cscat_total, cscat_total_par, cscat_total_perp, diff_cscat_par2, diff_cscat_perp2 = \
+                mie.integrate_intensity_complex_medium(diff_cscat_par, 
+                                                       diff_cscat_perp, 
+                                                       distance,angles,k)  
+            
+        # to calculate the phase function when there is absorption, we  
+        # use the far-field Mie solutions because the near field diff cross 
+        # section behaves weirdly. To make sure we use the far-field 
+        # solutions, set k = None.                                               
+        diff_cscat_par_ff, diff_cscat_perp_ff = \
             model.differential_cross_section(m, x, angles, volume_fraction,
-                                             structure_type=None)
+                                             structure_type=structure_type,
+                                             form_type=form_type,
+                                             diameters=diameters,
+                                             concentration=concentration,
+                                             pdi=pdi, wavelen=wavelen, 
+                                             n_matrix=n_sample, k=None, distance=distance)
+        cscat_total_par_ff = model._integrate_cross_section(diff_cscat_par_ff,
+                                                      1.0/ksquared, angles)
+        cscat_total_perp_ff = model._integrate_cross_section(diff_cscat_perp_ff,
+                                                      1.0/ksquared, angles)
+        cscat_total_ff = (cscat_total_par_ff + cscat_total_perp_ff)/2.0                                     
+        
+        p = (diff_cscat_par_ff + diff_cscat_perp_ff)/(ksquared * 2 * cscat_total_ff)
+        p_par = diff_cscat_par_ff/(ksquared * 2 * cscat_total_par_ff)
+        p_perp = diff_cscat_perp_ff/(ksquared * 2 * cscat_total_perp_ff)
+    
+    # if there is no absorption in the system
     else:
-        diff_cscat_par, diff_cscat_perp = \
-            model.differential_cross_section(m, x, angles, volume_fraction)
-
-    cscat_total_par = model._integrate_cross_section(diff_cscat_par,
+        cscat_total_par = model._integrate_cross_section(diff_cscat_par,
                                                       1.0/ksquared, angles)
-    cscat_total_perp = model._integrate_cross_section(diff_cscat_perp,
+        cscat_total_perp = model._integrate_cross_section(diff_cscat_perp,
                                                       1.0/ksquared, angles)
-    cscat_total = (cscat_total_par + cscat_total_perp)/2.0
+        cscat_total = (cscat_total_par + cscat_total_perp)/2.0
     
-    p = (diff_cscat_par + diff_cscat_perp)/(ksquared * 2 * cscat_total)
-    p_par = diff_cscat_par/(ksquared * 2 * cscat_total_par)
-    p_perp = diff_cscat_perp/(ksquared * 2 * cscat_total_perp)
-    
+        p = (diff_cscat_par + diff_cscat_perp)/(ksquared * 2 * cscat_total)
+        p_par = diff_cscat_par/(ksquared * 2 * cscat_total_par)
+        p_perp = diff_cscat_perp/(ksquared * 2 * cscat_total_perp)
+        
+        diff_cscat_par2 = diff_cscat_par / (np.abs(k)**2)
+        diff_cscat_perp2 = diff_cscat_perp / (np.abs(k)**2)
+        
     return(p, p_par, p_perp, cscat_total)
 
+
+def calc_distance(m, x, angles, volume_fraction, k, number_density, 
+                  diameters, form_type='sphere'):
+    """    
+    Use the exact Mie solutions to calculate the total scattering cross 
+    section at the surface of the scatterer. Then calculate the scattering
+    length associated to this cross section, and calculate the cross section
+    again at a distance of this scattering length. Repeat iteratively until
+    the new scattering length matches the previous scattering length 
+    (converges). Then choose the converged scattering length as the distance
+    for the integration of the differential cross sections. 
+    """ 
+    if form_type=='polydisperse':
+        distance = diameters.to('um').magnitude / 2
+    else:
+        distance = diameters.max().to('um').magnitude / 2
+    
+    lscat_array = np.array([1.,2.])
+    
+    while np.abs(1 - lscat_array[0]/lscat_array[1]) > 0.05:
+        lscat_array[0] = distance       
+        
+        distance2 = sc.Quantity(distance, 'um')
+        
+        form = mie.diff_scat_intensity_complex_medium(m, x, angles, k*distance2)
+        qd = 4*np.array(np.abs(x)).max()*np.sin(angles/2)        
+        s = sc.structure.factor_py(qd, volume_fraction)
+        diff_cscat_par = form[0] * s
+        diff_cscat_perp = form[1] * s
+        
+        cscat_total, _, _, _, _ = mie.integrate_intensity_complex_medium(diff_cscat_par, 
+                                                                      diff_cscat_perp, 
+                                                                      distance2,angles,k)  
+    
+        # calculate the scattering length associated to this cross section
+        lscat = (1 / number_density / cscat_total).to('um')
+       
+        distance = lscat.magnitude
+        lscat_array[1] = lscat.magnitude
+        
+    return sc.Quantity(lscat_array[1], 'um')
+
+    
 def sample_angles(nevents, ntraj, p):
     """
     Samples azimuthal angles (phi) from uniform distribution, and scattering
@@ -1833,7 +1964,7 @@ def sample_step(nevents, ntraj, mu_abs, mu_scat):
     
     """
     # Calculate total extinction coefficient
-    mu_total = mu_abs + mu_scat
+    mu_total = mu_scat + mu_abs 
 
     # Generate array of random numbers from 0 to 1
     rand = np.random.random((nevents,ntraj))
