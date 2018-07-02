@@ -213,10 +213,6 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
         x = size_parameter(wavelen, n_sample, radius)
   
     k = 2*np.pi*n_sample/wavelen  
-    
-    # check that the number of indices and radii is the same
-    if len(np.atleast_1d(n_particle)) != len(np.atleast_1d(radius)):
-       raise ValueError('Arrays of indices and radii must be the same length')
 
     # calculate transmission and reflection coefficients at first interface
     # between medium and sample
