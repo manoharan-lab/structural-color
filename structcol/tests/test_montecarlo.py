@@ -182,7 +182,7 @@ def test_reflection_core_shell():
 
     assert_almost_equal(R, R_cs)
     assert_almost_equal(T, T_cs)
-    
+
     # Outputs before refactoring structcol
     R_before = 0.81382378303119451
     R_cs_before = 0.81382378303119451
@@ -214,7 +214,7 @@ def test_reflection_core_shell():
 
     assert_almost_equal(R_abs, R_cs_abs, decimal=3)
     assert_almost_equal(T_abs, T_cs_abs, decimal=3)
-   
+
     # Outputs before refactoring structcol
     R_abs_before = 0.50534237684703909
     R_cs_abs_before = 0.50534237684642402
@@ -288,7 +288,7 @@ def test_reflection_absorbing_particle_or_matrix():
     assert_equal(R_abs_before, R_abs)
     assert_equal(T_before, T)
     assert_equal(T_abs_before, T_abs)
-    
+
     # Same as previous test but with absorbing matrix
     # Reflection using matrix with an imaginary component of 0
     n_matrix_abs = sc.Quantity(1. + 0j, '')
@@ -479,6 +479,7 @@ def calc_montecarlo(nevents, ntrajectories, radius, n_particle, n_sample,
                                       volume_fraction, wavelen, radius2=radius2, 
                                       concentration=concentration, pdi=pdi, 
                                       polydisperse=polydisperse)
+
     r0, k0, W0 = mc.initialize(nevents, ntrajectories, n_medium, n_sample, 
                                seed=seed, incidence_angle = 0.)
     r0 = sc.Quantity(r0, 'um')

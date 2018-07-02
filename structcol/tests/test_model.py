@@ -247,6 +247,7 @@ def test_reflection_core_shell():
     
     assert_array_almost_equal(refl6, refl7, decimal=3)
 
+
 def test_reflection_absorbing_particle():
     # test that the reflections with a real n_particle and with a complex
     # n_particle with a 0 imaginary component are the same 

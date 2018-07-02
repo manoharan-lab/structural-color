@@ -213,7 +213,7 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
         x = size_parameter(wavelen, n_sample, radius)
   
     k = 2*np.pi*n_sample/wavelen  
-    
+
     # calculate transmission and reflection coefficients at first interface
     # between medium and sample
     # (TODO: include correction for reflection off the back interface of the
@@ -365,7 +365,7 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
     return reflectance, reflected_par, reflected_perp, asymmetry_parameter, \
            transport_length
     
-    
+
 @ureg.check('[]', '[]', '[]', '[]')
 def differential_cross_section(m, x, angles, volume_fraction,
                                structure_type = 'glass', form_type = 'sphere', 
@@ -425,7 +425,6 @@ def differential_cross_section(m, x, angles, volume_fraction,
     float (2-tuple):
         parallel and perpendicular components of the differential scattering
         cross section.
-
     """     
     # calculate form factor    
     if form_type == 'sphere': 
@@ -437,6 +436,7 @@ def differential_cross_section(m, x, angles, volume_fraction,
             
         else:
             form_factor = mie.calc_ang_dist(m, x, angles)
+
         f_par = form_factor[0]  
         f_perp = form_factor[1]
     
@@ -454,7 +454,7 @@ def differential_cross_section(m, x, angles, volume_fraction,
         f_perp = 1
     else:
         raise ValueError('form factor type not recognized!')
-    
+
     # calculate structure factor
     qd = 4*np.array(np.abs(x)).max()*np.sin(angles/2)  #TODO: should it be x.real or x.abs?
 
@@ -468,7 +468,7 @@ def differential_cross_section(m, x, angles, volume_fraction,
     elif isinstance(structure_type, str):
         if structure_type == 'glass':    
             s = structure.factor_py(qd, volume_fraction)
-            
+
         elif structure_type == 'paracrystal':
             s = structure.factor_para(qd)
         

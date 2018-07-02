@@ -179,7 +179,6 @@ class Trajectory:
         # beer lambert
         weight = self.weight*np.exp(-(mu_abs * np.cumsum(step_size[:,:], 
                                                          axis=0)).to(''))
-
         self.weight = sc.Quantity(weight)
 
 
@@ -1480,7 +1479,7 @@ def initialize_sphere(nevents, ntraj, n_medium, n_sample, radius, seed=None,
     r0 = np.zeros((3, nevents+1, ntraj))
     if isinstance(radius, sc.Quantity):
         radius = radius.to('um').magnitude
-        
+
     # randomly choose r on interval [0,radius]
     r = radius*np.sqrt(random(ntraj))
     
@@ -1510,7 +1509,6 @@ def initialize_sphere(nevents, ntraj, n_medium, n_sample, radius, seed=None,
     sinphi = neg_normal[1,:]/np.sin(theta)
     
     # refraction of incident light upon entering the sample
-
     theta = refraction(theta, n_medium, np.abs(n_sample))
     sintheta = np.sin(theta)
     costheta = np.cos(theta)
