@@ -217,29 +217,6 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
     # check that the number of indices and radii is the same
     if len(np.atleast_1d(n_particle)) != len(np.atleast_1d(radius)):
        raise ValueError('Arrays of indices and radii must be the same length')
-        
-    # calculate array of volume fractions of each layer in the particle. If 
-    # particle is not core-shell, volume fraction remains the same
-    vf_array = np.empty(len(np.atleast_1d(radius)))
-    r_array = np.array([0] + np.atleast_1d(radius).tolist()) 
-    for r in np.arange(len(r_array)-1):
-        vf_array[r] = (r_array[r+1]**3-r_array[r]**3) / (r_array[-1:]**3) * volume_fraction.magnitude
-    if len(vf_array) == 1:
-        vf_array = float(vf_array)
-
-    # use Bruggeman formula to calculate effective index of
-    # particle-matrix composite
-    n_sample = ri.n_eff(n_particle, n_matrix, vf_array, 
-                        maxwell_garnett=maxwell_garnett)
-                    
-    if len(np.atleast_1d(radius)) > 1:
-        m = index_ratio(n_particle, n_sample).flatten()  
-        x = size_parameter(wavelen, n_sample, radius).flatten()
-    else:
-        m = index_ratio(n_particle, n_sample)
-        x = size_parameter(wavelen, n_sample, radius)
-
-    k = 2*np.pi*n_sample/wavelen  
 
     # calculate transmission and reflection coefficients at first interface
     # between medium and sample
