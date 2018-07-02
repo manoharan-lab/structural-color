@@ -110,15 +110,18 @@ class Trajectory:
     
     Attributes
     ----------
-    position : ndarray (structcol.Quantity [length])
+    position: ndarray (structcol.Quantity [length])
         array of position vectors in cartesian coordinates of n trajectories
-    direction : ndarray (structcol.Quantity [dimensionless])
+    direction: ndarray (structcol.Quantity [dimensionless])
         array of direction of propagation vectors in cartesian coordinates
         of n trajectories after every scattering event
-    weight : ndarray (structcol.Quantity [dimensionless])
+    polarization: ndarray (structcol.Quantity [dimensionless])
+        array of direction of polarization vectors in cartesian coordinates
+        or n trajectories after every scattering event
+    weight: ndarray (structcol.Quantity [dimensionless])
         array of photon packet weights for absorption modeling of n
         trajectories
-    nevents : int
+    nevents: int
         number of scattering events
     
     Methods
@@ -139,7 +142,7 @@ class Trajectory:
     
     """
 
-    def __init__(self, position, direction, weight):
+    def __init__(self, position, direction, weight, polarization = None):
         """
         Constructor for Trajectory object.
         
@@ -157,6 +160,7 @@ class Trajectory:
         self.position = position
         self.direction = direction
         self.weight = weight
+        self.polarization = polarization
 
     @property
     def nevents(self):
@@ -207,6 +211,8 @@ class Trajectory:
         # using the following equations, which can be derived by using matrix
         # operations to perform a rotation about the y-axis by angle theta
         # followed by a rotation about the z-axis by angle phi
+        # see pg 105 in A.B. Stephenson lab notebook 1 for derivation and
+        # notes
         for n in np.arange(1,self.nevents):
             kx = ((kn[0,n-1,:]*costheta[n-1,:] + kn[2,n-1,:]*sintheta[n-1,:])*
                   cosphi[n-1,:]) - kn[1,n-1,:]*sinphi[n-1,:]
@@ -219,7 +225,79 @@ class Trajectory:
             kn[:,n,:] = kx, ky, kz
 
         # Update all the directions of the trajectories
-        self.direction = sc.Quantity(kn, self.direction.units)
+        
+    def scatter_polarization(self, sintheta, costheta, sinphi, cosphi, 
+                             singamma, cosgamma):
+        """
+        TODO integrate this with scatter() to avoid repeated code
+        Calculates the directions of polarization vectors after scattering.
+        
+        At a scattering event, a photon packet adopts a new direction of
+        propagation, which is randomly sampled from the phase function. The new
+        direction of propagation also changes the polarization direction
+        
+        Parameters
+        ----------
+        sintheta, costheta, sinphi, cosphi : array_like
+            Sines and cosines of scattering (theta) and azimuthal (phi) angles
+            sampled from the phase function. Theta and phi are angles that are
+            defined with respect to the previous corresponding direction of
+            propagation. Thus, they are defined in a local spherical coordinate
+            system. All have dimensions of (nevents, ntrajectories).
+        
+        """
+        if self.polarization is None:
+            raise ValueError('''cannot scatter polarization because 
+                             polarization is None''')
+            
+        pn = self.polarization.magnitude
+        kn = self.direction.magnitude
+
+        # Calculate the new x, y, z coordinates of the propagation direction
+        # using the following equations, which can be derived by using matrix
+        # operations to perform a rotation about the y-axis by angle theta
+        # followed by a rotation about the z-axis by angle phi
+        for n in np.arange(1,self.nevents):
+            # update directions
+            kx = ((kn[0,n-1,:]*costheta[n-1,:] + kn[2,n-1,:]*sintheta[n-1,:])*
+                  cosphi[n-1,:]) - kn[1,n-1,:]*sinphi[n-1,:]
+
+            ky = ((kn[0,n-1,:]*costheta[n-1,:] + kn[2,n-1,:]*sintheta[n-1,:])*
+                  sinphi[n-1,:]) + kn[1,n-1,:]*cosphi[n-1,:]
+
+            kz = -kn[0,n-1,:]*sintheta[n-1,:] + kn[2,n-1,:]*costheta[n-1,:]
+            
+            # update polarizations
+            px_x = ((pn[0,n-1,:]*costheta[n-1,:] + pn[2,n-1,:]*sintheta[n-1,:])*
+                  cosphi[n-1,:]) - pn[1,n-1,:]*sinphi[n-1,:]
+
+            py_x = ((pn[0,n-1,:]*costheta[n-1,:] + pn[2,n-1,:]*sintheta[n-1,:])*
+                  sinphi[n-1,:]) + pn[1,n-1,:]*cosphi[n-1,:]
+
+            pz_x = -pn[0,n-1,:]*sintheta[n-1,:] + pn[2,n-1,:]*costheta[n-1,:]
+            
+            #print('dot: ')
+            #dot = kx*px_x + ky*py_x + kz*pz_x
+            #print(dot)
+           
+            px = kx*(kx*px_x + ky*py_x + kz*pz_x)*(1-cosgamma[n-1,:])\
+                    + px_x*cosgamma[n-1,:] + (-kz*py_x + ky*pz_x)*singamma[n-1,:]
+                    
+            py = ky*(kx*px_x + ky*py_x + kz*pz_x)*(1-cosgamma[n-1,:])\
+                    + py_x*cosgamma[n-1,:] + (kz*px_x - kx*pz_x)*singamma[n-1,:]
+                    
+            pz = kz*(kx*px_x + ky*py_x + kz*pz_x)*(1-cosgamma[n-1,:])\
+                    + pz_x*cosgamma[n-1,:] + (-ky*px_x + kx*py_x)*singamma[n-1,:]
+
+
+            kn[:,n,:] = kx, ky, kz
+            pn[:,n,:] = px, py, pz # need to take absolute value??
+            
+            #print('dot: ')
+            #dot = kx*px + ky*py + kz*pz
+            #print(dot)
+
+        # Update all the directions of the trajectories
 
 
     def move(self, step):
@@ -822,8 +900,82 @@ def refraction(angles, n_before, n_after):
     snell[abs(snell) > 1] = np.nan # this avoids a warning
     return np.arcsin(snell)
 
+def calc_refl_indices_detected(refl_indices, x, y, z, kx, ky, kz):
+    """
+    Detector function.
+    Takes in refl_indices and removes indices that do not fit within the bounds
+    of the detector, replacing the event number at in the array with a zero.
+    
+    Parameters
+    ----------
+    refl_indices: 1d array
+        array of length ntraj where elements correspond to event number of a 
+        reflection event for the trajectory corresponding to the index of the 
+        array. An element value of zero means that there was no reflection 
+        event for the trajectory. 
+    x: 2d array
+        x-coordinates for all trajectories at all events and at initial position
+    y: 2d array
+        y-coordinates for all trajectories at all events and at initial position
+    z: 2d array
+        z-coordinates for all trajectories at all events and at initial position
+    kx: 2d array
+        x-direction for all trajectories at all events
+    ky: 2d array
+        y-direction for all trajectories at all events
+    kz: 2d array
+        z-direction for all trajectories at all events
+    
+    Returns
+    -------
+    refl_indices_detected: 1d array
+        array of same shape as refl_indices, where elements corresponding to
+        trajectories that did not make it into the detector are replaced with
+        zero.
+    
+    """
+    
+    # coordinates and directions at exit events for all trajectories
+    x0 = select_events(x[1:], refl_indices)
+    y0 = select_events(y[1:], refl_indices)
+    z0 = select_events(z[1:], refl_indices)
+    kx = select_events(kx, refl_indices)
+    ky = select_events(ky, refl_indices)
+    kz = select_events(kz, refl_indices)
+    
+    # Hardcoded detector parameters
+    L = 13e4 # um 
+    x_min = 4.0e4 
+    x_max = 6.5e4
+    y_min = -1.35e4
+    y_max = 1.35e4
+    
+    # solve for the intersection of the scattering hemisphere at the detector 
+    # arm length and the exit trajectories using parameterization
+    # TODO add changes according to notes in Annie Stephenson lab notebook #3 pg 40
+    a = kx**2 + ky**2 + kz**2
+    b = 2*(kx*x0 + ky*y0 + kz*z0)
+    c = x0**2 + y0**2 + z0**2-L**2
+    t_m = -b + np.sqrt(b**2-4*a*c)/(2*a)
+    
+    x_int = x0 + t_m*kx
+    y_int = y0 + t_m*ky
+    z_int = z0 + t_m*kz
+    
+    # check whether trajectory positions at detector hemisphere fall within 
+    # the detector limits, and update refl_indices_detected to reflect this
+    refl_indices_detected = np.zeros(refl_indices.size)
+    for i in range(refl_indices.size):
+        if (x_int[i] < x_max and x_int[i] > x_min)\
+            and (y_int[i] < y_max and y_int[i] > y_min):
+            refl_indices_detected[i] = refl_indices[i] 
+            
+    return refl_indices_detected
+    
+
+
 def calc_refl_trans(trajectories, z_low, cutoff, n_medium, n_sample,
-                    n_front=None, n_back=None, detection_angle=np.pi/2, return_extra = False):
+                    n_front=None, n_back=None, detection_angle=np.pi/2, return_extra = False, detector = False):
     """
     Counts the fraction of reflected and transmitted trajectories after a cutoff.
     Identifies which trajectories are reflected or transmitted, and at which
@@ -933,6 +1085,14 @@ def calc_refl_trans(trajectories, z_low, cutoff, n_medium, n_sample,
 
     # find where each trajectory first exits
     refl_indices = low_event * low_first
+    if detector == True:
+        x = trajectories.position[0]
+        y = trajectories.position[1]
+        if isinstance(x, sc.Quantity):
+            x = x.to('um').magnitude
+        if isinstance(y, sc.Quantity):
+            y = y.to('um').magnitude
+        refl_indices = calc_refl_indices_detected(refl_indices, x, y, z, kx, ky, kz)
     trans_indices = high_event * high_first
     stuck_indices = never_exit * (z.shape[0]-1)
 
@@ -940,6 +1100,7 @@ def calc_refl_trans(trajectories, z_low, cutoff, n_medium, n_sample,
     init_dir = np.cos(refraction(get_angles(kz, np.ones(ntraj)), n_sample, n_medium))
     # init_dir is reverse-corrected for refraction. = kz before medium/sample interface
     inc_fraction = fresnel_pass_frac(np.array([init_dir]), np.ones(ntraj), n_medium, n_front, n_sample)
+    #inc_fraction = np.ones(ntraj) # do not commit this LINE
 
     # calculate outcome weights from all trajectories
     refl_weights = inc_fraction * select_events(weights, refl_indices)
@@ -994,7 +1155,7 @@ def calc_refl_trans(trajectories, z_low, cutoff, n_medium, n_sample,
 
 def calc_refl_trans_sphere(trajectories, n_medium, n_sample, radius, p, mu_abs, 
                            mu_scat, detection_angle = np.pi/2, 
-                           plot_exits = False, tir = False, run_tir = True, 
+                           plot_exits = False, tir = False, run_tir = False, 
                            return_extra = False, call_depth = 0, max_call_depth = 20, max_stuck=0.01):
     """
     Counts the fraction of reflected and transmitted trajectories for an 
@@ -1293,12 +1454,17 @@ def calc_refl_trans_sphere(trajectories, n_medium, n_sample, radius, p, mu_abs,
         transmittance_mean = np.sum(transmittance)/ntraj
         
         if return_extra == True:
-            return (k1_refl, k1_trans, norm_refl, norm_trans, reflectance_mean, transmittance_mean)
+            #return (k1_refl, k1_trans, norm_refl, norm_trans, reflectance_mean, transmittance_mean)
+            return refl_indices, trans_indices,\
+               inc_refl/ntraj, reflected/ntraj, transmitted/ntraj,\
+               trans_frac, refl_frac,\
+               refl_fresnel/ntraj, trans_fresnel/ntraj, np.sum(reflectance)/ntraj
         
         else:               
             return (reflectance_mean, transmittance_mean) 
 
-def initialize(nevents, ntraj, n_medium, n_sample, seed=None, incidence_angle=0.):
+def initialize(nevents, ntraj, n_medium, n_sample, seed=None, incidence_angle=0.,
+               pol_inc = np.array([0,0,0])):
 
     """
     Sets the trajectories' initial conditions (position, direction, and weight).
@@ -1396,8 +1562,18 @@ def initialize(nevents, ntraj, n_medium, n_sample, seed=None, incidence_angle=0.
 
     # Initial weight
     weight0 = np.ones((nevents, ntraj))
-
-    return r0, k0, weight0
+    
+    # initial polarization
+    
+    if all(pol_inc == np.array([0, 0, 0])):
+        return r0, k0, weight0
+    
+    else:
+        pol0 = np.zeros((3, nevents, ntraj))
+        pol0[0,:,:] = pol_inc[0]
+        pol0[1,:,:] = pol_inc[1]
+        pol0[2,:,:] = pol_inc[2] # pol_inc[2]=0 for incident light in z
+        return r0, k0, weight0, pol0
 
 
 def initialize_sphere(nevents, ntraj, n_medium, n_sample, radius, seed=None, 
@@ -1551,7 +1727,7 @@ def initialize_sphere(nevents, ntraj, n_medium, n_sample, radius, seed=None,
     return r0, k0, weight0
 
 def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
-              mie_theory = False):
+              mie_theory = False, polarization = False):
     """
     Calculates the phase function and scattering coefficient from either the
     single scattering model or Mie theory. Calculates the absorption coefficient
@@ -1684,14 +1860,17 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
             mu_scat = cscat_total * number_density
         
         else:           
-            p, p_par, p_perp, cscat_total = phase_function(m, x, angles, volume_fraction, 
-                                            ksquared, mie_theory=False) 
+            p, p_par, p_perp,cscat_total = phase_function(m, x, angles, volume_fraction, 
+                                           ksquared, mie_theory=False) 
             mu_scat = number_density * cscat_total
 
     # Here, the resulting units of mu_scat and mu_abs are nm^2/um^3. Thus, we 
     # simplify the units to 1/um 
     mu_scat = mu_scat.to('1/um')
     mu_abs = mu_abs.to('1/um')
+    
+    if polarization == True:
+        p = phase_function_pol(m, x, angles, volume_fraction, ksquared)
     
     return p, mu_scat, mu_abs
     
@@ -1758,10 +1937,217 @@ def phase_function(m, x, angles, volume_fraction, ksquared, mie_theory=False):
     cscat_total = (cscat_total_par + cscat_total_perp)/2.0
     
     p = (diff_cscat_par + diff_cscat_perp)/(ksquared * 2 * cscat_total)
-    p_par = diff_cscat_par/(ksquared * 2 * cscat_total_par)
-    p_perp = diff_cscat_perp/(ksquared * 2 * cscat_total_perp)
+    # TODO remove p_par, p_perp stuff
+    p_par = diff_cscat_par/(ksquared * cscat_total_par)
+    p_perp = diff_cscat_perp/(ksquared * cscat_total_perp)
     
     return(p, p_par, p_perp, cscat_total)
+    
+    
+def phase_function_pol(m, x, angles, volume_fraction, ksquared):
+    """
+    Calculates the phase function (the phase function is the same for absorbing 
+    and non-absorbing systems)
+    
+    Parameters:
+    ----------
+    m: float
+        index ratio between the particle and sample
+        
+    x: float
+        size parameter
+        
+    angles: array
+        theta angles at which to calculate phase function
+    
+    volume_fraction: float (sc.Quantity [dimensionless])
+        
+    ksquared: float (sc.Quantity [1/length])
+        k-vector squared, where k = 2*pi*n_sample / wavelength
+        
+    mie_theory: bool
+        If TRUE, phase function is calculated according to Mie theory 
+        (assuming no contribution from structure factor). If FALSE, phase
+        function is calculated according to single scattering theory 
+        (which uses Mie and structure factor contributions)
+        
+    
+    Returns:
+    --------
+    
+    p: array
+        phase function for unpolarized light
+        
+    p_par: array
+        phase function for parallel polarized light
+        
+    p_perp: array
+        phase function for perpendicularly polarized light
+        
+    cscat_total: float
+        total scattering cross section for unpolarized light
+        
+    """
+    phis = sc.Quantity(np.linspace(0.01, 2*np.pi, 300), 'rad')
+    diff_cscat = diff_cscat_pol(m, x, angles, phis, volume_fraction)
+    
+    # normalize
+    p = diff_cscat/sum(diff_cscat)
+    
+    return p
+
+def amplitude_scat_mat_pol(m, x, thetas):
+    """
+    DEPRECATED. A replacement function has been added to pymie
+    
+    Calculates the amplitude scattering matrix for a 2d array of thetas
+    
+    Parameters:
+    ----------
+    m: float
+        index ratio between the particle and sample  
+    x: float
+        size parameter  
+    thetas: 2d array
+        theta angles 
+
+    Returns:
+    --------
+    asmat: 4d array, dimension lengths: thetas.shape[0], thetas.shape[1], 2, 2
+        amplitude scattering matrix for all theta
+    """
+    nstop = mie._nstop(x)
+    n = np.arange(nstop)+1.
+    prefactor  = (2*n+1)/(n*(n+1))
+    coeffs = mie._scatcoeffs(m,x,nstop)
+
+    asmat = np.zeros((thetas.shape[0], thetas.shape[1], 2, 2))    
+    for i in range(thetas.shape[0]):# nevents
+        for j in range(thetas.shape[1]): # ntraj
+            S21 = mie._amplitude_scattering_matrix(nstop, prefactor, coeffs, thetas[i,j])
+            asmat[i,j,0,0] = S21[0]
+            asmat[i,j,1,1] = S21[1]
+    return asmat
+
+def calc_as_vec(thetas, phis, m , x):
+    """
+    DEPRECATED. A replacement function has been added to pymie
+    
+    Calculates the amplitude scattering vector for a 2d array of thetas and phis
+    in the xy basis
+    
+    Parameters:
+    ----------
+    m: float
+        index ratio between the particle and sample  
+    x: float
+        size parameter  
+    thetas: 2d array
+        theta angles
+    phis: 2d array (same shape as theta)
+        phi angles
+    Returns:
+    --------
+    as_vec: 4d array, dimension lengths: 2, thetas.shape[0], thetas.shape[1]
+    """
+    asmat = amplitude_scat_mat_pol(m, x, thetas)
+    
+    basis_change_mat = np.array(([np.cos(phis), np.sin(phis)],[np.sin(phis), -np.cos(phis)])) 
+    basis_change_mat = np.swapaxes(np.swapaxes(basis_change_mat,0,2),1,3)
+    asmat_prime = np.matmul(basis_change_mat, np.matmul(asmat, basis_change_mat))
+    
+    as_vec = np.zeros((2,thetas.shape[0],thetas.shape[1]))
+    as_vec[0,:,:] = asmat_prime[:,:,0,0]#0,0
+    as_vec[1,:,:] = asmat_prime[:,:,1,0]#1,0
+    
+    return as_vec
+
+def diff_cscat_pol(m, x, thetas, phis, volume_fraction):
+    """
+    TODO: move this function to model.py
+    
+    Calculates a 2d (function of theta and phi) differential scattering cross
+    section that includes a form and structure factor.
+    
+    Parameters:
+    ----------
+    m: float
+        index ratio between the particle and sample  
+    x: float
+        size parameter  
+    thetas: 2d array
+        theta angles
+    phis: 2d array (same shape as theta)
+        phi angles
+    volume_fraction: float
+        volume fraction of particles
+    Returns:
+    --------
+    as_vec: 4d array, dimension lengths: 2, thetas.shape[0], thetas.shape[1]
+    """
+    
+    thetas_v, phis_v = np.meshgrid(thetas, phis)
+    thetas_v = np.swapaxes(thetas_v, 0,1)
+    phis_v = np.swapaxes(phis_v, 0 ,1)
+    as_vec = calc_as_vec(thetas_v, phis_v, m , x)
+    
+    # calculate the intensity
+    form = as_vec[0,:,:]**2 + as_vec[1,:,:]**2
+    # calculate structure factor
+    qd = 4*x*np.sin(thetas_v/2)
+    s = model.structure.factor_py(qd, volume_fraction)
+ 
+    return s*form
+
+def sample_angles_pol(nevents, ntraj, p):
+    """
+    Samples azimuthal angles (phi) from uniform distribution, and scattering
+    angles (theta) from 2d phase function distribution.
+    
+    Parameters
+    ----------
+    nevents : int
+        Number of scattering events.
+    ntraj : int
+        Number of trajectories.
+    p : 2d array_like (structcol.Quantity [dimensionless])
+        Phase function values returned from 'phase_function'.
+    
+    Returns
+    -------
+    sintheta, costheta, sinphi, cosphi, theta, phi : ndarray
+        Sampled azimuthal and scattering angles, and their sines and cosines.
+    
+    """
+    
+    p_phi = np.sum(p, axis = 0)
+    
+    min_angle = 0.01            
+    thetas = sc.Quantity(np.linspace(min_angle,np.pi, 200), 'rad')  
+    phis = sc.Quantity(np.linspace(min_angle,2*np.pi, 300), 'rad') 
+
+    # phi_ind.shape(nevents, ntraj)
+
+    phi_ind = np.array([np.random.choice(300, ntraj, p = p_phi/np.sum(p_phi))
+                        for i in range(nevents)])
+    
+    
+    theta_ind = np.zeros((nevents,ntraj))
+    theta = np.zeros((nevents,ntraj))
+    phi = np.zeros((nevents,ntraj))
+    for i in range(nevents):
+        for j in range(ntraj):
+            p_theta = p[:,phi_ind[i,j]]*np.sin(theta)
+            theta_ind[i,j] = np.random.choice(200, p = p_theta/np.sum(p_theta))
+            theta[i,j] = thetas[int(theta_ind[i,j])]
+            phi[i,j] = phis[int(phi_ind[i,j])]
+    
+    sintheta = np.sin(theta)
+    costheta = np.cos(theta)
+    sinphi = np.sin(phi)
+    cosphi = np.cos(phi)
+
+    return sintheta, costheta, sinphi, cosphi, theta, phi
 
 def sample_angles(nevents, ntraj, p):
     """
@@ -1789,7 +2175,6 @@ def sample_angles(nevents, ntraj, p):
     # model, if the analytic formula is used, S(q=0) returns nan.
     min_angle = 0.01            
     angles = sc.Quantity(np.linspace(min_angle,np.pi, 200), 'rad')  
-
     # Random sampling of azimuthal angle phi from uniform distribution [0 -
     # 2pi]
     rand = np.random.random((nevents,ntraj))
@@ -1800,14 +2185,68 @@ def sample_angles(nevents, ntraj, p):
     # Random sampling of scattering angle theta
     prob = p * np.sin(angles)*2*np.pi    # prob is integral of p in solid angle
     prob_norm = prob/sum(prob)           # normalize to make it add up to 1
-
+    
     theta = np.array([np.random.choice(angles, ntraj, p = prob_norm)
                       for i in range(nevents)])
+    
     sintheta = np.sin(theta)
     costheta = np.cos(theta)
 
     return sintheta, costheta, sinphi, cosphi, theta, phi
 
+def polarize(theta, phi, n_particle, n_sample, radius, wavelen, volume_fraction):
+    """
+    Calculates polarization angle rotated in reference frame where 
+    initial polarization is x-polarized
+    
+    Parameters
+    ----------
+    theta: 2d array
+        theta angles
+    phi: 2d array
+        phi angles
+    n_particle: float
+        index of refraction of particle
+    n_sample: float
+        index of refraction of sample
+    radius: float
+        radius of particle
+    wavelen: float
+        wavelength
+    volume_fraction: float
+        volume fraction of particles
+    
+    Returns
+    -------
+    singamma: 2d array
+        sin(gamma) where gamma is angle from x-axis
+    cosgamma: 2d array
+        cos(gamma) wjere gamma is angle from x-axis
+    pol_x, pol_y: local x and y polarizations for all events and trajectories
+    
+    """
+    m = index_ratio(n_particle, n_sample)
+    x = size_parameter(wavelen, n_sample, radius)
+    
+    # calculate as_vec for all phis and thetas
+    as_vec = calc_as_vec(theta, phi, m, x)
+    
+    # normalize as_vecs
+    pol_x = as_vec[0,:,:]#*s
+    pol_y = as_vec[1,:,:]#*s
+    pol_z = 0
+    pol_x, pol_y, pol_z = normalize(pol_x, pol_y, pol_z)
+
+    # calculate gamma
+    gamma = np.arccos(pol_x)
+    cosgamma = pol_x
+    singamma = np.sin(gamma)
+    
+    return singamma, cosgamma, pol_x, pol_y
+
+def normalize(x,y,z):
+    magnitude = np.sqrt(x**2 + y**2 + z**2)
+    return x/magnitude, y/magnitude, z/magnitude
 
 def sample_step(nevents, ntraj, mu_abs, mu_scat):
     """
