@@ -471,29 +471,74 @@ def test_throw_valueerror_for_polydisperse_unspecified_parameters():
                                      concentration=concentration, pdi=pdi, 
                                      polydisperse=True)  # unspecified radius2
 
-def calc_montecarlo(nevents, ntrajectories, radius, n_particle, n_sample, 
-                    n_medium, volume_fraction, wavelen, seed, radius2=None, 
-                    concentration=None, pdi=None, polydisperse=False):
-    # Function to run montecarlo for the tests
-    p, mu_scat, mu_abs = mc.calc_scat(radius, n_particle, n_sample, 
-                                      volume_fraction, wavelen, radius2=radius2, 
-                                      concentration=concentration, pdi=pdi, 
-                                      polydisperse=polydisperse)
 
-    r0, k0, W0 = mc.initialize(nevents, ntrajectories, n_medium, n_sample, 
-                               seed=seed, incidence_angle = 0.)
-    r0 = sc.Quantity(r0, 'um')
-    k0 = sc.Quantity(k0, '')
-    W0 = sc.Quantity(W0, '')
-    sintheta, costheta, sinphi, cosphi, _, _= mc.sample_angles(nevents, 
-                                                               ntrajectories,p)
-    step = mc.sample_step(nevents, ntrajectories, mu_abs, mu_scat)
-    trajectories = mc.Trajectory(r0, k0, W0)
-    trajectories.absorb(mu_abs, step)                         
-    trajectories.scatter(sintheta, costheta, sinphi, cosphi)         
-    trajectories.move(step)
-    z_low = sc.Quantity('0.0 um')
-    cutoff = sc.Quantity('50 um')
-    R, T = mc.calc_refl_trans(trajectories, z_low, cutoff, n_medium, n_sample)
 
-    return R, T
+def calc_montecarlo(nevents, ntraj, radius, n_particle, n_sample, n_medium, 
+                    volume_fraction, thickness, wavelen, seed, incidence_angle=0, 
+                    polarization=None, pdi=0, angle=0, distance=0, length=np.inf, 
+                    form='auto', structure='glass'):
+                        
+    species = mc.Spheres(n_particle, radius, volume_fraction, pdi=pdi)
+    system = mc.Film(species, n_matrix, n_medium, thickness, structure=structure)
+    source = mc.Source(wavelen, polarization=polarization, 
+                       incidence_angle=incidence_angle)
+    detector = mc.Detector(angle=angle, length=length, distance=distance)    
+    
+    results = mc.run(system, source, ntraj, nevents, seed=seed, form=form)
+    normalized_intensity = results.calc_scattering(detector)
+    
+    return normalized_intensity
+
+
+#def run():
+#    phase_function, scat_coeff, abs_coeff = mc.calc_scat(system, source)
+#    pos0, dir0, weight0 , pol0 = mc.initialize(nevents, ntraj, n_medium, n_sample, 
+#                                               seed, incidence_angle, polarization)
+#    sintheta, costheta, sinphi, cosphi theta, phi = mc.sample_angles(nevents, 
+#                                                                     ntraj, 
+#                                                                     phase_function, 
+#                                                                     polarization)
+#    step = mc.sample_step(nevents, ntraj, abs_coeff, scat_coeff)
+#
+#    if polarization is not None:
+#        singamma, cosgamma, pol_x_loc, pol_y_loc = mc.polarize(theta, phi, 
+#                                                               system, source)
+#    else:
+#        singamma = None
+#        cosgamma = None
+#
+#    trajectories = mc.Trajectory(pos0, dir0, weight0, pol0)
+#    trajectories.absorb(abs_scat, step)
+#    trajectories.scatter(sintheta, costheta, sinphi, cosphi, singamma, cosgamma)
+#    trajectories.move(step)
+#    
+#    results = mc.Results(trajectories, system, source)
+#    
+#    return(results)
+
+#def calc_montecarlo(nevents, ntrajectories, radius, n_particle, n_sample, 
+#                    n_medium, volume_fraction, wavelen, seed, radius2=None, 
+#                    concentration=None, pdi=None, polydisperse=False):
+#    # Function to run montecarlo for the tests
+#    p, mu_scat, mu_abs = mc.calc_scat(radius, n_particle, n_sample, 
+#                                      volume_fraction, wavelen, radius2=radius2, 
+#                                      concentration=concentration, pdi=pdi, 
+#                                      polydisperse=polydisperse)
+#
+#    r0, k0, W0 = mc.initialize(nevents, ntrajectories, n_medium, n_sample, 
+#                               seed=seed, incidence_angle = 0.)
+#    r0 = sc.Quantity(r0, 'um')
+#    k0 = sc.Quantity(k0, '')
+#    W0 = sc.Quantity(W0, '')
+#    sintheta, costheta, sinphi, cosphi, _, _= mc.sample_angles(nevents, 
+#                                                               ntrajectories,p)
+#    step = mc.sample_step(nevents, ntrajectories, mu_abs, mu_scat)
+#    trajectories = mc.Trajectory(r0, k0, W0)
+#    trajectories.absorb(mu_abs, step)                         
+#    trajectories.scatter(sintheta, costheta, sinphi, cosphi)         
+#    trajectories.move(step)
+#    z_low = sc.Quantity('0.0 um')
+#    cutoff = sc.Quantity('50 um')
+#    R, T = mc.calc_refl_trans(trajectories, z_low, cutoff, n_medium, n_sample)
+#
+#    return R, T
