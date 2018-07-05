@@ -942,6 +942,11 @@ def calc_refl_trans(trajectories, z_low, cutoff, n_medium, n_sample,
     init_dir = np.cos(refraction(get_angles(kz, np.ones(ntraj)), n_sample, n_medium))
     # init_dir is reverse-corrected for refraction. = kz before medium/sample interface
     inc_fraction = fresnel_pass_frac(np.array([init_dir]), np.ones(ntraj), n_medium, n_front, n_sample)
+    
+    # for bulk calculations, we must remove refraction correction in order 
+    # to allow us to properly sample directions at first step
+    # see tutorial file
+    inc_fraction = np.ones(ntraj)
 
     # calculate outcome weights from all trajectories
     refl_weights = inc_fraction * select_events(weights, refl_indices)
