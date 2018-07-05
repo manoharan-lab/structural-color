@@ -24,6 +24,7 @@ Tests for the montecarlo model (in structcol/montecarlo.py)
 import structcol as sc
 from .. import montecarlo as mc
 from .. import refractive_index as ri
+from .main import Spheres, Film, Source
 import os
 import numpy as np
 from numpy.testing import assert_equal, assert_almost_equal
@@ -31,7 +32,7 @@ import pytest
 
 # Define a system to be used for the tests
 nevents = 3
-ntrajectories = 4
+ntraj = 4
 radius = sc.Quantity('150 nm')
 volume_fraction = 0.5
 n_particle = sc.Quantity(1.5, '')
@@ -40,6 +41,7 @@ n_medium = sc.Quantity(1.0, '')
 n_sample = ri.n_eff(n_particle, n_matrix, volume_fraction) 
 angles = sc.Quantity(np.linspace(0.01,np.pi, 200), 'rad')  
 wavelen = sc.Quantity('400 nm')
+thickness = sc.Quantity(50, 'um')
 
 # Index of the scattering event and trajectory corresponding to the reflected
 # photons
@@ -47,14 +49,14 @@ refl_index = np.array([2,0,2])
 
 def test_sampling():
     # Test that 'calc_scat' runs
-    p, mu_scat, mu_abs = mc.calc_scat(radius, n_particle, n_sample,  
-                                      volume_fraction, wavelen)
+    phase_function, scat_coeff, abs_coeff = mc.calc_scat(radius, n_particle, n_sample,  
+                                            volume_fraction, wavelen)
     
     # Test that 'sample_angles' runs
-    mc.sample_angles(nevents, ntrajectories, p)
+    mc.sample_angles(nevents, ntraj, phase_function)
     
     # Test that 'sample_step' runs
-    mc.sample_step(nevents, ntrajectories, mu_abs, mu_scat)
+    mc.sample_step(nevents, ntraj, abs_coeff, scat_coeff)
 
 def test_calc_refl_trans():
     low_thresh = 0
@@ -116,19 +118,19 @@ def test_calc_refl_trans():
 def test_trajectories():
     # Initialize runs
     nevents = 2
-    ntrajectories = 3
-    r0, k0, W0 = mc.initialize(nevents, ntrajectories, n_matrix, n_sample, seed=1)
-    r0 = sc.Quantity(r0, 'um')
-    k0 = sc.Quantity(k0, '')
-    W0 = sc.Quantity(W0, '')
+    ntraj = 3
+    pos0, dir0, weight0 = mc.initialize(nevents, ntraj, n_matrix, n_sample, seed=1)
+    pos0 = sc.Quantity(pos0, 'um')
+    dir0 = sc.Quantity(dir0, '')
+    weight0 = sc.Quantity(weight0, '')
 
     # Create a Trajectory object
-    trajectories = mc.Trajectory(r0, k0, W0)
+    trajectories = mc.Trajectory(pos0, dir0, weight0)
     
     # Test the absorb function
-    mu_abs = 1/sc.Quantity(10, 'um')    
+    abs_coeff = 1/sc.Quantity(10, 'um')    
     step = sc.Quantity(np.array([[1,1,1],[1,1,1]]), 'um')    
-    trajectories.absorb(mu_abs, step)     
+    trajectories.absorb(abs_coeff, step)     
     assert_almost_equal(trajectories.weight, 
                  np.array([[ 0.90483742,  0.90483742,  0.90483742],
                            [ 0.81873075,  0.81873075,  0.81873075]]))
@@ -141,14 +143,14 @@ def test_trajectories():
     trajectories.scatter(sintheta, costheta, sinphi, cosphi)       
     
     # Expected propagation directions
-    kx = sc.Quantity(np.array([[0.,0.,0.],[0.,0.,0.]]), '')
-    ky = sc.Quantity(np.array([[0.,0.,0.],[0.,0.,0.]]), '')
-    kz = sc.Quantity(np.array([[1.,1.,1.],[-1.,-1.,-1.]]), '')
+    dirx = sc.Quantity(np.array([[0.,0.,0.],[0.,0.,0.]]), '')
+    diry = sc.Quantity(np.array([[0.,0.,0.],[0.,0.,0.]]), '')
+    dirz = sc.Quantity(np.array([[1.,1.,1.],[-1.,-1.,-1.]]), '')
     
     # Test the scatter function
-    assert_almost_equal(trajectories.direction[0], kx.magnitude)
-    assert_almost_equal(trajectories.direction[1], ky.magnitude)
-    assert_almost_equal(trajectories.direction[2], kz.magnitude)
+    assert_almost_equal(trajectories.direction[0], dirx.magnitude)
+    assert_almost_equal(trajectories.direction[1], diry.magnitude)
+    assert_almost_equal(trajectories.direction[2], dirz.magnitude)
     
     # Test the move function    
     trajectories.move(step)
@@ -159,15 +161,19 @@ def test_reflection_core_shell():
     # of a core-shell with a shell index matched with the core
     seed = 1
     nevents = 60
-    ntrajectories = 30
-    
+    ntraj = 30
+    source = Source(wavelen, polarization=None, incidence_angle=0)
+    detector = mc.Detector(angle=0, length=np.inf, distance=0) 
+
     # Reflection using a non-core-shell system
-    R, T = calc_montecarlo(nevents, ntrajectories, radius, n_particle, 
-                           n_sample, n_medium, volume_fraction, wavelen, seed)
+    species = Spheres(n_particle, radius, volume_fraction, pdi=0)
+    system = Film(species, n_matrix, n_medium, thickness, structure='glass')
+    R, T = calc_montecarlo(nevents, ntraj, system, source, detector, seed, form='auto') 
+    
     
     # Reflection using core-shells with the shell index-matched to the core
     radius_cs = sc.Quantity(np.array([100, 150]), 'nm')  # specify the radii from innermost to outermost layer
-    n_particle_cs = sc.Quantity(np.array([1.5,1.5]), '')  # specify the index from innermost to outermost layer           
+    n_particle_cs = sc.Quantity(np.array([1.5,1.5]), '')  # specify the index from innermost to outermost layer  
     
     # calculate the volume fractions of each layer
     vf_array = np.empty(len(radius_cs))
@@ -175,10 +181,11 @@ def test_reflection_core_shell():
     for r in np.arange(len(r_array)-1):
         vf_array[r] = (r_array[r+1]**3-r_array[r]**3) / (r_array[-1:]**3) * volume_fraction
 
-    n_sample_cs = ri.n_eff(n_particle_cs, n_matrix, vf_array) 
-    R_cs, T_cs = calc_montecarlo(nevents, ntrajectories, radius_cs, 
-                                 n_particle_cs, n_sample_cs, n_medium, 
-                                 volume_fraction, wavelen, seed)
+    species1 = Spheres(n_particle_cs, radius_cs, vf_array, pdi=0)
+    species2 = Spheres(n_particle_cs, radius_cs, vf_array, pdi=0)    
+    system_cs = Film([species1, species2], n_matrix, n_medium, thickness, structure='glass')
+    
+    R_cs, T_cs = calc_montecarlo(nevents, ntraj, system_cs, source, detector, seed, form='auto')     
 
     assert_almost_equal(R, R_cs)
     assert_almost_equal(T, T_cs)
@@ -194,23 +201,24 @@ def test_reflection_core_shell():
     assert_equal(T_before, T)
     assert_equal(T_cs_before, T_cs)
     
+    ###########################################################################
     # Test that the reflectance is the same for a core-shell that absorbs (with
     # the same refractive indices for all layers) and a non-core-shell that 
     # absorbs with the same index
     # Reflection using a non-core-shell absorbing system
     n_particle_abs = sc.Quantity(1.5+0.001j, '')  
-    n_sample_abs = ri.n_eff(n_particle_abs, n_matrix, volume_fraction)
-    
-    R_abs, T_abs = calc_montecarlo(nevents, ntrajectories, radius, n_particle_abs, 
-                           n_sample_abs, n_medium, volume_fraction, wavelen, seed)
+    species_abs = Spheres(n_particle_abs, radius, volume_fraction, pdi=0)
+    system_abs = Film(species_abs, n_matrix, n_medium, thickness, structure='glass')
+    R_abs, T_abs = calc_montecarlo(nevents, ntraj, system_abs, source, detector, seed, form='auto') 
+
     
     # Reflection using core-shells with the shell index-matched to the core
     n_particle_cs_abs = sc.Quantity(np.array([1.5+0.001j,1.5+0.001j]), '')  
-    n_sample_cs_abs = ri.n_eff(n_particle_cs_abs, n_matrix, vf_array) 
+    species1_abs = Spheres(n_particle_cs_abs, radius_cs, vf_array, pdi=0)
+    species2_abs = Spheres(n_particle_cs_abs, radius_cs, vf_array, pdi=0)    
+    system_cs_abs = Film([species1_abs, species2_abs], n_matrix, n_medium, thickness, structure='glass')
     
-    R_cs_abs, T_cs_abs = calc_montecarlo(nevents, ntrajectories, radius_cs, 
-                                 n_particle_cs_abs, n_sample_cs_abs, n_medium, 
-                                 volume_fraction, wavelen, seed)
+    R_cs_abs, T_cs_abs = calc_montecarlo(nevents, ntraj, system_cs_abs, source, detector, seed, form='auto')     
 
     assert_almost_equal(R_abs, R_cs_abs, decimal=3)
     assert_almost_equal(T_abs, T_cs_abs, decimal=3)
@@ -226,22 +234,23 @@ def test_reflection_core_shell():
     assert_equal(T_abs_before, T_abs)
     assert_equal(T_cs_abs_before, T_cs_abs)
     
+    ###########################################################################
     # Same as previous test but with absorbing matrix as well
     # Reflection using a non-core-shell absorbing system
     n_particle_abs = sc.Quantity(1.5+0.001j, '')  
     n_matrix_abs = sc.Quantity(1.+0.001j, '')  
-    n_sample_abs = ri.n_eff(n_particle_abs, n_matrix_abs, volume_fraction)
-    
-    R_abs, T_abs = calc_montecarlo(nevents, ntrajectories, radius, n_particle_abs, 
-                           n_sample_abs, n_medium, volume_fraction, wavelen, seed)
+    species_abs = Spheres(n_particle_abs, radius, volume_fraction, pdi=0)
+    system_abs = Film(species_abs, n_matrix_abs, n_medium, thickness, structure='glass')
+    R_abs, T_abs = calc_montecarlo(nevents, ntraj, system_abs, source, detector, seed, form='auto') 
+
     
     # Reflection using core-shells with the shell index-matched to the core
     n_particle_cs_abs = sc.Quantity(np.array([1.5+0.001j,1.5+0.001j]), '')  
-    n_sample_cs_abs = ri.n_eff(n_particle_cs_abs, n_matrix_abs, vf_array) 
+    species1_abs = Spheres(n_particle_cs_abs, radius_cs, vf_array, pdi=0)
+    species2_abs = Spheres(n_particle_cs_abs, radius_cs, vf_array, pdi=0)    
+    system_cs_abs = Film([species1_abs, species2_abs], n_matrix_abs, n_medium, thickness, structure='glass')
     
-    R_cs_abs, T_cs_abs = calc_montecarlo(nevents, ntrajectories, radius_cs, 
-                                 n_particle_cs_abs, n_sample_cs_abs, n_medium, 
-                                 volume_fraction, wavelen, seed)
+    R_cs_abs, T_cs_abs = calc_montecarlo(nevents, ntraj, system_cs_abs, source, detector, seed, form='auto')  
 
     assert_almost_equal(R_abs, R_cs_abs, decimal=3)
     assert_almost_equal(T_abs, T_cs_abs, decimal=3)
@@ -263,157 +272,178 @@ def test_reflection_absorbing_particle_or_matrix():
     # n_particle with a 0 imaginary component are the same 
     seed = 1
     nevents = 60
-    ntrajectories = 30
-    
+    ntraj = 30
+    source = Source(wavelen, polarization=None, incidence_angle=0)
+    detector = mc.Detector(angle=0, length=np.inf, distance=0) 
+
     # Reflection using non-absorbing particle
-    R, T = calc_montecarlo(nevents, ntrajectories, radius, n_particle, 
-                           n_sample, n_medium, volume_fraction, wavelen, seed)
+    species = Spheres(n_particle, radius, volume_fraction, pdi=0)
+    system = Film(species, n_matrix, n_medium, thickness, structure='glass')
+    R, T = calc_montecarlo(nevents, ntraj, system, source, detector, seed, form='auto')      
 
     # Reflection using particle with an imaginary component of 0
     n_particle_abs = sc.Quantity(1.5 + 0j, '')
-    R_abs, T_abs = calc_montecarlo(nevents, ntrajectories, radius, 
-                                   n_particle_abs, n_sample, n_medium, 
-                                   volume_fraction, wavelen, seed)
+    species_abs = Spheres(n_particle_abs, radius, volume_fraction, pdi=0)
+    system_part_abs = Film(species_abs, n_matrix, n_medium, thickness, structure='glass')
+    R_part_abs, T_part_abs = calc_montecarlo(nevents, ntraj, system_part_abs, 
+                                             source, detector, seed, form='auto')   
   
-    assert_almost_equal(R, R_abs)
-    assert_almost_equal(T, T_abs)
+    assert_almost_equal(R, R_part_abs)
+    assert_almost_equal(T, T_part_abs)
     
     # Outputs before refactoring structcol
     R_before = 0.81382378303119451
-    R_abs_before = 0.81382378303119451
+    R_part_abs_before = 0.81382378303119451
     T_before = 0.1861762169688054
-    T_abs_before = 0.1861762169688054
+    T_part_abs_before = 0.1861762169688054
     
     assert_equal(R_before, R)
-    assert_equal(R_abs_before, R_abs)
+    assert_equal(R_part_abs_before, R_part_abs)
     assert_equal(T_before, T)
-    assert_equal(T_abs_before, T_abs)
+    assert_equal(T_part_abs_before, T_part_abs)
 
+    ###########################################################################
     # Same as previous test but with absorbing matrix
     # Reflection using matrix with an imaginary component of 0
     n_matrix_abs = sc.Quantity(1. + 0j, '')
-    n_sample_abs = ri.n_eff(n_particle, n_matrix_abs, volume_fraction)
-    R_abs, T_abs = calc_montecarlo(nevents, ntrajectories, radius, 
-                                   n_particle, n_sample_abs, n_medium, 
-                                   volume_fraction, wavelen, seed)
+    species = Spheres(n_particle, radius, volume_fraction, pdi=0)
+    system_matrix_abs = Film(species, n_matrix_abs, n_medium, thickness, structure='glass')
+    R_matrix_abs, T_matrix_abs = calc_montecarlo(nevents, ntraj, system_matrix_abs, 
+                                                 source, detector, seed, form='auto')      
     
-    assert_almost_equal(R, R_abs)
-    assert_almost_equal(T, T_abs)
+    assert_almost_equal(R, R_matrix_abs)
+    assert_almost_equal(T, T_matrix_abs)
     
     # Outputs before refactoring structcol
-    R_before = 0.81382378303119451
-    R_abs_before = 0.81382378303119451
-    T_before = 0.1861762169688054
-    T_abs_before = 0.1861762169688054
+    R_matrix_abs_before = 0.81382378303119451
+    T_matrix_abs_before = 0.1861762169688054
 
-    assert_equal(R_before, R)
-    assert_equal(R_abs_before, R_abs)
-    assert_equal(T_before, T)
-    assert_equal(T_abs_before, T_abs)
+    assert_equal(R_matrix_abs_before, R_matrix_abs)
+    assert_equal(T_matrix_abs_before, T_matrix_abs)
     
-    
+
 def test_reflection_polydispersity():
     seed = 1
     nevents = 60
-    ntrajectories = 30
+    ntraj = 30
+    source = Source(wavelen, polarization=None, incidence_angle=0)
+    detector = mc.Detector(angle=0, length=np.inf, distance=0)  
+    volume_fraction1 = 0.4
+    volume_fraction2 = 0.1
     
-    radius2 = radius
-    concentration = sc.Quantity(np.array([0.9,0.1]), '')
-    pdi = sc.Quantity(np.array([1e-7, 1e-7]), '')  # monodisperse limit
-
+    ###########################################################################
     # Without absorption: test that the reflectance using with very small 
     # polydispersity is the same as the monodisperse case
-    R_mono, T_mono = calc_montecarlo(nevents, ntrajectories, radius, 
-                                     n_particle, n_sample, n_medium, 
-                                     volume_fraction, wavelen, seed, 
-                                     polydisperse=False)
-    R_poly, T_poly = calc_montecarlo(nevents, ntrajectories, radius, 
-                                     n_particle, n_sample, n_medium, 
-                                     volume_fraction, wavelen, seed, 
-                                     radius2 = radius2, 
-                                     concentration = concentration, pdi = pdi,
-                                     polydisperse=True)                               
-                                   
-    assert_almost_equal(R_mono, R_poly)
-    assert_almost_equal(T_mono, T_poly)
+    pdi = sc.Quantity(1e-7, '')  # monodisperse limit
+
+    # with very small polydispersity
+    species1 = Spheres(n_particle, radius, volume_fraction1, pdi=pdi)
+    species2 = Spheres(n_particle, radius, volume_fraction2, pdi=pdi)    
+    system = Film([species1, species2], n_matrix, n_medium, thickness, 
+                     structure='glass')
+                     
+    # with no polydispersity                 
+    species1_no_pdi = Spheres(n_particle, radius, volume_fraction1, pdi=0)
+    species2_no_pdi = Spheres(n_particle, radius, volume_fraction2, pdi=0) 
+    system_no_pdi = Film([species1_no_pdi, species2_no_pdi], n_matrix, n_medium, 
+                             thickness, structure='glass')
+
+    R_small_pdi, T_small_pdi = calc_montecarlo(nevents, ntraj, system, source, 
+                                               detector, seed, form='auto')                          
+    R_no_pdi, T_no_pdi = calc_montecarlo(nevents, ntraj, system_no_pdi, source, 
+                                         detector, seed, form='auto')                                 
+
+    assert_almost_equal(R_no_pdi, R_small_pdi)
+    assert_almost_equal(T_no_pdi, T_small_pdi)
 
     # Outputs before refactoring structcol
-    R_mono_before = 0.81382378303119451
-    R_poly_before = 0.81382378303119451
-    T_mono_before = 0.1861762169688054
-    T_poly_before = 0.1861762169688054
+    R_no_pdi_before = 0.81382378303119451
+    R_small_pdi_before = 0.81382378303119451
+    T_no_pdi_before = 0.1861762169688054
+    T_small_pdi_before = 0.1861762169688054
 
-    assert_equal(R_mono_before, R_mono)
-    assert_equal(R_poly_before, R_poly)
-    assert_equal(T_mono_before, T_mono)
-    assert_equal(T_poly_before, T_poly)
+    assert_equal(R_no_pdi_before, R_no_pdi)
+    assert_equal(R_small_pdi_before, R_small_pdi)
+    assert_equal(T_no_pdi_before, T_no_pdi)
+    assert_equal(T_small_pdi_before, T_small_pdi)
     
+    ###########################################################################
     # With absorption: test that the reflectance using with very small 
     # polydispersity is the same as the monodisperse case  
     n_particle_abs = sc.Quantity(1.5+0.0001j, '')  
     n_matrix_abs = sc.Quantity(1.+0.0001j, '')  
-    n_sample_abs = ri.n_eff(n_particle_abs, n_matrix_abs, volume_fraction)
     
-    R_mono_abs, T_mono_abs = calc_montecarlo(nevents, ntrajectories, radius, 
-                                             n_particle_abs, n_sample_abs, 
-                                             n_medium, volume_fraction, wavelen, 
-                                             seed, polydisperse=False)
-    R_poly_abs, T_poly_abs = calc_montecarlo(nevents, ntrajectories, radius, 
-                                             n_particle_abs, n_sample_abs, 
-                                             n_medium, volume_fraction, wavelen, 
-                                             seed, radius2 = radius2, 
-                                             concentration = concentration, 
-                                             pdi = pdi, polydisperse=True)   
+    # with very small polydispersity
+    species1_abs = Spheres(n_particle_abs, radius, volume_fraction1, pdi=pdi)
+    species2_abs = Spheres(n_particle_abs, radius, volume_fraction2, pdi=pdi)
+    system_abs = Film([species1_abs, species2_abs], n_matrix_abs, n_medium, thickness, 
+                          structure='glass')
+                     
+    # with no polydispersity                 
+    species1_no_pdi_abs = Spheres(n_particle_abs, radius, volume_fraction1, pdi=0)
+    species2_no_pdi_abs = Spheres(n_particle_abs, radius, volume_fraction2, pdi=0)
+    system_no_pdi_abs = Film([species1_no_pdi_abs, species2_no_pdi_abs], n_matrix_abs, n_medium, 
+                             thickness, structure='glass')
 
-    assert_almost_equal(R_mono_abs, R_poly_abs, decimal=3)
-    assert_almost_equal(T_mono_abs, T_poly_abs, decimal=3)
+    R_small_pdi_abs, T_small_pdi_abs = calc_montecarlo(nevents, ntraj, system_abs, source, 
+                                               detector, seed, form='auto') 
+    R_no_pdi_abs, T_no_pdi_abs = calc_montecarlo(nevents, ntraj, system_no_pdi_abs, source, 
+                                         detector, seed, form='auto')  
+
+    assert_almost_equal(R_no_pdi_abs, R_small_pdi_abs, decimal=3)
+    assert_almost_equal(T_no_pdi_abs, T_small_pdi_abs, decimal=3)
     
     # Outputs before refactoring structcol
-    R_mono_abs_before = 0.74182070115289855
-    R_poly_abs_before = 0.74153254583803685
-    T_mono_abs_before = 0.083823525277616467
-    T_poly_abs_before = 0.083720861809212316
+    R_no_pdi_abs_before = 0.74182070115289855
+    R_small_pdi_abs_before = 0.74153254583803685
+    T_no_pdi_abs_before = 0.083823525277616467
+    T_small_pdi_abs_before = 0.083720861809212316
     
-    assert_equal(R_mono_abs_before, R_mono_abs)
-    assert_equal(R_poly_abs_before, R_poly_abs)
-    assert_equal(T_mono_abs_before, T_mono_abs)
-    assert_equal(T_poly_abs_before, T_poly_abs)
+    assert_equal(R_no_pdi_abs_before, R_no_pdi_abs)
+    assert_equal(R_small_pdi_abs_before, R_small_pdi_abs)
+    assert_equal(T_no_pdi_abs_before, T_no_pdi_abs)
+    assert_equal(T_small_pdi_abs_before, T_small_pdi_abs)
     
+    ###########################################################################
     # test that the reflectance is the same for a polydisperse monospecies
     # and a bispecies with equal types of particles
-    concentration_mono = sc.Quantity(np.array([0.,1.]), '')
-    concentration_bi = sc.Quantity(np.array([0.3,0.7]), '')
-    pdi = sc.Quantity(np.array([1e-1, 1e-1]), '')
+    pdi = sc.Quantity(1e-1, '')
     
-    R_mono, T_mono = calc_montecarlo(nevents, ntrajectories, radius, 
-                                     n_particle, n_sample, n_medium, 
-                                     volume_fraction, wavelen, seed,  
-                                     radius2 = radius2, 
-                                     concentration = concentration_mono, pdi = pdi,
-                                     polydisperse=True)
-    R_bi, T_bi = calc_montecarlo(nevents, ntrajectories, radius, 
-                                     n_particle, n_sample, n_medium, 
-                                     volume_fraction, wavelen, seed, 
-                                     radius2 = radius2, 
-                                     concentration = concentration_bi, pdi = pdi,
-                                     polydisperse=True)                               
-                                   
+    # monospecies            
+    species = Spheres(n_particle, radius, volume_fraction, pdi=pdi)
+    system_mono = Film(species, n_matrix, n_medium, thickness, structure='glass')
+    
+    # bispecies
+    species1 = Spheres(n_particle, radius, volume_fraction1, pdi=pdi)
+    species2 = Spheres(n_particle, radius, volume_fraction2, pdi=pdi)
+    system_bi = Film([species1, species2], n_matrix, n_medium, thickness, 
+                     structure='glass')
+
+    R_mono, T_mono = calc_montecarlo(nevents, ntraj, system_mono, source, 
+                                     detector, seed, form='auto')                             
+    R_bi, T_bi = calc_montecarlo(nevents, ntraj, system_bi, source, 
+                                 detector, seed, form='auto')                                 
+
     assert_equal(R_mono, R_bi)
     assert_equal(T_mono, T_bi)
     
+    ###########################################################################
     # test that the reflectance is the same regardless of the order in which
-    # the radii are specified
-    radius2 = sc.Quantity('70 nm')
-    concentration2 = sc.Quantity(np.array([0.5,0.5]), '')
+    # the species are specified
+    radius2 = sc.Quantity('100 nm')
     
-    R, T = calc_montecarlo(nevents, ntrajectories, radius, n_particle, 
-                           n_sample, n_medium, volume_fraction, wavelen, seed,  
-                           radius2 = radius2, concentration = concentration2, 
-                           pdi = pdi,polydisperse=True)
-    R2, T2 = calc_montecarlo(nevents, ntrajectories, radius2, n_particle, 
-                             n_sample, n_medium, volume_fraction, wavelen, seed, 
-                             radius2 = radius, concentration = concentration2, 
-                             pdi = pdi, polydisperse=True)                               
+    # bispecies
+    species1 = Spheres(n_particle, radius, volume_fraction1, pdi=pdi)
+    species2 = Spheres(n_particle, radius2, volume_fraction2, pdi=pdi)
+    system1 = Film([species1, species2], n_matrix, n_medium, thickness, 
+                        structure='glass')
+    system2 = Film([species2, species1], n_matrix, n_medium, thickness, 
+                        structure='glass')
+                                     
+    R, T = calc_montecarlo(nevents, ntraj, system1, source, detector, seed, 
+                           form='auto')             
+    R2, T2 = calc_montecarlo(nevents, ntraj, system2, source, detector, seed, 
+                             form='auto')                               
                                    
     assert_almost_equal(R, R2)
     assert_almost_equal(T, T2)
@@ -424,66 +454,71 @@ def test_throw_valueerror_for_polydisperse_core_shells():
     with pytest.raises(ValueError):
         seed = 1
         nevents = 10
-        ntrajectories = 5
+        ntraj = 5
         
+        # define core-shell particles
         radius_cs = sc.Quantity(np.array([100, 150]), 'nm')  # specify the radii from innermost to outermost layer
-        n_particle_cs = sc.Quantity(np.array([1.5,1.5]), '')  # specify the index from innermost to outermost layer           
-        radius2 = radius
-        concentration = sc.Quantity(np.array([0.9,0.1]), '')
+        n_particle_cs = sc.Quantity(np.array([1.5,1.5]), '')  # specify the index from innermost to outermost layer  
         pdi = sc.Quantity(np.array([1e-7, 1e-7]), '')  # monodisperse limit
-    
+
         # calculate the volume fractions of each layer
         vf_array = np.empty(len(radius_cs))
         r_array = np.array([0] + radius_cs.magnitude.tolist()) 
         for r in np.arange(len(r_array)-1):
             vf_array[r] = (r_array[r+1]**3-r_array[r]**3) / (r_array[-1:]**3) * volume_fraction
-    
-        n_sample_cs = ri.n_eff(n_particle_cs, n_matrix, vf_array) 
-        R_cs, T_cs = calc_montecarlo(nevents, ntrajectories, radius_cs, 
-                                     n_particle_cs, n_sample_cs, n_medium, 
-                                     volume_fraction, wavelen, seed, radius2=radius2, 
-                                     concentration=concentration, pdi=pdi, 
-                                     polydisperse=True)
 
+        # define two species to make it a polydisperse core-shell system
+        species1 = Spheres(n_particle_cs, radius_cs, vf_array, pdi=pdi)
+        species2 = Spheres(n_particle_cs, radius_cs, vf_array, pdi=pdi)
+        
+        system = Film([species1, species2], n_matrix, n_medium, thickness, 
+                         structure='glass')
+        source = Source(wavelen, polarization=None, 
+                           incidence_angle=0)
+        detector = mc.Detector(angle=0, length=np.inf, distance=0)   
+
+        R_cs, T_cs = calc_montecarlo(nevents, ntraj, system, source, detector, 
+                                     seed, form='auto')  
+                                     
+                                    
+'''
+This test will no longer be relevant in the refactored version
 def test_throw_valueerror_for_polydisperse_unspecified_parameters(): 
 # test that a valueerror is raised when the system is polydisperse and radius2
 # concentration or pdi are not specified                 
     with pytest.raises(ValueError):
         seed = 1
         nevents = 10
-        ntrajectories = 5
+        ntraj = 5
         
-        radius_cs = sc.Quantity(np.array([100, 150]), 'nm')  # specify the radii from innermost to outermost layer
-        n_particle_cs = sc.Quantity(np.array([1.5,1.5]), '')  # specify the index from innermost to outermost layer           
-        concentration = sc.Quantity(np.array([0.9,0.1]), '')
-        pdi = sc.Quantity(np.array([1e-7, 1e-7]), '')  # monodisperse limit
-    
+        radius1 = sc.Quantity(100, 'nm') 
+        radius2 = sc.Quantity(150, 'nm')
+        n_particle = sc.Quantity(1.5, '') 
+        pdi = sc.Quantity(1e-7, '')  # monodisperse limit
+        
         # calculate the volume fractions of each layer
+        radius_cs = np.array([radius1.magnitude, radius2.to(radius1.units).magnitude], radius1.units)    
         vf_array = np.empty(len(radius_cs))
-        r_array = np.array([0] + radius_cs.magnitude.tolist()) 
+        r_array = np.array([0] + radius_cs.tolist()) 
         for r in np.arange(len(r_array)-1):
             vf_array[r] = (r_array[r+1]**3-r_array[r]**3) / (r_array[-1:]**3) * volume_fraction
-            
-        n_sample_cs = ri.n_eff(n_particle_cs, n_matrix, vf_array) 
-        R_cs, T_cs = calc_montecarlo(nevents, ntrajectories, radius_cs, 
-                                     n_particle_cs, n_sample_cs, n_medium, 
-                                     volume_fraction, wavelen, seed,
-                                     concentration=concentration, pdi=pdi, 
-                                     polydisperse=True)  # unspecified radius2
 
+        species1 = Spheres(n_particle, radius1, vf_array[0], pdi=pdi)
+        species2 = Spheres(n_particle, radius2, vf_array[1], pdi=pdi)
+        
+        system = Film([species1, species2], n_matrix, n_medium, thickness, 
+                         structure='glass')
+        source = Source(wavelen, polarization=None, 
+                           incidence_angle=0)
+        detector = mc.Detector(angle=0, length=np.inf, distance=0)   
 
+        R_cs, T_cs = calc_montecarlo(nevents, ntraj, system, source, detector, 
+                                     seed, form='auto')  
+'''
 
-def calc_montecarlo(nevents, ntraj, radius, n_particle, n_sample, n_medium, 
-                    volume_fraction, thickness, wavelen, seed, incidence_angle=0, 
-                    polarization=None, pdi=0, angle=0, distance=0, length=np.inf, 
-                    form='auto', structure='glass'):
+def calc_montecarlo(nevents, ntraj, system, source, detector, seed, 
+                    form='auto'):
                         
-    species = mc.Spheres(n_particle, radius, volume_fraction, pdi=pdi)
-    system = mc.Film(species, n_matrix, n_medium, thickness, structure=structure)
-    source = mc.Source(wavelen, polarization=polarization, 
-                       incidence_angle=incidence_angle)
-    detector = mc.Detector(angle=angle, length=length, distance=distance)    
-    
     results = mc.run(system, source, ntraj, nevents, seed=seed, form=form)
     normalized_intensity = results.calc_scattering(detector)
     
@@ -491,6 +526,8 @@ def calc_montecarlo(nevents, ntraj, radius, n_particle, n_sample, n_medium,
 
 
 #def run():
+#    n_sample = ri.n_eff(n_particle, n_matrix, volume_fraction)  # for core-shells, volume_fraction must be array of vf 
+#                                                                # from innermost to outermost layers
 #    phase_function, scat_coeff, abs_coeff = mc.calc_scat(system, source)
 #    pos0, dir0, weight0 , pol0 = mc.initialize(nevents, ntraj, n_medium, n_sample, 
 #                                               seed, incidence_angle, polarization)
@@ -515,30 +552,3 @@ def calc_montecarlo(nevents, ntraj, radius, n_particle, n_sample, n_medium,
 #    results = mc.Results(trajectories, system, source)
 #    
 #    return(results)
-
-#def calc_montecarlo(nevents, ntrajectories, radius, n_particle, n_sample, 
-#                    n_medium, volume_fraction, wavelen, seed, radius2=None, 
-#                    concentration=None, pdi=None, polydisperse=False):
-#    # Function to run montecarlo for the tests
-#    p, mu_scat, mu_abs = mc.calc_scat(radius, n_particle, n_sample, 
-#                                      volume_fraction, wavelen, radius2=radius2, 
-#                                      concentration=concentration, pdi=pdi, 
-#                                      polydisperse=polydisperse)
-#
-#    r0, k0, W0 = mc.initialize(nevents, ntrajectories, n_medium, n_sample, 
-#                               seed=seed, incidence_angle = 0.)
-#    r0 = sc.Quantity(r0, 'um')
-#    k0 = sc.Quantity(k0, '')
-#    W0 = sc.Quantity(W0, '')
-#    sintheta, costheta, sinphi, cosphi, _, _= mc.sample_angles(nevents, 
-#                                                               ntrajectories,p)
-#    step = mc.sample_step(nevents, ntrajectories, mu_abs, mu_scat)
-#    trajectories = mc.Trajectory(r0, k0, W0)
-#    trajectories.absorb(mu_abs, step)                         
-#    trajectories.scatter(sintheta, costheta, sinphi, cosphi)         
-#    trajectories.move(step)
-#    z_low = sc.Quantity('0.0 um')
-#    cutoff = sc.Quantity('50 um')
-#    R, T = mc.calc_refl_trans(trajectories, z_low, cutoff, n_medium, n_sample)
-#
-#    return R, T
