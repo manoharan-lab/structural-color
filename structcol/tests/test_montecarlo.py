@@ -24,7 +24,7 @@ Tests for the montecarlo model (in structcol/montecarlo.py)
 import structcol as sc
 from .. import montecarlo as mc
 from .. import refractive_index as ri
-from .main import Spheres, Film, Source
+from .main import Spheres, Film, Source, DetectorMultScat
 import os
 import numpy as np
 from numpy.testing import assert_equal, assert_almost_equal
@@ -58,26 +58,37 @@ def test_sampling():
     # Test that 'sample_step' runs
     mc.sample_step(nevents, ntraj, abs_coeff, scat_coeff)
 
-def test_calc_refl_trans():
-    low_thresh = 0
+def test_calc_scattering():
     high_thresh = 10
     small_n = 1
     large_n = 2
-
-    # test absoprtion and stuck without fresnel
+    
+    # the radius and volume_fraction are not used in this test
+    species = Spheres(small_n, radius, volume_fraction)
+    system = Film(species, small_n, small_n, high_thresh, structure='glass')
+    source = Source(wavelen)
+    detector = DetectorMultScat()
+    
+    # test absorption and stuck without fresnel
     z_pos = np.array([[0,0,0,0],[1,1,1,1],[-1,11,2,11],[-2,12,4,12]])
     ntrajectories = z_pos.shape[1]
     kz = np.array([[1,1,1,1],[-1,1,1,1],[-1,1,1,1]])
     weights = np.array([[.8, .8, .9, .8],[.7, .3, .7, 0],[.1, .1, .5, 0]])
-    trajectories = mc.Trajectory([np.nan, np.nan, z_pos],[np.nan, np.nan, kz], weights)
-    refl, trans= mc.calc_refl_trans(trajectories, low_thresh, high_thresh, small_n, small_n)
+    pol = None
+    trajectories = mc.Trajectory([np.nan, np.nan, z_pos],[np.nan, np.nan, kz], weights, pol)
+    results = mc.Results(trajectories, system, source)   
+    refl, trans = results.calc_scattering(detector)
+
     expected_trans_array = np.array([0, .3, .25, 0])/ntrajectories #calculated manually
     expected_refl_array = np.array([.7, 0, .25, 0])/ntrajectories #calculated manually
     assert_almost_equal(refl, np.sum(expected_refl_array))
     assert_almost_equal(trans, np.sum(expected_trans_array))
 
     # test above but with covers on front and back
-    refl, trans = mc.calc_refl_trans(trajectories, low_thresh, high_thresh, small_n, small_n, n_front=large_n, n_back=large_n)
+    system_covers = Film(species, small_n, small_n, high_thresh, structure='glass', 
+                  n_front=large_n, n_back=large_n)
+    results = mc.Results(trajectories, system_covers, source)
+    refl, trans = results.calc_scattering(detector)
     expected_trans_array = np.array([0.00814545, 0.20014545, 0.2, 0.])/ntrajectories #calculated manually
     expected_refl_array = np.array([0.66700606, 0.20349091, 0.4, 0.2])/ntrajectories #calculated manually
     assert_almost_equal(refl, np.sum(expected_refl_array))
@@ -88,15 +99,18 @@ def test_calc_refl_trans():
     ntrajectories = z_pos.shape[1]
     kz = np.array([[1,1,1,0.86746757864487367],[-.1,-.1,.1,.1],[0.1,-.1,-.1,0.1],[-1,-.9,1,1]])
     weights = np.array([[.8, .8, .9, .8],[.7, .3, .7, .5],[.6, .2, .6, .4], [.4, .1, .5, .3]])
-    trajectories = mc.Trajectory([np.nan, np.nan, z_pos],[np.nan, np.nan, kz], weights)
-    refl, trans= mc.calc_refl_trans(trajectories, low_thresh, high_thresh, small_n, large_n)
+    trajectories = mc.Trajectory([np.nan, np.nan, z_pos],[np.nan, np.nan, kz], weights, pol)
+    system = Film(species, large_n, small_n, high_thresh, structure='glass')    
+    results = mc.Results(trajectories, system, source)   
+    refl, trans = results.calc_scattering(detector)
     expected_trans_array = np.array([ .00167588, .00062052, .22222222, .11075425])/ntrajectories #calculated manually
     expected_refl_array = np.array([ .43317894, .18760061, .33333333, .59300905])/ntrajectories #calculated manually
     assert_almost_equal(refl, np.sum(expected_refl_array))
     assert_almost_equal(trans, np.sum(expected_trans_array))
 
     # test refraction and detection_angle
-    refl, trans= mc.calc_refl_trans(trajectories, low_thresh, high_thresh, small_n, large_n, detection_angle=0.1)
+    detector = DetectorMultScat(angle=0.1)
+    refl, trans = results.calc_scattering(detector)
     expected_trans_array = np.array([ .00167588, .00062052, .22222222,  .11075425])/ntrajectories #calculated manually
     expected_refl_array = np.array([  .43203386, .11291556, .29105299,  .00046666])/ntrajectories #calculated manually
     assert_almost_equal(refl, np.sum(expected_refl_array))
@@ -108,8 +122,11 @@ def test_calc_refl_trans():
     kz = np.array([[1,1,1,1,1,1,1],[1,1,1,0.1,1,1,-0.1],[1,1,1,1,-1,-1,-1]])
     weights = np.array([[1,1,1,1,1,1,1],[1,1,1,1,1,1,1],[1,1,1,1,1,1,1]])
     thin_sample_thickness = 1
-    trajectories = mc.Trajectory([np.nan, np.nan, z_pos],[np.nan, np.nan, kz], weights)
-    refl, trans= mc.calc_refl_trans(trajectories, low_thresh, thin_sample_thickness, small_n, large_n)
+    trajectories = mc.Trajectory([np.nan, np.nan, z_pos],[np.nan, np.nan, kz], weights, pol)
+    system = Film(species, large_n, small_n, thin_sample_thickness, structure='glass')    
+    results = mc.Results(trajectories, system, source)   
+    detector = DetectorMultScat()
+    refl, trans = results.calc_scattering(detector)
     expected_trans_array = np.array([.8324515, .8324515, .8324515, .05643739, .05643739, .05643739, .8324515])/ntrajectories #calculated manually
     expected_refl_array = np.array([.1675485, .1675485, .1675485, .94356261, .94356261, .94356261, .1675485])/ntrajectories #calculated manually
     assert_almost_equal(refl, np.sum(expected_refl_array))
@@ -119,13 +136,18 @@ def test_trajectories():
     # Initialize runs
     nevents = 2
     ntraj = 3
-    pos0, dir0, weight0 = mc.initialize(nevents, ntraj, n_matrix, n_sample, seed=1)
+    
+    # the index, radius, and volume fractions are not actually used in this test
+    species = Spheres(n_particle, radius, volume_fraction)
+    system = Film(species, n_matrix, n_medium, thickness, structure='glass')
+    pos0, dir0, weight0, pol0 = mc.initialize(nevents, ntraj, system, n_sample, seed=1)
     pos0 = sc.Quantity(pos0, 'um')
     dir0 = sc.Quantity(dir0, '')
     weight0 = sc.Quantity(weight0, '')
+    pol0 = sc.Quantity(pol0, '')
 
     # Create a Trajectory object
-    trajectories = mc.Trajectory(pos0, dir0, weight0)
+    trajectories = mc.Trajectory(pos0, dir0, weight0, pol0)
     
     # Test the absorb function
     abs_coeff = 1/sc.Quantity(10, 'um')    
@@ -140,7 +162,7 @@ def test_trajectories():
     costheta = np.array([[-1.,-1.,-1.],[1.,1.,1.]])  
     sinphi = np.array([[0.,0.,0.],[0.,0.,0.]])
     cosphi = np.array([[0.,0.,0.],[0.,0.,0.]])
-    trajectories.scatter(sintheta, costheta, sinphi, cosphi)       
+    trajectories.scatter(sintheta, costheta, sinphi, cosphi, singamma=None, cosgamma=None)       
     
     # Expected propagation directions
     dirx = sc.Quantity(np.array([[0.,0.,0.],[0.,0.,0.]]), '')
@@ -163,7 +185,7 @@ def test_reflection_core_shell():
     nevents = 60
     ntraj = 30
     source = Source(wavelen, polarization=None, incidence_angle=0)
-    detector = mc.Detector(angle=0, length=np.inf, distance=0) 
+    detector = DetectorMultScat(angle=0, length=np.inf, distance=0) 
 
     # Reflection using a non-core-shell system
     species = Spheres(n_particle, radius, volume_fraction, pdi=0)
@@ -274,7 +296,7 @@ def test_reflection_absorbing_particle_or_matrix():
     nevents = 60
     ntraj = 30
     source = Source(wavelen, polarization=None, incidence_angle=0)
-    detector = mc.Detector(angle=0, length=np.inf, distance=0) 
+    detector = DetectorMultScat(angle=0, length=np.inf, distance=0) 
 
     # Reflection using non-absorbing particle
     species = Spheres(n_particle, radius, volume_fraction, pdi=0)
@@ -327,7 +349,7 @@ def test_reflection_polydispersity():
     nevents = 60
     ntraj = 30
     source = Source(wavelen, polarization=None, incidence_angle=0)
-    detector = mc.Detector(angle=0, length=np.inf, distance=0)  
+    detector = DetectorMultScat(angle=0, length=np.inf, distance=0)  
     volume_fraction1 = 0.4
     volume_fraction2 = 0.1
     
@@ -448,6 +470,8 @@ def test_reflection_polydispersity():
     assert_almost_equal(R, R2)
     assert_almost_equal(T, T2)
 
+'''
+These tests will no longer be relevant in the refactored version
 
 def test_throw_valueerror_for_polydisperse_core_shells(): 
 # test that a valueerror is raised when trying to run polydisperse core-shells                 
@@ -475,14 +499,12 @@ def test_throw_valueerror_for_polydisperse_core_shells():
                          structure='glass')
         source = Source(wavelen, polarization=None, 
                            incidence_angle=0)
-        detector = mc.Detector(angle=0, length=np.inf, distance=0)   
+        detector = DetectorMultScat(angle=0, length=np.inf, distance=0)   
 
         R_cs, T_cs = calc_montecarlo(nevents, ntraj, system, source, detector, 
                                      seed, form='auto')  
                                      
-                                    
-'''
-This test will no longer be relevant in the refactored version
+
 def test_throw_valueerror_for_polydisperse_unspecified_parameters(): 
 # test that a valueerror is raised when the system is polydisperse and radius2
 # concentration or pdi are not specified                 
@@ -510,7 +532,7 @@ def test_throw_valueerror_for_polydisperse_unspecified_parameters():
                          structure='glass')
         source = Source(wavelen, polarization=None, 
                            incidence_angle=0)
-        detector = mc.Detector(angle=0, length=np.inf, distance=0)   
+        detector = DetectorMultScat(angle=0, length=np.inf, distance=0)   
 
         R_cs, T_cs = calc_montecarlo(nevents, ntraj, system, source, detector, 
                                      seed, form='auto')  
@@ -519,17 +541,17 @@ def test_throw_valueerror_for_polydisperse_unspecified_parameters():
 def calc_montecarlo(nevents, ntraj, system, source, detector, seed, 
                     form='auto'):
                         
-    results = mc.run(system, source, ntraj, nevents, seed=seed, form=form)
+    results = mc.run(system, source, ntraj, nevents, seed=seed, form=form, n_eff='bruggeman')
     normalized_intensity = results.calc_scattering(detector)
     
     return normalized_intensity
 
 
 #def run():
-#    n_sample = ri.n_eff(n_particle, n_matrix, volume_fraction)  # for core-shells, volume_fraction must be array of vf 
+#    n_sample = ri.n_eff(n_particle, n_matrix, volume_fraction, n_eff='bruggeman')  # for core-shells, volume_fraction must be array of vf 
 #                                                                # from innermost to outermost layers
 #    phase_function, scat_coeff, abs_coeff = mc.calc_scat(system, source)
-#    pos0, dir0, weight0 , pol0 = mc.initialize(nevents, ntraj, n_medium, n_sample, 
+#    pos0, dir0, weight0 , pol0 = mc.initialize(nevents, ntraj, system, n_sample, 
 #                                               seed, incidence_angle, polarization)
 #    sintheta, costheta, sinphi, cosphi theta, phi = mc.sample_angles(nevents, 
 #                                                                     ntraj, 
@@ -546,7 +568,7 @@ def calc_montecarlo(nevents, ntraj, system, source, detector, seed,
 #
 #    trajectories = mc.Trajectory(pos0, dir0, weight0, pol0)
 #    trajectories.absorb(abs_scat, step)
-#    trajectories.scatter(sintheta, costheta, sinphi, cosphi, singamma, cosgamma)
+#    trajectories.scatter(sintheta, costheta, sinphi, cosphi, singamma=None, cosgamma=None)
 #    trajectories.move(step)
 #    
 #    results = mc.Results(trajectories, system, source)

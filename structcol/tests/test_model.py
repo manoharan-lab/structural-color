@@ -22,7 +22,7 @@ Tests for the single-scattering model (in structcol/model.py)
 
 from .. import Quantity, ureg, q, index_ratio, size_parameter, np, mie, model
 from .. import refractive_index as ri
-from .main import Spheres, Film, Source
+from .main import Spheres, Film, Source, DetectorSingleScat
 from nose.tools import assert_raises, assert_equal
 from numpy.testing import assert_almost_equal, assert_array_almost_equal
 from pint.errors import DimensionalityError
@@ -95,13 +95,13 @@ def test_theta_refraction():
     # set theta_max to be slightly smaller than the theta corresponding to 
     # total internal reflection (calculated manually to be 2.61799388)
     theta_max = Quantity(2.617,'deg')  
-    detector = model.Detector(theta_min=theta_min, theta_max=theta_max)
+    detector = DetectorSingleScat(theta_min=theta_min, theta_max=theta_max)
     refl1, _, _, _, _ = model.reflection(system, source, detector)
 
     # try a different range of thetas (but keeping theta_max < total internal
     # reflection angle)
     theta_max = Quantity(2.,'deg')  
-    detector = model.Detector(theta_min=theta_min, theta_max=theta_max)
+    detector = DetectorSingleScat(theta_min=theta_min, theta_max=theta_max)
     refl2, _, _, _, _ = model.reflection(system, source, detector)
 
     
@@ -168,7 +168,7 @@ def test_reflection_core_shell():
     species = Spheres(n_particle, radius, volume_fraction, pdi=0)
     system = Film(species, n_matrix, n_medium, thickness, structure='glass')
     source = Source(wavelength, polarization=None, incidence_angle=0)
-    detector = model.Detector()
+    detector = DetectorSingleScat()
     refl1, _, _, g1, lstar1 = model.reflection(system, source, detector, 
                                          small_angle=Quantity('5 deg'),
                                          maxwell_garnett=True)
@@ -281,7 +281,7 @@ def test_reflection_absorbing_particle():
     n_particle_imag = Quantity(1.5 + 0j, '')
 
     source = Source(wavelength, polarization=None, incidence_angle=0)
-    detector = model.Detector()
+    detector = DetectorSingleScat()
     
     # With Maxwell-Garnett
     species_real = Spheres(n_particle_real, radius, volume_fraction, pdi=0)
@@ -367,7 +367,7 @@ def test_calc_g():
     n_medium = n_matrix
     
     source = Source(wavelength, polarization=None, incidence_angle=0)
-    detector = model.Detector()
+    detector = DetectorSingleScat()
     
     species = Spheres(n_particle, radius, volume_fraction, pdi=0)
     system = Film(species, n_matrix, n_medium, thickness=np.inf, structure=None)
@@ -410,7 +410,7 @@ def test_reflection_absorbing_matrix():
     n_particle = Quantity(1.5, '')
     
     source = Source(wavelength, polarization=None, incidence_angle=0)
-    detector = model.Detector()
+    detector = DetectorSingleScat()
     species = Spheres(n_particle, radius, volume_fraction, pdi=0)
     
     # With Maxwell-Garnett
@@ -466,7 +466,7 @@ def test_reflection_polydispersity():
     pdi = Quantity(1e-7, '')  # monodisperse limit
     
     source = Source(wavelength, polarization=None, incidence_angle=0)
-    detector = model.Detector()
+    detector = DetectorSingleScat()
     
     # test that the reflectance using only the form factor is the same using
     # the polydisperse formula vs using Mie in the limit of monodispersity
@@ -614,7 +614,7 @@ def test_reflection_polydispersity_with_absorption():
     thickness = Quantity('10 um')
     
     source = Source(wavelength, polarization=None, incidence_angle=0)
-    detector = model.Detector()
+    detector = DetectorSingleScat()
     
     # test that the reflectance using only the form factor is the same using
     # the polydisperse formula vs using Mie in the limit of monodispersity
