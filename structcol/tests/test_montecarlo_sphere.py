@@ -26,88 +26,156 @@ Tests for the montecarlo model for sphere geometry (in structcol/montecarlo.py)
 import structcol as sc
 from .. import montecarlo as mc
 from .. import refractive_index as ri
+from sc.main import Source, DetectorMultScat, Spheres, StructuredSphere 
 import numpy as np
 from numpy.testing import assert_almost_equal
-
-# Define a system to be used for the tests
-nevents = 3
-ntrajectories = 4
-radius = sc.Quantity('150 nm')
-assembly_radius = 5
-volume_fraction = 0.5
-n_particle = sc.Quantity(1.5, '')
-n_matrix = sc.Quantity(1.0, '')
-n_sample = ri.n_eff(n_particle, n_matrix, volume_fraction) 
-angles = sc.Quantity(np.linspace(0.01,np.pi, 200), 'rad')  
-wavelen = sc.Quantity('400 nm')
 
 # Index of the scattering event and trajectory corresponding to the reflected
 # photons
 refl_index = np.array([2,0,2])
 
 def test_sampling():
+    '''
+    Check that the scattering parameter calculations and sampling functions run
+    '''
+    # set params
+    nevents = 3
+    ntraj = 4
+    radius = sc.Quantity('150 nm')
+    volume_fraction = 0.5
+    n_particle = sc.Quantity(1.5, '')
+    n_matrix = sc.Quantity(1.0, '')
+    n_medium = sc.Quantity(1.0,'')  
+    microsphere_radius = 5
+    wavelen = sc.Quantity('400 nm')
+    
+    # calculate n_sample according to Burggeman
+    n_sample = ri.n_eff(n_particle, n_matrix, volume_fraction) 
+    
     # Test that 'calc_scat' runs
-    p, mu_scat, mu_abs = mc.calc_scat(radius, n_particle, n_sample, 
-                                      volume_fraction, wavelen)
+    source = Source(wavelen, polarization=None, incidence_angle=0)
+    species = Spheres(n_particle, radius, volume_fraction, pdi=0)
+    system = StructuredSphere(species, n_matrix, n_medium, microsphere_radius, structure='glass')
+    p, mu_scat, mu_abs = mc.calc_scat(system, source, n_sample)
     
     # Test that 'sample_angles' runs
-    mc.sample_angles(nevents, ntrajectories, p)
+    mc.sample_angles(nevents, ntraj, p)
     
     # Test that 'sample_step' runs
-    mc.sample_step(nevents, ntrajectories, mu_abs, mu_scat)
+    mc.sample_step(nevents, ntraj, mu_abs, mu_scat)
 
 def test_calc_refl_trans():
+    '''
+    Test that calc_refl_trans() gives the correct results
+    
+    TODO: finish this test
+    '''
+    # set parameters
+    radius = sc.Quantity('150 nm')
+    volume_fraction = 0.5
+    n_particle = sc.Quantity(1.5, '')
+    n_matrix = sc.Quantity(1.0, '')
+    n_medium = sc.Quantity(1.0,'') 
+    wavelen = sc.Quantity('400 nm')
+    
+    # set optical properties
+    neff = 'Bruggeman'
+    n_sample = ri.n_eff(n_particle, n_matrix, volume_fraction) 
+    form = 'sphere'
+    
     small_n = sc.Quantity(1,'')
     large_n = sc.Quantity(2,'')
-
-    # test absoprtion and stuck without fresnel
+    microsphere_radius = 5
+    
+    # create 4 trajectories for 3 events
     z_pos = np.array([[0,0,0,0],[1,1,1,1],[-1,11,2,11],[-2,12,4,12]])
     x_pos = np.array([[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0]])
     y_pos = np.array([[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0]])
-    ntrajectories = z_pos.shape[1]
     kx = np.zeros((3,4))
     ky = np.zeros((3,4))
     kz = np.array([[1,1,1,1],[-1,1,1,1],[-1,1,1,1]])
+    ntraj = z_pos.shape[1]
     weights = np.array([[.8, .8, .9, .8],[.7, .3, .7, 0],[.1, .1, .5, 0]])
-    trajectories = mc.Trajectory([x_pos, y_pos, z_pos],[kx, ky, kz], weights) 
-    p, mu_scat, mu_abs = mc.calc_scat(radius, n_particle, small_n, volume_fraction, wavelen) 
-    refl, trans= mc.calc_refl_trans_sphere(trajectories, small_n, small_n, assembly_radius, p, mu_abs, mu_scat, run_tir = False)
-    expected_trans_array = np.array([0., .3, 0.25, 0])/ntrajectories #calculated manually
-    expected_refl_array = np.array([.7, 0., .25, 0.])/ntrajectories #calculated manually
+    pol = None
+    trajectories = mc.Trajectory([x_pos, y_pos, z_pos],[kx, ky, kz], weights, pol) 
+    
+    #### test absorption and stuck without fresnel ####
+    
+    # create simulation objects
+    source = Source(wavelen, polarization=None, incidence_angle=0)
+    species = Spheres(n_particle, radius, volume_fraction, pdi=0)
+    system = StructuredSphere(species, small_n, small_n, microsphere_radius, structure='glass')
+    detector = DetectorMultScat()
+    
+    # calculate scattering 
+    p, mu_scat, mu_abs = mc.calc_scat(system, source, n_sample) 
+    
+    # calculate reflectance
+    results = mc.Results(trajectories, system, source, neff, form)
+    refl, trans = results.detect(detector, p, mu_abs, mu_scat, run_tir = False)
+
+    # compare to expected result
+    expected_trans_array = np.array([0., .3, 0.25, 0])/ntraj #calculated manually
+    expected_refl_array = np.array([.7, 0., .25, 0.])/ntraj #calculated manually
     assert_almost_equal(refl, np.sum(expected_refl_array))
     assert_almost_equal(trans, np.sum(expected_trans_array))
 
-    # test fresnel as well
-    refl, trans= mc.calc_refl_trans_sphere(trajectories, small_n, large_n, assembly_radius, p, mu_abs, mu_scat, run_tir = False)
-    expected_trans_array = np.array([0.0345679, .25185185, 0.22222222, 0.])/ntrajectories #calculated manually
-    expected_refl_array = np.array([.69876543, 0.12592593, 0.33333333, 0.11111111])/ntrajectories #calculated manually
+    #### test fresnel as well ####
+    
+    # calculate reflectance
+    refl, trans= results.detect(trajectories, small_n, large_n, microsphere_radius, p, mu_abs, mu_scat, run_tir = False)
+    
+    # compare to expected result
+    expected_trans_array = np.array([0.0345679, .25185185, 0.22222222, 0.])/ntraj #calculated manually
+    expected_refl_array = np.array([.69876543, 0.12592593, 0.33333333, 0.11111111])/ntraj #calculated manually
     assert_almost_equal(refl, np.sum(expected_refl_array))
     assert_almost_equal(trans, np.sum(expected_trans_array))
 
-    # test steps in z longer than sample thickness
+    #### test steps in z longer than sample thickness ####
     z_pos = np.array([[0,0,0,0],[1,1,14,12],[-1,11,2,11],[-2,12,4,12]])
     trajectories = mc.Trajectory([x_pos, y_pos, z_pos],[kx, ky, kz], weights) 
-    refl, trans= mc.calc_refl_trans_sphere(trajectories, small_n, small_n, assembly_radius, p, mu_abs, mu_scat, run_tir = False)
-    expected_trans_array = np.array([0., .3, .9, .8])/ntrajectories #calculated manually
-    expected_refl_array = np.array([.7, 0., 0., 0.])/ntrajectories #calculated manually
+    
+    refl, trans= results.detect(trajectories, small_n, small_n, microsphere_radius, p, mu_abs, mu_scat, run_tir = False)
+    expected_trans_array = np.array([0., .3, .9, .8])/ntraj #calculated manually
+    expected_refl_array = np.array([.7, 0., 0., 0.])/ntraj #calculated manually
     assert_almost_equal(refl, np.sum(expected_refl_array))
     assert_almost_equal(trans, np.sum(expected_trans_array))
 
-    # test tir
+    #### test tir ####
+    # this one needs major changes
     z_pos = np.array([[0,0,0,0],[1,1,1,1],[-1,11,2,11],[-2,12,4,12]])
     weights = np.ones((3,4))
     trajectories = mc.Trajectory([x_pos, y_pos, z_pos],[kx, ky, kz], weights) 
-    refl, trans= mc.calc_refl_trans_sphere(trajectories, small_n, small_n, assembly_radius, p, mu_abs, mu_scat, tir=True)
+    refl, trans = results.detect(trajectories, small_n, small_n, microsphere_radius, p, mu_abs, mu_scat, tir=True)
     # since the tir=True reruns the stuck trajectory, we don't know whether it will end up reflected or transmitted
     # all we can know is that the end refl + trans > 0.99
     assert_almost_equal(refl + trans, 1.) 
 
 
 def test_trajectories():
-    # Initialize runs
+    '''
+    Test trajectory initialization for structured sphere 
+    '''
+    
+    # set parameters
     nevents = 2
-    ntrajectories = 3
-    r0, k0, W0 = mc.initialize_sphere(nevents, ntrajectories, n_matrix, n_sample, assembly_radius, seed=1)
+    ntraj = 3
+    microsphere_radius = 5
+    radius = sc.Quantity('150 nm')
+    n_particle = sc.Quantity(1.5, '')
+    n_matrix = sc.Quantity(1.0, '')
+    n_medium = sc.Quantity(1.0, '')
+    volume_fraction = 0.5
+    
+    # calculate n_sample according to bruggeman
+    n_sample = ri.n_eff(n_particle, n_matrix, volume_fraction) 
+
+    # set up the system
+    species = Spheres(n_particle, radius, volume_fraction, pdi=0)
+    system = StructuredSphere(species, n_matrix, n_medium, microsphere_radius, structure='glass')
+    
+    # Initialize the attributes of the trajectories
+    r0, k0, W0 = mc.initialize(nevents, ntraj, system, n_sample, seed=1)
     r0 = sc.Quantity(r0, 'um')
     k0 = sc.Quantity(k0, '')
     W0 = sc.Quantity(W0, '')
@@ -117,11 +185,20 @@ def test_trajectories():
     
     
 def test_get_angles_sphere():
+    '''
+    Make sure get_angles_sphere() returns correct angle values
+    
+    TODO: get_angles_sphere() may be depricated in refactored version. Make sure
+    to check this function after refactoring
+    '''
+    # set parameters
+    microsphere_radius = 5
+    
     z_pos = np.array([[0,0,0,0],[1,1,1,1],[-1,11,2,11],[-2,12,4,12]])
     x_pos = np.array([[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,-0,0,0]])
     y_pos = np.array([[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0]])
     indices = np.array([1,1,1,1])
-    _, _, thetas = mc.get_angles_sphere(x_pos, y_pos, z_pos, assembly_radius, indices, incident = True)
+    _, _, thetas = mc.get_angles_sphere(x_pos, y_pos, z_pos, microsphere_radius, indices, incident = True)
     assert_almost_equal(np.sum(thetas), 0.) 
 
 def test_index_match():
@@ -143,7 +220,7 @@ def test_index_match():
     
     # set up simulation
     source = Source(wavelen, polarization=None, incidence_angle=0)
-    detector = Detector(angle=0, length=np.inf, distance=0)
+    detector = DetectorMultScat(angle=0, length=np.inf, distance=0)
     species = Spheres(n_particle, radius, volume_fraction, pdi=0)
     system = StructuredSphere(species, n_matrix, n_medium, microsphere_radius, structure='glass')
     
