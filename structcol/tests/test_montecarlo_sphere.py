@@ -26,7 +26,7 @@ Tests for the montecarlo model for sphere geometry (in structcol/montecarlo.py)
 import structcol as sc
 from .. import montecarlo as mc
 from .. import refractive_index as ri
-from sc.main import Source, DetectorMultScat, Spheres, StructuredSphere 
+from .main import Source, DetectorMultScat, Spheres, StructuredSphere 
 import numpy as np
 from numpy.testing import assert_almost_equal
 
@@ -73,7 +73,7 @@ def test_calc_refl_trans():
     wavelen = sc.Quantity('400 nm')
     
     # set optical properties
-    neff = 'bruggeman'
+    n_eff = 'bruggeman'
     form = 'sphere'
     
     small_n = sc.Quantity(1,'') # for testing fresnel
@@ -101,7 +101,7 @@ def test_calc_refl_trans():
     detector = DetectorMultScat()
     
     # calculate reflectance
-    results = mc.Results(trajectories, system, source, neff=neff, form=form)
+    results = mc.Results(trajectories, system, source, n_eff=n_eff, form=form)
     refl, trans = results.detect(detector)
 
     # compare to expected result
@@ -114,7 +114,7 @@ def test_calc_refl_trans():
     
     # create new simulation objects to test fresnel
     system = StructuredSphere(species, small_n, large_n, microsphere_radius, structure='glass')
-    results = mc.Results(trajectories, system, source, neff=neff, form=form)
+    results = mc.Results(trajectories, system, source, n_eff=n_eff, form=form)
     
     # calculate reflectance
     refl, trans = results.detect(detector)
@@ -131,7 +131,7 @@ def test_calc_refl_trans():
     z_pos = np.array([[0,0,0,0],[1,1,14,12],[-1,11,2,11],[-2,12,4,12]])
     trajectories = mc.Trajectory([x_pos, y_pos, z_pos],[kx, ky, kz], weights, pol)
     system = StructuredSphere(species, small_n, small_n, microsphere_radius, structure='glass')
-    results = mc.Results(trajectories, system, source, neff=neff, form=form)
+    results = mc.Results(trajectories, system, source, n_eff=n_eff, form=form)
     
     # calculate reflectance
     refl, trans = results.detect(detector)
@@ -149,7 +149,7 @@ def test_calc_refl_trans():
     weights = np.ones((3,4))
     trajectories = mc.Trajectory([x_pos, y_pos, z_pos],[kx, ky, kz], weights, pol)
     system = StructuredSphere(species, small_n, small_n, microsphere_radius, structure='glass')
-    results = mc.Results(trajectories, system, source, neff=neff, form=form)
+    results = mc.Results(trajectories, system, source, n_eff=n_eff, form=form)
     
     # calculate reflectance
     refl, trans = results.detect(detector)
@@ -232,7 +232,7 @@ def test_index_match():
     species = Spheres(n_particle, radius, volume_fraction, pdi=0)
     system = StructuredSphere(species, n_matrix, n_medium, microsphere_radius, structure='glass')
     
-    results = mc.run(system, source, ntraj, nevents, seed=None, neff='bruggeman', form = 'auto')
+    results = mc.run(system, source, ntraj, nevents, seed=None, n_eff='bruggeman', form = 'auto')
     refl_sphere = results.detect(detector)
     
     # calculated by hand from fresnel infinite sum
