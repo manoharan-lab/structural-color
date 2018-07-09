@@ -43,10 +43,6 @@ angles = sc.Quantity(np.linspace(0.01,np.pi, 200), 'rad')
 wavelen = sc.Quantity('400 nm')
 thickness = sc.Quantity(50, 'um')
 
-# Index of the scattering event and trajectory corresponding to the reflected
-# photons
-refl_index = np.array([2,0,2])
-
 def test_sampling():
     # Test that 'calc_scat' runs
     species = Spheres(n_particle, radius, volume_fraction)
@@ -73,7 +69,7 @@ def test_detect():
     
     # test absorption and stuck without fresnel
     z_pos = np.array([[0,0,0,0],[1,1,1,1],[-1,11,2,11],[-2,12,4,12]])
-    ntrajectories = z_pos.shape[1]
+    ntraj = z_pos.shape[1]
     kz = np.array([[1,1,1,1],[-1,1,1,1],[-1,1,1,1]])
     weights = np.array([[.8, .8, .9, .8],[.7, .3, .7, 0],[.1, .1, .5, 0]])
     pol = None
@@ -81,8 +77,8 @@ def test_detect():
     results = mc.Results(trajectories, system, source, n_eff='bruggeman', form='auto')   
     refl, trans = results.detect(detector)
 
-    expected_trans_array = np.array([0, .3, .25, 0])/ntrajectories #calculated manually
-    expected_refl_array = np.array([.7, 0, .25, 0])/ntrajectories #calculated manually
+    expected_trans_array = np.array([0, .3, .25, 0])/ntraj #calculated manually
+    expected_refl_array = np.array([.7, 0, .25, 0])/ntraj #calculated manually
     assert_almost_equal(refl, np.sum(expected_refl_array))
     assert_almost_equal(trans, np.sum(expected_trans_array))
 
@@ -91,36 +87,36 @@ def test_detect():
                   n_front=large_n, n_back=large_n)
     results = mc.Results(trajectories, system_covers, source, n_eff='bruggeman', form='auto')
     refl, trans = results.detect(detector)
-    expected_trans_array = np.array([0.00814545, 0.20014545, 0.2, 0.])/ntrajectories #calculated manually
-    expected_refl_array = np.array([0.66700606, 0.20349091, 0.4, 0.2])/ntrajectories #calculated manually
+    expected_trans_array = np.array([0.00814545, 0.20014545, 0.2, 0.])/ntraj #calculated manually
+    expected_refl_array = np.array([0.66700606, 0.20349091, 0.4, 0.2])/ntraj #calculated manually
     assert_almost_equal(refl, np.sum(expected_refl_array))
     assert_almost_equal(trans, np.sum(expected_trans_array))
 
     # test fresnel as well
     z_pos = np.array([[0,0,0,0],[5,5,5,5],[-5,-5,15,15],[5,-15,5,25],[-5,-25,6,35]])
-    ntrajectories = z_pos.shape[1]
+    ntraj = z_pos.shape[1]
     kz = np.array([[1,1,1,0.86746757864487367],[-.1,-.1,.1,.1],[0.1,-.1,-.1,0.1],[-1,-.9,1,1]])
     weights = np.array([[.8, .8, .9, .8],[.7, .3, .7, .5],[.6, .2, .6, .4], [.4, .1, .5, .3]])
     trajectories = mc.Trajectory([np.nan, np.nan, z_pos],[np.nan, np.nan, kz], weights, pol)
     system = Film(species, large_n, small_n, high_thresh, structure='glass')    
     results = mc.Results(trajectories, system, source, n_eff='bruggeman', form='auto')   
     refl, trans = results.detect(detector)
-    expected_trans_array = np.array([ .00167588, .00062052, .22222222, .11075425])/ntrajectories #calculated manually
-    expected_refl_array = np.array([ .43317894, .18760061, .33333333, .59300905])/ntrajectories #calculated manually
+    expected_trans_array = np.array([ .00167588, .00062052, .22222222, .11075425])/ntraj #calculated manually
+    expected_refl_array = np.array([ .43317894, .18760061, .33333333, .59300905])/ntraj #calculated manually
     assert_almost_equal(refl, np.sum(expected_refl_array))
     assert_almost_equal(trans, np.sum(expected_trans_array))
 
     # test refraction and detection_angle
     detector = DetectorMultScat(angle=0.1)
     refl, trans = results.detect(detector)
-    expected_trans_array = np.array([ .00167588, .00062052, .22222222,  .11075425])/ntrajectories #calculated manually
-    expected_refl_array = np.array([  .43203386, .11291556, .29105299,  .00046666])/ntrajectories #calculated manually
+    expected_trans_array = np.array([ .00167588, .00062052, .22222222,  .11075425])/ntraj #calculated manually
+    expected_refl_array = np.array([  .43203386, .11291556, .29105299,  .00046666])/ntraj #calculated manually
     assert_almost_equal(refl, np.sum(expected_refl_array))
     assert_almost_equal(trans, np.sum(expected_trans_array))
 
     # test steps in z longer than sample thickness
     z_pos = np.array([[0,0,0,0,0,0,0],[1.1,2.1,3.1,0.6,0.6,0.6,0.1],[1.2,2.2,3.2,1.6,0.7,0.7,-0.6],[1.3,2.3,3.3,3.3,-2.1,-1.1,-2.1]])
-    ntrajectories = z_pos.shape[1]
+    ntraj = z_pos.shape[1]
     kz = np.array([[1,1,1,1,1,1,1],[1,1,1,0.1,1,1,-0.1],[1,1,1,1,-1,-1,-1]])
     weights = np.array([[1,1,1,1,1,1,1],[1,1,1,1,1,1,1],[1,1,1,1,1,1,1]])
     thin_sample_thickness = 1
@@ -129,8 +125,8 @@ def test_detect():
     results = mc.Results(trajectories, system, source, n_eff='bruggeman', form='auto')   
     detector = DetectorMultScat()
     refl, trans = results.detect(detector)
-    expected_trans_array = np.array([.8324515, .8324515, .8324515, .05643739, .05643739, .05643739, .8324515])/ntrajectories #calculated manually
-    expected_refl_array = np.array([.1675485, .1675485, .1675485, .94356261, .94356261, .94356261, .1675485])/ntrajectories #calculated manually
+    expected_trans_array = np.array([.8324515, .8324515, .8324515, .05643739, .05643739, .05643739, .8324515])/ntraj #calculated manually
+    expected_refl_array = np.array([.1675485, .1675485, .1675485, .94356261, .94356261, .94356261, .1675485])/ntraj #calculated manually
     assert_almost_equal(refl, np.sum(expected_refl_array))
     assert_almost_equal(trans, np.sum(expected_trans_array))
 
