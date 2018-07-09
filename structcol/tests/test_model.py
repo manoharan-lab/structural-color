@@ -22,9 +22,11 @@ Tests for the single-scattering model (in structcol/model.py)
 
 from .. import Quantity, ureg, q, index_ratio, size_parameter, np, mie, model
 from .. import refractive_index as ri
+from .main import Spheres, Film, Source, DetectorSingleScat
 from nose.tools import assert_raises, assert_equal
 from numpy.testing import assert_almost_equal, assert_array_almost_equal
 from pint.errors import DimensionalityError
+import pytest
 
 def test_fresnel():
     # test the fresnel reflection and transmission coefficients
@@ -86,22 +88,22 @@ def test_theta_refraction():
     n_medium = Quantity(2.0, '')
     theta_min = Quantity(np.pi/2,'deg')
     
+    species = Spheres(n_particle, radius, volume_fraction, pdi=0)
+    system = Film(species, n_matrix, n_medium, thickness=np.inf, structure=None)
+    source = Source(wavelength, polarization=None, incidence_angle=0)
+    
     # set theta_max to be slightly smaller than the theta corresponding to 
     # total internal reflection (calculated manually to be 2.61799388)
     theta_max = Quantity(2.617,'deg')  
-    refl1, _, _, _, _ = model.reflection(n_particle, n_matrix, n_medium, 
-                                         wavelength, radius, volume_fraction,  
-                                         theta_min=theta_min, 
-                                         theta_max=theta_max, 
-                                         structure_type=None)
+    detector = DetectorSingleScat(theta_min=theta_min, theta_max=theta_max)
+    refl1, _, _, _, _ = model.reflection(system, source, detector)
+
     # try a different range of thetas (but keeping theta_max < total internal
     # reflection angle)
     theta_max = Quantity(2.,'deg')  
-    refl2, _, _, _, _ = model.reflection(n_particle, n_matrix, n_medium, 
-                                         wavelength, radius, volume_fraction,  
-                                         theta_min=theta_min, 
-                                         theta_max=theta_max, 
-                                         structure_type=None)
+    detector = DetectorSingleScat(theta_min=theta_min, theta_max=theta_max)
+    refl2, _, _, _, _ = model.reflection(system, source, detector)
+
     
     # the reflection should be zero plus the fresnel reflection term    
     n_sample = ri.n_eff(n_particle, n_matrix, volume_fraction)
@@ -121,7 +123,7 @@ def test_differential_cross_section():
     #n_sample = Quantity(1.5, '')
     n_matrix = Quantity(1.0, '')
     wavelen = Quantity('500 nm')
-    angles = Quantity(np.linspace(np.pi/2, np.pi, 200), 'rad')
+    theta = Quantity(np.linspace(np.pi/2, np.pi, 200), 'rad')
     
     # Differential cross section for non-core-shells
     radius = Quantity('100 nm')    
@@ -130,7 +132,7 @@ def test_differential_cross_section():
     n_sample = ri.n_eff(n_particle, n_matrix, volume_fraction)
     m = index_ratio(n_particle, n_sample)
     x = size_parameter(wavelen, n_sample, radius)  
-    diff = model.differential_cross_section(m, x, angles, volume_fraction)
+    diff = model.differential_cross_section(m, x, theta, volume_fraction)
     
     # Differential cross section for core-shells. Core is equal to 
     # non-core-shell particle, and shell is made of vacuum
@@ -144,7 +146,7 @@ def test_differential_cross_section():
     n_sample_cs = ri.n_eff(n_particle_cs, n_matrix, volume_fraction_cs)
     m_cs = index_ratio(n_particle_cs, n_sample_cs).flatten()
     x_cs = size_parameter(wavelen, n_sample_cs, radius_cs).flatten() 
-    diff_cs = model.differential_cross_section(m_cs, x_cs, angles, 
+    diff_cs = model.differential_cross_section(m_cs, x_cs, theta, 
                                                np.sum(volume_fraction_cs))
 
     assert_array_almost_equal(diff, diff_cs, decimal=5)
@@ -163,34 +165,36 @@ def test_reflection_core_shell():
     n_matrix = Quantity(1.0, '')
     n_medium = n_matrix
 
-    refl1, _, _, g1, lstar1 = model.reflection(n_particle, n_matrix, n_medium, 
-                                            wavelength, radius, volume_fraction, 
-                                            thickness = Quantity('15000.0 nm'), 
-                                            theta_min = Quantity('90 deg'), 
-                                            small_angle=Quantity('5 deg'),                    
-                                            maxwell_garnett=True)
+    species = Spheres(n_particle, radius, volume_fraction, pdi=0)
+    system = Film(species, n_matrix, n_medium, thickness, structure='glass')
+    source = Source(wavelength, polarization=None, incidence_angle=0)
+    detector = DetectorSingleScat()
+    refl1, _, _, g1, lstar1 = model.reflection(system, source, detector, 
+                                         small_angle=Quantity('5 deg'),
+                                         maxwell_garnett=True)
     
+
     # Non core-shell particles with Bruggeman effective index
     volume_fraction2 = Quantity(0.00001, '')
-    refl2, _, _, g2, lstar2 = model.reflection(n_particle, n_matrix, n_medium, 
-                                            wavelength, radius, volume_fraction2, 
-                                            thickness = Quantity('15000.0 nm'), 
-                                            theta_min = Quantity('90 deg'), 
-                                            small_angle=Quantity('5 deg'), 
-                                            maxwell_garnett=False)
+    species = Spheres(n_particle, radius, volume_fraction2, pdi=0)
+    system = Film(species, n_matrix, n_medium, thickness, structure='glass')
+    refl2, _, _, g2, lstar2 = model.reflection(system, source, detector, 
+                                         small_angle=Quantity('5 deg'),
+                                         maxwell_garnett=False)
+
         
     # Core-shell particles of core diameter equal to non core shell particles, 
     # and shell index of air. With Bruggeman effective index
     n_particle3 = Quantity(np.array([1.5, 1.0]), '')
     radius3 = Quantity(np.array([120, 130]), 'nm')
     volume_fraction3 = volume_fraction2 * (radius3[1]**3 / radius3[0]**3)
-
-    refl3, _, _, g3, lstar3 = model.reflection(n_particle3, n_matrix, n_medium, 
-                                            wavelength, radius3, volume_fraction3, 
-                                            thickness = Quantity('15000.0 nm'), 
-                                            small_angle=Quantity('5 deg'), 
-                                            theta_min = Quantity('90 deg'), 
-                                            maxwell_garnett=False)
+    
+    species = Spheres(n_particle3, radius3, volume_fraction3, pdi=0)
+    system = Film(species, n_matrix, n_medium, thickness, structure='glass')
+    refl3, _, _, g3, lstar3 = model.reflection(system, source, detector, 
+                                               small_angle=Quantity('5 deg'),
+                                               maxwell_garnett=False)
+                                         
     
     # Outputs for refl, g, and lstar before adding core-shell capability
     refl = Quantity(0.20772170840902376, '')
@@ -218,14 +222,23 @@ def test_reflection_core_shell():
     # Absorbing non-core-shell
     radius4 = Quantity('120 nm')
     n_particle4 = Quantity(1.5+0.001j, '')
-    refl4 = model.reflection(n_particle4, n_matrix, n_medium, wavelength, 
-                             radius4, volume_fraction, thickness=thickness)[0]
+    
+    species = Spheres(n_particle4, radius4, volume_fraction, pdi=0)
+    system = Film(species, n_matrix, n_medium, thickness, structure='glass')
+    refl4 = model.reflection(system, source, detector, 
+                             small_angle=Quantity('5 deg'),
+                             maxwell_garnett=False)[0]
+
     
     # Absorbing core-shell
     n_particle5 = Quantity(np.array([1.5+0.001j, 1.5+0.001j]), '')
     radius5 = Quantity(np.array([110, 120]), 'nm')
-    refl5 = model.reflection(n_particle5, n_matrix, n_medium, wavelength, 
-                             radius5, volume_fraction, thickness=thickness)[0]
+        
+    species = Spheres(n_particle5, radius5, volume_fraction, pdi=0)
+    system = Film(species, n_matrix, n_medium, thickness, structure='glass')
+    refl5 = model.reflection(system, source, detector, 
+                             small_angle=Quantity('5 deg'),
+                             maxwell_garnett=False)[0]
     
     assert_array_almost_equal(refl4, refl5, decimal=3)
     
@@ -234,20 +247,28 @@ def test_reflection_core_shell():
     radius6 = Quantity('120 nm')
     n_particle6 = Quantity(1.5+0.001j, '')
     n_matrix6 = Quantity(1.0+0.001j, '')
-    refl6 = model.reflection(n_particle6, n_matrix6, n_medium, wavelength, 
-                             radius6, volume_fraction, thickness=thickness)[0]
+    
+    species = Spheres(n_particle6, radius6, volume_fraction, pdi=0)
+    system = Film(species, n_matrix6, n_medium, thickness, structure='glass')
+    refl6 = model.reflection(system, source, detector, 
+                             small_angle=Quantity('5 deg'),
+                             maxwell_garnett=False)[0]
+
     
     # Core-shell
     n_particle7 = Quantity(np.array([1.5+0.001j, 1.5+0.001j]), '')
     radius7 = Quantity(np.array([110, 120]), 'nm')
-    n_matrix7 = Quantity(1.0+0.001j, '')    
-    refl7 = model.reflection(n_particle7, n_matrix7, n_medium, wavelength, 
-                             radius7, volume_fraction, thickness=thickness)[0]
+    n_matrix7 = Quantity(1.0+0.001j, '')   
+    
+    species = Spheres(n_particle7, radius7, volume_fraction, pdi=0)
+    system = Film(species, n_matrix7, n_medium, thickness, structure='glass')
+    refl7 = model.reflection(system, source, detector, 
+                             small_angle=Quantity('5 deg'),
+                             maxwell_garnett=False)[0]
     
     assert_array_almost_equal(refl6, refl7, decimal=3)
 
-    
-    
+
 def test_reflection_absorbing_particle():
     # test that the reflections with a real n_particle and with a complex
     # n_particle with a 0 imaginary component are the same 
@@ -258,35 +279,81 @@ def test_reflection_absorbing_particle():
     n_medium = n_matrix
     n_particle_real = Quantity(1.5, '')
     n_particle_imag = Quantity(1.5 + 0j, '')
+
+    source = Source(wavelength, polarization=None, incidence_angle=0)
+    detector = DetectorSingleScat()
     
     # With Maxwell-Garnett
-    refl_mg1, _, _, g_mg1, lstar_mg1 = model.reflection(n_particle_real, n_matrix, 
-                                                        n_medium, wavelength, 
-                                                        radius, volume_fraction, 
+    species_real = Spheres(n_particle_real, radius, volume_fraction, pdi=0)
+    system_real = Film(species_real, n_matrix, n_medium, thickness=np.inf, structure='glass')
+    refl_mg1, _, _, g_mg1, lstar_mg1 = model.reflection(system_real, source, detector,
                                                         maxwell_garnett=True)
-    refl_mg2, _, _, g_mg2, lstar_mg2 = model.reflection(n_particle_imag, n_matrix, 
-                                                        n_medium, wavelength, 
-                                                        radius, volume_fraction, 
-                                                        maxwell_garnett=True)
-    
+                             
+    species_imag = Spheres(n_particle_imag, radius, volume_fraction, pdi=0)
+    system_imag = Film(species_imag, n_matrix, n_medium, thickness=np.inf, structure='glass')
+    refl_mg2, _, _, g_mg2, lstar_mg2 = model.reflection(system_imag, source, detector,
+                                                        maxwell_garnett=True)                         
+  
     assert_array_almost_equal(refl_mg1, refl_mg2)
     assert_array_almost_equal(g_mg1, g_mg2)
     assert_array_almost_equal(lstar_mg1, lstar_mg2)
     
-    # With Bruggeman
-    refl_bg1, _, _, g_bg1, lstar_bg1 = model.reflection(n_particle_real, n_matrix, 
-                                                        n_medium, wavelength, 
-                                                        radius, volume_fraction, 
-                                                        maxwell_garnett=False)
-    refl_bg2, _, _, g_bg2, lstar_bg2 = model.reflection(n_particle_imag, n_matrix, 
-                                                        n_medium, wavelength, 
-                                                        radius, volume_fraction, 
-                                                        maxwell_garnett=False)
+    # Outputs before refactoring structcol
+    refl_mg1_before = 0.2963964709617333
+    refl_mg2_before = 0.29639647096173255
+    g_mg1_before = -0.18774057969370997
+    g_mg2_before = -0.18774057969370903
+    lstar_mg1_before = 10810.069633192961
+    lstar_mg2_before = 10810.069633193001
     
+    assert_equal(refl_mg1_before, refl_mg1)
+    assert_equal(refl_mg2_before, refl_mg2)
+    assert_equal(g_mg1_before, g_mg1)
+    assert_equal(g_mg2_before, g_mg2)
+    assert_equal(lstar_mg1_before, lstar_mg1.magnitude)
+    assert_equal(lstar_mg2_before, lstar_mg2.magnitude)
+    
+    # With Bruggeman
+    refl_bg1, _, _, g_bg1, lstar_bg1 = model.reflection(system_real, source, detector,
+                                                        maxwell_garnett=False)
+    refl_bg2, _, _, g_bg2, lstar_bg2 = model.reflection(system_imag, source, detector,
+                                                        maxwell_garnett=False)                         
+
     assert_array_almost_equal(refl_bg1, refl_bg2)
     assert_array_almost_equal(g_bg1, g_bg2)
     assert_array_almost_equal(lstar_bg1, lstar_bg2)
 
+    # Outputs before refactoring structcol
+    refl_bg1_before = 0.2685710414987676
+    refl_bg2_before = 0.2685710414987676
+    g_bg1_before = -0.17681566915117486
+    g_bg2_before = -0.17681566915117486
+    lstar_bg1_before = 11593.280877304634
+    lstar_bg2_before = 11593.280877304634
+
+    assert_equal(refl_bg1_before, refl_bg1)
+    assert_equal(refl_bg2_before, refl_bg2)
+    assert_equal(g_bg1_before, g_bg1)
+    assert_equal(g_bg2_before, g_bg2)
+    assert_equal(lstar_bg1_before, lstar_bg1.magnitude)
+    assert_equal(lstar_bg2_before, lstar_bg2.magnitude)
+    
+    # test that the reflectance is (almost) the same when using an
+    # almost-non-absorbing index vs a non-absorbing index
+    n_particle_imag2 = Quantity(1.5+1e-8j, '')
+    thickness = Quantity('100 um')
+    
+    # With Bruggeman
+    species_imag2 = Spheres(n_particle_imag2, radius, volume_fraction, pdi=0)
+    system_imag2 = Film(species_imag2, n_matrix, n_medium, thickness=thickness, structure='glass')
+    refl_bg3, _, _, g_bg3, lstar_bg3 = model.reflection(system_imag2, source, detector,
+                                                        maxwell_garnett=False)
+                                                    
+    assert_array_almost_equal(refl_bg1, refl_bg3, decimal=3)
+    assert_array_almost_equal(g_bg1, g_bg3, decimal=3)
+    assert_array_almost_equal(lstar_bg1.to('mm'), lstar_bg3.to('mm'), decimal=4)
+
+                                                    
 def test_calc_g():
     # test that the anisotropy factor for multilayer spheres are the same when
     # using calc_g from mie.py in pymie and using the model
@@ -299,11 +366,15 @@ def test_calc_g():
     n_matrix = Quantity(1.0, '')
     n_medium = n_matrix
     
-    _, _, _, g1, _= model.reflection(n_particle, n_matrix, n_medium, 
-                                     wavelength, radius, volume_fraction, 
-                                     small_angle=Quantity('0.01 deg'), 
-                                     num_angles=1000, structure_type=None)
-
+    source = Source(wavelength, polarization=None, incidence_angle=0)
+    detector = DetectorSingleScat()
+    
+    species = Spheres(n_particle, radius, volume_fraction, pdi=0)
+    system = Film(species, n_matrix, n_medium, thickness=np.inf, structure=None)
+    _, _, _, g1, _ = model.reflection(system, source, detector,
+                                      small_angle=Quantity('0.01 deg'), 
+                                      num_angles=1000)
+                                                        
     # calculate g using calc_g in pymie
     vf_array = np.empty(len(np.atleast_1d(radius)))
     r_array = np.array([0] + np.atleast_1d(radius).tolist()) 
@@ -319,6 +390,14 @@ def test_calc_g():
     
     assert_array_almost_equal(g1, g2)
     
+    # Outputs before refactoring structcol
+    g1_before = 0.5064750277811477
+    g2_before = 0.5064757158664487
+    
+    assert_equal(g1_before, g1)
+    assert_equal(g2_before, g2)
+    
+    
 def test_reflection_absorbing_matrix():
     # test that the reflections with a real n_matrix and with a complex
     # n_matrix with a 0 imaginary component are the same 
@@ -330,14 +409,17 @@ def test_reflection_absorbing_matrix():
     n_medium = Quantity(1.0, '')
     n_particle = Quantity(1.5, '')
     
+    source = Source(wavelength, polarization=None, incidence_angle=0)
+    detector = DetectorSingleScat()
+    species = Spheres(n_particle, radius, volume_fraction, pdi=0)
+    
     # With Maxwell-Garnett
-    refl_mg1, _, _, g_mg1, lstar_mg1 = model.reflection(n_particle, n_matrix_real, 
-                                                        n_medium, wavelength, 
-                                                        radius, volume_fraction, 
+    system_real = Film(species, n_matrix_real, n_medium, thickness=np.inf, structure='glass')
+    refl_mg1, _, _, g_mg1, lstar_mg1 = model.reflection(system_real, source, detector,
                                                         maxwell_garnett=True)
-    refl_mg2, _, _, g_mg2, lstar_mg2 = model.reflection(n_particle, n_matrix_imag, 
-                                                        n_medium, wavelength, 
-                                                        radius, volume_fraction, 
+                                      
+    system_imag = Film(species, n_matrix_imag, n_medium, thickness=np.inf, structure='glass')
+    refl_mg2, _, _, g_mg2, lstar_mg2 = model.reflection(system_imag, source, detector,
                                                         maxwell_garnett=True)
     
     assert_array_almost_equal(refl_mg1, refl_mg2)
@@ -345,15 +427,424 @@ def test_reflection_absorbing_matrix():
     assert_array_almost_equal(lstar_mg1, lstar_mg2)
     
     # With Bruggeman
-    refl_bg1, _, _, g_bg1, lstar_bg1 = model.reflection(n_particle, n_matrix_real, 
-                                                        n_medium, wavelength, 
-                                                        radius, volume_fraction, 
+    refl_bg1, _, _, g_bg1, lstar_bg1 = model.reflection(system_real, source, detector,
                                                         maxwell_garnett=False)
-    refl_bg2, _, _, g_bg2, lstar_bg2 = model.reflection(n_particle, n_matrix_imag, 
-                                                        n_medium, wavelength, 
-                                                        radius, volume_fraction, 
+    
+    refl_bg2, _, _, g_bg2, lstar_bg2 = model.reflection(system_imag, source, detector,
                                                         maxwell_garnett=False)
     
     assert_array_almost_equal(refl_bg1, refl_bg2)
     assert_array_almost_equal(g_bg1, g_bg2)
     assert_array_almost_equal(lstar_bg1, lstar_bg2)
+    
+    # test that the reflectance is (almost) the same when using an
+    # almost-non-absorbing index vs a non-absorbing index
+    thickness = Quantity('100 um')
+    n_matrix_imag2 = Quantity(1.0 + 1e-8j, '')
+    system_imag2 = Film(species, n_matrix_imag2, n_medium, thickness=thickness, 
+                        structure='glass')
+    
+    # With Bruggeman
+    refl_bg3, _, _, g_bg3, lstar_bg3 = model.reflection(system_imag2, source, detector,
+                                                        maxwell_garnett=False)
+    
+    assert_array_almost_equal(refl_bg1, refl_bg3, decimal=3)
+    assert_array_almost_equal(g_bg1, g_bg3, decimal=3)
+    assert_array_almost_equal(lstar_bg1.to('mm'), lstar_bg3.to('mm'), decimal=4)
+    
+    
+def test_reflection_polydispersity():
+    wavelength = Quantity(500, 'nm')
+    radius1 = Quantity('120 nm')
+    n_matrix = Quantity(1.0, '')
+    n_medium = Quantity(1.0, '')
+    n_particle = Quantity(1.5, '')
+    radius2 = Quantity('120 nm')
+    volume_fraction = Quantity(0.5, '')
+    volume_fraction1 = Quantity(0.4, '')
+    volume_fraction2 = Quantity(0.1, '')
+    pdi = Quantity(1e-7, '')  # monodisperse limit
+    
+    source = Source(wavelength, polarization=None, incidence_angle=0)
+    detector = DetectorSingleScat()
+    
+    # test that the reflectance using only the form factor is the same using
+    # the polydisperse formula vs using Mie in the limit of monodispersity
+    species = Spheres(n_particle, radius1, volume_fraction, pdi=0)
+    system = Film(species, n_matrix, n_medium, thickness=np.inf, 
+                  structure=None)
+    refl, _, _, g, lstar = model.reflection(system, source, detector)
+                  
+    species1 = Spheres(n_particle, radius1, volume_fraction1, pdi=pdi)
+    species2 = Spheres(n_particle, radius2, volume_fraction2, pdi=pdi)  
+    system = Film([species1, species2], n_matrix, n_medium, thickness=np.inf, 
+                   structure=None)            
+    refl2, _, _, g2, lstar2 = model.reflection(system, source, detector)              
+    
+    assert_array_almost_equal(refl, refl2)
+    assert_array_almost_equal(g, g2)
+    assert_array_almost_equal(lstar.to('mm'), lstar2.to('mm'), decimal=4)
+    
+    # Outputs before refactoring structcol
+    refl_before = 0.021202873774022364
+    refl2_before = 0.02120287377402078
+    g_before = 0.6149959692900278
+    g2_before = 0.6149959692900626
+    lstar_before = 0.0037795694345017063
+    lstar2_before = 0.0037899271967178523
+  
+    assert_equal(refl_before, refl)
+    assert_equal(refl2_before, refl2)
+    assert_equal(g_before, g)
+    assert_equal(g2_before, g2)
+    assert_equal(lstar_before, lstar.to('mm').magnitude)
+    assert_equal(lstar2_before, lstar2.to('mm').magnitude)
+    
+    # test that the reflectance using only the structure factor is the same 
+    # using the polydisperse formula vs using Percus-Yevick in the limit of 
+    # monodispersity
+    system = Film(species, n_matrix, n_medium, thickness=np.inf, 
+                  structure='glass')
+    refl3, _, _, g3, lstar3 = model.reflection(system, source, detector, form=None)
+                  
+    system = Film([species1, species2], n_matrix, n_medium, thickness=np.inf, 
+                   structure='glass')            
+    refl4, _, _, g4, lstar4 = model.reflection(system, source, detector, form=None)   
+    
+    assert_array_almost_equal(refl3, refl4)
+    assert_array_almost_equal(g3, g4)
+    assert_array_almost_equal(lstar3.to('mm'), lstar4.to('mm'), decimal=4)
+
+    # Outputs before refactoring structcol
+    refl3_before= 0.6310965269823348
+    refl4_before = 0.6310965259195878
+    g3_before = -0.635630839621477
+    g4_before = -0.6356308390717892
+    lstar3_before = 0.0002005604473366244
+    lstar4_before = 0.00020056044751316733
+    
+    assert_equal(refl3_before, refl3)
+    assert_equal(refl4_before, refl4)
+    assert_equal(g3_before, g3)
+    assert_equal(g4_before, g4)
+    assert_equal(lstar3_before, lstar3.to('mm').magnitude)
+    assert_equal(lstar4_before, lstar4.to('mm').magnitude)
+    
+    # test that the reflectance using both the structure and form factors is 
+    # the same using the polydisperse formula vs using Mie and Percus-Yevick in 
+    # the limit of monodispersity
+    system = Film(species, n_matrix, n_medium, thickness=np.inf, 
+                  structure='glass')
+    refl5, _, _, g5, lstar5 = model.reflection(system, source, detector, form='sphere')
+                  
+    system = Film([species1, species2], n_matrix, n_medium, thickness=np.inf, 
+                   structure='glass')            
+    refl6, _, _, g6, lstar6 = model.reflection(system, source, detector, form='sphere') 
+    
+    assert_array_almost_equal(refl5, refl6)
+    assert_array_almost_equal(g5, g6)
+    assert_array_almost_equal(lstar5.to('mm'), lstar6.to('mm'), decimal=4)
+    
+    # Outputs before refactoring structcol
+    refl5_before = 0.2685710414987676
+    refl6_before = 0.2685710407296461
+    g5_before = -0.17681566915117486
+    g6_before = -0.1768156684026972
+    lstar5_before = 0.011593280877304636
+    lstar6_before = 0.011625051809100308
+    
+    assert_equal(refl5_before, refl5)
+    assert_equal(refl6_before, refl6)
+    assert_equal(g5_before, g5)
+    assert_equal(g6_before, g6)
+    assert_equal(lstar5_before, lstar5.to('mm').magnitude)
+    assert_equal(lstar6_before, lstar6.to('mm').magnitude)
+    
+    # test that the reflectance is the same for a polydisperse monospecies
+    # and a bispecies with equal types of particles
+    pdi = Quantity(1e-1, '') 
+    
+    species = Spheres(n_particle, radius1, volume_fraction, pdi=pdi)
+    system = Film(species, n_matrix, n_medium, thickness=np.inf, 
+                  structure='glass')
+    refl7, _, _, g7, lstar7 = model.reflection(system, source, detector, form='sphere')
+                  
+    species1 = Spheres(n_particle, radius1, volume_fraction1, pdi=pdi)
+    species2 = Spheres(n_particle, radius2, volume_fraction2, pdi=pdi)                   
+    system = Film([species1, species2], n_matrix, n_medium, thickness=np.inf, 
+                   structure='glass')            
+    refl8, _, _, g8, lstar8 = model.reflection(system, source, detector, form='sphere') 
+    
+    assert_array_almost_equal(refl7, refl8)
+    assert_array_almost_equal(g7, g8)
+    assert_array_almost_equal(lstar7.to('mm'), lstar8.to('mm'))    
+    
+    # test that the reflectance is the same regardless of the order in which
+    # the radii are specified
+    radius3 = Quantity('90 nm')
+    volume_fraction3 = Quantity(0.25, '')
+    species1 = Spheres(n_particle, radius1, volume_fraction3, pdi=pdi)
+    species2 = Spheres(n_particle, radius3, volume_fraction3, pdi=pdi)  
+                 
+    system1 = Film([species1, species2], n_matrix, n_medium, thickness=np.inf, 
+                   structure='glass')        
+    refl9, _, _, g9, lstar9 = model.reflection(system1, source, detector, form='sphere') 
+    
+    system2 = Film([species2, species1], n_matrix, n_medium, thickness=np.inf, 
+                   structure='glass')  
+    refl10, _, _, g10, lstar10 = model.reflection(system2, source, detector, form='sphere') 
+    
+    assert_array_almost_equal(refl9, refl10)
+    assert_array_almost_equal(g9, g10)
+    assert_array_almost_equal(lstar9.to('mm'), lstar10.to('mm'))   
+    
+    
+def test_reflection_polydispersity_with_absorption():
+    wavelength = Quantity(500, 'nm')
+    volume_fraction = Quantity(0.5, '')
+    volume_fraction1 = Quantity(0.4, '')
+    volume_fraction2 = Quantity(0.1, '')
+    radius1 = Quantity('120 nm')
+    n_matrix = Quantity(1.0+0.0003j, '')
+    n_medium = Quantity(1.0, '')
+    n_particle = Quantity(1.5+0.0005j, '')
+    radius2 = Quantity('120 nm')
+
+    pdi = Quantity(1e-7, '')  # monodisperse limit
+    thickness = Quantity('10 um')
+    
+    source = Source(wavelength, polarization=None, incidence_angle=0)
+    detector = DetectorSingleScat()
+    
+    # test that the reflectance using only the form factor is the same using
+    # the polydisperse formula vs using Mie in the limit of monodispersity
+    species = Spheres(n_particle, radius1, volume_fraction, pdi=0)
+    system = Film(species, n_matrix, n_medium, thickness=thickness, 
+                  structure=None)
+    refl, _, _, g, lstar = model.reflection(system, source, detector)
+                  
+    species1 = Spheres(n_particle, radius1, volume_fraction1, pdi=pdi)
+    species2 = Spheres(n_particle, radius2, volume_fraction2, pdi=pdi)  
+    system = Film([species1, species2], n_matrix, n_medium, thickness=thickness, 
+                   structure=None)            
+    refl2, _, _, g2, lstar2 = model.reflection(system, source, detector)  
+    
+    assert_array_almost_equal(refl, refl2, decimal=5)
+    assert_array_almost_equal(g, g2, decimal=4)
+    assert_array_almost_equal(lstar.to('mm'), lstar2.to('mm'), decimal=4)
+
+    # Outputs before refactoring structcol
+    refl_before = 0.020791487299024698
+    refl2_before = 0.02079125872215926
+    g_before = 0.61562921974002 #726274264.1349005
+    g2_before = 0.6156292197400548 #726274264.1349416
+    lstar_before = 0.0044717814146885779 #0.006279358811781641
+    lstar2_before = 0.0044840361567639936 #0.006296567149019748
+      
+    assert_equal(refl_before, refl.magnitude)
+    assert_equal(refl2_before, refl2.magnitude)
+    assert_equal(g_before, g.magnitude)
+    assert_equal(g2_before, g2.magnitude)
+    assert_equal(lstar_before, lstar.to('mm').magnitude)
+    assert_equal(lstar2_before, lstar2.to('mm').magnitude)
+    
+    # test that the reflectance using only the structure factor is the same 
+    # using the polydisperse formula vs using Percus-Yevick in the limit of 
+    # monodispersity
+    system = Film(species, n_matrix, n_medium, thickness=thickness, 
+                  structure='glass')
+    refl3, _, _, g3, lstar3 = model.reflection(system, source, detector, form=None)
+                  
+    system = Film([species1, species2], n_matrix, n_medium, thickness=thickness, 
+                   structure='glass')            
+    refl4, _, _, g4, lstar4 = model.reflection(system, source, detector, form=None)   
+    
+    assert_array_almost_equal(refl3, refl4)
+    assert_array_almost_equal(g3, g4, decimal=4)
+    assert_array_almost_equal(lstar3.to('mm'), lstar4.to('mm'), decimal=4)
+
+    # Outputs before refactoring structcol
+    refl3_before = 0.6311022445010561
+    refl4_before = 0.6311022434374303
+    g3_before = -0.6356307606571816 #-27901.50120849103
+    g4_before = -0.6356307601051542 #-27901.50118425936
+    lstar3_before = 8.8037552221780592e-09 #1.4399291088853016e-08
+    lstar4_before = 8.8037552299275471e-09 #1.4399291096668534e-08
+  
+    assert_equal(refl3_before, refl3.magnitude)
+    assert_equal(refl4_before, refl4.magnitude)
+    assert_equal(g3_before, g3.magnitude)
+    assert_equal(g4_before, g4.magnitude)
+    assert_equal(lstar3_before, lstar3.to('mm').magnitude)
+    assert_equal(lstar4_before, lstar4.to('mm').magnitude)
+    
+    # test that the reflectance using both the structure and form factors is 
+    # the same using the polydisperse formula vs using Mie and Percus-Yevick in 
+    # the limit of monodispersity
+    system = Film(species, n_matrix, n_medium, thickness=thickness, 
+                  structure='glass')
+    refl5, _, _, g5, lstar5 = model.reflection(system, source, detector, form='sphere')
+                  
+    system = Film([species1, species2], n_matrix, n_medium, thickness=thickness, 
+                   structure='glass')            
+    refl6, _, _, g6, lstar6 = model.reflection(system, source, detector, form='sphere') 
+    
+    assert_array_almost_equal(refl5, refl6, decimal=3)
+    assert_array_almost_equal(g5, g6)
+    assert_array_almost_equal(lstar5.to('mm'), lstar6.to('mm'), decimal=4)
+    
+    # Outputs before refactoring structcol
+    refl5_before = 0.11277597784758357
+    refl6_before = 0.11259532698024184
+    g5_before = -0.17376384100464944 #-209.15733480514967
+    g6_before = -0.17376384019461683 #-209.1573338372998
+    lstar5_before = 0.013809880819376879 #0.013405648948885825
+    lstar6_before = 0.013847726256293521 #0.013442386605693767
+    
+    assert_equal(refl5_before, refl5.magnitude)
+    assert_equal(refl6_before, refl6.magnitude)
+    assert_equal(g5_before, g5.magnitude)
+    assert_equal(g6_before, g6.magnitude)
+    assert_equal(lstar5_before, lstar5.to('mm').magnitude)
+    assert_equal(lstar6_before, lstar6.to('mm').magnitude)
+    
+    # test that the reflectances are (almost) the same when using an 
+    # almost-non-absorbing vs an non-absorbing system
+    n_matrix2 = Quantity(1.0+1e-8j, '')
+    n_particle2 = Quantity(1.5+1e-8j, '')
+    radius2 = Quantity('150 nm')
+    
+    species1 = Spheres(n_particle2.real, radius1, volume_fraction1, pdi=pdi)
+    species2 = Spheres(n_particle2.real, radius2, volume_fraction2, pdi=pdi)
+    system = Film([species1, species2], n_matrix2.real, n_medium, thickness=thickness, 
+                  structure='glass')
+    refl7, _, _, g7, lstar7 = model.reflection(system, source, detector, form='sphere') 
+
+    species1 = Spheres(n_particle2, radius1, volume_fraction1, pdi=pdi)
+    species2 = Spheres(n_particle2, radius2, volume_fraction2, pdi=pdi)
+    system = Film([species1, species2], n_matrix2, n_medium, thickness=thickness, 
+                  structure='glass')
+    refl8, _, _, g8, lstar8 = model.reflection(system, source, detector, form='sphere') 
+
+    assert_array_almost_equal(refl7, refl8, decimal=3)
+    assert_array_almost_equal(g7, g8, decimal=2)
+    assert_array_almost_equal(lstar7.to('mm'), lstar8.to('mm'), decimal=4)
+
+
+'''
+These tests will no longer be relevant in the refactored version
+
+def test_reflection_throws_valueerror_for_polydisperse_core_shells(): 
+# test that a valueerror is raised when trying to run polydisperse core-shells                 
+    with pytest.raises(ValueError):
+        wavelength = Quantity(500, 'nm')
+        volume_fraction = Quantity(0.5, '')
+        radius = Quantity(np.array([110, 120]), 'nm')
+        n_matrix = Quantity(1.0, '')
+        n_medium = Quantity(1.0, '')
+        n_particle = Quantity(np.array([1.5,1.5]), '')
+        volume_fraction2 = Quantity(volume_fraction * (radius[1]**3 / radius[0]**3), '')
+        thickness = Quantity('10 um')
+        
+        radius2 = Quantity('120 nm')
+        concentration = Quantity(np.array([0.9,0.1]), '')
+        pdi = Quantity(np.array([1e-7, 1e-7]), '') 
+
+        # when running polydisperse core-shells, without absorption
+        refl, _, _, _, _ = model.reflection(n_particle, n_matrix, n_medium, 
+                                            wavelength, radius, volume_fraction2, 
+                                            radius2 = radius2, 
+                                            concentration = concentration, 
+                                            pdi = pdi, structure_type='polydisperse',
+                                            form_type='polydisperse')      
+        refl2, _, _, _, _ = model.reflection(n_particle, n_matrix, n_medium, 
+                                            wavelength, radius, volume_fraction2, 
+                                            radius2 = radius2, 
+                                            concentration = concentration, 
+                                            pdi = pdi, structure_type='glass',
+                                            form_type='polydisperse')
+        refl3, _, _, _, _ = model.reflection(n_particle, n_matrix, n_medium, 
+                                            wavelength, radius, volume_fraction2, 
+                                            radius2 = radius2, 
+                                            concentration = concentration, 
+                                            pdi = pdi, structure_type=None,
+                                            form_type='polydisperse')
+        refl4, _, _, _, _ = model.reflection(n_particle, n_matrix, n_medium, 
+                                            wavelength, radius, volume_fraction2, 
+                                            radius2 = radius2, 
+                                            concentration = concentration, 
+                                            pdi = pdi, structure_type='polydisperse',
+                                            form_type='sphere')
+        refl5, _, _, _, _ = model.reflection(n_particle, n_matrix, n_medium, 
+                                            wavelength, radius, volume_fraction2, 
+                                            radius2 = radius2, 
+                                            concentration = concentration, 
+                                            pdi = pdi, structure_type='polydisperse',
+                                            form_type=None)   
+                                            
+        # when running polydisperse core-shells, with absorption
+        refl6, _, _, _, _ = model.reflection(n_particle, n_matrix, n_medium, 
+                                            wavelength, radius, volume_fraction2, 
+                                            radius2 = radius2, 
+                                            concentration = concentration, 
+                                            pdi = pdi, structure_type='polydisperse',
+                                            form_type='polydisperse',
+                                            thickness=thickness)      
+        refl7, _, _, _, _ = model.reflection(n_particle, n_matrix, n_medium, 
+                                            wavelength, radius, volume_fraction2, 
+                                            radius2 = radius2, 
+                                            concentration = concentration, 
+                                            pdi = pdi, structure_type='glass',
+                                            form_type='polydisperse',
+                                            thickness=thickness)
+        refl8, _, _, _, _ = model.reflection(n_particle, n_matrix, n_medium, 
+                                            wavelength, radius, volume_fraction2, 
+                                            radius2 = radius2, 
+                                            concentration = concentration, 
+                                            pdi = pdi, structure_type=None,
+                                            form_type='polydisperse',
+                                            thickness=thickness)
+        refl9, _, _, _, _ = model.reflection(n_particle, n_matrix, n_medium, 
+                                            wavelength, radius, volume_fraction2, 
+                                            radius2 = radius2, 
+                                            concentration = concentration, 
+                                            pdi = pdi, structure_type='polydisperse',
+                                            form_type='sphere', thickness=thickness)
+        refl10, _, _, _, _ = model.reflection(n_particle, n_matrix, n_medium, 
+                                            wavelength, radius, volume_fraction2, 
+                                            radius2 = radius2, 
+                                            concentration = concentration, 
+                                            pdi = pdi, structure_type='polydisperse',
+                                            form_type=None, thickness=thickness) 
+                                            
+
+def test_reflection_throws_valueerror_for_polydisperse_unspecified_parameters(): 
+# test that a valueerror is raised when trying to run polydisperse core-shells                 
+    with pytest.raises(ValueError):
+        wavelength = Quantity(500, 'nm')
+        volume_fraction = Quantity(0.5, '')
+        radius = Quantity(np.array([110, 120]), 'nm')
+        n_matrix = Quantity(1.0, '')
+        n_medium = Quantity(1.0, '')
+        n_particle = Quantity(np.array([1.5,1.5]), '')
+        volume_fraction2 = Quantity(volume_fraction * (radius[1]**3 / radius[0]**3), '')
+        
+        concentration = Quantity(np.array([0.9,0.1]), '')
+        pdi = Quantity(np.array([1e-7, 1e-7]), '') 
+
+        # when running polydisperse core-shells, without absorption, 
+        # and unspecified radius2
+        refl, _, _, _, _ = model.reflection(n_particle, n_matrix, n_medium, 
+                                            wavelength, radius, volume_fraction2, 
+                                            concentration = concentration, 
+                                            pdi = pdi, structure_type='polydisperse',
+                                            form_type='polydisperse')     
+                                            
+        # when running polydisperse core-shells, with absorption, 
+        # and unspecified radius2
+        refl, _, _, _, _ = model.reflection(n_particle+0.01j, n_matrix+0.01j, n_medium, 
+                                            wavelength, radius, volume_fraction2, 
+                                            concentration = concentration, 
+                                            pdi = pdi, structure_type='polydisperse',
+                                            form_type='polydisperse')  
+'''
