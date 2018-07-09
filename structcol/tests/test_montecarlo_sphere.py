@@ -49,26 +49,24 @@ def test_sampling():
     microsphere_radius = 5
     wavelen = sc.Quantity('400 nm')
     
-    # calculate n_sample according to Burggeman
+    # calculate n_sample according to Bruggeman
     n_sample = ri.n_eff(n_particle, n_matrix, volume_fraction) 
     
     # Test that 'calc_scat' runs
     source = Source(wavelen, polarization=None, incidence_angle=0)
     species = Spheres(n_particle, radius, volume_fraction, pdi=0)
     system = StructuredSphere(species, n_matrix, n_medium, microsphere_radius, structure='glass')
-    p, mu_scat, mu_abs = mc.calc_scat(system, source, n_sample)
+    phase_function, scat_coeff, abs_coeff = mc.calc_scat(system, source, n_sample)
     
     # Test that 'sample_angles' runs
-    mc.sample_angles(nevents, ntraj, p)
+    mc.sample_angles(nevents, ntraj, phase_function)
     
     # Test that 'sample_step' runs
-    mc.sample_step(nevents, ntraj, mu_abs, mu_scat)
+    mc.sample_step(nevents, ntraj, abs_coeff, scat_coeff)
 
 def test_calc_refl_trans():
     '''
     Test that calc_refl_trans() gives the correct results
-    
-    TODO: finish this test
     '''
     # set parameters
     radius = sc.Quantity('150 nm')
@@ -78,13 +76,13 @@ def test_calc_refl_trans():
     wavelen = sc.Quantity('400 nm')
     
     # set optical properties
-    neff = 'Bruggeman'
+    neff = 'bruggeman'
     n_sample = ri.n_eff(n_particle, n_matrix, volume_fraction) 
     form = 'sphere'
     
     small_n = sc.Quantity(1,'') # for testing fresnel
     large_n = sc.Quantity(2,'') # for testing fresnel
-    microsphere_radius = 5
+    microsphere_radius = sc.Quantity('5 um')
     
     # create 4 trajectories for 3 events
     z_pos = np.array([[0,0,0,0],[1,1,1,1],[-1,11,2,11],[-2,12,4,12]])
@@ -105,9 +103,6 @@ def test_calc_refl_trans():
     species = Spheres(n_particle, radius, volume_fraction, pdi=0)
     system = StructuredSphere(species, small_n, small_n, microsphere_radius, structure='glass')
     detector = DetectorMultScat()
-    
-    # calculate scattering 
-    p, mu_scat, mu_abs = mc.calc_scat(system, source, n_sample) 
     
     # calculate reflectance
     results = mc.Results(trajectories, system, source, neff, form)
@@ -138,7 +133,7 @@ def test_calc_refl_trans():
     
     # create new simulation objects to test z longer than thickness
     z_pos = np.array([[0,0,0,0],[1,1,14,12],[-1,11,2,11],[-2,12,4,12]])
-    trajectories = mc.Trajectory([x_pos, y_pos, z_pos],[kx, ky, kz], weights)
+    trajectories = mc.Trajectory([x_pos, y_pos, z_pos],[kx, ky, kz], weights, pol)
     system = StructuredSphere(species, small_n, small_n, microsphere_radius, structure='glass')
     results = mc.Results(trajectories, system, source, neff, form)
     
@@ -156,7 +151,7 @@ def test_calc_refl_trans():
     # create new simulation objects to test tir
     z_pos = np.array([[0,0,0,0],[1,1,1,1],[-1,11,2,11],[-2,12,4,12]])
     weights = np.ones((3,4))
-    trajectories = mc.Trajectory([x_pos, y_pos, z_pos],[kx, ky, kz], weights)
+    trajectories = mc.Trajectory([x_pos, y_pos, z_pos],[kx, ky, kz], weights, pol)
     system = StructuredSphere(species, small_n, small_n, microsphere_radius, structure='glass')
     results = mc.Results(trajectories, system, source, neff, form)
     
@@ -192,13 +187,13 @@ def test_trajectories():
     system = StructuredSphere(species, n_matrix, n_medium, microsphere_radius, structure='glass')
     
     # Initialize the attributes of the trajectories
-    r0, k0, W0 = mc.initialize(nevents, ntraj, system, n_sample, seed=1)
-    r0 = sc.Quantity(r0, 'um')
-    k0 = sc.Quantity(k0, '')
-    W0 = sc.Quantity(W0, '')
+    pos0, dir0, weight0, pol0 = mc.initialize(nevents, ntraj, system, n_sample, seed=1)
+    pos0 = sc.Quantity(pos0, 'um')
+    dir0 = sc.Quantity(dir0, '')
+    weight0 = sc.Quantity(weight0, '')
 
     # Create a Trajectory object
-    trajectories = mc.Trajectory(r0, k0, W0)
+    trajectories = mc.Trajectory(pos0, dir0, weight0, pol0)
     
     
 def test_get_angles_sphere():
@@ -242,7 +237,7 @@ def test_index_match():
     system = StructuredSphere(species, n_matrix, n_medium, microsphere_radius, structure='glass')
     
     results = mc.run(system, source, ntraj, nevents, seed=None, form = 'auto')
-    refl_sphere = results.calc_scattering(detector)
+    refl_sphere = results.detect(detector)
     
     # calculated by hand from fresnel infinite sum
     refl_fresnel_int = 0.053 # calculated by hand
