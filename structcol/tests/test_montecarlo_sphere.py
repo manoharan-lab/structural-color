@@ -75,7 +75,6 @@ def test_calc_refl_trans():
     volume_fraction = 0.5
     n_particle = sc.Quantity(1.5, '')
     n_matrix = sc.Quantity(1.0, '')
-    n_medium = sc.Quantity(1.0,'') 
     wavelen = sc.Quantity('400 nm')
     
     # set optical properties
@@ -83,8 +82,8 @@ def test_calc_refl_trans():
     n_sample = ri.n_eff(n_particle, n_matrix, volume_fraction) 
     form = 'sphere'
     
-    small_n = sc.Quantity(1,'')
-    large_n = sc.Quantity(2,'')
+    small_n = sc.Quantity(1,'') # for testing fresnel
+    large_n = sc.Quantity(2,'') # for testing fresnel
     microsphere_radius = 5
     
     # create 4 trajectories for 3 events
@@ -99,7 +98,7 @@ def test_calc_refl_trans():
     pol = None
     trajectories = mc.Trajectory([x_pos, y_pos, z_pos],[kx, ky, kz], weights, pol) 
     
-    #### test absorption and stuck without fresnel ####
+    ########## test absorption and stuck without fresnel ##########
     
     # create simulation objects
     source = Source(wavelen, polarization=None, incidence_angle=0)
@@ -112,7 +111,7 @@ def test_calc_refl_trans():
     
     # calculate reflectance
     results = mc.Results(trajectories, system, source, neff, form)
-    refl, trans = results.detect(detector, p, mu_abs, mu_scat, run_tir = False)
+    refl, trans = results.detect(detector)
 
     # compare to expected result
     expected_trans_array = np.array([0., .3, 0.25, 0])/ntraj #calculated manually
@@ -120,10 +119,14 @@ def test_calc_refl_trans():
     assert_almost_equal(refl, np.sum(expected_refl_array))
     assert_almost_equal(trans, np.sum(expected_trans_array))
 
-    #### test fresnel as well ####
+    ########## test fresnel as well ##########
+    
+    # create new simulation objects to test fresnel
+    system = StructuredSphere(species, small_n, large_n, microsphere_radius, structure='glass')
+    results = mc.Results(trajectories, system, source, neff, form)
     
     # calculate reflectance
-    refl, trans= results.detect(trajectories, small_n, large_n, microsphere_radius, p, mu_abs, mu_scat, run_tir = False)
+    refl, trans = results.detect(detector)
     
     # compare to expected result
     expected_trans_array = np.array([0.0345679, .25185185, 0.22222222, 0.])/ntraj #calculated manually
@@ -131,22 +134,36 @@ def test_calc_refl_trans():
     assert_almost_equal(refl, np.sum(expected_refl_array))
     assert_almost_equal(trans, np.sum(expected_trans_array))
 
-    #### test steps in z longer than sample thickness ####
-    z_pos = np.array([[0,0,0,0],[1,1,14,12],[-1,11,2,11],[-2,12,4,12]])
-    trajectories = mc.Trajectory([x_pos, y_pos, z_pos],[kx, ky, kz], weights) 
+    ########## test steps in z longer than sample thickness ##########
     
-    refl, trans= results.detect(trajectories, small_n, small_n, microsphere_radius, p, mu_abs, mu_scat, run_tir = False)
+    # create new simulation objects to test z longer than thickness
+    z_pos = np.array([[0,0,0,0],[1,1,14,12],[-1,11,2,11],[-2,12,4,12]])
+    trajectories = mc.Trajectory([x_pos, y_pos, z_pos],[kx, ky, kz], weights)
+    system = StructuredSphere(species, small_n, small_n, microsphere_radius, structure='glass')
+    results = mc.Results(trajectories, system, source, neff, form)
+    
+    # calculate reflectance
+    refl, trans = results.detect(detector)
+    
+    # compare to exprected result
     expected_trans_array = np.array([0., .3, .9, .8])/ntraj #calculated manually
     expected_refl_array = np.array([.7, 0., 0., 0.])/ntraj #calculated manually
     assert_almost_equal(refl, np.sum(expected_refl_array))
     assert_almost_equal(trans, np.sum(expected_trans_array))
 
-    #### test tir ####
-    # this one needs major changes
+    ########## test tir ##########
+    
+    # create new simulation objects to test tir
     z_pos = np.array([[0,0,0,0],[1,1,1,1],[-1,11,2,11],[-2,12,4,12]])
     weights = np.ones((3,4))
-    trajectories = mc.Trajectory([x_pos, y_pos, z_pos],[kx, ky, kz], weights) 
-    refl, trans = results.detect(trajectories, small_n, small_n, microsphere_radius, p, mu_abs, mu_scat, tir=True)
+    trajectories = mc.Trajectory([x_pos, y_pos, z_pos],[kx, ky, kz], weights)
+    system = StructuredSphere(species, small_n, small_n, microsphere_radius, structure='glass')
+    results = mc.Results(trajectories, system, source, neff, form)
+    
+    # calculate reflectance
+    refl, trans = results.detect(detector)
+    
+    # compare to expected result
     # since the tir=True reruns the stuck trajectory, we don't know whether it will end up reflected or transmitted
     # all we can know is that the end refl + trans > 0.99
     assert_almost_equal(refl + trans, 1.) 
