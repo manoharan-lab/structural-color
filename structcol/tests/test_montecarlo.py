@@ -24,8 +24,10 @@ Tests for the montecarlo model (in structcol/montecarlo.py)
 import structcol as sc
 from .. import montecarlo as mc
 from .. import refractive_index as ri
-from .main import Spheres, Film, Source, DetectorMultScat
-import os
+from .sources import Collimated
+from .containers import Sphere, Film
+from .detector import SquareDetector
+from arrangements import Glass
 import numpy as np
 from numpy.testing import assert_equal, assert_almost_equal
 import pytest
@@ -467,7 +469,37 @@ def test_reflection_polydispersity():
                                    
     assert_almost_equal(R, R2)
     assert_almost_equal(T, T2)
+    
+def test_reflectance():
+    '''
+    Test the sample set up, run function, and reflectance calculation
+    of the montecarlo model
+    '''
 
+    wavelen = sc.Quantity('400 nm')
+    radius_sphere = sc.Quantity('150 nm')
+    n_sphere = sc.Quantity(1.5, '')
+    vf = sc.Quantity(0.5, '')
+    thickness = sc.Quantity(50, 'um')
+    n_matrix = sc.Quantity(1.0, '')
+    
+    # set up the source
+    source = Collimated(wavelen)
+    
+    # set up the sample
+    sphere = Sphere(radius_shere, n)
+    glass = Glass(sphere,vf)
+    film = Film(thickness, n_matrix, filling = glass)
+    
+    # run the montecarlo trajectories
+    results = mc.run(source, film)
+    
+    # set up the detector
+    refl_detector = SquareDetector()
+    
+    # calculate the reflectance
+    reflectance = refl_detector.count(results)
+    
 '''
 These tests will no longer be relevant in the refactored version
 
