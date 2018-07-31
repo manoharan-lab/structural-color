@@ -86,7 +86,7 @@ class Paracrystal:
         broad peaks, and a smaller sigma more sharp peaks. Default value is set 
         to 0.15.  
     """
-    def __init__(self, species, volume_fraction, sigma=sc.Quantity(0.15, ''):
+    def __init__(self, species, volume_fraction, sigma=sc.Quantity(0.15, '')):
         """
         Constructor for Paracrystal object.
     

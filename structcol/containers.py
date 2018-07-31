@@ -71,7 +71,6 @@ class Sphere:
         self.filling = filling
         self.pdi = pdi
     
-    
 
 class Film:
     """
@@ -110,8 +109,7 @@ class Film:
         self.thickness = thickness
         self.index = index
         self.filling = filling
-
-
+        
     
 class LayeredSphere:
     """
