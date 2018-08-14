@@ -348,3 +348,96 @@ def plot_exit_points(x, y, z, radius, plot_dimension = '3d'):
             ax.set_title('exit positions')
             ax.view_init(-164,-155)
             ax.plot(x, y, z, '.')
+            
+            
+def calc_d_avg(volume_fraction, radius):
+    '''
+    calculates the average spacing between structured spheres in a bulk film,
+    given their volume fraction
+    
+    
+    Parameters
+    ----------
+    volume_fraction: float-like
+        volume fraction of structured spheres in a bulk film
+    radius: float-like
+        radius of structured spheres in a bulk film
+        
+    Returns
+    -------
+    d_avg: float-like
+        average spacing between structured spheres in a bulk film
+    
+    '''
+    
+    
+    
+    # calculate the number density
+    number_density = volume_fraction/(4/3*np.pi*radius**3)
+    
+    # calculate the average interparticle spacing
+    d_avg = 2*(3/(4*np.pi*number_density))**(1/3)
+    
+    return d_avg
+    
+def calc_lscat(refl_per_traj, trans_per_traj, trans_indices, volume_fraction, radius):
+    '''
+    calculates the scattering length from the formula:
+        
+        lscat = 1/(number density * total scattering cross section)
+        
+    where the total scattering cross section is found by integrating the 
+    fraction of scattered light and multiplying by the initial are
+    
+    total scattering cross section = power scattered / incident intensity
+                                   = power scattered / (incident power / incident area)
+                                   = power scattered / incident power * 2*pi*radius**2
+                                   = (scattered fraction)*2*pi*radius**2
+    
+    Parameters
+    ----------
+    refl_per_traj: 1d array
+        array of trajectory weights that exit through reflection, normalized
+        by the total number of trajectories
+    trans_per_traj: 1d array
+        array of trajectory weights that exit through transmission, normalized
+        by the total number of trajectories
+    trans_indices: 1d array
+        array of event indices at which trajectories exit structured sphere
+        through transmission
+    volume_fraction: float-like
+        volume fraction of structured spheres in a bulk film
+    radius: float-like
+        radius of structured spheres in a bulk film
+        
+    Returns
+    -------
+    lscat: float-like
+        scattering length for bulk film of structured spheres
+    
+    '''
+    
+    # calculate the number density
+    number_density = volume_fraction/(4/3*np.pi*radius**3)
+    
+    # remove transmission contribution from trajectories that did not scatter
+    trans_per_traj[trans_indices == 1] = 0
+    
+    # calculate the total scattering cross section
+    tot_scat_cross_section = np.sum(refl_per_traj + trans_per_traj)*2*np.pi*radius**2
+    
+    # calculate the scattering length
+    lscat = 1/(number_density*tot_scat_cross_section)
+    
+    return lscat
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    

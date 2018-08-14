@@ -1301,7 +1301,11 @@ def calc_refl_trans_sphere(trajectories, n_medium, n_sample, radius, p, mu_abs,
         transmittance_mean = np.sum(transmittance)/ntraj
         
         if return_extra == True:
-            return (k1_refl, k1_trans, norm_refl, norm_trans, reflectance_mean, transmittance_mean)
+            return (refl_indices, trans_indices, 
+                    k1_refl, k1_trans, 
+                    norm_refl, norm_trans, 
+                    reflectance/ntraj, transmittance/ntraj,
+                    reflectance_mean, transmittance_mean)
         
         else:               
             return (reflectance_mean, transmittance_mean) 
