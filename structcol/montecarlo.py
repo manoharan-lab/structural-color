@@ -900,7 +900,7 @@ def refraction(angles, n_before, n_after):
     snell[abs(snell) > 1] = np.nan # this avoids a warning
     return np.arcsin(snell)
 
-def calc_refl_indices_detected(refl_indices, x, y, z, kx, ky, kz):
+def calc_refl_indices_detected(refl_indices, x, y, z, kx, ky, kz, det_theta, det_len, det_dist):
     """
     Detector function.
     Takes in refl_indices and removes indices that do not fit within the bounds
@@ -939,43 +939,106 @@ def calc_refl_indices_detected(refl_indices, x, y, z, kx, ky, kz):
     x0 = select_events(x[1:], refl_indices)
     y0 = select_events(y[1:], refl_indices)
     z0 = select_events(z[1:], refl_indices)
+    #print(z0)
+    theta = get_angles(kz,refl_indices)
+    #theta = theta[np.where(theta>np.pi/2)]
+    print(theta)
+    theta = theta[np.where(theta>np.pi/3)]
+    theta = theta[np.where(theta<np.pi/2)]
+    print(theta)
+
     kx = select_events(kx, refl_indices)
     ky = select_events(ky, refl_indices)
     kz = select_events(kz, refl_indices)
+
+    # detector parameters
+    if isinstance(det_theta, sc.Quantity):
+        det_theta = det_theta.to('radians').magnitude
+    if isinstance(det_dist, sc.Quantity):
+        det_dist = det_dist.to('um').magnitude
+    if isinstance(det_len, sc.Quantity):
+        det_len = det_len.to('um').magnitude
+        
+    # get the radius of the detection hemisphere
+    det_rad = np.sqrt(det_dist**2 + (det_len/2)**2)
+        
+    # get x_min, x_max, y_min, y_max of detector based on geometry
+    # see pg 86 in Annie Stephenson lab notebook #3 for details
+    delta_x = det_len*np.cos(det_theta)
+    x_center = det_dist*np.sin(det_theta)
+    x_min = x_center - delta_x/2
+    x_max = x_center + delta_x/2
     
-    # Hardcoded detector parameters
-    L = 13e4 # um 
-    x_min = 4.0e4 
-    x_max = 6.5e4
-    y_min = -1.35e4
-    y_max = 1.35e4
+    delta_y = det_len
+    y_center = 0
+    y_min = y_center - delta_y/2
+    y_max = y_center + delta_y/2
     
     # solve for the intersection of the scattering hemisphere at the detector 
     # arm length and the exit trajectories using parameterization
-    # TODO add changes according to notes in Annie Stephenson lab notebook #3 pg 40
+    # see Annie Stephenson lab notebook #3, pg 18 for details
     a = kx**2 + ky**2 + kz**2
     b = 2*(kx*x0 + ky*y0 + kz*z0)
-    c = x0**2 + y0**2 + z0**2-L**2
+    c = x0**2 + y0**2 + z0**2-det_rad**2
     t_m = -b + np.sqrt(b**2-4*a*c)/(2*a)
+    t_p = -b - np.sqrt(b**2-4*a*c)/(2*a)
+    #print(x0**2 + y0**2+ z0**2)
+    #print('t_m:' + str(t_m))
+
     
     x_int = x0 + t_m*kx
     y_int = y0 + t_m*ky
-    z_int = z0 + t_m*kz
+    z_int = z0 + t_m*kz #+ 80000
+    
+    x_int2 = x0 + t_p*kx
+    y_int2 = y0 + t_p*ky
+    z_int2 = z0 + t_p*kz #+ 80000
+    
+#    fig = plt.figure()
+#    ax = fig.add_subplot(111, projection='3d')
+#    ax.set_xlabel('x')
+#    ax.set_ylabel('y')
+#    ax.set_zlabel('z')
+#    ax.set_zlim([0, -100000])
+#    ax.scatter(x0, y0, z0, s = 5)
+#    ax.scatter(x_int, y_int, z_int, s =6, c = 'g')
+#    ax.scatter(x_int2, y_int2, z_int2, s =6, c = 'g')
+    
+    #print('x_int: ' + str(x_int))
+    #print('y_int: ' + str(y_int))
     
     # check whether trajectory positions at detector hemisphere fall within 
     # the detector limits, and update refl_indices_detected to reflect this
     refl_indices_detected = np.zeros(refl_indices.size)
+    x_int_detected = np.zeros(x_int.size)
+    y_int_detected = np.zeros(y_int.size)
+    z_int_detected = np.zeros(z_int.size)
+    
     for i in range(refl_indices.size):
         if (x_int[i] < x_max and x_int[i] > x_min)\
-            and (y_int[i] < y_max and y_int[i] > y_min):
-            refl_indices_detected[i] = refl_indices[i] 
+            and (y_int[i] < y_max and y_int[i] > y_min)\
+            and (z_int[i] < 0):
+                refl_indices_detected[i] = refl_indices[i]
+                x_int_detected[i] = x_int[i]
+                y_int_detected[i] = y_int[i]
+                z_int_detected[i] = z_int[i]
+        if (x_int2[i] < x_max and x_int2[i] > x_min)\
+            and (y_int2[i] < y_max and y_int2[i] > y_min)\
+            and (z_int2[i] < 0):
+                refl_indices_detected[i] = refl_indices[i]
+                x_int_detected[i] = x_int2[i]
+                y_int_detected[i] = y_int2[i]
+                z_int_detected[i] = z_int2[i]
+            
+#    ax.scatter(x_int_detected, y_int_detected, z_int_detected, s = 30)
             
     return refl_indices_detected
     
 
 
 def calc_refl_trans(trajectories, z_low, cutoff, n_medium, n_sample,
-                    n_front=None, n_back=None, detection_angle=np.pi/2, return_extra = False, detector = False):
+                    n_front=None, n_back=None, detection_angle=np.pi/2, return_extra = False, 
+                    detector = False, det_theta = None, det_len = None, det_dist = None):
     """
     Counts the fraction of reflected and transmitted trajectories after a cutoff.
     Identifies which trajectories are reflected or transmitted, and at which
@@ -1092,7 +1155,8 @@ def calc_refl_trans(trajectories, z_low, cutoff, n_medium, n_sample,
             x = x.to('um').magnitude
         if isinstance(y, sc.Quantity):
             y = y.to('um').magnitude
-        refl_indices = calc_refl_indices_detected(refl_indices, x, y, z, kx, ky, kz)
+        refl_indices = calc_refl_indices_detected(refl_indices, x, y, z, kx, ky, kz, 
+                                                  det_theta, det_len, det_dist)
     trans_indices = high_event * high_first
     stuck_indices = never_exit * (z.shape[0]-1)
 
@@ -1129,6 +1193,8 @@ def calc_refl_trans(trajectories, z_low, cutoff, n_medium, n_sample,
     # non-TIR fresnel are treated as new trajectories at the appropriate interface.
     # This means reversed R/T ratios for fresnel reflection at transmission interface.
     extra_refl = refl_fresnel * refl_frac + trans_fresnel * trans_frac + stuck_weights * 0.5
+    if detector == True:
+        extra_refl = refl_fresnel*refl_frac
     extra_trans = trans_fresnel * refl_frac + refl_fresnel * trans_frac + stuck_weights * 0.5
 
     # correct for effect of detection angle upon leaving sample
@@ -1150,8 +1216,7 @@ def calc_refl_trans(trajectories, z_low, cutoff, n_medium, n_sample,
                trans_frac, refl_frac,\
                refl_fresnel/ntraj, trans_fresnel/ntraj, np.sum(reflectance)/ntraj
     else:
-        return (np.sum(reflectance)/ntraj, np.sum(transmittance/ntraj))
-
+        return np.sum(reflectance)/ntraj, np.sum(transmittance/ntraj)
 
 def calc_refl_trans_sphere(trajectories, n_medium, n_sample, radius, p, mu_abs, 
                            mu_scat, detection_angle = np.pi/2, 
@@ -1526,8 +1591,8 @@ def initialize(nevents, ntraj, n_medium, n_sample, seed=None, incidence_angle=0.
     # and weight arrays because it includes the starting positions on the x-y
     # plane
     r0 = np.zeros((3, nevents+1, ntraj))
-    r0[0,0,:] = random((1,ntraj))
-    r0[1,0,:] = random((1,ntraj))
+    r0[0,0,:] = random((1,ntraj))-.5
+    r0[1,0,:] = random((1,ntraj))-.5
 
     # Create an empty array of the initial direction cosines of the right size
     k0 = np.zeros((3, nevents, ntraj))
