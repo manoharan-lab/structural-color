@@ -673,8 +673,9 @@ def calc_refracted_direction(kx_1, ky_1, kz_1, x_1, y_1, z_1, n1, n2, plot):
     # find point on the vector around which to rotate
     # We choose the point where the plane and line intersect
     # see Annie Stephenson lab notebook #3 pg 91 for derivation
-    x_plane = -z_1/kz_1*kx_1 + x_1
-    y_plane = -z_1/kz_1*ky_1 + y_1
+    with np.errstate(divide='ignore',invalid='ignore'):
+        x_plane = -z_1/kz_1*kx_1 + x_1
+        y_plane = -z_1/kz_1*ky_1 + y_1
     z_plane = np.zeros((x_plane.shape)) # any point on film incident plane is z = 0 
     
     # negate positive kz for reflection
@@ -1378,6 +1379,8 @@ def calc_refl_trans(trajectories, z_low, cutoff, n_medium, n_sample,
     # correct for effect of detection angle upon leaving sample
     inc_refl = (1 - inc_fraction) # fresnel reflection incident on sample
     inc_refl = detect_correct(np.array([init_dir]), inc_refl, np.ones(ntraj), n_medium, n_medium, detection_angle)
+    if detector == True:
+        inc_refl = 0 # need to replace this with the correct geometrical factor
     trans_detected = detect_correct(kz, transmitted, trans_indices, n_sample, n_medium, detection_angle)
     refl_detected = detect_correct(kz, reflected, refl_indices, n_sample, n_medium, detection_angle)
     trans_det_frac = np.max([np.sum(trans_detected),eps]) / np.max([np.sum(transmitted), eps])
@@ -2489,7 +2492,11 @@ def polarize(theta, phi, n_particle, n_sample, radius, wavelen, volume_fraction)
 
 def normalize(x,y,z):
     magnitude = np.sqrt(x**2 + y**2 + z**2)
-    return x/magnitude, y/magnitude, z/magnitude
+    
+    # we ignore divide by zero error here because we do not want an error
+    # in the case where we try to normalize a null vector <0,0,0>
+    with np.errstate(divide='ignore',invalid='ignore'):
+        return x/magnitude, y/magnitude, z/magnitude
 
 def sample_step(nevents, ntraj, mu_abs, mu_scat):
     """
