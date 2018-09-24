@@ -373,6 +373,45 @@ def find_exit_intersect(x0,y0,z0, x1, y1, z1, radius):
 # vectorize above function    
 find_exit_intersect_vec = np.vectorize(find_exit_intersect)
 
+def find_vec_sphere_intersect(x0, y0, z0, x1, y1, z1, radius):
+    '''finds intersection of vector and sphere'''
+    # find k vector from point inside and outside sphere
+    kx, ky, kz = normalize(x1-x0, y1-y0, z1-z0)
+    
+    # solve for intersection of k with sphere surface using parameterization
+    # there will be two solutions for each k vector, corresponding to the two
+    # points where a line intersects a sphere
+    # see Annie Stephenson lab notebook #3, pg 18 for details
+    a = kx**2 + ky**2 + kz**2
+    b = 2*(kx*x0 + ky*y0 + kz*z0)
+    c = x0**2 + y0**2 + z0**2-radius**2
+    t_p = (-b + np.sqrt(b**2-4*a*c))/(2*a)
+    t_m = (-b - np.sqrt(b**2-4*a*c))/(2*a)
+    
+    x_int_p = x0 + t_p*kx
+    y_int_p = y0 + t_p*ky
+    z_int_p = z0 + t_p*kz
+    
+    x_int_m = x0 + t_m*kx
+    y_int_m = y0 + t_m*ky
+    z_int_m = z0 + t_m*kz
+    
+    # find the distances between the each solution point and the trajectory
+    # point outside the sphere
+    dist_p = np.nan_to_num((x_int_p - x1)**2 + (y_int_p - y1)**2 + (z_int_p - z1)**2)
+    dist_m = np.nan_to_num((x_int_m - x1)**2 + (y_int_m - y1)**2 + (z_int_m - z1)**2)
+
+    # find the indices of the smaller distances of the two
+    ind_p = np.where(dist_p<dist_m)[0]
+    ind_m = np.where(dist_m<dist_p)[0]
+    
+    # keep only the intercept closest to the exit point of the trajectory
+    pos_int = np.zeros((3,len(x0)))
+    pos_int[:,ind_p] = x_int_p[ind_p], y_int_p[ind_p], z_int_p[ind_p]
+    pos_int[:,ind_m] = x_int_m[ind_m], y_int_m[ind_m], z_int_m[ind_m]
+    
+    return pos_int
+
 def exit_kz(x, y, z, indices, radius, n_inside, n_outside):
     '''
     returns kz of exit trajectory, corrected for refraction at the spherical
@@ -495,11 +534,11 @@ def get_angles(kz, indices):
     # calculate angle to normal from cos_z component (only want magnitude)
     return sc.Quantity(np.arccos(np.abs(cosz)),'')
 
-def get_angles_sphere(x, y, z, radius, indices, incident = False, plot_exits = False):
+def get_angles_sphere(x, y, z, radius, indices, kx = None, ky = None, kz = None,
+                      plot_exits = False):
     '''
     Returns angles relative to vector normal to sphere at point on 
-    boundary. Currently works only for incident light in 
-    the +z direction
+    boundary. 
     
     Parameters
     ----------
@@ -520,12 +559,9 @@ def get_angles_sphere(x, y, z, radius, indices, incident = False, plot_exits = F
     indices: 1D array
         Length ntraj. Values represent events of interest in each trajectory
         index = 1 corresponds to first event, or 0th element in events array
-    incident: boolean
-        If set to True, function finds the angles between incident light
-        travelling in the +z direction and the sphere boundary where the 
-        trajectory enters. If set to False, function finds the angles between
-        the trajectories inside the sphere and the normal at the sphere 
-        boundary where the trajectory exits.
+    kx:
+    ky:
+    kz: 
     plot_exits : boolean
         If set to True, function will plot the last point of trajectory inside 
         the sphere, the first point of the trajectory outside the sphere,
@@ -546,84 +582,60 @@ def get_angles_sphere(x, y, z, radius, indices, incident = False, plot_exits = F
     # following calculations much easier
     z = z - radius
 
-    if incident:
-        select_x1 = select_events(x, indices)
-        select_y1 = select_events(y, indices)
-        select_z1 = select_events(z, indices)
+    # if incident light
+    if kx is not None:
+        # selects initialized trajectory positions
+        select_kx1 = select_events(kx, indices)
+        select_ky1 = select_events(ky, indices)
+        select_kz1 = select_events(kz, indices)
         
-        select_x0 = select_x1
-        select_y0 = select_y1
-        select_z0 = select_z1 + 1
+        # combine into one vector
+        k1 = np.array([select_kx1, select_ky1, select_kz1])
         
-        x_inter = select_x1
-        y_inter = select_y1
-        z_inter = select_z1
+        # initial positions are on the sphere boundary
+        # multiply by minus sign to flip normal vector so the dot product has
+        # the right sign
+        x_inter = -select_events(x, indices)
+        y_inter = -select_events(y, indices)
+        z_inter = -select_events(z, indices)
     else:
     
         # get positions outside of sphere boundary from after exit (or entrance if 
         # this is for first event)
+        # indexing of 1: makes it so we pick point after exit event, since 
+        # it skips the initial point
         select_x1 = select_events(x[1:,:], indices)
         select_y1 = select_events(y[1:,:], indices)
         select_z1 = select_events(z[1:,:], indices)
         
         # get positions inside sphere boundary from before exit
+        # indexing of :len(x)-1 makes it so we pick point before exit event, 
+        # since it starts with initial point before first event
         select_x0 = select_events(x[:len(x)-1,:],indices)
         select_y0 = select_events(y[:len(y)-1,:],indices)
         select_z0 = select_events(z[:len(z)-1,:],indices)
         
+        # calculate the normalized k1 vector from the positions inside and outside
+        k1 = normalize(select_x1-select_x0, select_y1-select_y0, select_z1-select_z0)
+        
         # get positions at sphere boundary from exit
-        x_inter, y_inter, z_inter = find_exit_intersect_vec(select_x0,
-                                                            select_y0,
-                                                            select_z0,
-                                                            select_x1,
-                                                            select_y1,
-                                                            select_z1, radius)
-                                                        
-    # calculate the magnitude of exit vector to divide to make a unit vector
-    mag = np.sqrt((select_x1-select_x0)**2 + (select_y1-select_y0)**2 
-                                           + (select_z1-select_z0)**2)
-    if mag.any() == 0:
-        mag = 1
-                                           
+        x_inter, y_inter, z_inter = find_vec_sphere_intersect(select_x0,
+                                                              select_y0,
+                                                              select_z0,
+                                                              select_x1,
+                                                              select_y1,
+                                                              select_z1,
+                                                              radius)
+    
     # calculate the vector normal to the sphere boundary at the exit
-    norm = np.zeros((3,len(x_inter)))
-    norm[0,:] = x_inter
-    norm[1,:] = y_inter
-    norm[2,:] = z_inter
-    norm = norm/radius
+    norm = normalize(x_inter, y_inter, z_inter)
     
-    # calculate the normalized k1 vector 
-    # note: if the indices array contains a 0, you will get a k1 of nan
-    # this could happen in a case where there is no event (e.g. a reflection event)
-    # for the trajectory, so the index is zero, and no k1 will be relevant
-    k1 = np.zeros((3,len(x_inter)))
-    k1[0,:] = select_x1 - select_x0
-    k1[1,:] = select_y1 - select_y0
-    k1[2,:] = select_z1 - select_z0
-    k1 = k1/mag
-    
-    # calculate the dot product between the vector normal to the sphere and the 
-    # exit vector, and divide by their magnitudes. Then use arccos to find 
-    # the angles 
-    dot_norm = np.nan_to_num(norm[0,:]*k1[0,:] + 
-                             norm[1,:]*k1[1,:] +
-                             norm[2,:]*k1[2,:])
+    # calculate the dot product between the normal vector and the exit vector
+    dot_norm = norm[0,:]*k1[0,:] + norm[1,:]*k1[1,:] + norm[2,:]*k1[2,:]
 
-    # if the dot product is <0, force it to zero.
-    # a negative dot product cannot physically occur because it implies
-    # that the angle between k1 and the normal is > 90 degrees. Testing of the
-    # code that in some cases, very small (< magnitude 0.002) negative numbers
-    # are found from the dot product. This suggests that the solution for the 
-    # interset between the sphere and the k1 vector is slightly off. Since we 
-    # know that we cannot have a negative dot product, we instead force it to 
-    # zero, meaning that we assume an angle of 90 degrees between the sphere 
-    # normal and the k1 vector 
-    dot_norm[dot_norm < 0] = 0
-    angles_norm = np.nan_to_num(np.arccos(dot_norm))
+    # calulate the angle between the normal vector and the exit vector
+    angles_norm = np.arccos(np.nan_to_num(dot_norm))
     angles_norm = sc.Quantity(angles_norm, '')
-    
-    dot_z = np.nan_to_num(abs(select_z1-select_z0)/mag)
-    angles_z = np.nan_to_num(np.arccos(dot_z))    
     
     # plot the points before exit, after exit, and on exit boundary
     if plot_exits == True:
@@ -695,7 +707,8 @@ def fresnel_pass_frac(kz, indices, n_before, n_inside, n_after):
     return fresnel_trans/(1-fresnel_refl+eps)
     
 def fresnel_pass_frac_sphere(radius, indices, n_before, n_inside, n_after, 
-                             x, y, z, incident=False, plot_exits=False):
+                             x, y, z, incident = False, kx = None, 
+                             ky = None, kz = None, plot_exits=False):
     '''
     Returns weights of interest reduced by fresnel reflection across two 
     interfaces, For example passing through a coverslip.
@@ -729,6 +742,10 @@ def fresnel_pass_frac_sphere(radius, indices, n_before, n_inside, n_after,
         z position values, with axes corresponding to (1 + events, trajectories)
         there is one more z position than events because it takes two positions
         to define an event
+    incident:
+    kx:
+    ky: 
+    kz:
     plot_exits : boolean
         if set to True, function will plot the last point of trajectory inside 
         the sphere, the first point of the trajectory outside the sphere,
@@ -745,7 +762,12 @@ def fresnel_pass_frac_sphere(radius, indices, n_before, n_inside, n_after,
         n_inside = n_before
 
     #find angles before
-    k1, norm, theta_before = get_angles_sphere(x,y,z,radius, indices, incident = incident, plot_exits = plot_exits)
+    if incident:
+        k1, norm, theta_before = get_angles_sphere(x, y, z, radius, indices, 
+                                                   kx, ky, kz, plot_exits = plot_exits)
+    else:
+        k1, norm, theta_before = get_angles_sphere(x, y, z, radius, indices, 
+                                                   plot_exits = plot_exits)
     
     #find angles inside
     theta_inside = refraction(theta_before, n_before, n_inside)
@@ -754,7 +776,7 @@ def fresnel_pass_frac_sphere(radius, indices, n_before, n_inside, n_after,
     # then replace it with pi/2 (the trajectory goes sideways infinitely) to 
     # avoid errors during the calculation of stuck trajectories
     theta_inside[np.isnan(theta_inside)] = np.pi/2.0
-
+    
     #find fraction passing through both interfaces
     trans_s1, trans_p1 = model.fresnel_transmission(n_before, n_inside, theta_before) # before -> inside
     trans_s2, trans_p2 = model.fresnel_transmission(n_inside, n_after, theta_inside)  # inside -> after
@@ -959,7 +981,6 @@ def fresnel_correct_enter(n_sample, n_medium, kz, boundary,
                           fresnel_traj, fresnel_params):
     # get ntraj
     ntraj = kz.shape[1]
-    print(kz.shape)
     
     if boundary == 'film':
         # unpack frensel params argument
@@ -973,7 +994,7 @@ def fresnel_correct_enter(n_sample, n_medium, kz, boundary,
     
     if boundary == 'sphere':
         # unpack fresnel params argument
-        x, y, z, radius = fresnel_params
+        x, y, z, kx, ky, radius = fresnel_params
         
         # init_dir is reverse-corrected for refraction. = kz before medium/sample interface
         # for now, we assume initial direction is in +z
@@ -983,7 +1004,8 @@ def fresnel_correct_enter(n_sample, n_medium, kz, boundary,
         # calculate initial weights that actually enter the sample after fresnel
         if fresnel_traj == False:
             _, _, inc_pass_frac = fresnel_pass_frac_sphere(radius, np.ones(ntraj), n_medium,
-                                                None, n_sample, x, y, z, incident = True)    
+                                                None, n_sample, x, y, z, 
+                                                incident = True, kx = kx, ky = ky, kz = kz)    
         else:
             inc_pass_frac = np.ones(ntraj)
     
@@ -1104,12 +1126,12 @@ def distribute_ambig_traj_weights(refl_fresnel, trans_fresnel,
     
     return reflectance, transmittance
 
-def calc_refl_trans(trajectories, thickness, z_low, n_medium, n_sample, boundary,
-                    detection_angle = np.pi/2, n_front = None, n_back = None,
-                    p = None, return_extra = False, run_fresnel_traj = False,
-                    fresnel_traj = False, call_depth = 0, max_call_depth = 20, 
-                    max_stuck = 0.01, plot_exits = False, mu_scat = None, 
-                    mu_abs = None):
+def calc_refl_trans(trajectories, thickness, n_medium, n_sample, boundary, 
+                    z_low = 0, detection_angle = np.pi/2, n_front = None, 
+                    n_back = None, p = None, return_extra = False, 
+                    run_fresnel_traj = False, fresnel_traj = False, 
+                    call_depth = 0, max_call_depth = 20, max_stuck = 0.01, 
+                    plot_exits = False, mu_scat = None, mu_abs = None):
     
     # set up values to be used throughout function 
     (n_sample, x, y, z, 
@@ -1119,7 +1141,8 @@ def calc_refl_trans(trajectories, thickness, z_low, n_medium, n_sample, boundary
     # set up different sets of parameters for film and sphere
     if boundary == 'film':
         traj_exit_params = kz, z
-        fresnel_params = n_front, n_back
+        fresnel_enter_params = n_front, n_back
+        fresnel_exit_params = fresnel_enter_params
 
         
     if boundary == 'sphere':
@@ -1128,7 +1151,8 @@ def calc_refl_trans(trajectories, thickness, z_low, n_medium, n_sample, boundary
         radius = diameter/2
         
         traj_exit_params = x, y, z
-        fresnel_params = x, y, z, radius
+        fresnel_enter_params = x, y, z, kx, ky, radius
+        fresnel_exit_params = x, y, z, radius
         
     
     # construct booleans for positive and negative exits
@@ -1142,7 +1166,7 @@ def calc_refl_trans(trajectories, thickness, z_low, n_medium, n_sample, boundary
     
     # find fraction of light that enters sample  
     init_dir, inc_pass_frac = fresnel_correct_enter(n_sample, n_medium, kz, boundary, fresnel_traj,
-                                                    fresnel_params)        
+                                                    fresnel_enter_params)        
     
     # calculate outcome weights of trajectories
     (refl_weights, 
@@ -1156,7 +1180,7 @@ def calc_refl_trans(trajectories, thickness, z_low, n_medium, n_sample, boundary
                                                 refl_indices, trans_indices,
                                                 refl_weights, trans_weights, 
                                                 absorb_weights,
-                                                boundary, fresnel_params)
+                                                boundary, fresnel_exit_params)
     
     # unpack fresnel exit results for different geometries
     if boundary == 'film':
@@ -2002,7 +2026,13 @@ def sample_step(nevents, ntraj, mu_abs, mu_scat):
     return step
 
 
-
+def normalize(x,y,z):
+    magnitude = np.sqrt(x**2 + y**2 + z**2)
+    
+    # we ignore divide by zero error here because we do not want an error
+    # in the case where we try to normalize a null vector <0,0,0>
+    with np.errstate(divide='ignore',invalid='ignore'):
+        return np.array([x/magnitude, y/magnitude, z/magnitude])
 
 ###############################################################################
 ##################### testing #################################################
