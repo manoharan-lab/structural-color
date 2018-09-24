@@ -1168,8 +1168,8 @@ def calc_indices_detected(indices, x, y, z, kx, ky, kz, det_theta, det_len, det_
     a = kx**2 + ky**2 + kz**2
     b = 2*(kx*x + ky*y + kz*z)
     c = x**2 + y**2 + z**2-det_rad**2
-    t_p = -b + np.sqrt(b**2-4*a*c)/(2*a)
-    t_m = -b - np.sqrt(b**2-4*a*c)/(2*a)
+    t_p = (-b + np.sqrt(b**2-4*a*c))/(2*a)
+    t_m = (-b - np.sqrt(b**2-4*a*c))/(2*a)
 
     if det_theta < np.pi/2:
         t = t_p
