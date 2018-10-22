@@ -227,7 +227,7 @@ class Trajectory:
         # Update all the directions of the trajectories
         
     def scatter_polarization(self, sintheta, costheta, sinphi, cosphi, 
-                             singamma, cosgamma):
+                             local_pol_x, local_pol_y):
         """
         TODO integrate this with scatter() to avoid repeated code
         Calculates the directions of polarization vectors after scattering.
@@ -253,49 +253,34 @@ class Trajectory:
         pn = self.polarization.magnitude
         kn = self.direction.magnitude
 
+
+        pn[0,1:,:] = local_pol_x
+        pn[1,1:,:] = local_pol_y
+        
         # Calculate the new x, y, z coordinates of the propagation direction
         # using the following equations, which can be derived by using matrix
         # operations to perform a rotation about the y-axis by angle theta
         # followed by a rotation about the z-axis by angle phi
         for n in np.arange(1,self.nevents):
             # update directions
-            kx = ((kn[0,n-1,:]*costheta[n-1,:] + kn[2,n-1,:]*sintheta[n-1,:])*
+            kn[0,n,:] = ((kn[0,n-1,:]*costheta[n-1,:] + kn[2,n-1,:]*sintheta[n-1,:])*
                   cosphi[n-1,:]) - kn[1,n-1,:]*sinphi[n-1,:]
 
-            ky = ((kn[0,n-1,:]*costheta[n-1,:] + kn[2,n-1,:]*sintheta[n-1,:])*
+            kn[1,n,:] = ((kn[0,n-1,:]*costheta[n-1,:] + kn[2,n-1,:]*sintheta[n-1,:])*
                   sinphi[n-1,:]) + kn[1,n-1,:]*cosphi[n-1,:]
 
-            kz = -kn[0,n-1,:]*sintheta[n-1,:] + kn[2,n-1,:]*costheta[n-1,:]
+            kn[2,n,:] = -kn[0,n-1,:]*sintheta[n-1,:] + kn[2,n-1,:]*costheta[n-1,:]
             
             # update polarizations
-            px_x = ((pn[0,n-1,:]*costheta[n-1,:] + pn[2,n-1,:]*sintheta[n-1,:])*
-                  cosphi[n-1,:]) - pn[1,n-1,:]*sinphi[n-1,:]
+            pn[0,n:,:] = ((pn[0,n:,:]*costheta[n-1,:] + pn[2,n:,:]*sintheta[n-1,:])*
+                    cosphi[n-1,:]) - pn[1,n:,:]*sinphi[n-1,:]
 
-            py_x = ((pn[0,n-1,:]*costheta[n-1,:] + pn[2,n-1,:]*sintheta[n-1,:])*
-                  sinphi[n-1,:]) + pn[1,n-1,:]*cosphi[n-1,:]
+            pn[1,n:,:] = ((pn[0,n:,:]*costheta[n-1,:] + pn[2,n:,:]*sintheta[n-1,:])*
+                  sinphi[n-1,:]) + pn[1,n:,:]*cosphi[n-1,:]
 
-            pz_x = -pn[0,n-1,:]*sintheta[n-1,:] + pn[2,n-1,:]*costheta[n-1,:]
+            pn[2,n:,:] = -pn[0,n:,:]*sintheta[n-1,:] + pn[2,n:,:]*costheta[n-1,:]
             
-            #print('dot: ')
-            #dot = kx*px_x + ky*py_x + kz*pz_x
-            #print(dot)
-           
-            px = kx*(kx*px_x + ky*py_x + kz*pz_x)*(1-cosgamma[n-1,:])\
-                    + px_x*cosgamma[n-1,:] + (-kz*py_x + ky*pz_x)*singamma[n-1,:]
-                    
-            py = ky*(kx*px_x + ky*py_x + kz*pz_x)*(1-cosgamma[n-1,:])\
-                    + py_x*cosgamma[n-1,:] + (kz*px_x - kx*pz_x)*singamma[n-1,:]
-                    
-            pz = kz*(kx*px_x + ky*py_x + kz*pz_x)*(1-cosgamma[n-1,:])\
-                    + pz_x*cosgamma[n-1,:] + (-ky*px_x + kx*py_x)*singamma[n-1,:]
-
-
-            kn[:,n,:] = kx, ky, kz
-            pn[:,n,:] = px, py, pz # need to take absolute value??
-            
-            #print('dot: ')
-            #dot = kx*px + ky*py + kz*pz
-            #print(dot)
+        
 
         # Update all the directions of the trajectories
 
@@ -399,7 +384,7 @@ def select_events(inarray, events):
     tr = np.where(valid_events)[0]
 
     # want output of the same form as events
-    outarray = np.zeros(len(events))
+    outarray = np.zeros(len(events), dtype = 'complex')
     
     # get an output array with elements corresponding to the input events
     outarray[valid_events] = inarray[ev, tr]
@@ -1815,7 +1800,7 @@ def initialize(nevents, ntraj, n_medium, n_sample, seed=None, incidence_angle=0.
         return r0, k0, weight0
     
     else:
-        pol0 = np.zeros((3, nevents, ntraj))
+        pol0 = np.zeros((3, nevents, ntraj), dtype = 'complex')
         pol0[0,:,:] = pol_inc[0]
         pol0[1,:,:] = pol_inc[1]
         pol0[2,:,:] = pol_inc[2] # pol_inc[2]=0 for incident light in z
@@ -2267,7 +2252,7 @@ def amplitude_scat_mat_pol(m, x, thetas):
     prefactor  = (2*n+1)/(n*(n+1))
     coeffs = mie._scatcoeffs(m,x,nstop)
 
-    asmat = np.zeros((thetas.shape[0], thetas.shape[1], 2, 2))    
+    asmat = np.zeros((thetas.shape[0], thetas.shape[1], 2, 2), dtype = complex)    
     for i in range(thetas.shape[0]):# nevents
         for j in range(thetas.shape[1]): # ntraj
             S21 = mie._amplitude_scattering_matrix(nstop, prefactor, coeffs, thetas[i,j])
@@ -2302,7 +2287,7 @@ def calc_as_vec(thetas, phis, m , x):
     basis_change_mat = np.swapaxes(np.swapaxes(basis_change_mat,0,2),1,3)
     asmat_prime = np.matmul(basis_change_mat, np.matmul(asmat, basis_change_mat))
     
-    as_vec = np.zeros((2,thetas.shape[0],thetas.shape[1]))
+    as_vec = np.zeros((2,thetas.shape[0],thetas.shape[1]), dtype = complex)
     as_vec[0,:,:] = asmat_prime[:,:,0,0]#0,0
     as_vec[1,:,:] = asmat_prime[:,:,1,0]#1,0
     
@@ -2338,7 +2323,8 @@ def diff_cscat_pol(m, x, thetas, phis, volume_fraction):
     as_vec = calc_as_vec(thetas_v, phis_v, m , x)
     
     # calculate the intensity
-    form = as_vec[0,:,:]**2 + as_vec[1,:,:]**2
+    form = np.real(as_vec[0,:,:]*np.conj(as_vec[0,:,:]) + as_vec[1,:,:]*np.conj(as_vec[1,:,:]))
+
     # calculate structure factor
     qd = 4*x*np.sin(thetas_v/2)
     s = model.structure.factor_py(qd, volume_fraction)
@@ -2363,18 +2349,22 @@ def sample_angles_pol(nevents, ntraj, p):
     -------
     sintheta, costheta, sinphi, cosphi, theta, phi : ndarray
         Sampled azimuthal and scattering angles, and their sines and cosines.
+        
+    Note: see pg 31 in Annie Stephenson lab notebook #3 for details
     
     """
     
     p_phi = np.sum(p, axis = 0)
     
-    min_angle = 0.01            
-    thetas = sc.Quantity(np.linspace(min_angle,np.pi, 200), 'rad')  
-    phis = sc.Quantity(np.linspace(min_angle,2*np.pi, 300), 'rad') 
+    min_angle = 0.01
+    num_phi = 300            
+    num_theta = 200
+    thetas = sc.Quantity(np.linspace(min_angle,np.pi, num_theta), 'rad')  
+    phis = sc.Quantity(np.linspace(min_angle,2*np.pi, num_phi), 'rad') 
 
     # phi_ind.shape(nevents, ntraj)
 
-    phi_ind = np.array([np.random.choice(300, ntraj, p = p_phi/np.sum(p_phi))
+    phi_ind = np.array([np.random.choice(num_phi, ntraj, p = p_phi/np.sum(p_phi))
                         for i in range(nevents)])
     
     
@@ -2383,8 +2373,8 @@ def sample_angles_pol(nevents, ntraj, p):
     phi = np.zeros((nevents,ntraj))
     for i in range(nevents):
         for j in range(ntraj):
-            p_theta = p[:,phi_ind[i,j]]*np.sin(theta)
-            theta_ind[i,j] = np.random.choice(200, p = p_theta/np.sum(p_theta))
+            p_theta = p[:,phi_ind[i,j]]*np.sin(thetas)
+            theta_ind[i,j] = np.random.choice(num_theta, p = p_theta/np.sum(p_theta))
             theta[i,j] = thetas[int(theta_ind[i,j])]
             phi[i,j] = phis[int(phi_ind[i,j])]
     
@@ -2478,20 +2468,23 @@ def polarize(theta, phi, n_particle, n_sample, radius, wavelen, volume_fraction)
     as_vec = calc_as_vec(theta, phi, m, x)
     
     # normalize as_vecs
-    pol_x = as_vec[0,:,:]#*s
-    pol_y = as_vec[1,:,:]#*s
+    pol_x = np.real(as_vec[0,:,:])# + np.imag(as_vec[0,:,:])#*s
+    pol_y = np.real(as_vec[1,:,:])# + np.imag(as_vec[1,:,:])#*s
     pol_z = 0
     pol_x, pol_y, pol_z = normalize(pol_x, pol_y, pol_z)
+    #print('pol_x: ' + str(pol_x.shape))
+    #print('pol_y: ' + str(pol_y.shape))
 
     # calculate gamma
-    gamma = np.arccos(pol_x)
-    cosgamma = pol_x
-    singamma = np.sin(gamma)
+    #gamma = np.arccos(pol_x)
+    #print('gamma: ' +str(gamma))
+    #cosgamma = pol_x
+    #singamma = np.sin(gamma)
     
-    return singamma, cosgamma, pol_x, pol_y
+    return pol_x, pol_y
 
 def normalize(x,y,z):
-    magnitude = np.sqrt(x**2 + y**2 + z**2)
+    magnitude = np.sqrt(np.abs(x)**2 + np.abs(y)**2 + np.abs(z)**2)
     
     # we ignore divide by zero error here because we do not want an error
     # in the case where we try to normalize a null vector <0,0,0>
