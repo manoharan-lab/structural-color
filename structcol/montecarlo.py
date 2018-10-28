@@ -1304,9 +1304,9 @@ def calc_refl_trans_sphere(trajectories, n_medium, n_sample, radius, p, mu_abs,
         else:               
             return (reflectance_mean, transmittance_mean) 
 
+
 def initialize(nevents, ntraj, n_medium, n_sample, seed=None, incidence_angle=0., 
                spot_size=sc.Quantity('1 um'), theta_a=0.):
-
     """
     Sets the trajectories' initial conditions (position, direction, and weight).
     The initial positions are determined randomly in the x-y plane (the initial
