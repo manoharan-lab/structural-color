@@ -162,7 +162,7 @@ class Trajectory:
     def nevents(self):
         return self.weight.shape[0]
 
-    def absorb(self, mu_abs, step_size):
+    def absorb(self, mu_abs, step_size, radius=None):
         """
         Calculates absorption of photon packet due to traveling the sample 
         between scattering events. Absorption is modeled as a reduction of a 
@@ -179,6 +179,11 @@ class Trajectory:
         # beer lambert
         weight = self.weight*np.exp(-(mu_abs * np.cumsum(step_size[:,:], 
                                                          axis=0)).to(''))
+#        fraction = mu_abs * np.cumsum(step_size[:,:], axis=0)
+#        fraction[fraction > 1.] = 1
+#            
+#        weight = self.weight*(1-fraction).to('')
+        
         self.weight = sc.Quantity(weight)
 
 
@@ -673,6 +678,7 @@ def fresnel_pass_frac(kz, indices, n_before, n_inside, n_after):
 
     # find angles before
     theta_before = get_angles(kz, indices)
+    print('theta_before', theta_before)
     # find angles inside
     theta_inside = refraction(theta_before, n_before, n_inside)
     # if theta_inside is nan (because the trajectory doesn't exit due to TIR), 
@@ -937,11 +943,12 @@ def calc_refl_trans(trajectories, z_low, cutoff, n_medium, n_sample,
 
     # calculate initial weights that actually enter the sample after fresnel
     init_dir = np.cos(refraction(get_angles(kz, np.ones(ntraj)), n_sample, n_medium))
+    print('init_dir', init_dir)
     # init_dir is reverse-corrected for refraction. = kz before medium/sample interface
     inc_fraction = fresnel_pass_frac(np.array([init_dir]), np.ones(ntraj), n_medium, n_front, n_sample)
-
+    
     # calculate outcome weights from all trajectories
-    refl_weights = inc_fraction * select_events(weights, refl_indices)
+    refl_weights = inc_fraction * select_events(weights, refl_indices)  # should these be refl_indices-1 to not overestimate absorption?
     trans_weights = inc_fraction * select_events(weights, trans_indices)
     stuck_weights = inc_fraction * select_events(weights, stuck_indices)
     absorb_weights = inc_fraction - refl_weights - trans_weights - stuck_weights
@@ -1297,7 +1304,8 @@ def calc_refl_trans_sphere(trajectories, n_medium, n_sample, radius, p, mu_abs,
         else:               
             return (reflectance_mean, transmittance_mean) 
 
-def initialize(nevents, ntraj, n_medium, n_sample, seed=None, incidence_angle=0.):
+def initialize(nevents, ntraj, n_medium, n_sample, seed=None, incidence_angle=0., 
+               spot_size=sc.Quantity('1 um'), theta_a=0.):
 
     """
     Sets the trajectories' initial conditions (position, direction, and weight).
@@ -1358,9 +1366,10 @@ def initialize(nevents, ntraj, n_medium, n_sample, seed=None, incidence_angle=0.
     # Initial position. The position array has one more row than the direction
     # and weight arrays because it includes the starting positions on the x-y
     # plane
+    spot_size_magnitude = spot_size.to('um').magnitude
     r0 = np.zeros((3, nevents+1, ntraj))
-    r0[0,0,:] = random((1,ntraj))
-    r0[1,0,:] = random((1,ntraj))
+    r0[0,0,:] = random((1,ntraj))*spot_size_magnitude
+    r0[1,0,:] = random((1,ntraj))*spot_size_magnitude
 
     # Create an empty array of the initial direction cosines of the right size
     k0 = np.zeros((3, nevents, ntraj))
@@ -1375,23 +1384,50 @@ def initialize(nevents, ntraj, n_medium, n_sample, seed=None, incidence_angle=0.
     # Random sampling of scattering angle theta from uniform distribution [0 -
     # pi] for the first scattering event
     rand_theta = random((1,ntraj))
-    theta = rand_theta * incidence_angle
+    theta = rand_theta * incidence_angle 
+    sintheta = np.sin(theta)
+    costheta = np.cos(theta)    
+    
+    # Initial directions assuming a flat surface
+    kx0 = sintheta * cosphi
+    ky0 = sintheta * sinphi
+    kz0 = costheta
+    
+    # In case the surface is rough, then find new coordinates of initial 
+    # directions after rotating the surface by an angle theta_a around y axis
+    sintheta_a = np.sin(theta_a)
+    costheta_a = np.cos(theta_a)
+    
+    kx0_rot = costheta_a * kx0 - sintheta_a * kz0
+    ky0_rot = ky0
+    kz0_rot = sintheta_a * kx0 + costheta_a * kz0
 
+    # Find the new angles theta between the incident trajectories and the
+    # normal to the new surface after the coordinate axis rotation
+    theta_rot = np.arccos(kz0_rot / np.sqrt(kx0_rot**2 + ky0_rot**2 + kz0_rot**2))
+    
     # Refraction of incident light upon entering sample
     # TODO: only real part of n_sample should be used                             
     # for the calculation of angles of integration? Or abs(n_sample)? 
-    theta = refraction(theta, n_medium, np.abs(n_sample))
+    theta = refraction(theta_rot, n_medium, np.abs(n_sample))
     sintheta = np.sin(theta)
     costheta = np.cos(theta)
     
+    kx0_rot_refr = sintheta * cosphi
+    ky0_rot_refr = sintheta * sinphi
+    kz0_rot_refr = costheta 
+    
+    # Rotate the axes back so that the initial refracted directions are in 
+    # old (global) coordinates by doing an axis rotation around y by -theta_a    
+    kx0_refr = np.cos(-theta_a) * kx0_rot_refr - np.sin(-theta_a) * kz0_rot_refr
+    ky0_refr = ky0_rot_refr
+    kz0_refr = np.sin(-theta_a) * kx0_rot_refr + np.cos(-theta_a) * kz0_rot_refr    
+    
     # Fill up the first row (corresponding to the first scattering event) of the
     # direction cosines array with the randomly generated angles:
-    # kx = sintheta * cosphi
-    # ky = sintheta * sinphi
-    # kz = costheta
-    k0[0,0,:] = sintheta * cosphi
-    k0[1,0,:] = sintheta * sinphi
-    k0[2,0,:] = costheta
+    k0[0,0,:] = kx0_refr
+    k0[1,0,:] = ky0_refr
+    k0[2,0,:] = kz0_refr
 
     # Initial weight
     weight0 = np.ones((nevents, ntraj))
@@ -1698,8 +1734,7 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
                                                    pdi=pdi, n_sample=n_sample,
                                                    form_type=form_type,
                                                    structure_type=structure_type,
-                                                   mie_theory=mie_theory)
-
+                                                   mie_theory=mie_theory)            
     mu_scat = number_density * cscat_total
 
     # Here, the resulting units of mu_scat and mu_abs are nm^2/um^3. Thus, we 
@@ -1776,13 +1811,13 @@ def phase_function(m, x, angles, volume_fraction, k, number_density,
     if form_type=='polydisperse':
         distance = diameters/2
     else:
-        distance = diameters.max()/2 # TODO: need to figure out which integration distance to use 
+        distance = diameters.max()/2 
 
     # If mie_theory = True, calculate the phase function for 1 particle 
     # using Mie theory (excluding the structure factor)
     if mie_theory == True:
         structure_type = None
-  
+
     diff_cscat_par, diff_cscat_perp = \
          model.differential_cross_section(m, x, angles, volume_fraction,
                                              structure_type=structure_type,
@@ -1942,7 +1977,7 @@ def sample_angles(nevents, ntraj, p):
     return sintheta, costheta, sinphi, cosphi, theta, phi
 
 
-def sample_step(nevents, ntraj, mu_abs, mu_scat):
+def sample_step(nevents, ntraj, mu_abs, mu_scat, mu_tot_mie=None):
     """
     Samples step sizes from exponential distribution.
     
@@ -1962,7 +1997,7 @@ def sample_step(nevents, ntraj, mu_abs, mu_scat):
     step : ndarray
         Sampled step sizes for all trajectories and scattering events.
     
-    """
+    """    
     # Calculate total extinction coefficient
     mu_total = mu_scat + mu_abs 
 
@@ -1970,5 +2005,10 @@ def sample_step(nevents, ntraj, mu_abs, mu_scat):
     rand = np.random.random((nevents,ntraj))
 
     step = -np.log(1.0-rand) / mu_total
-
+    
+    rand_ntraj = np.random.random(ntraj)
+    
+    if mu_tot_mie is not None:
+        step[0,:] = -np.log(1.0-rand_ntraj) / mu_tot_mie
+    
     return step
