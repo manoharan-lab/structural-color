@@ -191,8 +191,8 @@ def test_reflection_core_shell():
     
     assert_equal(R_before, R)
     assert_equal(R_cs_before, R_cs)
-    assert_equal(T_before, T)
-    assert_equal(T_cs_before, T_cs)
+    assert_almost_equal(T_before, T, decimal=15)
+    assert_almost_equal(T_cs_before, T_cs, decimal=15)
     
     # Test that the reflectance is the same for a core-shell that absorbs (with
     # the same refractive indices for all layers) and a non-core-shell that 
@@ -221,8 +221,8 @@ def test_reflection_core_shell():
     T_abs_before = 0.0053095057615145302 #0.017215194324142709
     T_cs_abs_before = 0.0053095057614589471 #0.017215194324029608
 
-    assert_equal(R_abs_before, R_abs)
-    assert_equal(R_cs_abs_before, R_cs_abs)
+    assert_almost_equal(R_abs_before, R_abs, decimal=15)
+    assert_almost_equal(R_cs_abs_before, R_cs_abs, decimal=15)
     assert_equal(T_abs_before, T_abs)
     assert_equal(T_cs_abs_before, T_cs_abs)
     
@@ -286,8 +286,8 @@ def test_reflection_absorbing_particle_or_matrix():
     
     assert_equal(R_before, R)
     assert_equal(R_abs_before, R_abs)
-    assert_equal(T_before, T)
-    assert_equal(T_abs_before, T_abs)
+    assert_almost_equal(T_before, T, decimal=15)
+    assert_almost_equal(T_abs_before, T_abs, decimal=15)
 
     # Same as previous test but with absorbing matrix
     # Reflection using matrix with an imaginary component of 0
@@ -308,8 +308,8 @@ def test_reflection_absorbing_particle_or_matrix():
 
     assert_equal(R_before, R)
     assert_equal(R_abs_before, R_abs)
-    assert_equal(T_before, T)
-    assert_equal(T_abs_before, T_abs)
+    assert_almost_equal(T_before, T, decimal=15)
+    assert_almost_equal(T_abs_before, T_abs, decimal=15)
     
     
 def test_reflection_polydispersity():
@@ -345,8 +345,8 @@ def test_reflection_polydispersity():
 
     assert_equal(R_mono_before, R_mono)
     assert_equal(R_poly_before, R_poly)
-    assert_equal(T_mono_before, T_mono)
-    assert_equal(T_poly_before, T_poly)
+    assert_almost_equal(T_mono_before, T_mono, decimal=15)
+    assert_almost_equal(T_poly_before, T_poly, decimal=15)
     
     # With absorption: test that the reflectance using with very small 
     # polydispersity is the same as the monodisperse case  
@@ -376,8 +376,8 @@ def test_reflection_polydispersity():
     
     assert_equal(R_mono_abs_before, R_mono_abs)
     assert_equal(R_poly_abs_before, R_poly_abs)
-    assert_equal(T_mono_abs_before, T_mono_abs)
-    assert_equal(T_poly_abs_before, T_poly_abs)
+    assert_almost_equal(T_mono_abs_before, T_mono_abs, decimal=15)
+    assert_almost_equal(T_poly_abs_before, T_poly_abs, decimal=15)
     
     # test that the reflectance is the same for a polydisperse monospecies
     # and a bispecies with equal types of particles
