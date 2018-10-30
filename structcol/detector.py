@@ -441,7 +441,8 @@ def exit_kz(x, y, z, indices, radius, n_inside, n_outside):
     
     '''
     # find unit vectors k1, normal vector at exit, and angle between normal and k1
-    k1, norm, theta_1 = get_angles_sphere(x, y, z, radius, indices)
+    angle_params = x, y, z, radius
+    k1, norm, theta_1 = get_angles(indices, angle_params, 'sphere')
 
     # take cross product of k1 and sphere normal vector to find vector to rotate
     # around    
@@ -512,29 +513,7 @@ def rotate_refract(abc, uvw, theta, xyz):
     k2z = (c*(u**2 + v**2)-w*(a*u+b*v-u*x-v*y-w*z))*(1-np.cos(theta)) + z*np.cos(theta) + (-b*u + a*v - v*x + u*y)*np.sin(theta) 
     return k2z
 
-def get_angles(kz, indices):
-    '''
-    Returns specified angles (relative to global z) from kz components
-    
-    Parameters
-    ----------
-    kz: 2D array
-        kz values, with axes corresponding to events, trajectories
-    indices: 1D array
-        Length ntraj. Values represent events of interest in each trajectory
-    
-    Returns
-    -------
-    1D array of pint quantities (length Ntraj)
-    
-    '''
-    # select scattering events resulted in exit
-    cosz = select_events(kz, indices)
-    
-    # calculate angle to normal from cos_z component (only want magnitude)
-    return sc.Quantity(np.arccos(np.abs(cosz)),'')
-
-def get_angles_sphere(x, y, z, radius, indices, kx = None, ky = None, kz = None,
+def get_angles(indices, angle_params, boundary, kx = None, ky = None, kz = None,
                       plot_exits = False):
     '''
     Returns angles relative to vector normal to sphere at point on 
@@ -578,137 +557,105 @@ def get_angles_sphere(x, y, z, radius, indices, kx = None, ky = None, kz = None,
         angle between k1 and the normal vector at the exit point of the
         trajectory
     '''
-    # Subtract radius from z to center the sphere at 0,0,0. This makes the 
-    # following calculations much easier
-    z = z - radius
-
-    # if incident light
-    if kx is not None:
-        # selects initialized trajectory positions
-        select_kx1 = select_events(kx, indices)
-        select_ky1 = select_events(ky, indices)
-        select_kz1 = select_events(kz, indices)
+    if boundary == 'sphere':
+        x, y, z, radius = angle_params
+    
+        # Subtract radius from z to center the sphere at 0,0,0. This makes the 
+        # following calculations much easier
+        z = z - radius
+    
+        # if incident light
+        if kx is not None:
+            # selects initialized trajectory positions
+            select_kx1 = select_events(kx, indices)
+            select_ky1 = select_events(ky, indices)
+            select_kz1 = select_events(kz, indices)
+            
+            # combine into one vector
+            k1 = np.array([select_kx1, select_ky1, select_kz1])
+            
+            # initial positions are on the sphere boundary
+            # multiply by minus sign to flip normal vector so the dot product has
+            # the right sign
+            x_inter = -select_events(x, indices)
+            y_inter = -select_events(y, indices)
+            z_inter = -select_events(z, indices)
+        else:
         
-        # combine into one vector
-        k1 = np.array([select_kx1, select_ky1, select_kz1])
+            # get positions outside of sphere boundary from after exit (or entrance if 
+            # this is for first event)
+            # indexing of 1: makes it so we pick point after exit event, since 
+            # it skips the initial point
+            select_x1 = select_events(x[1:,:], indices)
+            select_y1 = select_events(y[1:,:], indices)
+            select_z1 = select_events(z[1:,:], indices)
+            
+            # get positions inside sphere boundary from before exit
+            # indexing of :len(x)-1 makes it so we pick point before exit event, 
+            # since it starts with initial point before first event
+            select_x0 = select_events(x[:len(x)-1,:],indices)
+            select_y0 = select_events(y[:len(y)-1,:],indices)
+            select_z0 = select_events(z[:len(z)-1,:],indices)
+            
+            # calculate the normalized k1 vector from the positions inside and outside
+            k1 = normalize(select_x1-select_x0, select_y1-select_y0, select_z1-select_z0)
+            
+            # get positions at sphere boundary from exit
+            x_inter, y_inter, z_inter = find_vec_sphere_intersect(select_x0,
+                                                                  select_y0,
+                                                                  select_z0,
+                                                                  select_x1,
+                                                                  select_y1,
+                                                                  select_z1,
+                                                                  radius)
         
-        # initial positions are on the sphere boundary
-        # multiply by minus sign to flip normal vector so the dot product has
-        # the right sign
-        x_inter = -select_events(x, indices)
-        y_inter = -select_events(y, indices)
-        z_inter = -select_events(z, indices)
-    else:
-    
-        # get positions outside of sphere boundary from after exit (or entrance if 
-        # this is for first event)
-        # indexing of 1: makes it so we pick point after exit event, since 
-        # it skips the initial point
-        select_x1 = select_events(x[1:,:], indices)
-        select_y1 = select_events(y[1:,:], indices)
-        select_z1 = select_events(z[1:,:], indices)
+        # calculate the vector normal to the sphere boundary at the exit
+        norm = normalize(x_inter, y_inter, z_inter)
         
-        # get positions inside sphere boundary from before exit
-        # indexing of :len(x)-1 makes it so we pick point before exit event, 
-        # since it starts with initial point before first event
-        select_x0 = select_events(x[:len(x)-1,:],indices)
-        select_y0 = select_events(y[:len(y)-1,:],indices)
-        select_z0 = select_events(z[:len(z)-1,:],indices)
+        # calculate the dot product between the normal vector and the exit vector
+        dot_norm = norm[0,:]*k1[0,:] + norm[1,:]*k1[1,:] + norm[2,:]*k1[2,:]
+    
+        # calulate the angle between the normal vector and the exit vector
+        angles = np.arccos(np.nan_to_num(dot_norm))
+        angles = sc.Quantity(angles, '')
         
-        # calculate the normalized k1 vector from the positions inside and outside
-        k1 = normalize(select_x1-select_x0, select_y1-select_y0, select_z1-select_z0)
+        # package the angle results
+        angle_results = k1, norm, angles
         
-        # get positions at sphere boundary from exit
-        x_inter, y_inter, z_inter = find_vec_sphere_intersect(select_x0,
-                                                              select_y0,
-                                                              select_z0,
-                                                              select_x1,
-                                                              select_y1,
-                                                              select_z1,
-                                                              radius)
-    
-    # calculate the vector normal to the sphere boundary at the exit
-    norm = normalize(x_inter, y_inter, z_inter)
-    
-    # calculate the dot product between the normal vector and the exit vector
-    dot_norm = norm[0,:]*k1[0,:] + norm[1,:]*k1[1,:] + norm[2,:]*k1[2,:]
-
-    # calulate the angle between the normal vector and the exit vector
-    angles_norm = np.arccos(np.nan_to_num(dot_norm))
-    angles_norm = sc.Quantity(angles_norm, '')
-    
-    # plot the points before exit, after exit, and on exit boundary
-    if plot_exits == True:
-        fig = plt.figure()
-        ax = fig.add_subplot(111, projection='3d')
-        ax.scatter(select_x0,select_y0,select_z0, c = 'b')
-        ax.scatter(select_x1,select_y1,select_z1, c = 'g')
-        ax.scatter(x_inter,y_inter,z_inter, c='r')
-        ax.set_xlabel('x')
-        ax.set_ylabel('y')
-        ax.set_zlabel('z')    
+        # plot the points before exit, after exit, and on exit boundary
+        if plot_exits == True:
+            fig = plt.figure()
+            ax = fig.add_subplot(111, projection='3d')
+            ax.scatter(select_x0,select_y0,select_z0, c = 'b')
+            ax.scatter(select_x1,select_y1,select_z1, c = 'g')
+            ax.scatter(x_inter,y_inter,z_inter, c='r')
+            ax.set_xlabel('x')
+            ax.set_ylabel('y')
+            ax.set_zlabel('z')    
+            
+            u, v = np.mgrid[0:2*np.pi:20j, np.pi:0:10j]
+            x = radius*np.cos(u)*np.sin(v)
+            y = radius*np.sin(u)*np.sin(v)
+            z = radius*(-np.cos(v))
+            ax.plot_wireframe(x, y, z, color=[0.8,0.8,0.8])
+            
+    if boundary == 'film':
+        kz = angle_params
         
-        u, v = np.mgrid[0:2*np.pi:20j, np.pi:0:10j]
-        x = radius*np.cos(u)*np.sin(v)
-        y = radius*np.sin(u)*np.sin(v)
-        z = radius*(-np.cos(v))
-        ax.plot_wireframe(x, y, z, color=[0.8,0.8,0.8])    
+        # select scattering events resulted in exit
+        cosz = select_events(kz, indices)
+        
+        # calculate angle to normal from cos_z component (only want magnitude)
+        angles = sc.Quantity(np.arccos(np.abs(cosz)),'')
+        
+        # only one quantity returned for film case
+        angle_results = angles
+        
+    return angle_results
     
-    return k1, norm, angles_norm
-
-def fresnel_pass_frac(kz, indices, n_before, n_inside, n_after):
-    '''
-    Returns weights of interest reduced by fresnel reflection across two interfaces,
-    For example passing through a coverslip.
-
-    Parameters
-    ----------
-    kz: 2D array
-        kz values, with axes corresponding to events, trajectories
-    indices: 1D array
-        Length ntraj. Values represent events of interest in each trajectory
-    n_before: float
-        Refractive index of the medium light is coming from
-    n_inside: float
-        Refractive index of the boundary material (e.g. glass coverslip)
-    n_after: float
-        Refractive index of the medium light is going to
-    
-    Returns
-    -------
-    1D array of length Ntraj
-    
-    '''
-    # Allow single interface by passing in None as n_inside
-    if n_inside is None:
-        n_inside = n_before
-
-    # find angles before
-    theta_before = get_angles(kz, indices)
-    # find angles inside
-    theta_inside = refraction(theta_before, n_before, n_inside)
-    # if theta_inside is nan (because the trajectory doesn't exit due to TIR), 
-    # then replace it with pi/2 (the trajectory goes sideways infinitely) to 
-    # avoid errors during the calculation of stuck trajectories
-    theta_inside[np.isnan(theta_inside)] = np.pi/2.0
-
-    # find fraction passing through both interfaces
-    trans_s1, trans_p1 = model.fresnel_transmission(n_before, n_inside, theta_before) # before -> inside
-    trans_s2, trans_p2 = model.fresnel_transmission(n_inside, n_after, theta_inside)  # inside -> after
-    fresnel_trans = (trans_s1 + trans_p1)*(trans_s2 + trans_p2)/4.
-
-    # find fraction reflected off both interfaces before transmission
-    refl_s1, refl_p1 = model.fresnel_reflection(n_inside, n_after, theta_inside)  # inside -> after
-    refl_s2, refl_p2 = model.fresnel_reflection(n_inside, n_before, theta_inside) # inside -> before
-    fresnel_refl = (refl_s1 + refl_p1)*(refl_s2 + refl_p2)/4.
-
-    # Any number of higher order reflections off the two interfaces
-    # Use converging geometric series 1+a+a**2+a**3...=1/(1-a)
-    return fresnel_trans/(1-fresnel_refl+eps)
-    
-def fresnel_pass_frac_sphere(radius, indices, n_before, n_inside, n_after, 
-                             x, y, z, incident = False, kx = None, 
-                             ky = None, kz = None, plot_exits=False):
+def fresnel_pass_frac(indices, n_before, n_inside, n_after, angle_params, 
+                      boundary, incident = False, kx = None, ky = None, 
+                      kz = None, plot_exits=False):
     '''
     Returns weights of interest reduced by fresnel reflection across two 
     interfaces, For example passing through a coverslip.
@@ -757,18 +704,23 @@ def fresnel_pass_frac_sphere(radius, indices, n_before, n_inside, n_after,
     1D array of length Ntraj
     
     '''
+    
     #Allow single interface by passing in None as n_inside
     if n_inside is None:
         n_inside = n_before
 
-    #find angles before
-    if incident:
-        k1, norm, theta_before = get_angles_sphere(x, y, z, radius, indices, 
-                                                   kx, ky, kz, plot_exits = plot_exits)
+    if incident and boundary == 'sphere':
+        k1, norm, theta_before = get_angles(indices, angle_params, boundary,
+                                                       kx = kx, ky = ky, kz = kz,
+                                                       plot_exits = plot_exits)
     else:
-        k1, norm, theta_before = get_angles_sphere(x, y, z, radius, indices, 
-                                                   plot_exits = plot_exits)
-    
+        angle_results = get_angles(indices, angle_params, boundary, 
+                                                       plot_exits = plot_exits)
+    if boundary == 'sphere':
+        k1, norm, theta_before = angle_results
+    if boundary == 'film':
+        theta_before = angle_results
+        
     #find angles inside
     theta_inside = refraction(theta_before, n_before, n_inside)
     
@@ -786,10 +738,17 @@ def fresnel_pass_frac_sphere(radius, indices, n_before, n_inside, n_after,
     refl_s1, refl_p1 = model.fresnel_reflection(n_inside, n_after, theta_inside)  # inside -> after
     refl_s2, refl_p2 = model.fresnel_reflection(n_inside, n_before, theta_inside) # inside -> before
     fresnel_refl = (refl_s1 + refl_p1)*(refl_s2 + refl_p2)/4.
-
+    
     #Any number of higher order reflections off the two interfaces
     #Use converging geometric series 1+a+a**2+a**3...=1/(1-a)
-    return k1, norm, fresnel_trans/(1-fresnel_refl+eps)
+    fresnel_pass = fresnel_trans/(1-fresnel_refl+eps)
+    
+    if boundary == 'sphere':
+        fresnel_results = k1, norm, fresnel_pass
+    if boundary == 'film':
+        fresnel_results = fresnel_pass
+        
+    return fresnel_results
 
 def detect_correct(kz, weights, indices, n_before, n_after, thresh_angle):
     '''
@@ -817,7 +776,7 @@ def detect_correct(kz, weights, indices, n_before, n_after, thresh_angle):
     '''
 
     # find angles when crossing interface
-    theta = refraction(get_angles(kz, indices), n_before, n_after)
+    theta = refraction(get_angles(indices, kz, 'film'), n_before, n_after)
     theta[np.isnan(theta)] = np.inf # this avoids a warning
 
     # choose only the ones inside detection angle
@@ -987,10 +946,11 @@ def fresnel_correct_enter(n_sample, n_medium, kz, boundary,
         n_front, n_back = fresnel_params
         
         # init_dir is reverse-corrected for refraction. = kz before medium/sample interface
-        init_dir = np.cos(refraction(get_angles(kz, np.ones(ntraj)), n_sample, n_medium))
-    
-        # calculate the fraction that enters sample after fresnel
-        inc_pass_frac = fresnel_pass_frac(np.array([init_dir]), np.ones(ntraj), n_medium, n_front, n_sample)
+        init_dir = np.cos(refraction(get_angles(np.ones(ntraj), kz, 'film'), n_sample, n_medium))
+        
+        # set up parameters for fresnel
+        angle_params = kz
+        indices = np.ones(ntraj)
     
     if boundary == 'sphere':
         # unpack fresnel params argument
@@ -1000,14 +960,19 @@ def fresnel_correct_enter(n_sample, n_medium, kz, boundary,
         # for now, we assume initial direction is in +z
         init_dir = np.ones(ntraj)
 
+        # set up parameters for fresnel
+        angle_params = x, y, z, radius, kx, ky, kz
+        n_front = None
         
-        # calculate initial weights that actually enter the sample after fresnel
-        if fresnel_traj == False:
-            _, _, inc_pass_frac = fresnel_pass_frac_sphere(radius, np.ones(ntraj), n_medium,
-                                                None, n_sample, x, y, z, 
-                                                incident = True, kx = kx, ky = ky, kz = kz)    
-        else:
-            inc_pass_frac = np.ones(ntraj)
+    # calculate initial weights that actually enter the sample after fresnel
+    if fresnel_traj == False:
+            
+        inc_pass_frac_result = fresnel_pass_frac(indices, n_medium, n_front, n_sample, 
+                                      angle_params, boundary, incident = True)
+        if boundary == 'film':
+            k1, norm, inc_pass_frac = inc_pass_frac_result
+    else:
+        inc_pass_frac = np.ones(ntraj)
     
     return init_dir, inc_pass_frac
 
@@ -1531,44 +1496,80 @@ def initialize_sphere(nevents, ntraj, n_medium, n_sample, radius, seed=None,
     r0 = np.zeros((3, nevents+1, ntraj))
     if isinstance(radius, sc.Quantity):
         radius = radius.to('um').magnitude
-
-    # randomly choose r on interval [0,radius]
-    r = radius*np.sqrt(random(ntraj))
-    
-    # randomly choose th on interval [0,2*pi]
-    th = 2*np.pi*random(ntraj)
-    
-    # randomly choose x and y-positions within sphere radius
-    r0[0,0,:] = r*np.cos(th) 
-    r0[1,0,:] = r*np.sin(th)
         
-    # calculate z-positions from x- and y-positions
-    r0[2,0,:] = radius-np.sqrt(radius**2 - r0[0,0,:]**2 - r0[1,0,:]**2)
+    if boundary == 'film':
+            r0[0,0,:] = random((1,ntraj))
+            r0[1,0,:] = random((1,ntraj))
+
+    if boundary == 'sphere':
+        # randomly choose r on interval [0,radius]
+        r = radius*np.sqrt(random(ntraj))
+        
+        # randomly choose th on interval [0,2*pi]
+        th = 2*np.pi*random(ntraj)
+        
+        # randomly choose x and y-positions within sphere radius
+        r0[0,0,:] = r*np.cos(th) 
+        r0[1,0,:] = r*np.sin(th)
+        
+        # calculate z-positions from x- and y-positions
+        r0[2,0,:] = radius-np.sqrt(radius**2 - r0[0,0,:]**2 - r0[1,0,:]**2)
 
     # Create an empty array of the initial direction cosines of the right size
     k0 = np.zeros((3, nevents, ntraj))
     
-    # find the minus normal vectors of the sphere at the initial positions
-    neg_normal = np.zeros((3, ntraj)) # 3 components for each trajectory
-    r0_magnitude = np.sqrt(r0[0,0,:]**2 + r0[1,0,:]**2 + (r0[2,0,:]-radius)**2)
-    neg_normal[0,:] = -r0[0,0,:]/r0_magnitude
-    neg_normal[1,:] = -r0[1,0,:]/r0_magnitude
-    neg_normal[2,:] = -(r0[2,0,:]-radius)/r0_magnitude
+    if boundary == 'film':
+        # Random sampling of azimuthal angle phi from uniform distribution [0 -
+        # 2pi] for the first scattering event
+        rand_phi = random((1,ntraj))
+        phi = 2*np.pi*rand_phi
+        sinphi = np.sin(phi)
+        cosphi = np.cos(phi)
     
-    # solve for theta and phi for these samples
-    theta = np.arccos(neg_normal[2,:])
-    cosphi = neg_normal[0,:]/np.sin(theta)
-    sinphi = neg_normal[1,:]/np.sin(theta)
+        # Random sampling of scattering angle theta from uniform distribution [0 -
+        # pi] for the first scattering event
+        rand_theta = random((1,ntraj))
+        theta = rand_theta * incidence_angle
     
-    # refraction of incident light upon entering the sample
-    theta = refraction(theta, n_medium, np.abs(n_sample))
-    sintheta = np.sin(theta)
-    costheta = np.cos(theta)
+        # Refraction of incident light upon entering sample
+        # TODO: only real part of n_sample should be used                             
+        # for the calculation of angles of integration? Or abs(n_sample)? 
+        theta = refraction(theta, n_medium, np.abs(n_sample))
+        sintheta = np.sin(theta)
+        costheta = np.cos(theta)
+        
+        # Fill up the first row (corresponding to the first scattering event) of the
+        # direction cosines array with the randomly generated angles:
+        # kx = sintheta * cosphi
+        # ky = sintheta * sinphi
+        # kz = costheta
+        k0[0,0,:] = sintheta * cosphi
+        k0[1,0,:] = sintheta * sinphi
+        k0[2,0,:] = costheta
+        
+    if boundary == 'sphere':
     
-    # calculate new directions using refracted theta and initial phi
-    k0[0,0,:] = sintheta * cosphi
-    k0[1,0,:] = sintheta * sinphi
-    k0[2,0,:] = costheta
+        # find the minus normal vectors of the sphere at the initial positions
+        neg_normal = np.zeros((3, ntraj)) # 3 components for each trajectory
+        r0_magnitude = np.sqrt(r0[0,0,:]**2 + r0[1,0,:]**2 + (r0[2,0,:]-radius)**2)
+        neg_normal[0,:] = -r0[0,0,:]/r0_magnitude
+        neg_normal[1,:] = -r0[1,0,:]/r0_magnitude
+        neg_normal[2,:] = -(r0[2,0,:]-radius)/r0_magnitude
+        
+        # solve for theta and phi for these samples
+        theta = np.arccos(neg_normal[2,:])
+        cosphi = neg_normal[0,:]/np.sin(theta)
+        sinphi = neg_normal[1,:]/np.sin(theta)
+        
+        # refraction of incident light upon entering the sample
+        theta = refraction(theta, n_medium, np.abs(n_sample))
+        sintheta = np.sin(theta)
+        costheta = np.cos(theta)
+        
+        # calculate new directions using refracted theta and initial phi
+        k0[0,0,:] = sintheta * cosphi
+        k0[1,0,:] = sintheta * sinphi
+        k0[2,0,:] = costheta
 
     # Initial weight
     weight0 = np.ones((nevents, ntraj))
