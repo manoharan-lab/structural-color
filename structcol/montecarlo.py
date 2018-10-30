@@ -253,7 +253,6 @@ class Trajectory:
         pn = self.polarization.magnitude
         kn = self.direction.magnitude
 
-
         pn[0,1:,:] = local_pol_x
         pn[1,1:,:] = local_pol_y
         
@@ -262,7 +261,9 @@ class Trajectory:
         # operations to perform a rotation about the y-axis by angle theta
         # followed by a rotation about the z-axis by angle phi
         for n in np.arange(1,self.nevents):
+            
             # update directions
+            
             kn[0,n,:] = ((kn[0,n-1,:]*costheta[n-1,:] + kn[2,n-1,:]*sintheta[n-1,:])*
                   cosphi[n-1,:]) - kn[1,n-1,:]*sinphi[n-1,:]
 
@@ -272,16 +273,17 @@ class Trajectory:
             kn[2,n,:] = -kn[0,n-1,:]*sintheta[n-1,:] + kn[2,n-1,:]*costheta[n-1,:]
             
             # update polarizations
-            pn[0,n:,:] = ((pn[0,n:,:]*costheta[n-1,:] + pn[2,n:,:]*sintheta[n-1,:])*
+        
+            px = ((pn[0,n:,:]*costheta[n-1,:] + pn[2,n:,:]*sintheta[n-1,:])*
                     cosphi[n-1,:]) - pn[1,n:,:]*sinphi[n-1,:]
 
-            pn[1,n:,:] = ((pn[0,n:,:]*costheta[n-1,:] + pn[2,n:,:]*sintheta[n-1,:])*
+            py = ((pn[0,n:,:]*costheta[n-1,:] + pn[2,n:,:]*sintheta[n-1,:])*
                   sinphi[n-1,:]) + pn[1,n:,:]*cosphi[n-1,:]
 
-            pn[2,n:,:] = -pn[0,n:,:]*sintheta[n-1,:] + pn[2,n:,:]*costheta[n-1,:]
+            pz = -pn[0,n:,:]*sintheta[n-1,:] + pn[2,n:,:]*costheta[n-1,:]
             
-        
-
+            pn[:,n:,:] = px, py, pz
+           
         # Update all the directions of the trajectories
 
 
