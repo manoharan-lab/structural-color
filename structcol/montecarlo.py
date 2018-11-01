@@ -678,7 +678,7 @@ def fresnel_pass_frac(kz, indices, n_before, n_inside, n_after):
 
     # find angles before
     theta_before = get_angles(kz, indices)
-    print('theta_before', theta_before)
+
     # find angles inside
     theta_inside = refraction(theta_before, n_before, n_inside)
     # if theta_inside is nan (because the trajectory doesn't exit due to TIR), 
@@ -827,9 +827,9 @@ def refraction(angles, n_before, n_after):
     snell[abs(snell) > 1] = np.nan # this avoids a warning
     return np.arcsin(snell)
 
-def calc_refl_trans(trajectories, z_low, cutoff, n_medium, n_sample, kz0_rot,kz0_refl,
+def calc_refl_trans(trajectories, z_low, cutoff, n_medium, n_sample,
                     n_front=None, n_back=None, detection_angle=np.pi/2, 
-                    return_extra=False):
+                    return_extra=False, kz0_rot=None ,kz0_refl=None):
     """
     Counts the fraction of reflected and transmitted trajectories after a cutoff.
     Identifies which trajectories are reflected or transmitted, and at which
@@ -943,13 +943,16 @@ def calc_refl_trans(trajectories, z_low, cutoff, n_medium, n_sample, kz0_rot,kz0
     stuck_indices = never_exit * (z.shape[0]-1)
 
     # calculate initial weights that actually enter the sample after fresnel
-    kz0_rot = np.squeeze(kz0_rot)
-    
-    init_dir = kz0_rot #np.cos(refraction(get_angles(kz, np.ones(ntraj)), n_sample, n_medium))
-    print('init_dir', init_dir)
+    if kz0_rot is None:
+        init_dir = np.cos(refraction(get_angles(kz, np.ones(ntraj)), n_sample, n_medium))
+    else: 
+        kz0_rot = np.squeeze(kz0_rot)
+        init_dir = kz0_rot  
+    #print('init_dir', init_dir)
+        
     # init_dir is reverse-corrected for refraction. = kz before medium/sample interface
     inc_fraction = fresnel_pass_frac(np.array([init_dir]), np.ones(ntraj), n_medium, n_front, n_sample)
-    
+    print('inc_fraction:', inc_fraction)
     # calculate outcome weights from all trajectories
     refl_weights = inc_fraction * select_events(weights, refl_indices)  # should these be refl_indices-1 to not overestimate absorption?
     trans_weights = inc_fraction * select_events(weights, trans_indices)
@@ -981,9 +984,14 @@ def calc_refl_trans(trajectories, z_low, cutoff, n_medium, n_sample, kz0_rot,kz0
 
     # correct for effect of detection angle upon leaving sample
     inc_refl = (1 - inc_fraction) # fresnel reflection incident on sample
-    kz0_refl = np.squeeze(kz0_refl)
-    inc_refl = detect_correct(np.array([kz0_refl]), inc_refl, np.ones(ntraj), n_medium, n_medium, detection_angle)
-    #inc_refl = detect_correct(np.array([init_dir]), inc_refl, np.ones(ntraj), n_medium, n_medium, detection_angle)
+    if (kz0_rot is None) and (kz0_refl is None):
+        inc_refl = detect_correct(np.array([init_dir]), inc_refl, np.ones(ntraj), n_medium, n_medium, detection_angle)
+    elif (kz0_rot is None and kz0_refl is not None) or (kz0_rot is not None and kz0_refl is  None):
+        raise ValueError('when including surface roughness, must specify both kz0_rot and kz0_refl')
+    elif (kz0_rot is not None) and (kz0_refl is not None): 
+        kz0_refl = np.squeeze(kz0_refl)
+        inc_refl = detect_correct(np.array([kz0_refl]), inc_refl, np.ones(ntraj), n_medium, n_medium, detection_angle)
+    
     trans_detected = detect_correct(kz, transmitted, trans_indices, n_sample, n_medium, detection_angle)
     refl_detected = detect_correct(kz, reflected, refl_indices, n_sample, n_medium, detection_angle)
     trans_det_frac = np.max([np.sum(trans_detected),eps]) / np.max([np.sum(transmitted), eps])
@@ -1392,7 +1400,7 @@ def initialize(nevents, ntraj, n_medium, n_sample, seed=None, incidence_angle=0.
     theta = rand_theta * incidence_angle 
     sintheta = np.sin(theta)
     costheta = np.cos(theta)    
-    
+    #print('theta', theta)
     # Initial directions assuming a flat surface
     kx0 = sintheta * cosphi
     ky0 = sintheta * sinphi
@@ -1406,29 +1414,31 @@ def initialize(nevents, ntraj, n_medium, n_sample, seed=None, incidence_angle=0.
     kx0_rot = costheta_a * kx0 - sintheta_a * kz0
     ky0_rot = ky0
     kz0_rot = sintheta_a * kx0 + costheta_a * kz0
+    print('kx0_rot', kx0_rot)
+    print('ky0_rot', ky0_rot)
     print('kz0_rot', kz0_rot)
     # Find the new angles theta and phi between the incident trajectories and 
     # the normal to the new surface after the coordinate axis rotation
     theta_rot = np.arccos(kz0_rot / np.sqrt(kx0_rot**2 + ky0_rot**2 + kz0_rot**2))
     phi_rot = np.arccos(kx0_rot / np.sqrt(kx0_rot**2 + ky0_rot**2 + kz0_rot**2))
-    print('theta_rot', theta_rot)
-    print('phi_rot', phi_rot)
+    #print('theta_rot', theta_rot)
+    #print('phi_rot', phi_rot)
     # Refraction of incident light upon entering sample
     # TODO: only real part of n_sample should be used                             
     # for the calculation of angles of integration? Or abs(n_sample)? 
     theta_refr = refraction(theta_rot, n_medium, np.abs(n_sample))
-    
+    #print('theta_refr', theta_refr)
     kx0_rot_refr = np.sin(theta_refr) * np.cos(phi_rot)
     ky0_rot_refr = np.sin(theta_refr) * np.sin(phi_rot)
     kz0_rot_refr = np.cos(theta_refr) 
-    print('kz0_rot_refr', kz0_rot_refr)
+    #print('kz0_rot_refr', kz0_rot_refr)
     
     # Rotate the axes back so that the initial refracted directions are in 
     # old (global) coordinates by doing an axis rotation around y by 2pi-theta_a    
     kx0_refr = np.cos(2*np.pi-theta_a) * kx0_rot_refr - np.sin(2*np.pi-theta_a) * kz0_rot_refr
     ky0_refr = ky0_rot_refr
     kz0_refr = np.sin(2*np.pi-theta_a) * kx0_rot_refr + np.cos(2*np.pi-theta_a) * kz0_rot_refr    
-    print('kz0_refr', kz0_refr)
+    #print('kz0_refr', kz0_refr)
     # Fill up the first row (corresponding to the first scattering event) of the
     # direction cosines array with the randomly generated angles:
     k0[0,0,:] = kx0_refr
@@ -1437,10 +1447,15 @@ def initialize(nevents, ntraj, n_medium, n_sample, seed=None, incidence_angle=0.
 
     # Calculate Fresnel reflected directions, which are the same as the initial
     # directions in the local coordinate sytem but with a rotation of pi in phi_rot
-    phi_rot_refl = phi_rot + np.pi
-    kx0_rot_refl = np.sin(theta_rot) * np.cos(phi_rot_refl)
-    ky0_rot_refl = np.sin(theta_rot) * np.sin(phi_rot_refl)
-    kz0_rot_refl = np.cos(theta_rot) 
+    kx0_rot_refl = -kx0_rot
+    ky0_rot_refl = -ky0_rot
+    kz0_rot_refl = kz0_rot
+#    phi_rot_refl = phi_rot + np.pi
+#    kx0_rot_refl = np.sin(theta_rot) * np.cos(phi_rot_refl)
+#    ky0_rot_refl = np.sin(theta_rot) * np.sin(phi_rot_refl)
+#    kz0_rot_refl = np.cos(theta_rot) 
+    print('kx0_rot_refl', kx0_rot_refl)
+    print('ky0_rot_refl', ky0_rot_refl)
     print('kz0_rot_refl', kz0_rot_refl)
 
     # Rotate the axes back so that the reflected directions are in 
@@ -1448,13 +1463,17 @@ def initialize(nevents, ntraj, n_medium, n_sample, seed=None, incidence_angle=0.
     kx0_refl = np.cos(2*np.pi-theta_a) * kx0_rot_refl - np.sin(2*np.pi-theta_a) * kz0_rot_refl
     ky0_refl = ky0_rot_refl
     kz0_refl = np.sin(2*np.pi-theta_a) * kx0_rot_refl + np.cos(2*np.pi-theta_a) * kz0_rot_refl    
+    print('kx0_refl', kx0_refl)
+    print('ky0_refl', ky0_refl)    
     print('kz0_refl', kz0_refl)
   
     # Initial weight
     weight0 = np.ones((nevents, ntraj))
 
-    return r0, k0, weight0, kz0_rot, kz0_refl
-
+    if np.array(theta_a).all() == 0.:
+        return r0, k0, weight0
+    else: 
+        return r0, k0, weight0, kz0_rot, kz0_refl
 
 def initialize_sphere(nevents, ntraj, n_medium, n_sample, radius, seed=None, 
                       incidence_angle=0., plot_initial=False):
