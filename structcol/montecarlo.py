@@ -2052,3 +2052,104 @@ def sample_step(nevents, ntraj, mu_abs, mu_scat, mu_tot_mie=None):
         step[0,:] = -np.log(1.0-rand_ntraj) / mu_tot_mie
     
     return step
+    
+
+def specular(theta_i, theta_r, phi_r, E0, r):
+    def Lambda(r, theta_i):
+        term1 = r / (np.sqrt(2*np.pi) / np.tan(np.abs(theta_i))) * np.exp(-(1/np.tan(theta_i))**2/(2*r**2))
+        term2 = -1/2 * special.erfc(1/np.tan(np.abs(theta_i))/np.sqrt(2)/r)
+        return term1 + term2
+    
+    def P_illvis(r, theta_i, theta_r, phi_r):
+        theta_max = max(theta_i, theta_r)
+        theta_min = min(theta_i, theta_r)
+        alpha = 4.41*phi_r / (4.41*phi_r + 1)
+        P = 1 / (1 + Lambda(r, theta_max) + alpha * Lambda(r, theta_min))
+        return P
+
+    def theta_aspec(theta_i, theta_r, phi_r):
+        term1 = np.cos(theta_i) + np.cos(theta_r)
+        term2a = (np.cos(phi_r) * np.sin(theta_r) + np.sin(theta_i))**2
+        term2b = (np.sin(phi_r))**2 * (np.sin(theta_r))**2
+        term2c = (np.cos(theta_i) + np.cos(theta_r))**2
+        term2 = (term2a + term2b + term2c)**(-1/2)
+        return np.arccos(term1 * term2)
+    
+    def Cs(E0, r):
+        U = scipy.special.hyperu(-1/2, 0, 1/(2*r**2))
+        return E0 / (4 * np.sqrt(np.pi) * U)
+    
+    P = P_illvis(r, theta_i, theta_r, phi_r)
+
+    term1 = Cs(E0,r) * P / np.cos(theta_r) / (np.cos(theta_aspec(theta_i, theta_r, phi_r)))**4
+    term2 = np.exp(-(np.tan(theta_aspec(theta_i, theta_r, phi_r)))**2 / (2*r**2))
+    
+    return term1 * term2
+        
+        
+def diffuse(theta_i, theta_r, phi_r, E0, r, rho):
+    def Lrd_integral(theta_i, theta_r, theta_a, phi_r, E0, rho):
+        if theta_a <= (np.pi/2 - theta_r) and theta_a <= (np.pi/2 - theta_i):
+            a = -np.pi
+            b = np.pi
+        
+        if theta_a <= (np.pi/2 - theta_r) and theta_a > (np.pi/2 - theta_i):
+            theta_a2 = max(np.arctan(1/np.tan(theta_r)), np.arctan(-1/np.tan(theta_r)))
+            a = phi_r - np.pi + np.arccos(np.around(1/np.tan(theta_r)/np.tan(theta_a2), decimals=6))
+            b = phi_r + np.pi - np.arccos(np.around(1/np.tan(theta_r)/np.tan(theta_a2), decimals=6))
+        
+        if theta_a > (np.pi/2 - theta_r) and theta_a <= (np.pi/2 - theta_i):
+            theta_a2 = max(np.arctan(1/np.tan(theta_i)), np.arctan(-1/np.tan(theta_i)))
+            a = -np.pi + np.arccos(1/np.tan(theta_i)/np.tan(theta_a2))
+            b = np.pi - np.arccos(1/np.tan(theta_i)/np.tan(theta_a2))
+    
+        if theta_a > (np.pi/2 - theta_r) and theta_a > (np.pi/2 - theta_i):
+            theta_a2 = max(np.arctan(1/np.tan(theta_r)), np.arctan(1/np.tan(theta_i)), 
+                      np.arctan(-1/np.tan(theta_r)), np.arctan(-1/np.tan(theta_i)))
+            a = max(phi_r - np.pi + np.arccos(np.around(1/np.tan(theta_r)/np.tan(theta_a2), decimals=6)), 
+                -np.pi + np.arccos(1/np.tan(theta_i)/np.tan(theta_a2)))
+            b = min(phi_r + np.pi - np.arccos(np.around(1/np.tan(theta_r)/np.tan(theta_a2), decimals=6)),
+                np.pi - np.arccos(1/np.tan(theta_i)/np.tan(theta_a2)))
+    
+        c1 = np.sin(theta_i) * (np.sin(theta_a))**2 * np.cos(phi_r) * np.sin(theta_r)
+        c2 = np.sin(theta_i) * (np.sin(theta_a))**2 * np.sin(phi_r) * np.sin(theta_r)
+        c3 = np.sin(theta_a) * np.cos(theta_a) * (np.sin(theta_i) * np.cos(theta_r) + 
+                                              np.cos(theta_i) * np.cos(phi_r) * np.sin(theta_r))
+        c4 = np.cos(theta_i) * np.cos(theta_a) * np.sin(phi_r) * np.sin(theta_r) * np.sin(theta_a)
+        c5 = np.cos(theta_i) * np.cos(theta_r) * (np.cos(theta_a))**2
+        
+        cd = rho * E0 / (2*np.pi**2 * np.cos(theta_r) * np.cos(theta_a))
+
+        term1 = (c1/2 + c5) * (b - a)
+        term2 = c1/4 * (np.sin(2*b) - np.sin(2*a))
+        term3 = c2/4 * (np.cos(2*a) - np.cos(2*b))
+        term4 = c3 * (np.sin(b) - np.sin(a))
+        term5 = c4 * (np.cos(a) - np.cos(b))
+    
+        return cd * (term1 + term2 + term3 + term4 + term5)
+
+    def P_integrand(theta_a, r):
+        term1 = np.sin(theta_a) / r**2 / (np.cos(theta_a))**3
+        term2 = np.exp(-(np.tan(theta_a))**2 / (2*r**2))
+    
+        return term1 * term2
+
+
+    P = P_illvis(r, theta_i, theta_r, phi_r)
+
+    theta_a = np.linspace(0,np.pi/2, 200)
+    
+    lrd_integral = np.empty(len(theta_a))
+    for t in np.arange(len(theta_a)):
+        lrd_integral[t] = Lrd_integral(theta_i, theta_r, theta_a[t], phi_r, E0, rho)
+        
+    integrand = lrd_integral * P_integrand(theta_a, r)
+    integral = np.trapz(integrand, x=theta_a)
+
+    return P * integral
+    
+    
+def surface_roughness():
+    
+
+        
