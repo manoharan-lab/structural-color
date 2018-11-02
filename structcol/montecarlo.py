@@ -2470,8 +2470,8 @@ def polarize(theta, phi, n_particle, n_sample, radius, wavelen, volume_fraction)
     as_vec = calc_as_vec(theta, phi, m, x)
     
     # normalize as_vecs
-    pol_x = np.real(as_vec[0,:,:])# + np.imag(as_vec[0,:,:])#*s
-    pol_y = np.real(as_vec[1,:,:])# + np.imag(as_vec[1,:,:])#*s
+    pol_x = as_vec[0,:,:]#np.real(as_vec[0,:,:])# + np.imag(as_vec[0,:,:])#*s
+    pol_y = as_vec[1,:,:]#np.real(as_vec[1,:,:])# + np.imag(as_vec[1,:,:])#*s
     pol_z = 0
     pol_x, pol_y, pol_z = normalize(pol_x, pol_y, pol_z)
     #print('pol_x: ' + str(pol_x.shape))
