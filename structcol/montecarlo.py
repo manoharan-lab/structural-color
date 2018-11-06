@@ -40,6 +40,7 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 import itertools
 import warnings
+import scipy
 from scipy.optimize import fsolve
 
 eps = 1.e-9
@@ -945,14 +946,17 @@ def calc_refl_trans(trajectories, z_low, cutoff, n_medium, n_sample,
     # calculate initial weights that actually enter the sample after fresnel
     if kz0_rot is None:
         init_dir = np.cos(refraction(get_angles(kz, np.ones(ntraj)), n_sample, n_medium))
+        #init_dir = kz[0,:]
     else: 
         kz0_rot = np.squeeze(kz0_rot)
         init_dir = kz0_rot  
-    #print('init_dir', init_dir)
-        
+    print('init_dir', init_dir)
+    print('kz', kz)
     # init_dir is reverse-corrected for refraction. = kz before medium/sample interface
     inc_fraction = fresnel_pass_frac(np.array([init_dir]), np.ones(ntraj), n_medium, n_front, n_sample)
-    print('inc_fraction:', inc_fraction)
+    #inc_fraction = 1
+    #print('inc_fraction:', inc_fraction)
+    print('refl_indices', refl_indices)
     # calculate outcome weights from all trajectories
     refl_weights = inc_fraction * select_events(weights, refl_indices)  # should these be refl_indices-1 to not overestimate absorption?
     trans_weights = inc_fraction * select_events(weights, trans_indices)
@@ -1318,7 +1322,113 @@ def calc_refl_trans_sphere(trajectories, n_medium, n_sample, radius, p, mu_abs,
             return (reflectance_mean, transmittance_mean) 
 
 
-def initialize(nevents, ntraj, n_medium, n_sample, seed=None, incidence_angle=0., 
+def initialize(nevents, ntraj, n_medium, n_sample, p_mie, seed=None, incidence_angle=0., 
+               spot_size=sc.Quantity('1 um')):
+
+    """
+    Sets the trajectories' initial conditions (position, direction, and weight).
+    The initial positions are determined randomly in the x-y plane (the initial
+    z-position is at z = 0). The default initial propagation direction is set to
+    be kz = 1, meaning that the photon packets point straight down in z. The 
+    initial weight is currently determined to be a value of choice.
+    
+    Parameters
+    ----------
+    nevents : int
+        Number of scattering events
+    ntraj : int
+        Number of trajectories
+    n_medium : float (structcol.Quantity [dimensionless] or 
+        structcol.refractive_index object)
+        Refractive index of the medium.
+    n_sample : float (structcol.Quantity [dimensionless] or 
+        structcol.refractive_index object)
+        Refractive index of the sample.
+    seed : int or None
+        If seed is int, the simulation results will be reproducible. If seed is
+        None, the simulation results are actually random.
+    incidence_angle : float
+        Maximum value for theta when it incides onto the sample.
+        Should be between 0 and pi/2.
+    
+    Returns
+    -------
+    r0 : array_like (structcol.Quantity [length])
+        Initial position.
+    k0 : array_like (structcol.Quantity [dimensionless])
+        Initial direction of propagation.
+    weight0 : array_like (structcol.Quantity [dimensionless])
+        Initial weight. 
+        - Note that the photon weight represents the fraction of 
+        that particular photon that is propagated through the sample. It does 
+        not represent the photon's weight relative to other photons. the weight0
+        array is initialized to 1 because you start with the full weight of the 
+        initial photons. If you wanted to make the relative weights of photons
+        different, you would need to introduce a new variable (e.g relative 
+        intensity) that me, NOT change the intialization of the weights array.
+        - Also Note that the size of the weights array it nevents*ntraj, NOT
+        nevents+1, ntraj. This may at first seem counterintuitive because
+        physically, we can associate a weight to a photon at each position 
+        (which would call for a dimension nevents+1), not at each event. 
+        However, there is no need to keep track of the weight at the first 
+        event; The weight, by definition, must initially be 1 for each photon. 
+        Adding an additional row of ones to this array would be unecessary and
+        would contribute to less readable code in the calculation of absorptance,
+        reflectance, and transmittance. Therefore the weights array begins with 
+        the weight of the photons after their first event.
+    
+    """
+    if seed is not None:
+        np.random.seed([seed])
+    
+    # Initial position. The position array has one more row than the direction
+    # and weight arrays because it includes the starting positions on the x-y
+    # plane
+    spot_size_magnitude = spot_size.to('um').magnitude
+    r0 = np.zeros((3, nevents+1, ntraj))
+    r0[0,0,:] = random((1,ntraj))*spot_size_magnitude
+    r0[1,0,:] = random((1,ntraj))*spot_size_magnitude
+
+    # Create an empty array of the initial direction cosines of the right size
+    k0 = np.zeros((3, nevents, ntraj))
+
+    # Random sampling of azimuthal angle phi from uniform distribution [0 -
+    # 2pi] for the first scattering event
+    rand_phi = random((1,ntraj))
+    phi = 2*np.pi*rand_phi
+    sinphi = np.sin(phi)
+    cosphi = np.cos(phi)
+
+    # Random sampling of scattering angle theta from uniform distribution [0 -
+    # pi] for the first scattering event
+    rand_theta = random((1,ntraj))
+    theta = rand_theta * incidence_angle
+
+    # Refraction of incident light upon entering sample
+    # TODO: only real part of n_sample should be used                             
+    # for the calculation of angles of integration? Or abs(n_sample)? 
+    theta = refraction(theta, n_medium, np.abs(n_sample))
+    sintheta = np.sin(theta)
+    costheta = np.cos(theta)
+
+    #sintheta, costheta, sinphi, cosphi, _, _ = sample_angles(1, ntraj, p)
+    
+    # Fill up the first row (corresponding to the first scattering event) of the
+    # direction cosines array with the randomly generated angles:
+    # kx = sintheta * cosphi
+    # ky = sintheta * sinphi
+    # kz = costheta
+    k0[0,0,:] = sintheta * cosphi
+    k0[1,0,:] = sintheta * sinphi
+    k0[2,0,:] = costheta
+
+    # Initial weight
+    weight0 = np.ones((nevents, ntraj))
+
+    return r0, k0, weight0
+    
+
+def initialize_surface_roughness(nevents, ntraj, n_medium, n_sample, seed=None, incidence_angle=0., 
                spot_size=sc.Quantity('1 um'), theta_a=0.):
     """
     Sets the trajectories' initial conditions (position, direction, and weight).
@@ -2051,22 +2161,23 @@ def sample_step(nevents, ntraj, mu_abs, mu_scat, mu_tot_mie=None):
     if mu_tot_mie is not None:
         step[0,:] = -np.log(1.0-rand_ntraj) / mu_tot_mie
     
+    #step[0,:] = sc.Quantity(np.zeros(ntraj), 'um')
+    
     return step
-    
 
+def Lambda(r, theta_i):
+    term1 = r / (np.sqrt(2*np.pi) / np.tan(np.abs(theta_i))) * np.exp(-(1/np.tan(theta_i))**2/(2*r**2))
+    term2 = -1/2 * scipy.special.erfc(1/np.tan(np.abs(theta_i))/np.sqrt(2)/r)
+    return term1 + term2    
+    
+def P_illvis(r, theta_i, theta_r, phi_r):
+    theta_max = max(theta_i, theta_r)
+    theta_min = min(theta_i, theta_r)
+    alpha = 4.41*phi_r / (4.41*phi_r + 1)
+    P = 1 / (1 + Lambda(r, theta_max) + alpha * Lambda(r, theta_min))
+    return P
+    
 def specular(theta_i, theta_r, phi_r, E0, r):
-    def Lambda(r, theta_i):
-        term1 = r / (np.sqrt(2*np.pi) / np.tan(np.abs(theta_i))) * np.exp(-(1/np.tan(theta_i))**2/(2*r**2))
-        term2 = -1/2 * special.erfc(1/np.tan(np.abs(theta_i))/np.sqrt(2)/r)
-        return term1 + term2
-    
-    def P_illvis(r, theta_i, theta_r, phi_r):
-        theta_max = max(theta_i, theta_r)
-        theta_min = min(theta_i, theta_r)
-        alpha = 4.41*phi_r / (4.41*phi_r + 1)
-        P = 1 / (1 + Lambda(r, theta_max) + alpha * Lambda(r, theta_min))
-        return P
-
     def theta_aspec(theta_i, theta_r, phi_r):
         term1 = np.cos(theta_i) + np.cos(theta_r)
         term2a = (np.cos(phi_r) * np.sin(theta_r) + np.sin(theta_i))**2
@@ -2149,7 +2260,19 @@ def diffuse(theta_i, theta_r, phi_r, E0, r, rho):
     return P * integral
     
     
-def surface_roughness():
+def surface_roughness(theta_i, theta_r, phi_r, E0, r, rho, n, C):
+    def fresnel(n, theta_i):
+        theta_t = np.arcsin(np.sin(theta_i)/n)
     
+        term1 = (np.sin(theta_i - theta_t))**2 / (np.sin(theta_i + theta_t))**2 
+        term2 = (np.tan(theta_i - theta_t))**2 / (np.tan(theta_i + theta_t))**2 
+    
+        return 1/2 * (term1 + term2)
+    
+    F = fresnel(n, theta_i)
+    lrs = specular(theta_i, theta_r, phi_r, E0, r) * 450
+    lrd = diffuse(theta_i, theta_r, phi_r, E0, r, rho) * 10
+    
+    lr = C*(F * lrs + (1-F) * lrd)   
 
-        
+    return lr
