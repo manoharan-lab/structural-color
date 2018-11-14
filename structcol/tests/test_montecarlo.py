@@ -221,10 +221,10 @@ def test_reflection_core_shell():
     T_abs_before = 0.0053095057615145302 #0.017215194324142709
     T_cs_abs_before = 0.0053095057614589471 #0.017215194324029608
 
-    assert_equal(R_abs_before, R_abs)
-    assert_equal(R_cs_abs_before, R_cs_abs)
-    assert_equal(T_abs_before, T_abs)
-    assert_equal(T_cs_abs_before, T_cs_abs)
+    assert_almost_equal(R_abs_before, R_abs, decimal=15)
+    assert_almost_equal(R_cs_abs_before, R_cs_abs, decimal=15)
+    assert_almost_equal(T_abs_before, T_abs, decimal=15)
+    assert_almost_equal(T_cs_abs_before, T_cs_abs, decimal=15)
     
     # Same as previous test but with absorbing matrix as well
     # Reflection using a non-core-shell absorbing system
@@ -252,10 +252,10 @@ def test_reflection_core_shell():
     T_abs_before = 0.0002140495990985143 #0.002180700021951509
     T_cs_abs_before = 0.0002140495990985143 #0.002180700021951509
 
-    assert_equal(R_abs_before, R_abs)
-    assert_equal(R_cs_abs_before, R_cs_abs)
-    assert_equal(T_abs_before, T_abs)
-    assert_equal(T_cs_abs_before, T_cs_abs)
+    assert_almost_equal(R_abs_before, R_abs, decimal=15)
+    assert_almost_equal(R_cs_abs_before, R_cs_abs, decimal=15)
+    assert_almost_equal(T_abs_before, T_abs, decimal=15)
+    assert_almost_equal(T_cs_abs_before, T_cs_abs, decimal=15)
     
     
 def test_reflection_absorbing_particle_or_matrix():
@@ -374,10 +374,10 @@ def test_reflection_polydispersity():
     T_mono_abs_before = 0.080731949531112429 #0.083823525277616467
     T_poly_abs_before = 0.080574244683425236 #0.083720861809212316
     
-    assert_equal(R_mono_abs_before, R_mono_abs)
-    assert_equal(R_poly_abs_before, R_poly_abs)
-    assert_equal(T_mono_abs_before, T_mono_abs)
-    assert_equal(T_poly_abs_before, T_poly_abs)
+    assert_almost_equal(R_mono_abs_before, R_mono_abs, decimal=12)
+    assert_almost_equal(R_poly_abs_before, R_poly_abs, decimal=12)
+    assert_almost_equal(T_mono_abs_before, T_mono_abs, decimal=12)
+    assert_almost_equal(T_poly_abs_before, T_poly_abs, decimal=12)
     
     # test that the reflectance is the same for a polydisperse monospecies
     # and a bispecies with equal types of particles
