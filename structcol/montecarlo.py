@@ -946,17 +946,14 @@ def calc_refl_trans(trajectories, z_low, cutoff, n_medium, n_sample,
     # calculate initial weights that actually enter the sample after fresnel
     if kz0_rot is None:
         init_dir = np.cos(refraction(get_angles(kz, np.ones(ntraj)), n_sample, n_medium))
-        #init_dir = kz[0,:]
     else: 
         kz0_rot = np.squeeze(kz0_rot)
         init_dir = kz0_rot  
     print('init_dir', init_dir)
-    print('kz', kz)
+
     # init_dir is reverse-corrected for refraction. = kz before medium/sample interface
     inc_fraction = fresnel_pass_frac(np.array([init_dir]), np.ones(ntraj), n_medium, n_front, n_sample)
-    #inc_fraction = 1
-    #print('inc_fraction:', inc_fraction)
-    print('refl_indices', refl_indices)
+
     # calculate outcome weights from all trajectories
     refl_weights = inc_fraction * select_events(weights, refl_indices)  # should these be refl_indices-1 to not overestimate absorption?
     trans_weights = inc_fraction * select_events(weights, trans_indices)
@@ -1322,7 +1319,7 @@ def calc_refl_trans_sphere(trajectories, n_medium, n_sample, radius, p, mu_abs,
             return (reflectance_mean, transmittance_mean) 
 
 
-def initialize(nevents, ntraj, n_medium, n_sample, p_mie, seed=None, incidence_angle=0., 
+def initialize(nevents, ntraj, n_medium, n_sample, seed=None, incidence_angle=0., 
                spot_size=sc.Quantity('1 um')):
 
     """
@@ -1393,14 +1390,14 @@ def initialize(nevents, ntraj, n_medium, n_sample, p_mie, seed=None, incidence_a
     k0 = np.zeros((3, nevents, ntraj))
 
     # Random sampling of azimuthal angle phi from uniform distribution [0 -
-    # 2pi] for the first scattering event
+    # 2pi] to get the incident angle for the first scattering event
     rand_phi = random((1,ntraj))
     phi = 2*np.pi*rand_phi
     sinphi = np.sin(phi)
     cosphi = np.cos(phi)
 
     # Random sampling of scattering angle theta from uniform distribution [0 -
-    # pi] for the first scattering event
+    # pi] to get the incident angle for the first scattering event
     rand_theta = random((1,ntraj))
     theta = rand_theta * incidence_angle
 
@@ -1410,9 +1407,7 @@ def initialize(nevents, ntraj, n_medium, n_sample, p_mie, seed=None, incidence_a
     theta = refraction(theta, n_medium, np.abs(n_sample))
     sintheta = np.sin(theta)
     costheta = np.cos(theta)
-
-    #sintheta, costheta, sinphi, cosphi, _, _ = sample_angles(1, ntraj, p)
-    
+  
     # Fill up the first row (corresponding to the first scattering event) of the
     # direction cosines array with the randomly generated angles:
     # kx = sintheta * cosphi
@@ -1515,7 +1510,7 @@ def initialize_surface_roughness(nevents, ntraj, n_medium, n_sample, seed=None, 
     kx0 = sintheta * cosphi
     ky0 = sintheta * sinphi
     kz0 = costheta
-    print('kz0', kz0)
+
     # In case the surface is rough, then find new coordinates of initial 
     # directions after rotating the surface by an angle theta_a around y axis
     sintheta_a = np.sin(theta_a)
@@ -1524,9 +1519,7 @@ def initialize_surface_roughness(nevents, ntraj, n_medium, n_sample, seed=None, 
     kx0_rot = costheta_a * kx0 - sintheta_a * kz0
     ky0_rot = ky0
     kz0_rot = sintheta_a * kx0 + costheta_a * kz0
-    print('kx0_rot', kx0_rot)
-    print('ky0_rot', ky0_rot)
-    print('kz0_rot', kz0_rot)
+
     # Find the new angles theta and phi between the incident trajectories and 
     # the normal to the new surface after the coordinate axis rotation
     theta_rot = np.arccos(kz0_rot / np.sqrt(kx0_rot**2 + ky0_rot**2 + kz0_rot**2))
@@ -1564,18 +1557,12 @@ def initialize_surface_roughness(nevents, ntraj, n_medium, n_sample, seed=None, 
 #    kx0_rot_refl = np.sin(theta_rot) * np.cos(phi_rot_refl)
 #    ky0_rot_refl = np.sin(theta_rot) * np.sin(phi_rot_refl)
 #    kz0_rot_refl = np.cos(theta_rot) 
-    print('kx0_rot_refl', kx0_rot_refl)
-    print('ky0_rot_refl', ky0_rot_refl)
-    print('kz0_rot_refl', kz0_rot_refl)
 
     # Rotate the axes back so that the reflected directions are in 
     # old (global) coordinates by doing an axis rotation around y by 2pi-theta_a    
     kx0_refl = np.cos(2*np.pi-theta_a) * kx0_rot_refl - np.sin(2*np.pi-theta_a) * kz0_rot_refl
     ky0_refl = ky0_rot_refl
     kz0_refl = np.sin(2*np.pi-theta_a) * kx0_rot_refl + np.cos(2*np.pi-theta_a) * kz0_rot_refl    
-    print('kx0_refl', kx0_refl)
-    print('ky0_refl', ky0_refl)    
-    print('kz0_refl', kz0_refl)
   
     # Initial weight
     weight0 = np.ones((nevents, ntraj))
@@ -2161,10 +2148,11 @@ def sample_step(nevents, ntraj, mu_abs, mu_scat, mu_tot_mie=None):
     if mu_tot_mie is not None:
         step[0,:] = -np.log(1.0-rand_ntraj) / mu_tot_mie
     
-    #step[0,:] = sc.Quantity(np.zeros(ntraj), 'um')
-    
     return step
 
+
+#------------------------------------------------------------------------------
+# Ginneken's surface roughness
 def Lambda(r, theta_i):
     term1 = r / (np.sqrt(2*np.pi) / np.tan(np.abs(theta_i))) * np.exp(-(1/np.tan(theta_i))**2/(2*r**2))
     term2 = -1/2 * scipy.special.erfc(1/np.tan(np.abs(theta_i))/np.sqrt(2)/r)
