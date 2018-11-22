@@ -949,7 +949,6 @@ def calc_refl_trans(trajectories, z_low, cutoff, n_medium, n_sample,
     else: 
         kz0_rot = np.squeeze(kz0_rot)
         init_dir = kz0_rot  
-    print('init_dir', init_dir)
 
     # init_dir is reverse-corrected for refraction. = kz before medium/sample interface
     inc_fraction = fresnel_pass_frac(np.array([init_dir]), np.ones(ntraj), n_medium, n_front, n_sample)
@@ -1505,7 +1504,7 @@ def initialize_surface_roughness(nevents, ntraj, n_medium, n_sample, seed=None, 
     theta = rand_theta * incidence_angle 
     sintheta = np.sin(theta)
     costheta = np.cos(theta)    
-    #print('theta', theta)
+    
     # Initial directions assuming a flat surface
     kx0 = sintheta * cosphi
     ky0 = sintheta * sinphi
@@ -1524,24 +1523,22 @@ def initialize_surface_roughness(nevents, ntraj, n_medium, n_sample, seed=None, 
     # the normal to the new surface after the coordinate axis rotation
     theta_rot = np.arccos(kz0_rot / np.sqrt(kx0_rot**2 + ky0_rot**2 + kz0_rot**2))
     phi_rot = np.arccos(kx0_rot / np.sqrt(kx0_rot**2 + ky0_rot**2 + kz0_rot**2))
-    #print('theta_rot', theta_rot)
-    #print('phi_rot', phi_rot)
+
     # Refraction of incident light upon entering sample
     # TODO: only real part of n_sample should be used                             
     # for the calculation of angles of integration? Or abs(n_sample)? 
     theta_refr = refraction(theta_rot, n_medium, np.abs(n_sample))
-    #print('theta_refr', theta_refr)
+
     kx0_rot_refr = np.sin(theta_refr) * np.cos(phi_rot)
     ky0_rot_refr = np.sin(theta_refr) * np.sin(phi_rot)
     kz0_rot_refr = np.cos(theta_refr) 
-    #print('kz0_rot_refr', kz0_rot_refr)
     
     # Rotate the axes back so that the initial refracted directions are in 
     # old (global) coordinates by doing an axis rotation around y by 2pi-theta_a    
     kx0_refr = np.cos(2*np.pi-theta_a) * kx0_rot_refr - np.sin(2*np.pi-theta_a) * kz0_rot_refr
     ky0_refr = ky0_rot_refr
     kz0_refr = np.sin(2*np.pi-theta_a) * kx0_rot_refr + np.cos(2*np.pi-theta_a) * kz0_rot_refr    
-    #print('kz0_refr', kz0_refr)
+
     # Fill up the first row (corresponding to the first scattering event) of the
     # direction cosines array with the randomly generated angles:
     k0[0,0,:] = kx0_refr
