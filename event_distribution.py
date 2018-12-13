@@ -35,7 +35,7 @@ def calc_thetas_event_traj(theta, refl_indices, nevents, ntraj = 100):
     
     return theta_event_traj
 
-def calc_tir(no_tir, refl_indices, trans_indices, inc_refl_per_traj, weights, kz, ntraj, n_sample, n_medium):
+def calc_tir(tir_refl_bool, refl_indices, trans_indices, inc_refl_per_traj, weights, kz, ntraj, n_sample, n_medium):
     
     if isinstance(weights, sc.Quantity):
         weights = weights.magnitude
@@ -48,10 +48,10 @@ def calc_tir(no_tir, refl_indices, trans_indices, inc_refl_per_traj, weights, kz
         
 
    
-    tir = np.logical_not(no_tir)*1#~no_tir
+    #tir = np.logical_not(no_tir)*1#~no_tir
     
     # tir for all events
-    tir_indices = np.argmax(np.vstack([np.zeros(ntraj),tir]), axis=0)
+    tir_indices = np.argmax(np.vstack([np.zeros(ntraj),tir_refl_bool]), axis=0)
     
     refl_ind_inf = np.copy(refl_indices)
     refl_ind_inf[refl_ind_inf == 0] = ntraj*10
@@ -79,11 +79,11 @@ def calc_tir(no_tir, refl_indices, trans_indices, inc_refl_per_traj, weights, kz
     tir_ev_sing_ind = np.where(tir_indices_single == 2)
     tir_indices_single_refl = np.zeros(ntraj)
     tir_indices_single_refl[tir_ev_sing_ind] = refl_indices[tir_ev_sing_ind]
-    print(tir_indices_single_refl)
+    #print(tir_indices_single_refl)
     tir_single_refl = np.sum((1-inc_refl_per_traj) * select_events(weights, tir_indices_single_refl)*
                       fresnel_pass_frac(kz, tir_indices_single_refl, n_sample, None, n_medium))
      
-    return tir_all, tir_all_refl, tir_single, tir_single_refl
+    return tir_all, tir_all_refl, tir_single, tir_single_refl, tir_indices_single
     
     
     
@@ -221,7 +221,8 @@ def save_data(particle, matrix, particle_radius, volume_fraction, thickness, ref
               refl_events, wavelengths, nevents, ntrajectories, theta_event_traj = None, 
               refl_events_fresnel_samp = None, refl_events_fresnel_avg = None, 
               zpos = None, kz = None, theta_range = None, tir_single = None,
-              tir_single_refl = None, tir_all = None, tir_all_refl = None):
+              tir_single_refl = None, tir_all = None, tir_all_refl = None,
+              tir_indices_single = None):
 
     filename = particle +\
         '_in_' + matrix +\
@@ -245,6 +246,7 @@ def save_data(particle, matrix, particle_radius, volume_fraction, thickness, ref
              tir_all = tir_all,
              tir_all_refl = tir_all_refl,
              tir_single = tir_single,
-             tir_single_refl = tir_single_refl)
+             tir_single_refl = tir_single_refl,
+             tir_indices_single = tir_indices_single)
     
 

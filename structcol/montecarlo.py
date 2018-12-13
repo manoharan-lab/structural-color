@@ -990,7 +990,7 @@ def calc_refl_trans(trajectories, z_low, cutoff, n_medium, n_sample,
                inc_refl/ntraj, reflected/ntraj, transmitted/ntraj,\
                trans_frac, refl_frac,\
                refl_fresnel/ntraj, trans_fresnel/ntraj, np.sum(reflectance)/ntraj,\
-               no_tir
+               potential_exits&~no_tir.astype(bool)&~pos_dir
     else:
         return (np.sum(reflectance)/ntraj, np.sum(transmittance/ntraj))
 
