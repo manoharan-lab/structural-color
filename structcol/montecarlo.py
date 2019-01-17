@@ -481,7 +481,9 @@ def rotate_refract(abc, uvw, theta, xyz):
 
 def get_angles(kz, indices):
     '''
-    Returns specified angles (relative to global z) from kz components
+    Returns specified angles (relative to global + or -z, which ever is closest 
+    to the trajectory) from kz components. Always returns angles between 0 and
+    pi/2. 
     
     Parameters
     ----------
@@ -808,6 +810,7 @@ def detect_correct(kz, weights, indices, n_before, n_after, thresh_angle):
     # choose only the ones inside detection angle
     filter_weights = weights.copy()
     filter_weights[theta > thresh_angle] = 0
+
     return filter_weights
 
 def refraction(angles, n_before, n_after):
@@ -830,7 +833,8 @@ def refraction(angles, n_before, n_after):
 
 def calc_refl_trans(trajectories, z_low, cutoff, n_medium, n_sample,
                     n_front=None, n_back=None, detection_angle=np.pi/2, 
-                    return_extra=False, kz0_rot=None ,kz0_refl=None):
+                    return_extra=False, kz0_rot=None ,kz0_refl=None, 
+                    fine_roughness=0., n_matrix=None):
     """
     Counts the fraction of reflected and transmitted trajectories after a cutoff.
     Identifies which trajectories are reflected or transmitted, and at which
@@ -943,15 +947,36 @@ def calc_refl_trans(trajectories, z_low, cutoff, n_medium, n_sample,
     trans_indices = high_event * high_first
     stuck_indices = never_exit * (z.shape[0]-1)
 
-    # calculate initial weights that actually enter the sample after fresnel
+    # calculate initial weights (=inc_fraction) that actually enter the sample after fresnel
     if kz0_rot is None:
         init_dir = np.cos(refraction(get_angles(kz, np.ones(ntraj)), n_sample, n_medium))
     else: 
         kz0_rot = np.squeeze(kz0_rot)
         init_dir = kz0_rot  
-
+        
     # init_dir is reverse-corrected for refraction. = kz before medium/sample interface
-    inc_fraction = fresnel_pass_frac(np.array([init_dir]), np.ones(ntraj), n_medium, n_front, n_sample)
+    if fine_roughness > 1. or fine_roughness < 0.:
+        raise ValueError('fine roughness fraction must be between 0 and 1')
+    
+    if fine_roughness > 0. and n_matrix is None:
+        raise ValueError('when there is fine roughness (meaning the first step is from Mie theory), must specify n_matrix')
+
+    # when the first step is from Mie, we assume light travels through the matrix first before it sees the particle.
+    # But user can set n_matrix to be n_medium if they think that light will see the particle directly.     
+    ntraj_mie = int(round(ntraj * fine_roughness))
+    inc_fraction = np.empty(ntraj)
+    if fine_roughness > 0.:
+        inc_fraction[0:ntraj_mie] = fresnel_pass_frac(np.array([init_dir[0:ntraj_mie]]), np.ones(ntraj_mie), n_medium, n_front, n_matrix)
+    inc_fraction[ntraj_mie:] = fresnel_pass_frac(np.array([init_dir[ntraj_mie:]]), np.ones(ntraj-ntraj_mie), n_medium, n_front, n_sample)
+
+#    if fine_roughness == 0.:
+#        inc_fraction = fresnel_pass_frac(np.array([init_dir]), np.ones(ntraj), n_medium, n_front, n_sample)
+#    else:
+#        if n_matrix is None:
+#            raise ValueError('when the first step is from Mie, must specify n_matrix')
+#        ntraj_mie = ntraj * fine_roughness
+#        inc_fraction = fresnel_pass_frac(np.array([init_dir[0:ntraj_mie]]), np.ones(ntraj_mie), n_medium, n_front, n_matrix)
+
 
     # calculate outcome weights from all trajectories
     refl_weights = inc_fraction * select_events(weights, refl_indices)  # should these be refl_indices-1 to not overestimate absorption?
@@ -984,14 +1009,23 @@ def calc_refl_trans(trajectories, z_low, cutoff, n_medium, n_sample,
 
     # correct for effect of detection angle upon leaving sample
     inc_refl = (1 - inc_fraction) # fresnel reflection incident on sample
+
     if (kz0_rot is None) and (kz0_refl is None):
         inc_refl = detect_correct(np.array([init_dir]), inc_refl, np.ones(ntraj), n_medium, n_medium, detection_angle)
     elif (kz0_rot is None and kz0_refl is not None) or (kz0_rot is not None and kz0_refl is  None):
-        raise ValueError('when including surface roughness, must specify both kz0_rot and kz0_refl')
+        raise ValueError('when including coarse surface roughness, must specify both kz0_rot and kz0_refl')
     elif (kz0_rot is not None) and (kz0_refl is not None): 
         kz0_refl = np.squeeze(kz0_refl)
-        inc_refl = detect_correct(np.array([kz0_refl]), inc_refl, np.ones(ntraj), n_medium, n_medium, detection_angle)
-    
+        angles_from_kz0_refl = np.arccos(kz0_refl)
+        # can't use detect_correct() because it uses get_angles(), which always 
+        # returns an angle that is always on the same side as the detector (the 
+        # angles returned are between 0 and np.pi/2 and those are the angles that
+        # the detector can cover). Since in this case the fresnel reflected angles
+        # can be on the opposite side of the detector, I manually eliminate the 
+        # weights of the fresnel reflected trajectories that reflect downwards
+        # (towards the transmission direction) and can never be detected. 
+        inc_refl[angles_from_kz0_refl < np.pi-detection_angle] = 0
+        
     trans_detected = detect_correct(kz, transmitted, trans_indices, n_sample, n_medium, detection_angle)
     refl_detected = detect_correct(kz, reflected, refl_indices, n_sample, n_medium, detection_angle)
     trans_det_frac = np.max([np.sum(trans_detected),eps]) / np.max([np.sum(transmitted), eps])
@@ -1318,7 +1352,7 @@ def calc_refl_trans_sphere(trajectories, n_medium, n_sample, radius, p, mu_abs,
             return (reflectance_mean, transmittance_mean) 
 
 
-def initialize(nevents, ntraj, n_medium, n_sample, seed=None, incidence_angle=0., 
+def initialize_original(nevents, ntraj, n_medium, n_sample, seed=None, incidence_angle=0., 
                spot_size=sc.Quantity('1 um')):
 
     """
@@ -1569,6 +1603,182 @@ def initialize_surface_roughness(nevents, ntraj, n_medium, n_sample, seed=None, 
     else: 
         return r0, k0, weight0, kz0_rot, kz0_refl
 
+# Probability of surface roughness angles theta_a as a function of surface roughness parameter r
+def P_theta_a(theta_a, r):
+    term1 = np.sin(theta_a) / r**2 / (np.cos(theta_a))**3
+    term2 = np.exp(-(np.tan(theta_a))**2 / (2*r**2))
+
+    return term1 * term2
+    
+def initialize(nevents, ntraj, n_medium, n_sample, seed=None, incidence_angle=0., 
+                spot_size=sc.Quantity('1 um'), coarse_roughness=0.):
+    """
+    Sets the trajectories' initial conditions (position, direction, and weight).
+    The initial positions are determined randomly in the x-y plane (the initial
+    z-position is at z = 0). The default initial propagation direction is set to
+    be kz = 1, meaning that the photon packets point straight down in z. The 
+    initial weight is currently determined to be a value of choice.
+    
+    Parameters
+    ----------
+    nevents : int
+        Number of scattering events
+    ntraj : int
+        Number of trajectories
+    n_medium : float (structcol.Quantity [dimensionless] or 
+        structcol.refractive_index object)
+        Refractive index of the medium.
+    n_sample : float (structcol.Quantity [dimensionless] or 
+        structcol.refractive_index object)
+        Refractive index of the sample.
+    seed : int or None
+        If seed is int, the simulation results will be reproducible. If seed is
+        None, the simulation results are actually random.
+    incidence_angle : float
+        Maximum value for theta when it incides onto the sample.
+        Should be between 0 and pi/2.
+    
+    Returns
+    -------
+    r0 : array_like (structcol.Quantity [length])
+        Initial position.
+    k0 : array_like (structcol.Quantity [dimensionless])
+        Initial direction of propagation.
+    weight0 : array_like (structcol.Quantity [dimensionless])
+        Initial weight. 
+        - Note that the photon weight represents the fraction of 
+        that particular photon that is propagated through the sample. It does 
+        not represent the photon's weight relative to other photons. the weight0
+        array is initialized to 1 because you start with the full weight of the 
+        initial photons. If you wanted to make the relative weights of photons
+        different, you would need to introduce a new variable (e.g relative 
+        intensity) that me, NOT change the intialization of the weights array.
+        - Also Note that the size of the weights array it nevents*ntraj, NOT
+        nevents+1, ntraj. This may at first seem counterintuitive because
+        physically, we can associate a weight to a photon at each position 
+        (which would call for a dimension nevents+1), not at each event. 
+        However, there is no need to keep track of the weight at the first 
+        event; The weight, by definition, must initially be 1 for each photon. 
+        Adding an additional row of ones to this array would be unecessary and
+        would contribute to less readable code in the calculation of absorptance,
+        reflectance, and transmittance. Therefore the weights array begins with 
+        the weight of the photons after their first event.
+    
+    """
+    if seed is not None:
+        np.random.seed([seed])
+    
+    # sample the surface roughness angles theta_a
+    if coarse_roughness == 0.:
+        theta_a = np.zeros(ntraj)
+    else:
+        theta_a_full = np.linspace(0.,np.pi/2, 500)
+        prob_a = P_theta_a(theta_a_full,coarse_roughness)/sum(P_theta_a(theta_a_full,coarse_roughness))
+        
+        if np.isnan(prob_a).all(): #.all() == np.nan:
+            theta_a = np.zeros(ntraj)
+        else: 
+            theta_a = np.array([np.random.choice(theta_a_full, ntraj, p = prob_a) for i in range(1)]).flatten()
+      
+    # Initial position. The position array has one more row than the direction
+    # and weight arrays because it includes the starting positions on the x-y
+    # plane
+    spot_size_magnitude = spot_size.to('um').magnitude
+    r0 = np.zeros((3, nevents+1, ntraj))
+    r0[0,0,:] = random((1,ntraj))*spot_size_magnitude
+    r0[1,0,:] = random((1,ntraj))*spot_size_magnitude
+
+    # Create an empty array of the initial direction cosines of the right size
+    k0 = np.zeros((3, nevents, ntraj))
+
+    # Random sampling of azimuthal angle phi from uniform distribution [0 -
+    # 2pi] for the first scattering event
+    rand_phi = random((1,ntraj))
+    phi = 2*np.pi*rand_phi
+    sinphi = np.sin(phi)
+    cosphi = np.cos(phi)
+
+    # Random sampling of scattering angle theta from uniform distribution [0 -
+    # pi] for the first scattering event
+    rand_theta = random((1,ntraj))
+    theta = rand_theta * incidence_angle 
+    sintheta = np.sin(theta)
+    costheta = np.cos(theta)    
+    
+    # Initial directions assuming a flat surface
+    kx0 = sintheta * cosphi
+    ky0 = sintheta * sinphi
+    kz0 = costheta
+
+    # In case the surface is rough, then find new coordinates of initial 
+    # directions after rotating the surface by an angle theta_a around y axis
+    sintheta_a = np.sin(theta_a)
+    costheta_a = np.cos(theta_a)
+    
+    kx0_rot = costheta_a * kx0 - sintheta_a * kz0
+    ky0_rot = ky0
+    kz0_rot = sintheta_a * kx0 + costheta_a * kz0
+
+    # Find the new angles theta and phi between the incident trajectories and 
+    # the normal to the new surface after the coordinate axis rotation
+    theta_rot = np.arccos(kz0_rot / np.sqrt(kx0_rot**2 + ky0_rot**2 + kz0_rot**2))
+    phi_rot = np.arccos(kx0_rot / np.sqrt(kx0_rot**2 + ky0_rot**2 + kz0_rot**2))
+
+    # Refraction of incident light upon entering sample
+    # TODO: only real part of n_sample should be used                             
+    # for the calculation of angles of integration? Or abs(n_sample)? 
+    theta_refr = refraction(theta_rot, n_medium, np.abs(n_sample))
+
+    kx0_rot_refr = np.sin(theta_refr) * np.cos(phi_rot)
+    ky0_rot_refr = np.sin(theta_refr) * np.sin(phi_rot)
+    kz0_rot_refr = np.cos(theta_refr) 
+    
+    # Rotate the axes back so that the initial refracted directions are in 
+    # old (global) coordinates by doing an axis rotation around y by 2pi-theta_a    
+    kx0_refr = np.cos(2*np.pi-theta_a) * kx0_rot_refr - np.sin(2*np.pi-theta_a) * kz0_rot_refr
+    ky0_refr = ky0_rot_refr
+    kz0_refr = np.sin(2*np.pi-theta_a) * kx0_rot_refr + np.cos(2*np.pi-theta_a) * kz0_rot_refr    
+
+    # Fill up the first row (corresponding to the first scattering event) of the
+    # direction cosines array with the randomly generated angles:
+    k0[0,0,:] = kx0_refr
+    k0[1,0,:] = ky0_refr
+    k0[2,0,:] = kz0_refr
+
+    # Calculate Fresnel reflected directions, which are the same as the initial
+    # directions in the local coordinate sytem but with a rotation of pi in phi_rot
+#    kx0_rot_refl = -kx0_rot
+#    ky0_rot_refl = -ky0_rot
+#    kz0_rot_refl = kz0_rot
+
+    # Calculate Fresnel reflected directions, which are the same as the initial
+    # directions in the local coordinate sytem but flipping the z sign
+    kx0_rot_refl = kx0_rot
+    ky0_rot_refl = ky0_rot
+    kz0_rot_refl = -kz0_rot
+    
+#    phi_rot_refl = phi_rot + np.pi
+#    kx0_rot_refl = np.sin(theta_rot) * np.cos(phi_rot_refl)
+#    ky0_rot_refl = np.sin(theta_rot) * np.sin(phi_rot_refl)
+#    kz0_rot_refl = np.cos(theta_rot) 
+
+    # Rotate the axes back so that the reflected directions are in 
+    # old (global) coordinates by doing an axis rotation around y by 2pi-theta_a    
+    kx0_refl = np.cos(2*np.pi-theta_a) * kx0_rot_refl - np.sin(2*np.pi-theta_a) * kz0_rot_refl
+    ky0_refl = ky0_rot_refl
+    kz0_refl = np.sin(2*np.pi-theta_a) * kx0_rot_refl + np.cos(2*np.pi-theta_a) * kz0_rot_refl    
+  
+    # Initial weight
+    weight0 = np.ones((nevents, ntraj))
+
+    #if np.array(theta_a).all() == 0.: 
+    if coarse_roughness == 0.:
+        return r0, k0, weight0
+
+    else: 
+        return r0, k0, weight0, kz0_rot, kz0_refl
+        
+        
 def initialize_sphere(nevents, ntraj, n_medium, n_sample, radius, seed=None, 
                       incidence_angle=0., plot_initial=False):
     """
@@ -1720,7 +1930,7 @@ def initialize_sphere(nevents, ntraj, n_medium, n_sample, radius, seed=None,
 
 def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
               radius2=None, concentration=None, pdi=None, polydisperse=False,
-              mie_theory = False):
+              mie_theory=False, fine_roughness=0.):
     """
     Calculates the phase function and scattering coefficient from either the
     single scattering model or Mie theory. Calculates the absorption coefficient
@@ -1870,12 +2080,25 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
                                                    structure_type=structure_type,
                                                    mie_theory=mie_theory)            
     mu_scat = number_density * cscat_total
-
+    
     # Here, the resulting units of mu_scat and mu_abs are nm^2/um^3. Thus, we 
     # simplify the units to 1/um 
     mu_scat = mu_scat.to('1/um')
     mu_abs = mu_abs.to('1/um')
     
+    if fine_roughness > 0.:
+        _, _, _, cscat_total_mie = phase_function(m, x, angles, volume_fraction, 
+                                                  k, number_density, wavelen=wavelen, 
+                                                  diameters=mean_diameters, 
+                                                  concentration=concentration, 
+                                                  pdi=pdi, n_sample=n_sample,
+                                                  form_type=form_type,
+                                                  structure_type=structure_type,
+                                                  mie_theory=True)
+        mu_scat_mie = number_density * cscat_total_mie
+        mu_scat_mie = mu_scat_mie.to('1/um')        
+        mu_scat = sc.Quantity(np.array([mu_scat.magnitude, mu_scat_mie.magnitude]), '1/um')
+
     return p, mu_scat, mu_abs
     
 
@@ -2111,7 +2334,7 @@ def sample_angles(nevents, ntraj, p):
     return sintheta, costheta, sinphi, cosphi, theta, phi
 
 
-def sample_step(nevents, ntraj, mu_abs, mu_scat, mu_tot_mie=None):
+def sample_step(nevents, ntraj, mu_abs, mu_scat, fine_roughness=0.):
     """
     Samples step sizes from exponential distribution.
     
@@ -2132,6 +2355,13 @@ def sample_step(nevents, ntraj, mu_abs, mu_scat, mu_tot_mie=None):
         Sampled step sizes for all trajectories and scattering events.
     
     """    
+    if fine_roughness > 1. or fine_roughness < 0.:
+        raise ValueError('fine roughness fraction must be between 0 and 1')
+    
+    mu_scat_mie = None
+    if len(np.array([mu_scat.magnitude]).flatten()) > 1:
+        mu_scat, mu_scat_mie = mu_scat
+
     # Calculate total extinction coefficient
     mu_total = mu_scat + mu_abs 
 
@@ -2140,10 +2370,11 @@ def sample_step(nevents, ntraj, mu_abs, mu_scat, mu_tot_mie=None):
 
     step = -np.log(1.0-rand) / mu_total
     
-    rand_ntraj = np.random.random(ntraj)
-    
-    if mu_tot_mie is not None:
-        step[0,:] = -np.log(1.0-rand_ntraj) / mu_tot_mie
+    if mu_scat_mie is not None:
+        ntraj_mie = int(round(ntraj * fine_roughness))
+        mu_total_mie = mu_scat_mie #+ mu_abs
+        rand_ntraj = np.random.random(ntraj_mie)
+        step[0,0:ntraj_mie] = -np.log(1.0-rand_ntraj) / mu_total_mie
     
     return step
 
