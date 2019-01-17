@@ -471,29 +471,85 @@ def test_throw_valueerror_for_polydisperse_unspecified_parameters():
                                      concentration=concentration, pdi=pdi, 
                                      polydisperse=True)  # unspecified radius2
 
+def test_surface_roughness():
+    # test that the reflectance with very small surface roughness is the same 
+    # as without any roughness
+    seed = 1
+    nevents = 60
+    ntrajectories = 30
+
+    # Reflection with no surface roughness
+    R, T = calc_montecarlo(nevents, ntrajectories, radius, n_particle, n_sample, 
+                           n_medium, volume_fraction, wavelen, seed)
+
+    # Reflection with very little fine surface roughness
+    R_fine, T_fine = calc_montecarlo(nevents, ntrajectories, radius, n_particle, 
+                                     n_sample, n_medium, volume_fraction, 
+                                     wavelen, seed, fine_roughness = 1e-4)
+                                     
+    # Reflection with very little coarse surface roughness
+    R_coarse, T_coarse = calc_montecarlo(nevents, ntrajectories, radius, 
+                                         n_particle, n_sample, n_medium, 
+                                         volume_fraction, wavelen, seed, 
+                                         coarse_roughness = 1e-5)
+                                         
+    # Reflection with very little fine and coarse surface roughness
+    R_both, T_both = calc_montecarlo(nevents, ntrajectories, radius, n_particle, 
+                                     n_sample, n_medium, volume_fraction, 
+                                     wavelen, seed, fine_roughness=1e-4, 
+                                     coarse_roughness = 1e-5)
+                                     
+    assert_almost_equal(R, R_fine, decimal=20)                                    
+    assert_almost_equal(T, T_fine, decimal=20)  
+    assert_almost_equal(R, R_coarse, decimal=20)                                    
+    assert_almost_equal(T, T_coarse, decimal=20) 
+    assert_almost_equal(R, R_both, decimal=20)                                    
+    assert_almost_equal(T, T_both, decimal=20) 
+
+                             
 def calc_montecarlo(nevents, ntrajectories, radius, n_particle, n_sample, 
                     n_medium, volume_fraction, wavelen, seed, radius2=None, 
-                    concentration=None, pdi=None, polydisperse=False):
+                    concentration=None, pdi=None, polydisperse=False, 
+                    fine_roughness=0., coarse_roughness=0.):
+                        
     # Function to run montecarlo for the tests
     p, mu_scat, mu_abs = mc.calc_scat(radius, n_particle, n_sample, 
                                       volume_fraction, wavelen, radius2=radius2, 
                                       concentration=concentration, pdi=pdi, 
-                                      polydisperse=polydisperse)
-
-    r0, k0, W0 = mc.initialize(nevents, ntrajectories, n_medium, n_sample, 
-                               seed=seed, incidence_angle = 0.)
+                                      polydisperse=polydisperse, 
+                                      fine_roughness=fine_roughness)
+    if coarse_roughness > 0.:
+        r0, k0, W0, kz0_rotated, kz0_reflected = mc.initialize(nevents, 
+                                                               ntrajectories, 
+                                                               n_medium, 
+                                                               n_sample, 
+                                                               seed=seed, 
+                                                               incidence_angle=0.,
+                                                               coarse_roughness=coarse_roughness)
+    else:                                                                    
+        r0, k0, W0 = mc.initialize(nevents, ntrajectories, n_medium, n_sample, 
+                                   seed=seed, incidence_angle = 0.)
+        kz0_rotated = None
+        kz0_reflected = None
+        
     r0 = sc.Quantity(r0, 'um')
     k0 = sc.Quantity(k0, '')
     W0 = sc.Quantity(W0, '')
+    
     sintheta, costheta, sinphi, cosphi, _, _= mc.sample_angles(nevents, 
                                                                ntrajectories,p)
-    step = mc.sample_step(nevents, ntrajectories, mu_abs, mu_scat)
+    step = mc.sample_step(nevents, ntrajectories, mu_abs, mu_scat, 
+                          fine_roughness=fine_roughness)
+                    
     trajectories = mc.Trajectory(r0, k0, W0)
     trajectories.absorb(mu_abs, step)                         
     trajectories.scatter(sintheta, costheta, sinphi, cosphi)         
     trajectories.move(step)
     z_low = sc.Quantity('0.0 um')
     cutoff = sc.Quantity('50 um')
-    R, T = mc.calc_refl_trans(trajectories, z_low, cutoff, n_medium, n_sample)
-
+    
+    R, T = mc.calc_refl_trans(trajectories, z_low, cutoff, n_medium, n_sample,
+                              kz0_rot=kz0_rotated, kz0_refl=kz0_reflected,
+                              fine_roughness=fine_roughness, n_matrix=n_matrix)
+                                                        
     return R, T
