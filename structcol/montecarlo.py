@@ -1422,13 +1422,14 @@ def initialize(nevents, ntraj, n_medium, n_sample, seed=None, incidence_angle=0.
         square. The spot size parameter is the value of the square's side. 
     coarse_roughness : float (can be structcol.Quantity [dimensionless])
         Coarse surface roughness should be included when the roughness is large
-        on the scale of the wavelength of light. Then the model corrects the 
-        Fresnel reflection and refraction to account for the different angles 
-        of incidence due to the roughness. The coarse_roughness parameter is
-        the rms slope of the surface. If included, it should be larger than 0. 
-        There is no upper bound, but when the coarse roughness tends to 
-        infinity, the surface becomes too "spiky" and light can no longer hit 
-        it, which reduces the reflectance down to 0. 
+        on the scale of the wavelength of light. This means that light 
+        encounters a locally smooth surface that has a slope relative to the 
+        z=0 plane. Then the model corrects the Fresnel reflection and refraction 
+        to account for the different angles of incidence due to the roughness. 
+        The coarse_roughness parameter is the rms slope of the surface. If 
+        included, it should be larger than 0. There is no upper bound, but when 
+        the coarse roughness tends to infinity, the surface becomes too "spiky" 
+        and light can no longer hit it, which reduces the reflectance down to 0. 
     
     Returns
     -------
