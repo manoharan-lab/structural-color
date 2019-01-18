@@ -26,6 +26,7 @@ References
 Radiation Transfer” (July 2013).
 .. moduleauthor:: Victoria Hwang <vhwang@g.harvard.edu>
 .. moduleauthor:: Annie Stephenson <stephenson@g.harvard.edu>
+.. moduleauthor:: Solomon Barkley <barkley@g.harvard.edu>
 .. moduleauthor:: Vinothan N. Manoharan <vnm@seas.harvard.edu>
 
 """
@@ -868,7 +869,25 @@ def calc_refl_trans(trajectories, z_low, cutoff, n_medium, n_sample,
         sample within this range will be detected and counted. Should be
         0 < detection_angle <= pi/2, where 0 means that no angles are detected,
         and pi/2 means that all the backscattering angles are detected.
-    
+    kz0_rot : None or array_like (structcol.Quantity [dimensionless])
+        Initial z-directions that are rotated to account for the fact that  
+        coarse surface roughness changes the angle of incidence of light. Thus
+        these are the incident z-directions relative to the local normal to the 
+        surface. The array size is (1, ntraj).  
+    kz0_refl : None or array_like (structcol.Quantity [dimensionless])
+        z-directions of the Fresnel reflected light after it hits the sample
+        surface for the first time. These directions are in the global 
+        coordinate system. The array size is (1, ntraj). 
+    fine_roughness : float (structcol.Quantity [dimensionless])
+        Fraction of the sample area that has fine roughness. Should be between 
+        0 and 1. For ex, a value of 0.3 means that 30% of incident light will 
+        hit fine surface roughness (e.g. will "see" a Mie scatterer first). The 
+        rest of the light will see a smooth surface, which could be flat or 
+        have coarse roughness (long in the lengthscale of light).  
+    n_matrix : None or float ((structcol.Quantity [dimensionless] or 
+        structcol.refractive_index object))
+        Refractive index of the matrix. It is required if fine_roughness is > 0.
+        
     Returns
     -------
     reflectance: float
@@ -969,15 +988,6 @@ def calc_refl_trans(trajectories, z_low, cutoff, n_medium, n_sample,
         inc_fraction[0:ntraj_mie] = fresnel_pass_frac(np.array([init_dir[0:ntraj_mie]]), np.ones(ntraj_mie), n_medium, n_front, n_matrix)
     inc_fraction[ntraj_mie:] = fresnel_pass_frac(np.array([init_dir[ntraj_mie:]]), np.ones(ntraj-ntraj_mie), n_medium, n_front, n_sample)
 
-#    if fine_roughness == 0.:
-#        inc_fraction = fresnel_pass_frac(np.array([init_dir]), np.ones(ntraj), n_medium, n_front, n_sample)
-#    else:
-#        if n_matrix is None:
-#            raise ValueError('when the first step is from Mie, must specify n_matrix')
-#        ntraj_mie = ntraj * fine_roughness
-#        inc_fraction = fresnel_pass_frac(np.array([init_dir[0:ntraj_mie]]), np.ones(ntraj_mie), n_medium, n_front, n_matrix)
-
-
     # calculate outcome weights from all trajectories
     refl_weights = inc_fraction * select_events(weights, refl_indices)  # should these be refl_indices-1 to not overestimate absorption?
     trans_weights = inc_fraction * select_events(weights, trans_indices)
@@ -1025,7 +1035,7 @@ def calc_refl_trans(trajectories, z_low, cutoff, n_medium, n_sample,
         # weights of the fresnel reflected trajectories that reflect downwards
         # (towards the transmission direction) and can never be detected. 
         inc_refl[angles_from_kz0_refl < np.pi-detection_angle] = 0
-        
+
     trans_detected = detect_correct(kz, transmitted, trans_indices, n_sample, n_medium, detection_angle)
     refl_detected = detect_correct(kz, reflected, refl_indices, n_sample, n_medium, detection_angle)
     trans_det_frac = np.max([np.sum(trans_detected),eps]) / np.max([np.sum(transmitted), eps])
@@ -1351,260 +1361,30 @@ def calc_refl_trans_sphere(trajectories, n_medium, n_sample, radius, p, mu_abs,
         else:               
             return (reflectance_mean, transmittance_mean) 
 
-
-def initialize_original(nevents, ntraj, n_medium, n_sample, seed=None, incidence_angle=0., 
-               spot_size=sc.Quantity('1 um')):
-
-    """
-    Sets the trajectories' initial conditions (position, direction, and weight).
-    The initial positions are determined randomly in the x-y plane (the initial
-    z-position is at z = 0). The default initial propagation direction is set to
-    be kz = 1, meaning that the photon packets point straight down in z. The 
-    initial weight is currently determined to be a value of choice.
-    
-    Parameters
-    ----------
-    nevents : int
-        Number of scattering events
-    ntraj : int
-        Number of trajectories
-    n_medium : float (structcol.Quantity [dimensionless] or 
-        structcol.refractive_index object)
-        Refractive index of the medium.
-    n_sample : float (structcol.Quantity [dimensionless] or 
-        structcol.refractive_index object)
-        Refractive index of the sample.
-    seed : int or None
-        If seed is int, the simulation results will be reproducible. If seed is
-        None, the simulation results are actually random.
-    incidence_angle : float
-        Maximum value for theta when it incides onto the sample.
-        Should be between 0 and pi/2.
-    
-    Returns
-    -------
-    r0 : array_like (structcol.Quantity [length])
-        Initial position.
-    k0 : array_like (structcol.Quantity [dimensionless])
-        Initial direction of propagation.
-    weight0 : array_like (structcol.Quantity [dimensionless])
-        Initial weight. 
-        - Note that the photon weight represents the fraction of 
-        that particular photon that is propagated through the sample. It does 
-        not represent the photon's weight relative to other photons. the weight0
-        array is initialized to 1 because you start with the full weight of the 
-        initial photons. If you wanted to make the relative weights of photons
-        different, you would need to introduce a new variable (e.g relative 
-        intensity) that me, NOT change the intialization of the weights array.
-        - Also Note that the size of the weights array it nevents*ntraj, NOT
-        nevents+1, ntraj. This may at first seem counterintuitive because
-        physically, we can associate a weight to a photon at each position 
-        (which would call for a dimension nevents+1), not at each event. 
-        However, there is no need to keep track of the weight at the first 
-        event; The weight, by definition, must initially be 1 for each photon. 
-        Adding an additional row of ones to this array would be unecessary and
-        would contribute to less readable code in the calculation of absorptance,
-        reflectance, and transmittance. Therefore the weights array begins with 
-        the weight of the photons after their first event.
-    
-    """
-    if seed is not None:
-        np.random.seed([seed])
-    
-    # Initial position. The position array has one more row than the direction
-    # and weight arrays because it includes the starting positions on the x-y
-    # plane
-    spot_size_magnitude = spot_size.to('um').magnitude
-    r0 = np.zeros((3, nevents+1, ntraj))
-    r0[0,0,:] = random((1,ntraj))*spot_size_magnitude
-    r0[1,0,:] = random((1,ntraj))*spot_size_magnitude
-
-    # Create an empty array of the initial direction cosines of the right size
-    k0 = np.zeros((3, nevents, ntraj))
-
-    # Random sampling of azimuthal angle phi from uniform distribution [0 -
-    # 2pi] to get the incident angle for the first scattering event
-    rand_phi = random((1,ntraj))
-    phi = 2*np.pi*rand_phi
-    sinphi = np.sin(phi)
-    cosphi = np.cos(phi)
-
-    # Random sampling of scattering angle theta from uniform distribution [0 -
-    # pi] to get the incident angle for the first scattering event
-    rand_theta = random((1,ntraj))
-    theta = rand_theta * incidence_angle
-
-    # Refraction of incident light upon entering sample
-    # TODO: only real part of n_sample should be used                             
-    # for the calculation of angles of integration? Or abs(n_sample)? 
-    theta = refraction(theta, n_medium, np.abs(n_sample))
-    sintheta = np.sin(theta)
-    costheta = np.cos(theta)
-  
-    # Fill up the first row (corresponding to the first scattering event) of the
-    # direction cosines array with the randomly generated angles:
-    # kx = sintheta * cosphi
-    # ky = sintheta * sinphi
-    # kz = costheta
-    k0[0,0,:] = sintheta * cosphi
-    k0[1,0,:] = sintheta * sinphi
-    k0[2,0,:] = costheta
-
-    # Initial weight
-    weight0 = np.ones((nevents, ntraj))
-
-    return r0, k0, weight0
-    
-
-def initialize_surface_roughness(nevents, ntraj, n_medium, n_sample, seed=None, incidence_angle=0., 
-               spot_size=sc.Quantity('1 um'), theta_a=0.):
-    """
-    Sets the trajectories' initial conditions (position, direction, and weight).
-    The initial positions are determined randomly in the x-y plane (the initial
-    z-position is at z = 0). The default initial propagation direction is set to
-    be kz = 1, meaning that the photon packets point straight down in z. The 
-    initial weight is currently determined to be a value of choice.
-    
-    Parameters
-    ----------
-    nevents : int
-        Number of scattering events
-    ntraj : int
-        Number of trajectories
-    n_medium : float (structcol.Quantity [dimensionless] or 
-        structcol.refractive_index object)
-        Refractive index of the medium.
-    n_sample : float (structcol.Quantity [dimensionless] or 
-        structcol.refractive_index object)
-        Refractive index of the sample.
-    seed : int or None
-        If seed is int, the simulation results will be reproducible. If seed is
-        None, the simulation results are actually random.
-    incidence_angle : float
-        Maximum value for theta when it incides onto the sample.
-        Should be between 0 and pi/2.
-    
-    Returns
-    -------
-    r0 : array_like (structcol.Quantity [length])
-        Initial position.
-    k0 : array_like (structcol.Quantity [dimensionless])
-        Initial direction of propagation.
-    weight0 : array_like (structcol.Quantity [dimensionless])
-        Initial weight. 
-        - Note that the photon weight represents the fraction of 
-        that particular photon that is propagated through the sample. It does 
-        not represent the photon's weight relative to other photons. the weight0
-        array is initialized to 1 because you start with the full weight of the 
-        initial photons. If you wanted to make the relative weights of photons
-        different, you would need to introduce a new variable (e.g relative 
-        intensity) that me, NOT change the intialization of the weights array.
-        - Also Note that the size of the weights array it nevents*ntraj, NOT
-        nevents+1, ntraj. This may at first seem counterintuitive because
-        physically, we can associate a weight to a photon at each position 
-        (which would call for a dimension nevents+1), not at each event. 
-        However, there is no need to keep track of the weight at the first 
-        event; The weight, by definition, must initially be 1 for each photon. 
-        Adding an additional row of ones to this array would be unecessary and
-        would contribute to less readable code in the calculation of absorptance,
-        reflectance, and transmittance. Therefore the weights array begins with 
-        the weight of the photons after their first event.
-    
-    """
-    if seed is not None:
-        np.random.seed([seed])
-    
-    # Initial position. The position array has one more row than the direction
-    # and weight arrays because it includes the starting positions on the x-y
-    # plane
-    spot_size_magnitude = spot_size.to('um').magnitude
-    r0 = np.zeros((3, nevents+1, ntraj))
-    r0[0,0,:] = random((1,ntraj))*spot_size_magnitude
-    r0[1,0,:] = random((1,ntraj))*spot_size_magnitude
-
-    # Create an empty array of the initial direction cosines of the right size
-    k0 = np.zeros((3, nevents, ntraj))
-
-    # Random sampling of azimuthal angle phi from uniform distribution [0 -
-    # 2pi] for the first scattering event
-    rand_phi = random((1,ntraj))
-    phi = 2*np.pi*rand_phi
-    sinphi = np.sin(phi)
-    cosphi = np.cos(phi)
-
-    # Random sampling of scattering angle theta from uniform distribution [0 -
-    # pi] for the first scattering event
-    rand_theta = random((1,ntraj))
-    theta = rand_theta * incidence_angle 
-    sintheta = np.sin(theta)
-    costheta = np.cos(theta)    
-    
-    # Initial directions assuming a flat surface
-    kx0 = sintheta * cosphi
-    ky0 = sintheta * sinphi
-    kz0 = costheta
-
-    # In case the surface is rough, then find new coordinates of initial 
-    # directions after rotating the surface by an angle theta_a around y axis
-    sintheta_a = np.sin(theta_a)
-    costheta_a = np.cos(theta_a)
-    
-    kx0_rot = costheta_a * kx0 - sintheta_a * kz0
-    ky0_rot = ky0
-    kz0_rot = sintheta_a * kx0 + costheta_a * kz0
-
-    # Find the new angles theta and phi between the incident trajectories and 
-    # the normal to the new surface after the coordinate axis rotation
-    theta_rot = np.arccos(kz0_rot / np.sqrt(kx0_rot**2 + ky0_rot**2 + kz0_rot**2))
-    phi_rot = np.arccos(kx0_rot / np.sqrt(kx0_rot**2 + ky0_rot**2 + kz0_rot**2))
-
-    # Refraction of incident light upon entering sample
-    # TODO: only real part of n_sample should be used                             
-    # for the calculation of angles of integration? Or abs(n_sample)? 
-    theta_refr = refraction(theta_rot, n_medium, np.abs(n_sample))
-
-    kx0_rot_refr = np.sin(theta_refr) * np.cos(phi_rot)
-    ky0_rot_refr = np.sin(theta_refr) * np.sin(phi_rot)
-    kz0_rot_refr = np.cos(theta_refr) 
-    
-    # Rotate the axes back so that the initial refracted directions are in 
-    # old (global) coordinates by doing an axis rotation around y by 2pi-theta_a    
-    kx0_refr = np.cos(2*np.pi-theta_a) * kx0_rot_refr - np.sin(2*np.pi-theta_a) * kz0_rot_refr
-    ky0_refr = ky0_rot_refr
-    kz0_refr = np.sin(2*np.pi-theta_a) * kx0_rot_refr + np.cos(2*np.pi-theta_a) * kz0_rot_refr    
-
-    # Fill up the first row (corresponding to the first scattering event) of the
-    # direction cosines array with the randomly generated angles:
-    k0[0,0,:] = kx0_refr
-    k0[1,0,:] = ky0_refr
-    k0[2,0,:] = kz0_refr
-
-    # Calculate Fresnel reflected directions, which are the same as the initial
-    # directions in the local coordinate sytem but with a rotation of pi in phi_rot
-    kx0_rot_refl = -kx0_rot
-    ky0_rot_refl = -ky0_rot
-    kz0_rot_refl = kz0_rot
-#    phi_rot_refl = phi_rot + np.pi
-#    kx0_rot_refl = np.sin(theta_rot) * np.cos(phi_rot_refl)
-#    ky0_rot_refl = np.sin(theta_rot) * np.sin(phi_rot_refl)
-#    kz0_rot_refl = np.cos(theta_rot) 
-
-    # Rotate the axes back so that the reflected directions are in 
-    # old (global) coordinates by doing an axis rotation around y by 2pi-theta_a    
-    kx0_refl = np.cos(2*np.pi-theta_a) * kx0_rot_refl - np.sin(2*np.pi-theta_a) * kz0_rot_refl
-    ky0_refl = ky0_rot_refl
-    kz0_refl = np.sin(2*np.pi-theta_a) * kx0_rot_refl + np.cos(2*np.pi-theta_a) * kz0_rot_refl    
-  
-    # Initial weight
-    weight0 = np.ones((nevents, ntraj))
-
-    if np.array(theta_a).all() == 0.:
-        return r0, k0, weight0
-    else: 
-        return r0, k0, weight0, kz0_rot, kz0_refl
-
-# Probability of surface roughness angles theta_a as a function of surface roughness parameter r
 def P_theta_a(theta_a, r):
+    """
+    Calculates the probability of surface slope angles as a function of 
+    surface roughness parameter r.
+    
+    Parameters
+    ----------
+    theta_a : array 
+        Surface roughness angle between the slope of the surface and the 
+        z=0 plane. 
+    r : float (can be structcol.Quantity [dimensionless])
+        Surface roughness parameter or rms slope of the surface
+    
+    Returns
+    -------
+    Probability of that the surface will have certain slope angles.
+    
+    Reference
+    ---------
+    B. v. Ginneken, M. Stavridi, J. J. Koenderink, “Diffuse and specular 
+    reflectance from rough surfaces”, Applied Optics, 37, 1 (1998) (has 
+    definition of rsm slope of the surface).
+    
+    """
     term1 = np.sin(theta_a) / r**2 / (np.cos(theta_a))**3
     term2 = np.exp(-(np.tan(theta_a))**2 / (2*r**2))
 
@@ -1637,6 +1417,18 @@ def initialize(nevents, ntraj, n_medium, n_sample, seed=None, incidence_angle=0.
     incidence_angle : float
         Maximum value for theta when it incides onto the sample.
         Should be between 0 and pi/2.
+    spot_size : float (structcol.Quantity [length])
+        Spot size of incident light. The incident spot is assumed to be a
+        square. The spot size parameter is the value of the square's side. 
+    coarse_roughness : float (can be structcol.Quantity [dimensionless])
+        Coarse surface roughness should be included when the roughness is large
+        on the scale of the wavelength of light. Then the model corrects the 
+        Fresnel reflection and refraction to account for the different angles 
+        of incidence due to the roughness. The coarse_roughness parameter is
+        the rms slope of the surface. If included, it should be larger than 0. 
+        There is no upper bound, but when the coarse roughness tends to 
+        infinity, the surface becomes too "spiky" and light can no longer hit 
+        it, which reduces the reflectance down to 0. 
     
     Returns
     -------
@@ -1663,6 +1455,23 @@ def initialize(nevents, ntraj, n_medium, n_sample, seed=None, incidence_angle=0.
         would contribute to less readable code in the calculation of absorptance,
         reflectance, and transmittance. Therefore the weights array begins with 
         the weight of the photons after their first event.
+    kz0_rot : array_like (structcol.Quantity [dimensionless])
+        Initial z-directions that are rotated to account for the fact that  
+        coarse surface roughness changes the angle of incidence of light. Thus
+        these are the incident z-directions relative to the local normal to the 
+        surface. The array size is (1, ntraj). Only returned if coarse_roughness
+        is set to > 0. 
+    kz0_refl : array_like (structcol.Quantity [dimensionless])
+        z-directions of the Fresnel reflected light after it hits the sample
+        surface for the first time. These directions are in the global 
+        coordinate system. The array size is (1, ntraj). Only returned if 
+        coarse_roughness is set to > 0. 
+    
+    Reference
+    ---------
+    B. v. Ginneken, M. Stavridi, J. J. Koenderink, “Diffuse and specular 
+    reflectance from rough surfaces”, Applied Optics, 37, 1 (1998) (has 
+    definition of rsm slope of the surface).
     
     """
     if seed is not None:
@@ -1675,11 +1484,11 @@ def initialize(nevents, ntraj, n_medium, n_sample, seed=None, incidence_angle=0.
         theta_a_full = np.linspace(0.,np.pi/2, 500)
         prob_a = P_theta_a(theta_a_full,coarse_roughness)/sum(P_theta_a(theta_a_full,coarse_roughness))
         
-        if np.isnan(prob_a).all(): #.all() == np.nan:
+        if np.isnan(prob_a).all(): 
             theta_a = np.zeros(ntraj)
         else: 
             theta_a = np.array([np.random.choice(theta_a_full, ntraj, p = prob_a) for i in range(1)]).flatten()
-      
+
     # Initial position. The position array has one more row than the direction
     # and weight arrays because it includes the starting positions on the x-y
     # plane
@@ -1756,11 +1565,6 @@ def initialize(nevents, ntraj, n_medium, n_sample, seed=None, incidence_angle=0.
     kx0_rot_refl = kx0_rot
     ky0_rot_refl = ky0_rot
     kz0_rot_refl = -kz0_rot
-    
-#    phi_rot_refl = phi_rot + np.pi
-#    kx0_rot_refl = np.sin(theta_rot) * np.cos(phi_rot_refl)
-#    ky0_rot_refl = np.sin(theta_rot) * np.sin(phi_rot_refl)
-#    kz0_rot_refl = np.cos(theta_rot) 
 
     # Rotate the axes back so that the reflected directions are in 
     # old (global) coordinates by doing an axis rotation around y by 2pi-theta_a    
@@ -1771,7 +1575,6 @@ def initialize(nevents, ntraj, n_medium, n_sample, seed=None, incidence_angle=0.
     # Initial weight
     weight0 = np.ones((nevents, ntraj))
 
-    #if np.array(theta_a).all() == 0.: 
     if coarse_roughness == 0.:
         return r0, k0, weight0
 
@@ -1970,13 +1773,29 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
         from Mie theory. If False (default), they are calculated from the 
         single scattering model, which includes a correction for the structure
         factor
+    fine_roughness : float (structcol.Quantity [dimensionless])
+        When the sample has surface roughness that is comparable to the 
+        wavelength of light, then the first step is calculated with Mie theory
+        because light "sees" the Mie scatterer first instead of the sample as a
+        whole. After taking the first step, light is inside the sample and is
+        scattered in in the usual way, with the phase function based on the 
+        effective medium approximation. This parameter should be between 0 and 
+        1 and corresponds to the fraction of the sample area that has fine 
+        roughness. For ex, a value of 0.3 means that 30% of incident light will
+        hit fine surface roughness (e.g. will "see" a Mie scatterer first). The 
+        rest of the light will see a smooth surface, which could be flat or 
+        have coarse roughness (long in the lengthscale of light). 
     
     Returns
     -------
     p : array_like (structcol.Quantity [dimensionless])
         Phase function from either Mie theory or single scattering model.
-    mu_scat : float (structcol.Quantity [1/length])
-        Scattering coefficient from either Mie theory or single scattering model.
+    mu_scat : float or 2-element array (structcol.Quantity [1/length])
+        Scattering coefficient from either Mie theory or single scattering 
+        model. When fine_roughness is larger than 0, mu_scat is a 2-element
+        array, where the first element is the scattering coefficient from either
+        Mie theory or single scattering model, and the second element is the 
+        scattering coefficient from Mie theory. 
     mu_abs : float (structcol.Quantity [1/length])
         Absorption coefficient of the sample as an effective medium.
     
@@ -2086,6 +1905,8 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
     mu_scat = mu_scat.to('1/um')
     mu_abs = mu_abs.to('1/um')
     
+    # if there is fine surface roughness, also calculate and return the scatt 
+    # coeff from Mie theory
     if fine_roughness > 0.:
         _, _, _, cscat_total_mie = phase_function(m, x, angles, volume_fraction, 
                                                   k, number_density, wavelen=wavelen, 
@@ -2346,9 +2167,18 @@ def sample_step(nevents, ntraj, mu_abs, mu_scat, fine_roughness=0.):
         Number of trajectories.
     mu_abs : float (structcol.Quantity [1/length])
         Absorption coefficient.
-    mu_scat : float (structcol.Quantity [1/length])
-        Scattering coefficient.
-    
+    mu_scat : float or 2-element array (structcol.Quantity [1/length])
+        Scattering coefficient. When fine_roughness is larger than 0, mu_scat 
+        is a 2-element array, where the first element is the scattering 
+        coefficient from either Mie theory or single scattering model, and the 
+        second element is the scattering coefficient from Mie theory.
+    fine_roughness : float (structcol.Quantity [dimensionless])
+        Fraction of the sample area that has fine roughness. Should be between 
+        0 and 1. For ex, a value of 0.3 means that 30% of incident light will 
+        hit fine surface roughness (e.g. will "see" a Mie scatterer first). The 
+        rest of the light will see a smooth surface, which could be flat or 
+        have coarse roughness (long in the lengthscale of light). 
+        
     Returns
     -------
     step : ndarray
@@ -2370,9 +2200,11 @@ def sample_step(nevents, ntraj, mu_abs, mu_scat, fine_roughness=0.):
 
     step = -np.log(1.0-rand) / mu_total
     
+    # If there is fine surface roughness, sample the first step from Mie theory
+    # for the number of trajectories set by fine_roughness
     if mu_scat_mie is not None:
         ntraj_mie = int(round(ntraj * fine_roughness))
-        mu_total_mie = mu_scat_mie #+ mu_abs
+        mu_total_mie = mu_scat_mie + mu_abs
         rand_ntraj = np.random.random(ntraj_mie)
         step[0,0:ntraj_mie] = -np.log(1.0-rand_ntraj) / mu_total_mie
     
