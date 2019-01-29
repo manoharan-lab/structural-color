@@ -12,6 +12,7 @@ from mpl_toolkits.mplot3d import Axes3D
 from scipy.stats import gaussian_kde
 from scipy.spatial.distance import cdist 
 import structcol as sc
+from scipy.misc import factorial
 
 def get_exit_pos(norm_refl, norm_trans, radius):
     '''
@@ -432,12 +433,113 @@ def calc_lscat(refl_per_traj, trans_per_traj, trans_indices, volume_fraction, ra
     return lscat
     
     
+def size_distribution(diameter_range, mean, t):
+    if t <= 100:
+        schulz = ((t+1)/mean)**(t+1) * diameter_range**t / factorial(t) * np.exp(-diameter_range/mean*(t+1))
+        distr = schulz  
+    else:
+        std_dev = diameter_range / np.sqrt(t+1)
+        distr = np.exp(-(diameter_range - mean)**2 / (2 * std_dev**2)) / np.sqrt(2*np.pi*std_dev**2)
+        #distr = distr/np.sum(distr)
+    return(distr)
     
+def calc_rad_list(num_radii, radius_mean, pdi, equal_spacing = False, plot = True, num_pdf_points = 600):
     
+    diam_range = np.linspace(1,4*radius_mean.magnitude, num_pdf_points)*radius_mean.units
     
+    if equal_spacing == True:
+        rad_mean = radius_mean.magnitude
+        num_half = int(np.round((num_radii +1)/2))
+        rad_list = np.unique(np.hstack((np.linspace(rad_mean/100, rad_mean, num_half),
+                                                  np.linspace(rad_mean, 2*rad_mean, num_half))))*radius_mean.units
+    else:
+        t = (1-pdi**2)/pdi**2
+        pdf_range = size_distribution(diam_range, 2*radius_mean,t).magnitude
+        rad_range = diam_range.magnitude/2
+        #print(pdf_range)
+        max_rad_ind = np.argmax(pdf_range)
+        max_rad = rad_range[max_rad_ind]
+        
+        rad_list = [max_rad]
+        num = 1
+        denom = 2
+        for i in range(0,num_radii-1,2):
+            rad_ind_1 = np.argmin(np.abs(pdf_range[0:int(num_pdf_points/2)]-(num/denom)*np.max(pdf_range)))
+            rad_ind_2 = np.argmin(np.abs(pdf_range[int(num_pdf_points/2):]-(num/denom)*np.max(pdf_range)))
+            rad_list.append(rad_range[rad_ind_1])
+            rad_list.append(rad_range[300 + rad_ind_2])
+            if num==1:
+                denom = 2*denom
+            else:
+                num = num-2
+        rad_list.sort()
+        rad_list = np.array(rad_list)*radius_mean.units
+    if plot == True:
+        # calculate t for distrubtion
+        t = (1-pdi**2)/pdi**2
+
+        # calculate pdf
+        pdf = size_distribution(2*rad_list, 2*radius_mean, t)
+        if equal_spacing == True:
+            pdf_range  = size_distribution(diam_range, 2*radius_mean,t)
+            
+        plt.figure()
+        plt.plot(diam_range, pdf_range, linewidth = 2.5)
+        plt.scatter(2*rad_list, pdf, s = 45, color = [0.8,0.3,0.3])
+        plt.xlabel('diameter')
+    return rad_list
     
+def sample_radii(pdi, rad_list, radius_mean, ntrajectories_bulk, nevents_bulk):
+    # calculate t for distrubtion
+    t = (1-pdi**2)/pdi**2
     
+    # calculate pdf
+    pdf = size_distribution(2*rad_list, 2*radius_mean, t)
+    pdf_norm = pdf/np.sum(pdf)
     
+    # sample diameter distribution
+    microsphere_diams_sampled = np.reshape(np.random.choice(2*rad_list.magnitude, 
+                                                              ntrajectories_bulk*nevents_bulk, p = pdf_norm), 
+                                                              (nevents_bulk,ntrajectories_bulk))                          
+    microsphere_rads_sampled = microsphere_diams_sampled/2
+
+    return microsphere_rads_sampled     
     
+def sample_angles_step_poly(nevents_bulk, ntrajectories_bulk, p_microsphere, 
+                            microsphere_rads_sampled, rad_list, lscat):
+    # Sample phi angles
+    rand = np.random.random((nevents_bulk,ntrajectories_bulk))
+    phi = 2*np.pi*rand
+    sinphi = np.sin(phi)
+    cosphi = np.cos(phi)
+    
+    # Sample theta angles and calculate step size based on sampled radii
+    theta = np.zeros((nevents_bulk, ntrajectories_bulk))
+    lscat_rad_samp = np.zeros((nevents_bulk, ntrajectories_bulk))
+    angles = np.linspace(0.01,np.pi, 200)   
+    for j in range(rad_list.size):
+        rad_ind_ev, rad_ind_tr = np.where(microsphere_rads_sampled == rad_list[j].magnitude)
+        if rad_ind_ev.size==0:
+            continue
+        prob = p_microsphere[j,:]/np.sum(p_microsphere[j,:])
+        lscat_rad_samp[rad_ind_ev, rad_ind_tr] = lscat[j]
+        theta[rad_ind_ev, rad_ind_tr] = np.random.choice(angles, rad_ind_ev.size, p = prob)    
+    sintheta = np.sin(theta)
+    costheta = np.cos(theta)    
+    step = lscat_rad_samp*np.ones((nevents_bulk, ntrajectories_bulk))*lscat.units
+    
+    return sintheta, costheta, sinphi, cosphi, step, theta, phi    
+    
+
+
+
+
+
+
+
+
+
+
+
     
     
