@@ -434,6 +434,28 @@ def calc_lscat(refl_per_traj, trans_per_traj, trans_indices, volume_fraction, ra
     
     
 def size_distribution(diameter_range, mean, t):
+    '''
+    Depricated in Mie-separated branch. A nearly identical function exists in
+    model.py. The only difference is that this function is not normalized
+    
+    Parameters
+    ----------
+    diameter_range: array 
+        Range of diameters of the distribution.
+    mean: 1-element array
+        Mean diameter of the distribution. 
+    t: 1-element array
+        'Width' of the distribution. t = (1 - p**2) / p**2, where p is the 
+        polydispersity index.
+        
+    Returns
+    -------
+    Schulz distribution.
+    
+    """
+    
+    
+    '''
     if t <= 100:
         schulz = ((t+1)/mean)**(t+1) * diameter_range**t / factorial(t) * np.exp(-diameter_range/mean*(t+1))
         distr = schulz  
@@ -444,6 +466,20 @@ def size_distribution(diameter_range, mean, t):
     return(distr)
     
 def calc_rad_list(num_radii, radius_mean, pdi, equal_spacing = False, plot = True, num_pdf_points = 600):
+    '''
+    Calculate the list of radii to sample from for a given polydispersity and number of radii
+    
+    Parameters
+    ----------
+    num_radii:
+    radius_mean:
+    pdi: 
+    equal_spacing:
+    plot:
+    num_pdf_points:
+    
+    
+    '''
     
     diam_range = np.linspace(1,4*radius_mean.magnitude, num_pdf_points)*radius_mean.units
     
@@ -486,7 +522,8 @@ def calc_rad_list(num_radii, radius_mean, pdi, equal_spacing = False, plot = Tru
         plt.figure()
         plt.plot(diam_range, pdf_range, linewidth = 2.5)
         plt.scatter(2*rad_list, pdf, s = 45, color = [0.8,0.3,0.3])
-        plt.xlabel('diameter')
+        plt.xlabel('diameter (' + str(radius_mean.units) + ')')
+        plt.ylabel('probability density')
     return rad_list
     
 def sample_radii(pdi, rad_list, radius_mean, ntrajectories_bulk, nevents_bulk):
