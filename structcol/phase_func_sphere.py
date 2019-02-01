@@ -85,9 +85,9 @@ def calc_pdf(x, y, z, radius, plot = False, phi_dependent = False,
     
     Returns
     -------
-    pdf: function, 1 or 2 arguments
-        probability density function that requires an input of nu values if
-        phi_dependent = False, and an input of nu and phi values is 
+    pdf_array: 1d or 2d array
+        probability density function values as function of nu if
+        phi_dependent = False, and as a function of nu and phi if 
         phi_depenedent = True
         
     Notes
@@ -116,6 +116,11 @@ def calc_pdf(x, y, z, radius, plot = False, phi_dependent = False,
         # calculate the pdf kernel density estimate
         pdf = gaussian_kde(nu_edge_correct)
         
+        # calculate the pdf for specific nu values
+        theta = np.linspace(0.01, np.pi, 200)
+        nu = (np.cos(theta)+1)/2
+        pdf_array = pdf(nu)
+        
         if plot == True:
             # plot the distribution from data, with edge correction, and kde
             plot_dist_1d(nu_range, nu, nu_edge_correct, pdf(nu_range))
@@ -133,6 +138,11 @@ def calc_pdf(x, y, z, radius, plot = False, phi_dependent = False,
         # calculate the pdf kernel density estimate
         pdf = gaussian_kde(np.vstack([nu_edge_correct,phi_edge_correct]))
         
+        # calculate the pdf for specific nu and phi values
+        theta = np.linspace(0.01, np.pi, 200)
+        nu = (np.cos(theta)+1)/2
+        pdf_array = pdf(nu, phi_range)
+        
         if plot == True:
             # plot the the calculated kernel density estimate in phi
             nu_2d, phi_2d = np.meshgrid(nu_range, phi_range)
@@ -148,8 +158,8 @@ def calc_pdf(x, y, z, radius, plot = False, phi_dependent = False,
             pdf_marg_phi = np.sum(pdf_vals, axis = 1)
             plot_dist_1d(phi_range, phi, phi_edge_correct, pdf_marg_phi)
             plt.xlabel(r'$\phi$')
-        
-    return pdf
+          
+    return pdf_array
 
 def plot_phase_func(pdf, nu=np.linspace(0, 1, 200), phi=None, save=False):
     '''
@@ -450,7 +460,8 @@ def size_distribution(diameter_range, mean, t):
         
     Returns
     -------
-    Schulz distribution.
+    distr: array (same length as diameter_range)
+        Schulz distribution as a fuction of diameter.
     
     """
     
@@ -467,35 +478,58 @@ def size_distribution(diameter_range, mean, t):
     
 def calc_rad_list(num_radii, radius_mean, pdi, equal_spacing = False, plot = True, num_pdf_points = 600):
     '''
-    Calculate the list of radii to sample from for a given polydispersity and number of radii
+    Calculate the list of radii to sample from for a given polydispersity and number of radii.
+    This function is used specifically to calculate a list of radii to sample
+    in the polydisperse bulk Monte Carlo model.
     
     Parameters
     ----------
-    num_radii:
-    radius_mean:
-    pdi: 
-    equal_spacing:
-    plot:
-    num_pdf_points:
+    num_radii: int
+        number of radii 
+    radius_mean: float, sc.Quantity
+        mean radius of the distribution
+    pdi: float
+        polydispersity index of the distribution 
+    equal_spacing: boolean
+        If True, the calculated list of radii is equally spaced, instead of 
+        choosing points based on FWHM
+    plot: boolean
+        if True, the probability density function is plotted as a function of
+        radius, as well as the list of radii points
+    num_pdf_points: int
+        number of points at which to calculate the probability density function
+        should not need to change this value
     
-    
+    Returns
+    -------
+    rad_list: 1d numpy array
+        list of radii from which to sample in polydisperse bulk Monte Carlo 
     '''
     
+    # calculate the range of diameters at which to calculate the pdf
     diam_range = np.linspace(1,4*radius_mean.magnitude, num_pdf_points)*radius_mean.units
     
+    # claculate the radii at equal spacings
     if equal_spacing == True:
         rad_mean = radius_mean.magnitude
         num_half = int(np.round((num_radii +1)/2))
         rad_list = np.unique(np.hstack((np.linspace(rad_mean/100, rad_mean, num_half),
                                                   np.linspace(rad_mean, 2*rad_mean, num_half))))*radius_mean.units
+    # calculate the radii based on FWHM 
     else:
+        # calculate pdf
         t = (1-pdi**2)/pdi**2
         pdf_range = size_distribution(diam_range, 2*radius_mean,t).magnitude
         rad_range = diam_range.magnitude/2
-        #print(pdf_range)
+        
+        # find radius at maximum of pdf
         max_rad_ind = np.argmax(pdf_range)
         max_rad = rad_range[max_rad_ind]
         
+        # calculate the list of radii
+        # This algorithm starts by finding the radius at the FWHM on either side
+        # of the maximum. Then is finds the radius at the FW(3/4)M, then FW(1/4)M,
+        # then FW(7/8)M, then FW(5/8)M, then FW(3/8)M...
         rad_list = [max_rad]
         num = 1
         denom = 2
@@ -508,8 +542,12 @@ def calc_rad_list(num_radii, radius_mean, pdi, equal_spacing = False, plot = Tru
                 denom = 2*denom
             else:
                 num = num-2
+                
+        # put the list in order and make it into a numpy array
         rad_list.sort()
         rad_list = np.array(rad_list)*radius_mean.units
+        
+    # plot the radii over the pdf
     if plot == True:
         # calculate t for distrubtion
         t = (1-pdi**2)/pdi**2
@@ -527,6 +565,28 @@ def calc_rad_list(num_radii, radius_mean, pdi, equal_spacing = False, plot = Tru
     return rad_list
     
 def sample_radii(pdi, rad_list, radius_mean, ntrajectories_bulk, nevents_bulk):
+    '''
+    Sample the radii to simulate polydispersity in the bulk Monte Carlo simulation
+    
+    Parameters
+    ----------
+    pdi: float
+        polydispersity index of the distribution
+    rad_list: 1d numpy array
+        list of radii from which to sample in polydisperse bulk Monte Carlo
+    radius_mean: float, sc.Quantity
+        mean radius of the distribution
+    ntrajectories_bulk: int
+        number of trajectories in the bulk Monte Carlo simulation
+    nevents_bulk: int
+        number of trajectories in the bulk Monte Carlo simulation
+
+    Returns
+    -------
+    rads_sampled: 2d array (shape nevents_bulk, ntrajectories_bulk)
+        array of the samples microsphere radii for polydisperity in the bulk 
+        Monte Carlo calculations
+    '''
     # calculate t for distrubtion
     t = (1-pdi**2)/pdi**2
     
@@ -535,15 +595,43 @@ def sample_radii(pdi, rad_list, radius_mean, ntrajectories_bulk, nevents_bulk):
     pdf_norm = pdf/np.sum(pdf)
     
     # sample diameter distribution
-    microsphere_diams_sampled = np.reshape(np.random.choice(2*rad_list.magnitude, 
+    diams_sampled = np.reshape(np.random.choice(2*rad_list.magnitude, 
                                                               ntrajectories_bulk*nevents_bulk, p = pdf_norm), 
                                                               (nevents_bulk,ntrajectories_bulk))                          
-    microsphere_rads_sampled = microsphere_diams_sampled/2
+    rads_sampled = diams_sampled/2
 
-    return microsphere_rads_sampled     
+    return rads_sampled     
     
-def sample_angles_step_poly(nevents_bulk, ntrajectories_bulk, p_microsphere, 
-                            microsphere_rads_sampled, rad_list, lscat):
+def sample_angles_step_poly(nevents_bulk, ntrajectories_bulk, p_sphere, 
+                            rads_sampled, rad_list, lscat):
+    '''
+    Calculate the list of radii to sample from for a given polydispersity and number of radii.
+    This function is used specifically to calculate a list of radii to sample
+    in the polydisperse bulk Monte Carlo model.
+    
+    Parameters
+    ----------
+    ntrajectories_bulk: int
+        number of trajectories in the bulk Monte Carlo simulation
+    nevents_bulk: int
+        number of trajectories in the bulk Monte Carlo simulation
+    p_sphere: array
+        phase function for a sphere, found from a Monte Carlo simulation
+        with spherical boundary conditions
+    rads_sampled: 2d array (shape nevents_bulk, ntrajectories_bulk)
+        array of the samples microsphere radii for polydisperity in the bulk 
+        Monte Carlo calculations
+    rad_list: 1d numpy array
+        list of radii from which to sample in polydisperse bulk Monte Carlo
+    lscat: float, sc.Quantity
+        scattering length for a sphere, calculated using Monte Carlo
+        simulation with spherical boundary conditions
+    
+    Returns
+    -------
+    rad_list: 1d numpy array
+        list of radii from which to sample in polydisperse bulk Monte Carlo 
+    '''
     # Sample phi angles
     rand = np.random.random((nevents_bulk,ntrajectories_bulk))
     phi = 2*np.pi*rand
@@ -554,13 +642,21 @@ def sample_angles_step_poly(nevents_bulk, ntrajectories_bulk, p_microsphere,
     theta = np.zeros((nevents_bulk, ntrajectories_bulk))
     lscat_rad_samp = np.zeros((nevents_bulk, ntrajectories_bulk))
     angles = np.linspace(0.01,np.pi, 200)   
+    
+    # loop through all the radii, finding the positions of each radius 
+    # in the sampled radii array, and assigning the appropriate phase fun and 
+    # lscat for each one
     for j in range(rad_list.size):
-        rad_ind_ev, rad_ind_tr = np.where(microsphere_rads_sampled == rad_list[j].magnitude)
+        rad_ind_ev, rad_ind_tr = np.where(rads_sampled == rad_list[j].magnitude)
         if rad_ind_ev.size==0:
             continue
-        prob = p_microsphere[j,:]/np.sum(p_microsphere[j,:])
+        prob = p_sphere[j,:]*np.sin(angles)*2*np.pi
+        prob_norm = prob/np.sum(prob)
         lscat_rad_samp[rad_ind_ev, rad_ind_tr] = lscat[j]
-        theta[rad_ind_ev, rad_ind_tr] = np.random.choice(angles, rad_ind_ev.size, p = prob)    
+        theta[rad_ind_ev, rad_ind_tr] = np.random.choice(angles, 
+             rad_ind_ev.size, p = prob_norm)    
+        
+    # calculate sines, cosines, and step
     sintheta = np.sin(theta)
     costheta = np.cos(theta)    
     step = lscat_rad_samp*np.ones((nevents_bulk, ntrajectories_bulk))*lscat.units
