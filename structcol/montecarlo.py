@@ -975,7 +975,7 @@ def calc_refl_trans(trajectories, z_low, cutoff, n_medium, n_sample,
     trans_detected = detect_correct(kz, transmitted, trans_indices, n_sample, n_medium, detection_angle)
     refl_detected = detect_correct(kz, reflected, refl_indices, n_sample, n_medium, detection_angle)
     trans_det_frac = np.max([np.sum(trans_detected),eps]) / np.max([np.sum(transmitted), eps])
-    refl_det_frac = np.max([np.sum(refl_detected),eps]) / np.max([np.sum(reflected), eps]) 
+    refl_det_frac = np.max([np.sum(refl_detected),eps]) / np.max([np.sum(reflected), eps])
 
     # calculate transmittance and reflectance for each trajectory (in terms of trajectory weights)
     transmittance = trans_detected + extra_trans * trans_det_frac
@@ -1233,7 +1233,7 @@ def calc_refl_trans_sphere(trajectories, n_medium, n_sample, radius, p, mu_abs,
         # TODO: explain the math here
         # Kr = K1 + 2(K dot n-hat)n-hat
         k_refl = np.array([select_kx,select_ky,select_kz]) - 2*dot_kin_normal*np.array([x_inter/radius,y_inter/radius,(z_inter-radius)/radius])
-
+    
         directions[:,0,:] = k_refl
         directions[0,0,:] = directions[0,0,:] + select_events(kx, stuck_indices)
         directions[1,0,:] = directions[1,0,:] + select_events(ky, stuck_indices)
@@ -1266,12 +1266,15 @@ def calc_refl_trans_sphere(trajectories, n_medium, n_sample, radius, p, mu_abs,
         trajectories_tir.move(step)
 
         # Calculate reflection and transmition 
+        print('reflectance_no_fresnel (mc): ' + str(reflectance_mean))
         reflectance_tir, transmittance_tir = calc_refl_trans_sphere(trajectories_tir, 
                                                                     n_medium, n_sample, 
                                                                     radius, p, mu_abs, mu_scat, 
                                                                     plot_exits = plot_exits,
                                                                     tir = True, call_depth = call_depth+1,
                                                                     max_stuck = max_stuck)
+        print('reflectance_tir (mc):' + str(reflectance_tir))
+        print('reflectance (mc):' + str(reflectance_tir + reflectance_mean))
         return (reflectance_tir + reflectance_mean, transmittance_tir + transmittance_mean)
         
     else:    

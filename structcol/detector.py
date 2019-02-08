@@ -310,6 +310,9 @@ def select_events(inarray, events):
     1D array: contains only the elements of inarray corresponding to non-zero events values.
     
     '''
+    # make inarray a numpy array if not already
+    inarray = np.array(inarray)
+    
     # there is no 0th event, so disregard a 0 (or less) in the events array
     valid_events = (events > 0)
     
@@ -363,8 +366,24 @@ def find_vec_sphere_intersect(x0, y0, z0, x1, y1, z1, radius):
         tuple (x, y, z) point of intersection     
     
     """
+    # make sure none of the points are inifinite
+    x0[x0>100*radius] = 100*radius
+    y0[y0>100*radius] = 100*radius
+    z0[z0>100*radius] = 100*radius
+    x1[x1>100*radius] = 100*radius
+    y1[y1>100*radius] = 100*radius
+    z1[z1>100*radius] = 100*radius
+    x0[x0<-100*radius] = -100*radius
+    y0[y0<-100*radius] = -100*radius
+    z0[z0<-100*radius] = -100*radius
+    x1[x1<-100*radius] = -100*radius
+    y1[y1<-100*radius] = -100*radius
+    z1[z1<-100*radius] = -100*radius
+    
     # find k vector from point inside and outside sphere
+    #print('z_1: ' + str(z1))
     kx, ky, kz = normalize(x1-x0, y1-y0, z1-z0)
+    #print('k int: ' + str([kx, ky, kz]))
     
     # solve for intersection of k with sphere surface using parameterization
     # there will be two solutions for each k vector, corresponding to the two
@@ -398,10 +417,6 @@ def find_vec_sphere_intersect(x0, y0, z0, x1, y1, z1, radius):
     
     # keep only the intercept closest to the exit point of the trajectory
     pos_int = np.zeros((3,len(x0)))
-    #print('int not chosen: ' + str(x_int_p[ind_p_not]))
-    #print('int not chosen: ' + str(x_int_m[ind_m_not]))
-    #print('x0: ' + str(x0))
-    #print('x0: ' + str(x0))
     pos_int[:,ind_p] = x_int_p[ind_p], y_int_p[ind_p], z_int_p[ind_p]
     pos_int[:,ind_m] = x_int_m[ind_m], y_int_m[ind_m], z_int_m[ind_m]
     
@@ -512,7 +527,7 @@ def rotate_refract(abc, uvw, theta, xyz):
     return k2z
 
 def get_angles(indices, boundary, trajectories, thickness, 
-               incident = False, plot_exits = False):
+               init_dir = None, plot_exits = False):
     '''
     Returns angles relative to vector normal to sphere at point on 
     boundary. 
@@ -565,7 +580,7 @@ def get_angles(indices, boundary, trajectories, thickness,
         z = z - radius
     
         # if incident light
-        if incident:
+        if init_dir is not None:
             kx, ky, kz = trajectories.direction
             
             # selects initialized trajectory positions
@@ -602,7 +617,6 @@ def get_angles(indices, boundary, trajectories, thickness,
             # calculate the normalized k1 vector from the positions 
             # inside and outside (X0,y0,z0) and (x1,y1,z1)
             k1 = normalize(select_x1-select_x0, select_y1-select_y0, select_z1-select_z0)
-            #print('k1' + str(k1))
             
             # get positions at sphere boundary from exit
             x_inter, y_inter, z_inter = find_vec_sphere_intersect(select_x0,
@@ -615,7 +629,6 @@ def get_angles(indices, boundary, trajectories, thickness,
         
         # calculate the vector normal to the sphere boundary at the exit
         norm = normalize(x_inter, y_inter, z_inter)
-        #print( 'norm: '+ str(norm))
         
         # calculate the dot product between the normal vector and the exit vector
         dot_norm = norm[0,:]*k1[0,:] + norm[1,:]*k1[1,:] + norm[2,:]*k1[2,:]
@@ -645,10 +658,13 @@ def get_angles(indices, boundary, trajectories, thickness,
             ax.plot_wireframe(x, y, z, color=[0.8,0.8,0.8])
             
     if boundary == 'film':
-        kz = trajectories.direction[2,:,:]
+        kz = trajectories.direction[2]
         
-        # select scattering events resulted in exit
-        cosz = select_events(kz, indices)
+        if init_dir is not None:
+            cosz = init_dir
+        else:
+            # select scattering events resulted in exit
+            cosz = select_events(kz, indices)
         
         # calculate angle to normal from cos_z component (only want magnitude)
         angles = sc.Quantity(np.arccos(np.abs(cosz)),'')
@@ -660,7 +676,7 @@ def get_angles(indices, boundary, trajectories, thickness,
     return angles, norm
     
 def fresnel_pass_frac(indices, n_before, n_inside, n_after, boundary, 
-                      trajectories, thickness, incident = False, 
+                      trajectories, thickness, init_dir = None, 
                       plot_exits=False):
     '''
     Returns weights of interest reduced by fresnel reflection across two 
@@ -716,16 +732,12 @@ def fresnel_pass_frac(indices, n_before, n_inside, n_after, boundary,
         n_inside = n_before
 
     # get angles between trajectory direction and normal vector
-    #print('incident: ' + str(incident))
     theta_before, norm = get_angles(indices, boundary, trajectories, 
-                                        thickness, incident = incident,
+                                        thickness, init_dir = init_dir,
                                         plot_exits = plot_exits)
         
     #find angles inside
-    #print(theta_before)
-    #print('theta_before:' + str(theta_before))
     theta_inside = refraction(theta_before, n_before, n_inside)
-    #print('theta_inside: ' + str(theta_inside))
     # if theta_inside is nan (because the trajectory doesn't exit due to TIR), 
     # then replace it with pi/2 (the trajectory goes sideways infinitely) to 
     # avoid errors during the calculation of stuck trajectories
@@ -747,7 +759,7 @@ def fresnel_pass_frac(indices, n_before, n_inside, n_after, boundary,
         
     return fresnel_pass, norm
 
-def detect_correct(indices, trajectories, weights_factor, n_before, n_after, boundary, thickness,
+def detect_correct(indices, trajectories, weights, n_before, n_after, boundary, thickness,
                    thresh_angle):
     '''
     Returns weights of interest within detection angle
@@ -779,9 +791,10 @@ def detect_correct(indices, trajectories, weights_factor, n_before, n_after, bou
     theta[np.isnan(theta)] = np.inf # this avoids a warning
 
     # choose only the ones inside detection angle
-    filter_weights = weights_factor * select_events(trajectories.weight, indices)
-    filter_weights[theta > thresh_angle] = 0
-    return filter_weights
+    #filtered_weights = weights_factor * select_events(trajectories.weight, indices)
+    filtered_weights = copy.deepcopy(weights)
+    filtered_weights[theta > thresh_angle] = 0
+    return filtered_weights
 
 def refraction(angles, n_before, n_after):
     '''
@@ -882,8 +895,8 @@ def find_valid_exits(n_sample, n_medium, thickness, z_low, boundary,
     if boundary == 'film':    
         
         # get variables we need from trajectories
-        kz = trajectories.direction[2,:,:]
-        z = trajectories.position[2,:,:]
+        kz = trajectories.direction[2]
+        z = trajectories.position[2]
         
         # rescale z in terms of integer numbers of sample thickness
         z_floors = np.floor((z - z_low)/(thickness - z_low))
@@ -935,13 +948,13 @@ def fresnel_correct_enter(n_medium, n_front, n_sample, boundary, thickness,
                           trajectories, fresnel_traj):
     
     # variables to use throughout function
-    kz = trajectories.direction[2,:,:]
+    kz = trajectories.direction[2]
     ntraj = kz.shape[1]
     indices = np.ones(ntraj)
     
     if boundary == 'film':
         # init_dir is reverse-corrected for refraction. = kz before medium/sample interface
-        angles, _ = get_angles(indices, boundary, trajectories, thickness, incident = True)
+        angles, _ = get_angles(indices, boundary, trajectories, thickness)
         init_dir = np.cos(refraction(angles, n_sample, n_medium))
     
     if boundary == 'sphere':
@@ -953,10 +966,11 @@ def fresnel_correct_enter(n_medium, n_front, n_sample, boundary, thickness,
     if fresnel_traj == False:       
         inc_pass_frac, _ = fresnel_pass_frac(indices, n_medium, n_front, 
                                              n_sample, boundary, trajectories, 
-                                             thickness, incident = True)
+                                             thickness, init_dir = init_dir)
 
     else:
         inc_pass_frac = np.ones(ntraj)
+        
  
     return init_dir, inc_pass_frac
 
@@ -966,7 +980,6 @@ def fresnel_correct_exit(n_sample, n_medium,n_front, n_back, refl_indices,
                          fresnel_traj, plot_exits):
     
     # calculate the trajectory weights that exit from fresnel equations
-    # print('n_front: ' + str(n_front))
     fresnel_pass_frac_refl, norm_vec_refl = fresnel_pass_frac(refl_indices, 
                                                               n_sample, 
                                                               n_front, 
@@ -1023,7 +1036,7 @@ def detect_corrected_traj(inc_pass_frac, init_dir, n_sample, n_medium,
                           refl_weights_pass, trans_weights_pass, trajectories, 
                           boundary, thickness, detection_angle, eps):
     
-    kz = trajectories.direction[2,:,:]
+    kz = trajectories.direction[2]
     ntraj = kz.shape[1]
     
     inc_refl = (1 - inc_pass_frac) # fresnel reflection incident on sample
@@ -1032,10 +1045,8 @@ def detect_corrected_traj(inc_pass_frac, init_dir, n_sample, n_medium,
                                        n_medium, n_medium, boundary, thickness, detection_angle)
     trans_detected = detect_correct(trans_indices, trajectories, trans_weights_pass, 
                                     n_sample, n_medium, boundary, thickness, detection_angle)
-    
     refl_detected = detect_correct(refl_indices, trajectories, refl_weights_pass,
                                    n_sample, n_medium, boundary, thickness, detection_angle)
-    
     trans_det_frac = np.max([np.sum(trans_detected),eps]) / np.max([np.sum(trans_weights_pass), eps])
     refl_det_frac = np.max([np.sum(refl_detected),eps]) / np.max([np.sum(refl_weights_pass), eps]) 
     
@@ -1100,7 +1111,7 @@ def calc_refl_trans(trajectories, thickness, n_medium, n_sample, boundary,
     # find fraction of light that enters sample  
     init_dir, inc_pass_frac = fresnel_correct_enter(n_medium, n_front, n_sample, 
                                                     boundary, thickness,
-                                                    trajectories, fresnel_traj)        
+                                                    trajectories, fresnel_traj)      
 
     # calculate outcome weights of trajectories
     (refl_weights, 
@@ -1138,7 +1149,7 @@ def calc_refl_trans(trajectories, thickness, n_medium, n_sample, boundary,
     
     # if we want to run fresnel reflected as new trajectories 
     # (only implemented for sphere)       
-    ntraj = trajectories.position.shape[2]
+    ntraj = trajectories.position[2].shape[1]#trajectories.position.shape[2]
     total_stuck = np.sum(refl_fresnel + trans_fresnel + stuck_weights)/ntraj
     
     if run_fresnel_traj and call_depth < max_call_depth and total_stuck > max_stuck:
@@ -1159,6 +1170,7 @@ def calc_refl_trans(trajectories, thickness, n_medium, n_sample, boundary,
                                                   n_medium, n_sample, mu_scat, mu_abs,
                                                   max_stuck, max_call_depth, 
                                                   call_depth, plot_exits)
+        print('reflectance (det): ' + str(reflectance))
     
     else:
         
@@ -1225,6 +1237,8 @@ def run_sphere_fresnel_traj(reflectance_no_fresnel, transmittance_no_fresnel,
         # shift z for intersect finding
         select_z0 = select_z0 - select_radius
         select_z1 = select_z1 - select_radius
+        #print('1st point: ' + str([select_x0, select_y0, select_z0]))
+        #print('2nd point: ' + str([select_x1, select_y1, select_z1]))
         
         # get positions at sphere boundary from exit
         x_inter, y_inter, z_inter = find_vec_sphere_intersect(select_x0,
@@ -1236,6 +1250,7 @@ def run_sphere_fresnel_traj(reflectance_no_fresnel, transmittance_no_fresnel,
                                                               radius)
         # shift z back to global coordinates
         z_inter = z_inter + select_radius
+        #print('inter: ' + str([x_inter, y_inter, z_inter]))
         
         # define vectors for reflection inside sphere
         select_kx = select_events(kx, indices)
@@ -1246,7 +1261,10 @@ def run_sphere_fresnel_traj(reflectance_no_fresnel, transmittance_no_fresnel,
                            (z_inter-select_radius)/radius])
         
         # calculate reflected direction inside sphere
+        print('norm (det): ' + str(normal))
+        print('k_out (det): ' + str(k_out))
         k_refl = rotate_reflect(k_out, normal)
+        print('k_refl (det): ' + str(k_refl))
         
         # set the initial directions as the reflected directions
         directions = np.zeros((3,nevents,ntraj))
@@ -1279,7 +1297,7 @@ def run_sphere_fresnel_traj(reflectance_no_fresnel, transmittance_no_fresnel,
         trajectories_tir.move(step)
 
         # Calculate reflection and transmition 
-        #print('plot_exits: ' + str(plot_exits))
+        print('reflectance_no_fresnel (det): ' + str(reflectance_no_fresnel))
         reflectance_tir, transmittance_tir = calc_refl_trans(trajectories_tir, 
                                                              thickness, n_medium,
                                                              n_sample, boundary,
@@ -1290,7 +1308,7 @@ def run_sphere_fresnel_traj(reflectance_no_fresnel, transmittance_no_fresnel,
                                                              fresnel_traj = True, 
                                                              call_depth = call_depth+1,
                                                              max_stuck = max_stuck)
-        
+        print('reflectance_tir (det): ' + str(reflectance_tir))
         return (reflectance_tir + reflectance_no_fresnel, 
                 transmittance_tir + transmittance_no_fresnel)
 
