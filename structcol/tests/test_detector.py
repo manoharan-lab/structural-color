@@ -22,9 +22,9 @@ Tests for the montecarlo model (in structcol/montecarlo.py)
 """
 
 import structcol as sc
-from .. import montecarlo as mc
-from .. import refractive_index as ri
-import os
+from structcol import montecarlo as mc
+from structcol import detector as det
+from structcol import refractive_index as ri
 import numpy as np
 from numpy.testing import assert_equal, assert_almost_equal
 import pytest
@@ -68,14 +68,14 @@ def test_calc_refl_trans():
     kz = np.array([[1,1,1,1],[-1,1,1,1],[-1,1,1,1]])
     weights = np.array([[.8, .8, .9, .8],[.7, .3, .7, 0],[.1, .1, .5, 0]])
     trajectories = mc.Trajectory([np.nan, np.nan, z_pos],[np.nan, np.nan, kz], weights)
-    refl, trans= mc.calc_refl_trans(trajectories, low_thresh, high_thresh, small_n, small_n)
+    refl, trans= det.calc_refl_trans(trajectories, high_thresh, small_n, small_n, 'film')
     expected_trans_array = np.array([0, .3, .25, 0])/ntrajectories #calculated manually
     expected_refl_array = np.array([.7, 0, .25, 0])/ntrajectories #calculated manually
     assert_almost_equal(refl, np.sum(expected_refl_array))
     assert_almost_equal(trans, np.sum(expected_trans_array))
 
     # test above but with covers on front and back
-    refl, trans = mc.calc_refl_trans(trajectories, low_thresh, high_thresh, small_n, small_n, n_front=large_n, n_back=large_n)
+    refl, trans = det.calc_refl_trans(trajectories, high_thresh, small_n, small_n, 'film',n_front=large_n, n_back=large_n)
     expected_trans_array = np.array([0.00814545, 0.20014545, 0.2, 0.])/ntrajectories #calculated manually
     expected_refl_array = np.array([0.66700606, 0.20349091, 0.4, 0.2])/ntrajectories #calculated manually
     assert_almost_equal(refl, np.sum(expected_refl_array))
@@ -87,14 +87,14 @@ def test_calc_refl_trans():
     kz = np.array([[1,1,1,0.86746757864487367],[-.1,-.1,.1,.1],[0.1,-.1,-.1,0.1],[-1,-.9,1,1]])
     weights = np.array([[.8, .8, .9, .8],[.7, .3, .7, .5],[.6, .2, .6, .4], [.4, .1, .5, .3]])
     trajectories = mc.Trajectory([np.nan, np.nan, z_pos],[np.nan, np.nan, kz], weights)
-    refl, trans= mc.calc_refl_trans(trajectories, low_thresh, high_thresh, small_n, large_n)
+    refl, trans= det.calc_refl_trans(trajectories, high_thresh, small_n, large_n, 'film')
     expected_trans_array = np.array([ .00167588, .00062052, .22222222, .11075425])/ntrajectories #calculated manually
     expected_refl_array = np.array([ .43317894, .18760061, .33333333, .59300905])/ntrajectories #calculated manually
     assert_almost_equal(refl, np.sum(expected_refl_array))
     assert_almost_equal(trans, np.sum(expected_trans_array))
 
     # test refraction and detection_angle
-    refl, trans= mc.calc_refl_trans(trajectories, low_thresh, high_thresh, small_n, large_n, detection_angle=0.1)
+    refl, trans= det.calc_refl_trans(trajectories, high_thresh, small_n, large_n, 'film', detection_angle=0.1)
     expected_trans_array = np.array([ .00167588, .00062052, .22222222,  .11075425])/ntrajectories #calculated manually
     expected_refl_array = np.array([  .43203386, .11291556, .29105299,  .00046666])/ntrajectories #calculated manually
     assert_almost_equal(refl, np.sum(expected_refl_array))
@@ -107,7 +107,7 @@ def test_calc_refl_trans():
     weights = np.array([[1,1,1,1,1,1,1],[1,1,1,1,1,1,1],[1,1,1,1,1,1,1]])
     thin_sample_thickness = 1
     trajectories = mc.Trajectory([np.nan, np.nan, z_pos],[np.nan, np.nan, kz], weights)
-    refl, trans= mc.calc_refl_trans(trajectories, low_thresh, thin_sample_thickness, small_n, large_n)
+    refl, trans= det.calc_refl_trans(trajectories, thin_sample_thickness, small_n, large_n, 'film')
     expected_trans_array = np.array([.8324515, .8324515, .8324515, .05643739, .05643739, .05643739, .8324515])/ntrajectories #calculated manually
     expected_refl_array = np.array([.1675485, .1675485, .1675485, .94356261, .94356261, .94356261, .1675485])/ntrajectories #calculated manually
     assert_almost_equal(refl, np.sum(expected_refl_array))
@@ -117,7 +117,7 @@ def test_trajectories():
     # Initialize runs
     nevents = 2
     ntrajectories = 3
-    r0, k0, W0 = mc.initialize(nevents, ntrajectories, n_matrix, n_sample, seed=1)
+    r0, k0, W0 = det.initialize(nevents, ntrajectories, n_medium, n_sample, 'film', seed=1)
     r0 = sc.Quantity(r0, 'um')
     k0 = sc.Quantity(k0, '')
     W0 = sc.Quantity(W0, '')
@@ -189,10 +189,10 @@ def test_reflection_core_shell():
     T_before = 0.1861762169688054
     T_cs_before = 0.1861762169688054
     
-    assert_equal(R_before, R)
-    assert_equal(R_cs_before, R_cs)
-    assert_equal(T_before, T)
-    assert_equal(T_cs_before, T_cs)
+    assert_almost_equal(R_before, R)
+    assert_almost_equal(R_cs_before, R_cs)
+    assert_almost_equal(T_before, T)
+    assert_almost_equal(T_cs_before, T_cs)
     
     # Test that the reflectance is the same for a core-shell that absorbs (with
     # the same refractive indices for all layers) and a non-core-shell that 
@@ -221,10 +221,10 @@ def test_reflection_core_shell():
     T_abs_before = 0.017215194324142709
     T_cs_abs_before = 0.017215194324029608
 
-    assert_equal(R_abs_before, R_abs)
-    assert_equal(R_cs_abs_before, R_cs_abs)
-    assert_equal(T_abs_before, T_abs)
-    assert_equal(T_cs_abs_before, T_cs_abs)
+    assert_almost_equal(R_abs_before, R_abs)
+    assert_almost_equal(R_cs_abs_before, R_cs_abs)
+    assert_almost_equal(T_abs_before, T_abs)
+    assert_almost_equal(T_cs_abs_before, T_cs_abs)
     
     # Same as previous test but with absorbing matrix as well
     # Reflection using a non-core-shell absorbing system
@@ -252,10 +252,10 @@ def test_reflection_core_shell():
     T_abs_before = 0.002180700021951509
     T_cs_abs_before = 0.002180700021951509
 
-    assert_equal(R_abs_before, R_abs)
-    assert_equal(R_cs_abs_before, R_cs_abs)
-    assert_equal(T_abs_before, T_abs)
-    assert_equal(T_cs_abs_before, T_cs_abs)
+    assert_almost_equal(R_abs_before, R_abs)
+    assert_almost_equal(R_cs_abs_before, R_cs_abs)
+    assert_almost_equal(T_abs_before, T_abs)
+    assert_almost_equal(T_cs_abs_before, T_cs_abs)
     
     
 def test_reflection_absorbing_particle_or_matrix():
@@ -284,10 +284,10 @@ def test_reflection_absorbing_particle_or_matrix():
     T_before = 0.1861762169688054
     T_abs_before = 0.1861762169688054
     
-    assert_equal(R_before, R)
-    assert_equal(R_abs_before, R_abs)
-    assert_equal(T_before, T)
-    assert_equal(T_abs_before, T_abs)
+    assert_almost_equal(R_before, R)
+    assert_almost_equal(R_abs_before, R_abs)
+    assert_almost_equal(T_before, T)
+    assert_almost_equal(T_abs_before, T_abs)
 
     # Same as previous test but with absorbing matrix
     # Reflection using matrix with an imaginary component of 0
@@ -306,10 +306,10 @@ def test_reflection_absorbing_particle_or_matrix():
     T_before = 0.1861762169688054
     T_abs_before = 0.1861762169688054
 
-    assert_equal(R_before, R)
-    assert_equal(R_abs_before, R_abs)
-    assert_equal(T_before, T)
-    assert_equal(T_abs_before, T_abs)
+    assert_almost_equal(R_before, R)
+    assert_almost_equal(R_abs_before, R_abs)
+    assert_almost_equal(T_before, T)
+    assert_almost_equal(T_abs_before, T_abs)
     
     
 def test_reflection_polydispersity():
@@ -343,10 +343,10 @@ def test_reflection_polydispersity():
     T_mono_before = 0.1861762169688054
     T_poly_before = 0.1861762169688054
 
-    assert_equal(R_mono_before, R_mono)
-    assert_equal(R_poly_before, R_poly)
-    assert_equal(T_mono_before, T_mono)
-    assert_equal(T_poly_before, T_poly)
+    assert_almost_equal(R_mono_before, R_mono)
+    assert_almost_equal(R_poly_before, R_poly)
+    assert_almost_equal(T_mono_before, T_mono)
+    assert_almost_equal(T_poly_before, T_poly)
     
     # With absorption: test that the reflectance using with very small 
     # polydispersity is the same as the monodisperse case  
@@ -374,10 +374,10 @@ def test_reflection_polydispersity():
     T_mono_abs_before = 0.083823525277616467
     T_poly_abs_before = 0.083720861809212316
     
-    assert_equal(R_mono_abs_before, R_mono_abs)
-    assert_equal(R_poly_abs_before, R_poly_abs)
-    assert_equal(T_mono_abs_before, T_mono_abs)
-    assert_equal(T_poly_abs_before, T_poly_abs)
+    assert_almost_equal(R_mono_abs_before, R_mono_abs)
+    assert_almost_equal(R_poly_abs_before, R_poly_abs)
+    assert_almost_equal(T_mono_abs_before, T_mono_abs)
+    assert_almost_equal(T_poly_abs_before, T_poly_abs)
     
     # test that the reflectance is the same for a polydisperse monospecies
     # and a bispecies with equal types of particles
@@ -480,20 +480,18 @@ def calc_montecarlo(nevents, ntrajectories, radius, n_particle, n_sample,
                                       concentration=concentration, pdi=pdi, 
                                       polydisperse=polydisperse)
 
-    r0, k0, W0 = mc.initialize(nevents, ntrajectories, n_medium, n_sample, 
-                               seed=seed, incidence_angle = 0.)
+    r0, k0, W0 = det.initialize(nevents, ntrajectories, n_medium, n_sample, 'film', seed=seed)
     r0 = sc.Quantity(r0, 'um')
     k0 = sc.Quantity(k0, '')
     W0 = sc.Quantity(W0, '')
-    sintheta, costheta, sinphi, cosphi, _, _= mc.sample_angles(nevents, 
-                                                               ntrajectories,p)
+    
+    sintheta, costheta, sinphi, cosphi, _, _= mc.sample_angles(nevents,ntrajectories,p)
     step = mc.sample_step(nevents, ntrajectories, mu_abs, mu_scat)
     trajectories = mc.Trajectory(r0, k0, W0)
     trajectories.absorb(mu_abs, step)                         
     trajectories.scatter(sintheta, costheta, sinphi, cosphi)         
     trajectories.move(step)
-    z_low = sc.Quantity('0.0 um')
     cutoff = sc.Quantity('50 um')
-    R, T = mc.calc_refl_trans(trajectories, z_low, cutoff, n_medium, n_sample)
+    R, T = det.calc_refl_trans(trajectories, cutoff, n_medium, n_sample, 'film')
 
     return R, T

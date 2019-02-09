@@ -24,8 +24,9 @@ Tests for the montecarlo model for sphere geometry (in structcol/montecarlo.py)
 """
 
 import structcol as sc
-from .. import montecarlo as mc
-from .. import refractive_index as ri
+from structcol import montecarlo as mc
+from structcol import detector as det
+from structcol import refractive_index as ri
 import numpy as np
 from numpy.testing import assert_almost_equal
 
@@ -71,14 +72,14 @@ def test_calc_refl_trans():
     weights = np.array([[.8, .8, .9, .8],[.7, .3, .7, 0],[.1, .1, .5, 0]])
     trajectories = mc.Trajectory([x_pos, y_pos, z_pos],[kx, ky, kz], weights) 
     p, mu_scat, mu_abs = mc.calc_scat(radius, n_particle, small_n, volume_fraction, wavelen) 
-    refl, trans= mc.calc_refl_trans_sphere(trajectories, small_n, small_n, assembly_radius, p, mu_abs, mu_scat, run_tir = False)
+    refl, trans = det.calc_refl_trans(trajectories, assembly_radius, small_n, small_n, 'sphere')
     expected_trans_array = np.array([0., .3, 0.25, 0])/ntrajectories #calculated manually
     expected_refl_array = np.array([.7, 0., .25, 0.])/ntrajectories #calculated manually
     assert_almost_equal(refl, np.sum(expected_refl_array))
     assert_almost_equal(trans, np.sum(expected_trans_array))
 
     # test fresnel as well
-    refl, trans= mc.calc_refl_trans_sphere(trajectories, small_n, large_n, assembly_radius, p, mu_abs, mu_scat, run_tir = False)
+    refl, trans = det.calc_refl_trans(trajectories, assembly_radius, small_n, large_n, 'sphere')
     expected_trans_array = np.array([0.0345679, .25185185, 0.22222222, 0.])/ntrajectories #calculated manually
     expected_refl_array = np.array([.69876543, 0.12592593, 0.33333333, 0.11111111])/ntrajectories #calculated manually
     assert_almost_equal(refl, np.sum(expected_refl_array))
@@ -87,7 +88,7 @@ def test_calc_refl_trans():
     # test steps in z longer than sample thickness
     z_pos = np.array([[0,0,0,0],[1,1,14,12],[-1,11,2,11],[-2,12,4,12]])
     trajectories = mc.Trajectory([x_pos, y_pos, z_pos],[kx, ky, kz], weights) 
-    refl, trans= mc.calc_refl_trans_sphere(trajectories, small_n, small_n, assembly_radius, p, mu_abs, mu_scat, run_tir = False)
+    refl, trans= det.calc_refl_trans(trajectories, assembly_radius, small_n, small_n, 'sphere')
     expected_trans_array = np.array([0., .3, .9, .8])/ntrajectories #calculated manually
     expected_refl_array = np.array([.7, 0., 0., 0.])/ntrajectories #calculated manually
     assert_almost_equal(refl, np.sum(expected_refl_array))
@@ -97,7 +98,8 @@ def test_calc_refl_trans():
     z_pos = np.array([[0,0,0,0],[1,1,1,1],[-1,11,2,11],[-2,12,4,12]])
     weights = np.ones((3,4))
     trajectories = mc.Trajectory([x_pos, y_pos, z_pos],[kx, ky, kz], weights) 
-    refl, trans= mc.calc_refl_trans_sphere(trajectories, small_n, small_n, assembly_radius, p, mu_abs, mu_scat, tir=True)
+    refl, trans = det.calc_refl_trans(trajectories, assembly_radius, small_n, small_n, 'sphere',
+                                     p=p, mu_abs=mu_abs, mu_scat=mu_scat, run_fresnel_traj=True)
     # since the tir=True reruns the stuck trajectory, we don't know whether it will end up reflected or transmitted
     # all we can know is that the end refl + trans > 0.99
     assert_almost_equal(refl + trans, 1.) 
@@ -107,7 +109,7 @@ def test_trajectories():
     # Initialize runs
     nevents = 2
     ntrajectories = 3
-    r0, k0, W0 = mc.initialize_sphere(nevents, ntrajectories, n_matrix, n_sample, assembly_radius, seed=1)
+    r0, k0, W0 = det.initialize(nevents, ntrajectories, n_matrix, n_sample, 'sphere', seed=1)
     r0 = sc.Quantity(r0, 'um')
     k0 = sc.Quantity(k0, '')
     W0 = sc.Quantity(W0, '')
@@ -120,8 +122,13 @@ def test_get_angles_sphere():
     z_pos = np.array([[0,0,0,0],[1,1,1,1],[-1,11,2,11],[-2,12,4,12]])
     x_pos = np.array([[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,-0,0,0]])
     y_pos = np.array([[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0]])
+    kx = np.zeros((3,4))
+    ky = np.zeros((3,4))
+    kz = np.array([[1,1,1,1],[-1,1,1,1],[-1,1,1,1]])
+    trajectories = mc.Trajectory([x_pos, y_pos, z_pos],[kx, ky, kz], None) 
+    
     indices = np.array([1,1,1,1])
-    _, _, thetas = mc.get_angles_sphere(x_pos, y_pos, z_pos, assembly_radius, indices, incident = True)
+    thetas, _ = det.get_angles(indices, 'sphere', trajectories, assembly_radius, init_dir = 1)
     assert_almost_equal(np.sum(thetas), 0.) 
 
 def test_index_match():
@@ -162,10 +169,11 @@ def test_index_match():
     trajectories_sphere.move(step)
     
     # calculate reflectance
-    refl_sphere, trans = mc.calc_refl_trans_sphere(trajectories_sphere, 
-                                                   n_medium, n_sample, 
-                                                   microsphere_radius, 
-                                                   p, mu_abs, mu_scat, max_stuck = 0.0001)    
+    refl_sphere, trans = det.calc_refl_trans(trajectories_sphere, microsphere_radius,
+                                                   n_medium, n_sample, 'sphere',
+                                                   p=p, mu_abs=mu_abs, mu_scat=mu_scat, 
+                                                   run_fresnel_traj = True, 
+                                                   max_stuck = 0.0001)    
     
     # calculated by hand from fresnel infinite sum
     refl_fresnel_int = 0.053 # calculated by hand
