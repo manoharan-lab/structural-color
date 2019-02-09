@@ -106,6 +106,8 @@ class MCResult:
 
 class Trajectory:
     """
+    FOUND IN MONTECARLO.PY, WILL BE REMOVED IN FUTURE
+    
     Class that describes trajectories of photons packets in a scattering
     and/or absorbing medium.
     
@@ -299,8 +301,9 @@ def select_events(inarray, events):
     
     Parameters
     ----------
-    inarray: 2D array
+    inarray: 2D or 3D array
         Should have axes corresponding to events, trajectories
+        or coordinates, events, trajectories
     events: 1D array
         Should have length corresponding to ntrajectories.
         Non-zero entries correspond to the event of interest
@@ -341,29 +344,31 @@ def select_events(inarray, events):
 
 def find_vec_sphere_intersect(x0, y0, z0, x1, y1, z1, radius):
     """
-    finds the point at which an exiting trajectory intersect with the boundary 
-    of the sphere
+    analytically solves for the point at which an exiting trajectory 
+    intersects with the boundary of the sphere
     
     Parameters
     ----------
-    x0: float
-        initial x-position of trajectory
-    y0: float
-        initial y-position of trajectory
-    z0: float
-        initial z-position of trajectory
-    x1: float
+    x0: 1d array
+        initial x-position of each trajectory before exit 
+    y0: 1d array
+        initial y-position of trajectory before exit 
+    z0: 1d array
+        initial z-position of trajectory before exit
+    x1: 1d array
         x-position of trajectory after exit
-    y1: float
+    y1: 1d array
         y-position of trajectory after exit
-    z1: float
+    z1: 1d array
         z-position of trajectory after exit
     radius : float
         radius of spherical boundary 
 
     Returns
     ----------
-        tuple (x, y, z) point of intersection     
+    pos_int: 2d array
+        position where exit trajectories intersect the boundary of the sphere,
+        with shape: 3 (coordinate), ntrajectories       
     
     """
     # make sure none of the points are inifinite
@@ -381,14 +386,13 @@ def find_vec_sphere_intersect(x0, y0, z0, x1, y1, z1, radius):
     z1[z1<-100*radius] = -100*radius
     
     # find k vector from point inside and outside sphere
-    #print('z_1: ' + str(z1))
     kx, ky, kz = normalize(x1-x0, y1-y0, z1-z0)
-    #print('k int: ' + str([kx, ky, kz]))
     
     # solve for intersection of k with sphere surface using parameterization
     # there will be two solutions for each k vector, corresponding to the two
     # points where a line intersects a sphere
-    # see Annie Stephenson lab notebook #3, pg 18 for details
+    # see http://www.ambrsoft.com/TrigoCalc/Sphere/SpherLineIntersection_.htm
+    # or Annie Stephenson lab notebook #3, pg 18 for details
     a = kx**2 + ky**2 + kz**2
     b = 2*(kx*x0 + ky*y0 + kz*z0)
     c = x0**2 + y0**2 + z0**2-radius**2
