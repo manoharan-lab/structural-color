@@ -428,22 +428,21 @@ def find_vec_sphere_intersect(x0, y0, z0, x1, y1, z1, radius):
 
 def exit_kz(indices, trajectories, boundary, thickness, n_inside, n_outside):
     '''
-    returns kz of exit trajectory, corrected for refraction at the spherical
+    returns kz of exit trajectories, corrected for refraction at the spherical
     boundary. Since sphere trajectories can refract away from the detector,
     this is currently only relevant for the sphere case
     
     Parameters
     ----------
-    x: 1D array
-        x values for each trajectory and event
-    y: 1D array
-        y values for each trajectory and event
-    z: 1D array
-        z values for each trajectory and event
     indices: 1D array
         Length ntraj. Values represent events of interest in each trajectory
-    radius: float
-        radius of sphere boundary
+    trajectories: Trajectory object
+        Trajectory object used in Monte Carlo simulation
+    boundary: string
+        Geometrical boundary for Monte Carlo calculations. Current options 
+        are 'film' or 'sphere'.
+    Thickness: float
+        thickness of film or diameter of sphere
     n_inside: float
         refractive index inside sphere boundary
     n_outside: float
@@ -456,6 +455,8 @@ def exit_kz(indices, trajectories, boundary, thickness, n_inside, n_outside):
     
     '''
 
+    # get the angles between trajectories and the normal,
+    # along with their normal vectors
     theta_1, norm = get_angles(indices, boundary, trajectories, thickness)
 
     # take cross product of k1 and sphere normal vector to find vector to rotate
@@ -538,26 +539,17 @@ def get_angles(indices, boundary, trajectories, thickness,
     
     Parameters
     ----------
-    x: 2D array
-        x position values, with axes corresponding to (1 + events, trajectories)
-        there is one more x position than events because it takes two positions
-        to define an event
-    y: 2D array
-        y position values, with axes corresponding to (1 + events, trajectories)
-        there is one more y position than events because it takes two positions
-        to define an event
-    z: 2D array
-        z position values, with axes corresponding to (1 + events, trajectories)
-        there is one more z position than events because it takes two positions
-        to define an event
-    radius: float
-        radius of the sphere boundary 
     indices: 1D array
         Length ntraj. Values represent events of interest in each trajectory
-        index = 1 corresponds to first event, or 0th element in events array
-    kx:
-    ky:
-    kz: 
+    boundary: string
+        Geometrical boundary for Monte Carlo calculations. Current options 
+        are 'film' or 'sphere'.
+    trajectories: Trajectory object
+        Trajectory object used in Monte Carlo simulation
+    thickness: float
+        thickness of film or diameter of sphere
+    init_dir: None or 1D array of pint quantities (length ntrajectories)
+        kz of trajectories before they enter sample
     plot_exits : boolean
         If set to True, function will plot the last point of trajectory inside 
         the sphere, the first point of the trajectory outside the sphere,
@@ -566,13 +558,11 @@ def get_angles(indices, boundary, trajectories, thickness,
     
     Returns
     -------
-    k1: 2D array of shape (3, ntraj)
-        direction vector of trajectory leaving sphere
-    norm: 1D array of shape (3, ntraj)
-        vector normal to sphere at the exit point of the trajectory
-    angles_norm: 1D array of pint quantities (length Ntraj)
+    angles: 1D array of pint quantities (length ntrajectories)
         angle between k1 and the normal vector at the exit point of the
         trajectory
+    norm: 1D array of shape (3, ntrajectories)
+        vector normal to the surface at the exit point of the trajectory
     '''
     
     if boundary == 'sphere':
@@ -585,6 +575,7 @@ def get_angles(indices, boundary, trajectories, thickness,
     
         # if incident light
         if init_dir is not None:
+            # TODO implement capability for diffuse illumination of sphere
             kx, ky, kz = trajectories.direction
             
             # selects initialized trajectory positions
@@ -664,6 +655,8 @@ def get_angles(indices, boundary, trajectories, thickness,
     if boundary == 'film':
         kz = trajectories.direction[2]
         
+        # if incident light, use init dir instead of kz to get direction 
+        # before entering sample
         if init_dir is not None:
             cosz = init_dir
         else:
@@ -964,6 +957,7 @@ def fresnel_correct_enter(n_medium, n_front, n_sample, boundary, thickness,
     if boundary == 'sphere':
         # init_dir is reverse-corrected for refraction. = kz before medium/sample interface
         # for now, we assume initial direction is in +z
+        # TODO add capability for diffuse illumination
         init_dir = np.ones(ntraj)
         
     # calculate initial weights that actually enter the sample after fresnel
