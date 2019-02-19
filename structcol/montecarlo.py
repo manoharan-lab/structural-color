@@ -1160,6 +1160,7 @@ def calc_refl_trans_sphere(trajectories, n_medium, n_sample, radius, p, mu_abs,
     k1_trans, norm_trans, fresnel_pass_frac_trans = fresnel_pass_frac_sphere(radius, trans_indices, n_sample, None, n_medium, x, y, z, 
                                                         plot_exits = plot_exits)
     transmitted = trans_weights * fresnel_pass_frac_trans
+    
 
     if plot_exits == True:
         plt.gca().set_title('Transmitted exits')
@@ -1482,7 +1483,7 @@ def initialize_sphere(nevents, ntraj, n_medium, n_sample, radius, seed=None,
 
     # randomly choose r on interval [0,radius]
     r = radius*np.sqrt(random(ntraj))
-    
+
     # randomly choose th on interval [0,2*pi]
     th = 2*np.pi*random(ntraj)
     
