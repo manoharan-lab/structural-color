@@ -602,6 +602,16 @@ def sample_radii(pdi, rad_list, radius_mean, ntrajectories_bulk, nevents_bulk):
 
     return rads_sampled     
     
+def sample_radii_concentration(p, rad_list, ntrajectories_bulk, nevents_bulk):
+    
+    # sample diameter distribution
+    rads_sampled = np.reshape(np.random.choice(rad_list.magnitude, 
+                                               ntrajectories_bulk*nevents_bulk, p = p), 
+                                               (nevents_bulk,ntrajectories_bulk))                          
+
+    return rads_sampled     
+
+
 def sample_angles_step_poly(nevents_bulk, ntrajectories_bulk, p_sphere, 
                             rads_sampled, rad_list, lscat):
     '''
