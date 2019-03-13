@@ -538,8 +538,10 @@ def calc_rad_list(num_radii, radius_mean, pdi, equal_spacing = False, plot = Tru
             rad_ind_2 = np.argmin(np.abs(pdf_range[int(num_pdf_points/2):]-(num/denom)*np.max(pdf_range)))
             rad_list.append(rad_range[rad_ind_1])
             rad_list.append(rad_range[300 + rad_ind_2])
+
             if num==1:
                 denom = 2*denom
+                num = denom-1
             else:
                 num = num-2
                 

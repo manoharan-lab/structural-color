@@ -939,7 +939,20 @@ def calc_refl_trans(trajectories, z_low, cutoff, n_medium, n_sample,
     stuck_indices = never_exit * (z.shape[0]-1)
 
     # calculate initial weights that actually enter the sample after fresnel
-    init_dir = np.cos(refraction(get_angles(kz, np.ones(ntraj)), n_sample, n_medium))
+    #init_dir = np.cos(refraction(get_angles(kz, np.ones(ntraj)), n_sample, n_medium))
+    
+    # TODO
+    # for the bulk case, the initial direction inside the bulk film is sampled
+    # this is different from the homogeneous film case where we initially
+    # propogate trajectories in the +z direction by one step. Using a sampled 
+    # angle in the first step means we cannot use refraction to back out
+    # the initial direction of the trajectories, since their first direction
+    # isn't determined by refraction. We instead need to know the initial direction
+    # of the source. This will be implemented in the refactored version of the
+    # model, which includes a source object. The following line is a temporary
+    # fix that assumes a normally incident source. 
+    init_dir = np.ones(ntraj)
+    
     # init_dir is reverse-corrected for refraction. = kz before medium/sample interface
     inc_fraction = fresnel_pass_frac(np.array([init_dir]), np.ones(ntraj), n_medium, n_front, n_sample)
 
