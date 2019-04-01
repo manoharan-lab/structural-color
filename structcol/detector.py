@@ -344,7 +344,7 @@ def select_events(inarray, events):
 
 def find_vec_sphere_intersect(x0, y0, z0, x1, y1, z1, radius):
     """
-    analytically solves for the point at which an exiting trajectory 
+    Analytically solves for the point at which an exiting trajectory 
     intersects with the boundary of the sphere
     
     Parameters
@@ -413,11 +413,11 @@ def find_vec_sphere_intersect(x0, y0, z0, x1, y1, z1, radius):
     dist_m = np.nan_to_num((x_int_m - x1)**2 + (y_int_m - y1)**2 + (z_int_m - z1)**2)
 
     # find the indices of the smaller distances of the two
+    # because the intersection point corresponding to the exiting trajectory
+    # must be the intersection point closest to the trajectory's position 
+    # outside the sphere
     ind_p = np.where(dist_p<dist_m)[0]
     ind_m = np.where(dist_m<dist_p)[0]
-    
-    ind_p_not = np.where(dist_p>dist_m)[0]
-    ind_m_not = np.where(dist_m>dist_p)[0]
     
     # keep only the intercept closest to the exit point of the trajectory
     pos_int = np.zeros((3,len(x0)))
@@ -441,7 +441,7 @@ def exit_kz(indices, trajectories, boundary, thickness, n_inside, n_outside):
     boundary: string
         Geometrical boundary for Monte Carlo calculations. Current options 
         are 'film' or 'sphere'.
-    Thickness: float
+    thickness: float
         thickness of film or diameter of sphere
     n_inside: float
         refractive index inside sphere boundary
@@ -464,7 +464,6 @@ def exit_kz(indices, trajectories, boundary, thickness, n_inside, n_outside):
     k1 = select_events(trajectories.direction, indices)
     kr = np.transpose(np.cross(np.transpose(k1),np.transpose(norm)))
     
-    # TODO make sure signs work out
     # use Snell's law to calculate angle between k2 and normal vector
     # theta_2 is nan if photon is totally internally reflected
     theta_2 = refraction(theta_1, n_inside, n_outside)    
@@ -561,7 +560,7 @@ def get_angles(indices, boundary, trajectories, thickness,
     angles: 1D array of pint quantities (length ntrajectories)
         angle between k1 and the normal vector at the exit point of the
         trajectory
-    norm: 1D array of shape (3, ntrajectories)
+    norm: 2D array of shape (3, ntrajectories)
         vector normal to the surface at the exit point of the trajectory
     '''
     
@@ -686,8 +685,6 @@ def fresnel_pass_frac(indices, n_before, n_inside, n_after, boundary,
 
     Parameters
     ----------
-    radius: float
-        radius of the sphere boundary 
     indices: 1D array
         Length ntraj. Values represent events of interest in each trajectory
     n_before: float
@@ -695,23 +692,15 @@ def fresnel_pass_frac(indices, n_before, n_inside, n_after, boundary,
     n_inside: float
         Refractive index of the boundary material (e.g. glass coverslip)
     n_after: float
-        Refractive index of the medium light is going to
-    x: 2D array
-        x position values, with axes corresponding to (1 + events, trajectories)
-        there is one more x position than events because it takes two positions
-        to define an event
-    y: 2D array
-        y position values, with axes corresponding to (1 + events, trajectories)
-        there is one more y position than events because it takes two positions
-        to define an event
-    z: 2D array
-        z position values, with axes corresponding to (1 + events, trajectories)
-        there is one more z position than events because it takes two positions
-        to define an event
-    incident:
-    kx:
-    ky: 
-    kz:
+        Refractive index of the medium light is going into
+    boundary: string 
+        geometrical boundary, current options are 'film' or 'sphere'
+    trajectories:Trajectory object
+        Trajectory object used in Monte Carlo simulation
+    thickness: float
+        thickness of film or diameter of sphere
+    init_dir: None or 1D array of pint quantities (length ntrajectories)
+        kz of trajectories before they enter sample
     plot_exits : boolean
         if set to True, function will plot the last point of trajectory inside 
         the sphere, the first point of the trajectory outside the sphere,
@@ -720,7 +709,11 @@ def fresnel_pass_frac(indices, n_before, n_inside, n_after, boundary,
    
     Returns
     -------
-    1D array of length Ntraj
+    fresnel_pass:1D array (length ntraj)
+        trajectory weights reduced by fresnel reflection
+    norm: 1D array of shape (3, ntrajectories)
+        vector normal to the surface at the exit point of the trajectory
+        
     
     '''
     
@@ -763,22 +756,27 @@ def detect_correct(indices, trajectories, weights, n_before, n_after, boundary, 
     
     Parameters
     ----------
-    kz: 2D array
-        kz values, with axes corresponding to events, trajectories
-    weights: 2D array
-        weights values, with axes corresponding to events, trajectories
     indices: 1D array
         Length ntraj. Values represent events of interest in each trajectory
+    trajectories:Trajectory object
+        Trajectory object used in Monte Carlo simulation
+    weights: 2D array
+        weights values, with axes corresponding to events, trajectories
     n_before: float
         Refractive index of the medium light is coming from
     n_after: float
-        Refractive index of the medium light is going to
+        Refractive index of the medium light is going into
+    boundary: string 
+        geometrical boundary, current options are 'film' or 'sphere'
+    thickness: float
+        thickness of film or diameter of sphere
     thresh_angle: float
         Detection angle to compare with output angles
     
     Returns
     -------
-    1D array of length Ntraj
+    filtered weights: 1D array (length ntraj)
+        trajectory weights within detection angle
     
     '''
 
@@ -804,7 +802,7 @@ def refraction(angles, n_before, n_after):
     n_before: float
         Refractive index of the medium light is coming from
     n_after: float
-        Refractive index of the medium light is going to
+        Refractive index of the medium light is going into
     
     '''
     snell = n_before / n_after * np.sin(angles)
@@ -813,6 +811,28 @@ def refraction(angles, n_before, n_after):
 
 
 def set_up_values(n_sample, trajectories, z_low, thickness):
+    '''
+    Takes the quantities relevant to sample and trajectories
+    and converts them to numpy arrays of the proper units for 
+    more efficient operations
+    
+    Parameters
+    ----------
+    n_sample: float-like 
+        Refractive index of the sample
+    trajectories:Trajectory object
+        Trajectory object used in Monte Carlo simulation
+    z_low: float-like
+        starting z_values for trajectores in Monte Carlo simulation, usually
+        set to 0
+    thickness: float-ike
+        thickness of film or diameter of sphere
+    
+    Returns
+    -------
+    (n_sample, trajectories, z_low, thickness): tuple of numpy arrays
+    
+    '''
     
     # if the particle has a complex refractive index, the n_sample will be 
     # complex too and the code will give lots of warning messages. Better to 
@@ -837,57 +857,39 @@ def set_up_values(n_sample, trajectories, z_low, thickness):
         thickness = thickness.to('um').magnitude
         
     return (n_sample, trajectories, z_low, thickness)
-    
-def find_event_indices(low_bool, high_bool):    
-    
-    nevents = low_bool.shape[0]
-    ntraj = low_bool.shape[1]
-    
-
-    # find first valid exit of each trajectory in each direction
-    # note we convert to 2 1D arrays with len = Ntraj
-    # need vstack to reproduce earlier behaviour:
-    # an initial row of zeros is used to distinguish no events case
-    low_event = np.argmax(np.vstack([np.zeros(ntraj),low_bool]), axis=0)
-    high_event = np.argmax(np.vstack([np.zeros(ntraj),high_bool]), axis=0)
-
-    # find all trajectories that did not exit in each direction
-    no_low_exit = (low_event == 0)
-    no_high_exit = (high_event == 0)
-
-    # find positions where low_event is less than high_event
-    # note that either < or <= would work here. They are only equal if both 0.
-    low_smaller = (low_event < high_event)
-
-    # find all trajectory outcomes
-    # note ambiguity for trajectories that did not exit in a given direction
-    low_first = no_high_exit | low_smaller
-    high_first = no_low_exit | (~low_smaller)
-    never_exit = no_low_exit & no_high_exit
-
-    # find where each trajectory first exits
-    refl_indices = low_event * low_first
-    trans_indices = high_event * high_first
-    stuck_indices = never_exit * nevents
-    
-    return refl_indices,trans_indices, stuck_indices
-
-def calc_outcome_weights(inc_fraction, refl_indices, trans_indices, stuck_indices, weights):
-    # calculate outcome weights from all trajectories
-    refl_weights = inc_fraction * select_events(weights, refl_indices)
-    trans_weights = inc_fraction * select_events(weights, trans_indices)
-    stuck_weights = inc_fraction * select_events(weights, stuck_indices)
-    absorb_weights = inc_fraction - refl_weights - trans_weights - stuck_weights
-
-    # warn user if too many trajectories got stuck
-    stuck_frac = np.sum(stuck_weights) / np.sum(inc_fraction) * 100
-    stuck_traj_warn = " \n{0}% of trajectories did not exit the sample. Increase Nevents to improve accuracy.".format(str(stuck_frac))
-    if stuck_frac >= 20: warnings.warn(stuck_traj_warn)
-    
-    return refl_weights, trans_weights, stuck_weights, absorb_weights
 
 def find_valid_exits(n_sample, n_medium, thickness, z_low, boundary, 
                      trajectories):
+    '''
+    Find booleans describing valid exits for each event and trajectory. Value 
+    of 1 indicates a valid exit, value of 0 indicates no valid exit.
+    
+    Parameters
+    ----------
+    n_sample: float
+        Refractive index of the sample
+    n_medium: float
+        Refractive index of the medium
+    thickness: float
+        thickness of film or diameter of sphere
+    z_low: float
+        starting z_values for trajectores in Monte Carlo simulation, usually
+        set to 0
+    boundary: string 
+        geometrical boundary, current options are 'film' or 'sphere' 
+    trajectories:Trajectory object
+        Trajectory object used in Monte Carlo simulation
+    
+    Returns
+    -------
+    exits_pos_dir: 2d array (shape: nevents, ntraj)
+        boolean for positive exits. Value of 1 means the trajectory exited in 
+        the positive (transmission) direction for that event.
+    exits_neg_dir: 2d array (shape: nevents, ntraj)
+        boolean for negative exits. Value of 1 means the trajectory exited in
+        the negative (reflection) direction for that event
+        trajectory and event.
+    '''
     
     if boundary == 'film':    
         
@@ -938,11 +940,141 @@ def find_valid_exits(n_sample, n_medium, thickness, z_low, boundary,
         exits_neg_dir = potential_exits & ~pos_dir 
     
     return exits_pos_dir, exits_neg_dir
+    
+def find_event_indices(exits_neg_dir, exits_pos_dir):    
+    '''
+    Parameters
+    ----------
+    exits_neg_dir: 2d array (shape: nevents, ntraj)
+        boolean for negative exits. Value of 1 means the trajectory exited in
+        the negative (reflection) direction for that event
+        trajectory and event.
+    exits_pos_dir: 2d array (shape: nevents, ntraj)
+        boolean for positive exits. Value of 1 means the trajectory exited in 
+        the positive (transmission) direction for that event.
+    
+    Returns
+    -------
+    refl_indices: 1d array (length: ntraj)
+        array of event indices for reflected trajectories
+    trans_indices: 1d array (length: ntraj)
+        array of event indices for transmitted trajectories
+    stuck_indices: 1d array (length: ntraj)
+        array of event indices for stuck trajectories
+    '''
+    
+    nevents = exits_neg_dir.shape[0]
+    ntraj = exits_neg_dir.shape[1]
 
+    # find first valid exit of each trajectory in each direction
+    # note we convert to 2 1D arrays with len = Ntraj
+    # need vstack to reproduce earlier behaviour:
+    # an initial row of zeros is used to distinguish no events case
+    low_event = np.argmax(np.vstack([np.zeros(ntraj), exits_neg_dir]), axis=0)
+    high_event = np.argmax(np.vstack([np.zeros(ntraj), exits_pos_dir]), axis=0)
+
+    # find all trajectories that did not exit in each direction
+    no_low_exit = (low_event == 0)
+    no_high_exit = (high_event == 0)
+
+    # find positions where low_event is less than high_event
+    # note that either < or <= would work here. They are only equal if both 0.
+    low_smaller = (low_event < high_event)
+
+    # find all trajectory outcomes
+    # note ambiguity for trajectories that did not exit in a given direction
+    low_first = no_high_exit | low_smaller
+    high_first = no_low_exit | (~low_smaller)
+    never_exit = no_low_exit & no_high_exit
+
+    # find where each trajectory first exits
+    refl_indices = low_event * low_first
+    trans_indices = high_event * high_first
+    stuck_indices = never_exit * nevents
+    
+    return refl_indices, trans_indices, stuck_indices
+
+def calc_outcome_weights(inc_fraction, refl_indices, trans_indices, stuck_indices, weights):
+    '''
+    Calculates trajectory weight contributions to reflection, tranmission, 
+    stuck, and absorption
+    
+    Parameters
+    ----------
+    inc_fraction: 1d array (length: ntraj)
+        fraction of incident light that is fresnel reflected at the medium-sample
+        interface
+    refl_indices: 1d array (length: ntraj)
+        array of event indices for reflected trajectories
+    trans_indices: 1d array (length: ntraj)
+        array of event indices for transmitted trajectories
+    stuck_indices: 1d array (length: ntraj)
+        array of event indices for stuck trajectories
+    weights: 2d array (shape: nevents, ntraj)
+        weights values, with axes corresponding to events, trajectories
+    
+    Returns
+    -------
+    refl_weights: 1d array (length: ntraj)
+        weights of reflected trajectories
+    trans_weights: 1d array (length: ntraj)
+        weights of transmitted trajectories
+    stuck_weights: 1d array (length: ntraj)
+        weights of stuck trajectories
+    absorb_weights: 1d array (length: ntraj)
+        weight absorbed for each trajectory
+    '''
+    
+    # calculate outcome weights from all trajectories
+    refl_weights = inc_fraction * select_events(weights, refl_indices)
+    trans_weights = inc_fraction * select_events(weights, trans_indices)
+    stuck_weights = inc_fraction * select_events(weights, stuck_indices)
+    absorb_weights = inc_fraction - refl_weights - trans_weights - stuck_weights
+
+    # warn user if too many trajectories got stuck
+    stuck_frac = np.sum(stuck_weights) / np.sum(inc_fraction) * 100
+    stuck_traj_warn = " \n{0}% of trajectories did not exit the sample. Increase Nevents to improve accuracy.".format(str(stuck_frac))
+    if stuck_frac >= 20: warnings.warn(stuck_traj_warn)
+    
+    return refl_weights, trans_weights, stuck_weights, absorb_weights
 
       
 def fresnel_correct_enter(n_medium, n_front, n_sample, boundary, thickness,
                           trajectories, fresnel_traj):
+    '''
+    Corrects weights for fresnel reflection when light enters the sample,
+    taking into account the refractive index of the medium, a material in 
+    front of the sample such as a sample chamber, and of the sample itself. 
+    The returned value is the fraction of light that passes, which can
+    be multiplied by the initial trajectory weights to find the weights that
+    pass. 
+    
+    Parameters
+    ----------    
+    n_medium: float
+        Refractive index of the medium
+    n_front: float
+        Refractive index of the boundary material (e.g. glass coverslip)
+    n_sample: float
+        Refractive index of the sample
+    boundary: string 
+        geometrical boundary, current options are 'film' or 'sphere'
+    thickness: float
+        thickness of film or diameter of sphere
+    trajectories: Trajectory object
+        Trajectory object used in Monte Carlo simulation
+    fresnel_traj: boolean
+        describes whether trajectories object passed in represents
+        trajectories that have been fresnel reflected back into the sample
+    
+    Returns
+    -------
+    init_dir: None or 1D array-like (length ntrajectories)
+        kz of trajectories before they enter sample
+    inc_pass_frac: 1D array-like (length ntrajectories)
+        weight fraction of trajectory that passes through interface 
+        upon entering sample
+    '''
     
     # variables to use throughout function
     kz = trajectories.direction[2]
@@ -967,17 +1099,89 @@ def fresnel_correct_enter(n_medium, n_front, n_sample, boundary, thickness,
                                              thickness, init_dir = init_dir)
 
     else:
+        # if fresnel_traj is true, the trajectories start inside the sample
+        # and no fresnel correction is needed
         inc_pass_frac = np.ones(ntraj)
         
  
     return init_dir, inc_pass_frac
 
-def fresnel_correct_exit(n_sample, n_medium,n_front, n_back, refl_indices, 
+def fresnel_correct_exit(n_sample, n_medium, n_front, n_back, refl_indices, 
                          trans_indices, refl_weights, trans_weights, 
                          absorb_weights, boundary, thickness, trajectories, 
                          fresnel_traj, plot_exits):
+    '''
+    Corrects weights for fresnel reflection when light exits the sample,
+    taking into account the refractive index of the medium, a material in 
+    front of and behind the sample such as a sample chamber, and of the sample 
+    itself.
     
-    # calculate the trajectory weights that exit from fresnel equations
+    Parameters
+    ----------
+    n_sample: float
+        Refractive index of the sample    
+    n_medium: float
+        Refractive index of the medium
+    n_front: float
+        Refractive index of the front boundary material (e.g. glass coverslip)
+    n_back: float
+        Refractive index of the back boundary material (e.g. glass coverslip)
+    refl_indices: 1d array (length: ntraj)
+        array of event indices for reflected trajectories
+    trans_indices: 1d array (length: ntraj)
+        array of event indices for transmitted trajectories
+    refl_weights: 1d array (length: ntraj)
+        weights of reflected trajectories
+    trans_weights: 1d array (length: ntraj)
+        weights of transmitted trajectories
+    absorb_weights: 1d array (length: ntraj)
+        weight absorbed for each trajectory
+    boundary: string 
+        geometrical boundary, current options are 'film' or 'sphere'
+    thickness: float
+        thickness of film or diameter of sphere
+    trajectories: Trajectory object
+        Trajectory object used in Monte Carlo simulation
+    fresnel_traj: boolean
+        describes whether trajectories object passed in represents
+        trajectories that have been fresnel reflected back into the sample
+    plot_exits: boolean
+        instructs whether or not to plot the exits
+    
+    Returns
+    -------
+    refl_frac: float
+        fraction of trajectory weights that are successfully reflected, meaning
+        not fresnel reflected back into the sample
+    trans_frac: float
+        fraction of trajectory weights that are successfully transmitted,
+        meaning not fresnel reflected back into the sample
+    refl_weights_pass: 1d array (length: ntraj)
+        weights of reflected trajectories, corrected for fresnel reflection
+        upon exit. Zero values indicate trajectory was totally internally
+        reflected back into the sample, or not reflected in the first place
+    trans_weights_pass: 1d array (length: ntraj)
+        weights of transmitted trajectories, corrected for fresnel reflection
+        upon exit. Zero values indicate trajectory was totally internally
+        reflected back into the sample, or not transmited in the first place
+    refl_fresnel: 1d array (length: ntraj)
+        weights of reflected trajectories that are fresnel reflected
+        back into the sample
+    trans_fresnel: 1d array (length: ntraj)
+        weights of transmitted trajectories that are fresnel reflected back 
+        into the sample
+    norm_vec_refl: 2d array (shape: 3, ntrajectories)
+        vector normal to the surface at the exit point of reflected trajectories
+    norm_vec_trans: 2d array (shape: 3, ntrajectories)
+        vector normal to the surface at the exit point of transmitted trajectories
+    
+    '''
+    
+    # Calculate the pass fraction for reflected trajectories
+    # fresnel_pass_frac_refl will be 0 for a trajectory that is totally 
+    # internally reflected upon reaching the interface. It will be 1 for a
+    # trajectory that passes through the inferace with no fresnel reflection
+    # (this would only happen if there is no index contrast)
     fresnel_pass_frac_refl, norm_vec_refl = fresnel_pass_frac(refl_indices, 
                                                               n_sample, 
                                                               n_front, 
@@ -992,6 +1196,11 @@ def fresnel_correct_exit(n_sample, n_medium,n_front, n_back, refl_indices,
         plt.gca().set_title('Reflected exits')
         plt.gca().view_init(-164,-155)
     
+    # Calculate the pass fraction for transmitted trajectories
+    # fresnel_pass_frac_trans will be 0 for a trajectory that is totally 
+    # internally reflected upon reaching the interface. It will be 1 for a
+    # trajectory that passes through the inferace with no fresnel reflection
+    # (this would only happen if there is no index contrast)
     fresnel_pass_frac_trans, norm_vec_trans = fresnel_pass_frac(trans_indices, 
                                                               n_sample, 
                                                               n_back, 
@@ -1000,17 +1209,24 @@ def fresnel_correct_exit(n_sample, n_medium,n_front, n_back, refl_indices,
                                                               trajectories,
                                                               thickness, 
                                                               plot_exits = plot_exits)
+    # set up axes if plot_exits is true
     if plot_exits == True:
         plt.gca().set_title('Transmitted exits')
         plt.gca().view_init(-164,-155)
     
+    # Multiply the pass fraction by the weights in order to get the weights
+    # of the passed trajectories
     refl_weights_pass = refl_weights * fresnel_pass_frac_refl
     trans_weights_pass = trans_weights * fresnel_pass_frac_trans
     
+    # subtract the passed weights from the weights before the interface
+    # to find the weights of trajectores that are fresnel reflected
+    # back into the sample
     refl_fresnel = refl_weights - refl_weights_pass
     trans_fresnel = trans_weights - trans_weights_pass
     
-    # calculate fraction that are successfully transmitted or reflected
+    # calculate fraction that are successfully transmitted or reflected,
+    # meaning not fresnel reflected back into the sample
     
     # when running fresnel trajectories, we must calculate refl_frac and 
     # trans_frac as fractions of total trajectories because known_outcomes 
@@ -1029,23 +1245,87 @@ def fresnel_correct_exit(n_sample, n_medium,n_front, n_back, refl_indices,
     return (refl_frac, trans_frac, refl_weights_pass, trans_weights_pass, 
             refl_fresnel, trans_fresnel, norm_vec_refl, norm_vec_trans)
 
-def detect_corrected_traj(inc_pass_frac, init_dir, n_sample, n_medium, 
+def detect_corrected_traj(inc_pass_frac, n_sample, n_medium, 
                           refl_indices, trans_indices, 
                           refl_weights_pass, trans_weights_pass, trajectories, 
                           boundary, thickness, detection_angle, eps):
+    '''
+    Corrects trajectories for detection aperture spanning angles less than
+    or equal to the detection angle.
+    
+    Parameters
+    ----------
+    inc_pass_frac: 1d array (length: ntraj)
+        weights of trajectories that pass through the medium-sample interface
+    n_sample: float
+        Refractive index of the sample
+    n_medium: float
+        Refractive index of the medium
+    refl_indices: 1d array (length: ntraj)
+        array of event indices for reflected trajectories
+    trans_indices: 1d array (length: ntraj)
+        array of event indices for transmitted trajectories
+    refl_weights_pass: 1d array (length: ntraj)
+        weights of reflected trajectories, corrected for fresnel reflection
+        upon exit. Zero values indicate trajectory was totally internally
+        reflected back into the sample, or not reflected in the first place
+    trans_weights_pass: 1d array (length: ntraj)
+        weights of transmitted trajectories, corrected for fresnel reflection
+        upon exit. Zero values indicate trajectory was totally internally
+        reflected back into the sample, or not transmited in the first place
+    trajectories: Trajectory object
+        Trajectory object used in Monte Carlo simulation
+    boundary: string 
+        geometrical boundary, current options are 'film' or 'sphere' 
+    thickness: float
+        thickness of film or diameter of sphere
+    detection_angle: float
+        largest trajectory angle that can be detected. Detection angle is defined
+        relative to the z-axis and must be between 0 and pi/2. If 0, this means
+        that the detection range is infinitesimal. If pi/2, all backscattering 
+        angles are detected. 
+    eps: float
+        small number used to prevent a divide-by-zero error when calculating 
+        trans_det_frac and refl_det_frac
+    
+    Returns
+    -------
+    inc_refl_detected: 1d array (length: ntraj)
+        detected weights of trajectories reflected at sample interface
+    trans_detected: 1d array (length: ntraj)
+        detected weights of transmitted trajectories
+    refl_detected: 1d array (length: ntraj)
+        detected weights of reflected trajectories
+    trans_det_frac: float
+        fraction of the successfully transmitted light that is detected
+    refl_det_frac: float
+        fraction of the successfully reflected light that is detected
+    '''
     
     kz = trajectories.direction[2]
     ntraj = kz.shape[1]
     
     inc_refl = (1 - inc_pass_frac) # fresnel reflection incident on sample
 
+    # calculate the detected weights of the trajectories reflected at the 
+    # sample interface
     inc_refl_detected = detect_correct(np.ones(ntraj), trajectories, inc_refl, 
                                        n_medium, n_medium, boundary, thickness, detection_angle)
+    
+    # calculate the detected weights of the transmitted trajectories
     trans_detected = detect_correct(trans_indices, trajectories, trans_weights_pass, 
                                     n_sample, n_medium, boundary, thickness, detection_angle)
+    
+    # calculate the detected weights of the reflected trajectories
     refl_detected = detect_correct(refl_indices, trajectories, refl_weights_pass,
                                    n_sample, n_medium, boundary, thickness, detection_angle)
+    
+    # calculate the fraction of the successfully transmitted light that is
+    # detected
     trans_det_frac = np.max([np.sum(trans_detected),eps]) / np.max([np.sum(trans_weights_pass), eps])
+    
+    # calculate the fraction of the successfully reflected light that is
+    # detected
     refl_det_frac = np.max([np.sum(refl_detected),eps]) / np.max([np.sum(refl_weights_pass), eps]) 
     
     return (inc_refl_detected, 
@@ -1058,6 +1338,47 @@ def distribute_ambig_traj_weights(refl_fresnel, trans_fresnel,
                                   refl_det_frac, trans_det_frac,
                                   refl_detected, trans_detected,
                                   stuck_weights, inc_refl_detected, boundary):
+    '''
+    Distribute the stuck trajectory weights among reflected and transmitted
+    
+    Parameters
+    ----------
+    refl_fresnel: 1d array (length: ntraj)
+        weights of reflected trajectories that are fresnel reflected
+        back into the sample
+    trans_fresnel: 1d array (length: ntraj)
+        weights of transmitted trajectories that are fresnel reflected back 
+        into the sample
+    refl_frac: float
+        fraction of trajectory weights that are successfully reflected, meaning
+        not fresnel reflected back into the sample
+    trans_frac: float
+        fraction of trajectory weights that are successfully transmitted,
+        meaning not fresnel reflected back into the sample
+    refl_det_frac: float
+        fraction of the successfully reflected light that is detected
+    trans_det_frac: float
+        fraction of the successfully transmitted light that is detected
+    refl_detected: 1d array (length: ntraj)
+        detected weights of reflected trajectories
+    trans_detected: 1d array (length: ntraj)
+        detected weights of transmitted trajectories
+    stuck_weights: 1d array (length: ntraj)
+        weights of stuck trajectories
+    inc_refl_detected: 1d array (length: ntraj)
+        detected weights of trajectories reflected at sample interface
+    boundary: string 
+        geometrical boundary, current options are 'film' or 'sphere' 
+        
+    Returns
+    -------
+    reflectance: float
+        fraction of light reflected, including corrections for fresnel and
+        detector
+    transmittance: float
+        fraction of light transmitted, including corrections for fresnel and
+        detector
+    '''
     ntraj = len(refl_fresnel)
     
     if boundary == 'film':
@@ -1090,6 +1411,111 @@ def calc_refl_trans(trajectories, thickness, n_medium, n_sample, boundary,
                     run_fresnel_traj = False, fresnel_traj = False, 
                     call_depth = 0, max_call_depth = 20, max_stuck = 0.01, 
                     plot_exits = False, mu_scat = None, mu_abs = None):
+    """
+    Calculates the weight fraction of reflected and transmitted trajectories
+    (reflectance and transmittance).Identifies which trajectories are reflected
+    or transmitted, and at which scattering event. Includes corrections for 
+    Fresnel reflections and for a detector.
+    
+    Parameters
+    ----------
+    trajectories : Trajectory object
+        Trajectory object used in Monte Carlo simulation
+    thickness: float (structcol.Quantity [length])
+        thickness of film or diameter of sphere
+    n_medium: float (structcol.Quantity [dimensionless])
+        Refractive index of the medium.
+    n_sample: float (structcol.Quantity [dimensionless])
+        Refractive index of the sample.
+    boundary: string
+        Geometrical boundary for Monte Carlo calculations. Current options 
+        are 'film' or 'sphere'.
+    z_low : float (structcol.Quantity [length])
+        Initial z-position of sample closest to incident light source.
+        Should normally be set to 0.
+    detection_angle: float
+        Range of angles of detection. Only the packets that come out of the
+        sample within this range will be detected and counted. Should be
+        0 < detection_angle <= pi/2, where 0 means that no angles are detected,
+        and pi/2 means that all the backscattering angles are detected.
+    n_front: float (structcol.Quantity [dimensionless])
+        Refractive index of the front cover of the sample (default None)
+    n_back: float (structcol.Quantity [dimensionless])
+        Refractive index of the back cover of the sample (default None)        
+    p: array_like (structcol.Quantity [dimensionless])
+        Phase function from either Mie theory or single scattering model.
+    return_extra: boolean
+        determines whether to return a host of extra variables that are used
+        for additional calculations using the trajectories
+    run_fresnel_traj: boolean
+        If set to True, function will calculate new trajectories for weights 
+        that are fresnel reflected back into the sphere upon exit (There is
+        almost always at least some small weight that is reflected back into
+        sphere). If set to False, fresnel reflected trajectories are evenly 
+        distributed to reflectance and transmittance.      
+    fresnel_traj: boolean
+        This argument is not intended to be set by the user. It's purpose is to 
+        keep track of whether calc_refl_trans_sphere() is running for the trajectories
+        initially being sent into the sphere or for the fresnel reflected (tir)
+        trajectories that are trapped in the sphere. It's default value is
+        False, and it is changed to True when calc_refl_trans_sphere() is 
+        recursively called for calculating the reflectance from fresnel 
+        reflected trajectories
+    call_depth: int
+        This argument is not intended to be set by the user. Call_depth keeps 
+        track of the recursion call_depth. It's default value is 0, and upon
+        each recursive call to calc_refl_trans_sphere(), it is increased by 1. 
+    max_call_depth: int
+        This argument determines the maximum number of recursive calls that can
+        be made to calc_refl_trans_sphere(). The default value is 20, but it 
+        can be changed by the user if desired. The user should note that there
+        are diminishing returns for higher max_call_depth, as the remaining 
+        fresnel reflected trajectories after 20 calls are primarily stuck in 
+        shallow angle paths around the perimeter of the sphere that will never 
+        exit.
+    max_stuck:float
+        The maximum weight of stuck trajectories to leave in the sample
+        without creating new trajectories to rerun. This argument is only used
+        if run_fresnel_traj is True.
+    plot_exits: boolean
+        If set to True, function will plot the last point of trajectory inside 
+        the sphere, the first point of the trajectory outside the sphere,
+        and the point on the sphere boundary at which the trajectory exits, 
+        making one plot for reflection and one plot for transmission
+    mu_scat : float (structcol.Quantity [1/length])
+        Scattering coefficient from either Mie theory or single scattering model.
+    mu_abs : float (structcol.Quantity [1/length])
+        Absorption coefficient from Mie theory.        
+    
+    Returns
+    -------
+    refl_trans_result: tuple
+        contains a tuple of other variables. The contents of refl_trans_result
+        are different based on whether return_extra is set to True or False.
+    
+        Returns if return_extra is False
+        --------------------------------
+        reflectance: float
+            Fraction of reflected trajectories, including the Fresnel correction
+            but not considering the range of the detector.
+        transmittance: float
+            Fraction of transmitted trajectories, including the Fresnel correction
+            but not considering the range of the detector.
+            
+        Returns if return_extra is True
+        -------------------------------
+        (refl_indices, trans_indices, inc_refl_detected/ntraj, 
+        refl_weights_pass/ntraj, trans_weights_pass/ntraj, trans_frac, 
+        refl_frac, refl_fresnel/ntraj, trans_fresnel/ntraj, norm_vec_refl, 
+        norm_vec_trans, reflectance, transmittance)
+            These variables can be used to do various extra calculations using
+            the trajectories
+    
+    Note
+    ----
+        absorptance of the sample can be found by 1 - reflectance - transmittance
+    
+    """
     
     # set up values as floats and numpy arrays to be used throughout function 
     (n_sample,trajectories, z_low, thickness) = set_up_values(n_sample,
@@ -1135,7 +1561,6 @@ def calc_refl_trans(trajectories, thickness, n_medium, n_sample, boundary,
     (inc_refl_detected, 
      trans_detected, refl_detected, 
      trans_det_frac, refl_det_frac) = detect_corrected_traj(inc_pass_frac, 
-                                                            init_dir,
                                                             n_sample, n_medium,
                                                             refl_indices, 
                                                             trans_indices,
@@ -1146,8 +1571,8 @@ def calc_refl_trans(trajectories, thickness, n_medium, n_sample, boundary,
                                                             detection_angle, eps)
     
     # if we want to run fresnel reflected as new trajectories 
-    # (only implemented for sphere)       
-    ntraj = trajectories.position[2].shape[1]#trajectories.position.shape[2]
+    # (only implemented for sphere boundary)       
+    ntraj = trajectories.position[2].shape[1]
     total_stuck = np.sum(refl_fresnel + trans_fresnel + stuck_weights)/ntraj
     
     if run_fresnel_traj and call_depth < max_call_depth and total_stuck > max_stuck:
@@ -1167,9 +1592,7 @@ def calc_refl_trans(trajectories, thickness, n_medium, n_sample, boundary,
                                                   thickness, boundary, z_low, p,
                                                   n_medium, n_sample, mu_scat, mu_abs,
                                                   max_stuck, max_call_depth, 
-                                                  call_depth, plot_exits)
-        print('reflectance (det): ' + str(reflectance))
-    
+                                                  call_depth, plot_exits)    
     else:
         
         # distribute ambiguous trajectory weights.
@@ -1198,149 +1621,244 @@ def run_sphere_fresnel_traj(reflectance_no_fresnel, transmittance_no_fresnel,
                              trajectories, refl_indices, trans_indices, stuck_indices,
                              thickness, boundary, z_low, p, n_medium, n_sample, mu_scat, mu_abs, 
                              max_stuck, max_call_depth, call_depth, plot_exits):
+    '''
+    For the sphere case, there are many trajectories that are totally internally
+    reflected or partially reflected back into the sample
     
-        # set up values to use throughout function
-        n_sample, trajectories, z_low, diameter = set_up_values(n_sample, 
-                                                                trajectories, 
-                                                                z_low, 
-                                                                thickness)
-        radius = diameter/2
-        x,y,z = trajectories.position
-        kx, ky, kz = trajectories.direction
-        nevents = x.shape[0]
-        ntraj = x.shape[1]
+    This function takes the weights of the trajectory components reflected back
+    into the sample (whether it's the whole weight through tir, or just partial
+    through fresnel) and re-runs them as new trajectories, until most of them
+    exit through reflectance, transmittance, or are absorbed.
+        
+    Parameters
+    ----------
+    reflectance_no_fresnel: float
+        reflectance, not counting trajectory weights fresnel reflected back 
+        into the sample
+    transmittance_no_fresnel: float
+        transmittance, not counting trajectory weights fresnel reflected back 
+        into the sample
+    refl_fresnel: 1d array (length: ntraj)
+        weights of reflected trajectories that are fresnel reflected
+        back into the sample
+    trans_fresnel: 1d array (length: ntraj)
+        weights of transmitted trajectories that are fresnel reflected back 
+        into the sample
+    stuck_weights: 1d array (length: ntraj)
+        weights of stuck trajectories
+    trajectories: Trajectory object
+        Trajectory object used in Monte Carlo simulation
+    refl_indices: 1d array (length: ntraj)
+        array of event indices for reflected trajectories
+    trans_indices: 1d array (length: ntraj)
+        array of event indices for transmitted trajectories
+    stuck_indices: 1d array (length: ntraj)
+        array of event indices for stuck trajectories
+    thickness: float (structcol.Quantity [length])
+        thickness of film or diameter of sphere
+    boundary: string
+        Geometrical boundary for Monte Carlo calculations. Current options 
+        are 'film' or 'sphere'.
+    z_low : float (structcol.Quantity [length])
+        Initial z-position of sample closest to incident light source.
+        Should normally be set to 0.
+    p: array_like (structcol.Quantity [dimensionless])
+        Phase function from either Mie theory or single scattering model.
+    n_medium: float (structcol.Quantity [dimensionless])
+        Refractive index of the medium.
+    n_sample: float (structcol.Quantity [dimensionless])
+        Refractive index of the sample.
+    mu_scat : float (structcol.Quantity [1/length])
+        Scattering coefficient from either Mie theory or single scattering model.
+    mu_abs : float (structcol.Quantity [1/length])
+        Absorption coefficient from Mie theory.    
+    max_stuck:float
+        The maximum weight of stuck trajectories to leave in the sample
+        without creating new trajectories to rerun. This argument is only used
+        if run_fresnel_traj is True.
+    max_call_depth: int
+        This argument determines the maximum number of recursive calls that can
+        be made to calc_refl_trans_sphere(). The default value is 20, but it 
+        can be changed by the user if desired. The user should note that there
+        are diminishing returns for higher max_call_depth, as the remaining 
+        fresnel reflected trajectories after 20 calls are primarily stuck in 
+        shallow angle paths around the perimeter of the sphere that will never 
+        exit.
+    call_depth: int
+        This argument is not intended to be set by the user. Call_depth keeps 
+        track of the recursion call_depth. It's default value is 0, and upon
+        each recursive call to calc_refl_trans_sphere(), it is increased by 1. 
+    plot_exits: boolean
+        If set to True, function will plot the last point of trajectory inside 
+        the sphere, the first point of the trajectory outside the sphere,
+        and the point on the sphere boundary at which the trajectory exits, 
+        making one plot for reflection and one plot for transmission
     
-        # new weights are the weights that are fresnel reflected back into the 
-        # sphere
-        weights_fresnel = np.zeros((nevents,ntraj))
-        weights_fresnel[:,:] = refl_fresnel + trans_fresnel + stuck_weights
-        weights_fresnel = sc.Quantity(weights_fresnel, '')
+    Returns
+    -------
+    reflectance_fresnel + reflectance_no_fresnel: float
+        new reflectance after re-running fresnel reflected trajectories. Adds
+        the previous reflectance (reflectance_no_fresnel) and the new addition
+        to the reflectance (reflectance_fresnel)
+    transmittance_fresnel + transmittance_no_fresnel: float
+        new transmittance after re-running fresnel reflected trajectories. Adds
+        the previous transmittance (transmittance_no_fresnel) and the new addition
+        to the transmittance (transmittance_fresnel)
         
-        # add refl and trans indices for all exit indices
-        indices = refl_indices + trans_indices
-        
-        # get positions outside of sphere boundary from after exit
-        select_x1 = select_events(x[1:,:], indices)
-        select_y1 = select_events(y[1:,:], indices)
-        select_z1 = select_events(z[1:,:], indices)   
-        
-        # get positions inside sphere boundary from before exit
-        select_x0 = select_events(x[:len(x)-1,:],indices)
-        select_y0 = select_events(y[:len(y)-1,:],indices)
-        select_z0 = select_events(z[:len(z)-1,:],indices)
-        
-        # get radius vector to subtract from select_z
-        select_radius = select_events(radius*np.ones((nevents,ntraj)), indices)
+    '''
     
-        # shift z for intersect finding
-        select_z0 = select_z0 - select_radius
-        select_z1 = select_z1 - select_radius
-        #print('1st point: ' + str([select_x0, select_y0, select_z0]))
-        #print('2nd point: ' + str([select_x1, select_y1, select_z1]))
-        
-        # get positions at sphere boundary from exit
-        x_inter, y_inter, z_inter = find_vec_sphere_intersect(select_x0,
-                                                              select_y0,
-                                                              select_z0,
-                                                              select_x1,
-                                                              select_y1,
-                                                              select_z1, 
-                                                              radius)
-        # shift z back to global coordinates
-        z_inter = z_inter + select_radius
-        #print('inter: ' + str([x_inter, y_inter, z_inter]))
-        
-        # define vectors for reflection inside sphere
-        select_kx = select_events(kx, indices)
-        select_ky = select_events(ky, indices)
-        select_kz = select_events(kz, indices)
-        k_out = np.array([select_kx, select_ky, select_kz])
-        normal = np.array([x_inter/radius, y_inter/radius,
-                           (z_inter-select_radius)/radius])
-        
-        # calculate reflected direction inside sphere
-        print('norm (det): ' + str(normal))
-        print('k_out (det): ' + str(k_out))
-        k_refl = rotate_reflect(k_out, normal)
-        print('k_refl (det): ' + str(k_refl))
-        
-        # set the initial directions as the reflected directions
-        directions = np.zeros((3,nevents,ntraj))
-        directions = sc.Quantity(directions, '')
-        directions[:,0,:] = k_refl
-        
-        # set the initial positions at the sphere boundary
-        positions = np.zeros((3,nevents+1,ntraj))
-        positions[:,0,:] = x_inter, y_inter, z_inter
+    # set up values to use throughout function
+    n_sample, trajectories, z_low, diameter = set_up_values(n_sample, 
+                                                            trajectories, 
+                                                            z_low, 
+                                                            thickness)
+    radius = diameter/2
+    x,y,z = trajectories.position
+    kx, ky, kz = trajectories.direction
+    nevents = x.shape[0]
+    ntraj = x.shape[1]
 
-        # TODO: get rid of trajectories whose initial weights are 0
-        # find indices where initial weights are 0
+    # new weights are the weights that are fresnel reflected back into the 
+    # sphere
+    weights_fresnel = np.zeros((nevents,ntraj))
+    weights_fresnel[:,:] = refl_fresnel + trans_fresnel + stuck_weights
+    weights_fresnel = sc.Quantity(weights_fresnel, '')
+    
+    # add refl and trans indices for all exit indices
+    indices = refl_indices + trans_indices
+    
+    # get positions outside of sphere boundary from after exit
+    select_x1 = select_events(x[1:,:], indices)
+    select_y1 = select_events(y[1:,:], indices)
+    select_z1 = select_events(z[1:,:], indices)   
+    
+    # get positions inside sphere boundary from before exit
+    select_x0 = select_events(x[:len(x)-1,:],indices)
+    select_y0 = select_events(y[:len(y)-1,:],indices)
+    select_z0 = select_events(z[:len(z)-1,:],indices)
+    
+    # get radius vector to subtract from select_z
+    select_radius = select_events(radius*np.ones((nevents,ntraj)), indices)
+
+    # shift z for intersect finding
+    select_z0 = select_z0 - select_radius
+    select_z1 = select_z1 - select_radius
+    #print('1st point: ' + str([select_x0, select_y0, select_z0]))
+    #print('2nd point: ' + str([select_x1, select_y1, select_z1]))
+    
+    # get positions at sphere boundary from exit
+    x_inter, y_inter, z_inter = find_vec_sphere_intersect(select_x0,
+                                                          select_y0,
+                                                          select_z0,
+                                                          select_x1,
+                                                          select_y1,
+                                                          select_z1, 
+                                                          radius)
+    # shift z back to global coordinates
+    z_inter = z_inter + select_radius
+    #print('inter: ' + str([x_inter, y_inter, z_inter]))
+    
+    # define vectors for reflection inside sphere
+    select_kx = select_events(kx, indices)
+    select_ky = select_events(ky, indices)
+    select_kz = select_events(kz, indices)
+    k_out = np.array([select_kx, select_ky, select_kz])
+    normal = np.array([x_inter/radius, y_inter/radius,
+                       (z_inter-select_radius)/radius])
+    
+    # calculate reflected direction inside sphere
+    k_refl = rotate_reflect(k_out, normal)
+    
+    # set the initial directions as the reflected directions
+    directions = np.zeros((3,nevents,ntraj))
+    directions = sc.Quantity(directions, '')
+    directions[:,0,:] = k_refl
+    
+    # set the initial positions at the sphere boundary
+    positions = np.zeros((3,nevents+1,ntraj))
+    positions[:,0,:] = x_inter, y_inter, z_inter
+
+    # TODO: get rid of trajectories whose initial weights are 0
+    # find indices where initial weights are 0
 #        indices = np.where(weights_fresnel[0,:] == 0)
 #        if indices[0].size > 0:
 #            weights_fresnel = np.delete(weights_fresnel,indices)
 #            positions = np.delete(positions, indices, axis = 0)
 #            directions = np.delete(directions, indices,axis = 0)
-        
-        # create new trajectories object
-        trajectories_tir = Trajectory(positions, directions, weights_fresnel)
-        # Generate a matrix of all the randomly sampled angles first 
-        sintheta, costheta, sinphi, cosphi, _, _ = sample_angles(nevents, ntraj, p)
-
-        # Create step size distribution
-        step = sample_step(nevents, ntraj, mu_abs, mu_scat)
     
-        # Run photons
-        trajectories_tir.absorb(mu_abs, step)
-        trajectories_tir.scatter(sintheta, costheta, sinphi, cosphi)         
-        trajectories_tir.move(step)
+    # create new trajectories object
+    trajectories_fresnel = Trajectory(positions, directions, weights_fresnel)
+    # Generate a matrix of all the randomly sampled angles first 
+    sintheta, costheta, sinphi, cosphi, _, _ = sample_angles(nevents, ntraj, p)
 
-        # Calculate reflection and transmition 
-        print('reflectance_no_fresnel (det): ' + str(reflectance_no_fresnel))
-        reflectance_tir, transmittance_tir = calc_refl_trans(trajectories_tir, 
-                                                             thickness, n_medium,
-                                                             n_sample, boundary,
-                                                             p = p, mu_abs = mu_abs,
-                                                             mu_scat = mu_scat, 
-                                                             plot_exits = plot_exits,
-                                                             run_fresnel_traj = True,
-                                                             fresnel_traj = True, 
-                                                             call_depth = call_depth+1,
-                                                             max_stuck = max_stuck)
-        print('reflectance_tir (det): ' + str(reflectance_tir))
-        return (reflectance_tir + reflectance_no_fresnel, 
-                transmittance_tir + transmittance_no_fresnel)
+    # Create step size distribution
+    step = sample_step(nevents, ntraj, mu_abs, mu_scat)
+
+    # Run photons
+    trajectories_fresnel.absorb(mu_abs, step)
+    trajectories_fresnel.scatter(sintheta, costheta, sinphi, cosphi)         
+    trajectories_fresnel.move(step)
+
+    # Calculate reflection and transmition 
+    reflectance_fresnel, transmittance_fresnel = calc_refl_trans(trajectories_fresnel, 
+                                                         thickness, n_medium,
+                                                         n_sample, boundary,
+                                                         p = p, mu_abs = mu_abs,
+                                                         mu_scat = mu_scat, 
+                                                         plot_exits = plot_exits,
+                                                         run_fresnel_traj = True,
+                                                         fresnel_traj = True, 
+                                                         call_depth = call_depth+1,
+                                                         max_stuck = max_stuck)
+
+    return (reflectance_fresnel + reflectance_no_fresnel, 
+            transmittance_fresnel + transmittance_no_fresnel)
 
 
 def initialize(nevents, ntraj, n_medium, n_sample, boundary, seed=None, 
                       incidence_angle=0., plot_initial=False):
     """
     Sets the trajectories' initial conditions (position, direction, and weight).
-    The initial positions are determined randomly in the x-y plane. The initial
-    z-positions are confined to the surface of a sphere. The initial propagation
-    direction is set to be 1 at z, meaning that the photon packets point 
-    straight down in z.
+    The initial positions are determined randomly in the x-y plane. 
+    
+    If boundary is a sphere, the initial z-positions are confined to the 
+    surface of a sphere. If boundary is a film, the initial z-positions are set
+    to zero.
+    
+    If incidence_angle is set to 0, the initial propagation direction 
+    is set to be 1 at z, meaning that the photon packets point straight down in z.
+    The initial directions are corrected for refraction, for either type of 
+    boundary and for any incidence angle.
+    
+    **notes: 
+        - sphere currently only works for normal incidence
+        - spot size is not implemented--you must mutliply by number outside of
+          this function to implement spot size
+        - you must multiply returned r0 by sphere diameter to get appropriate
+          initial positions
     
     Parameters
     ----------
-    nevents : int
+    nevents: int
         Number of scattering events
-    ntraj : int
+    ntraj: int
         Number of trajectories
-    n_medium : float (structcol.Quantity [dimensionless] or 
+    n_medium: float (structcol.Quantity [dimensionless] or 
         structcol.refractive_index object)
         Refractive index of the medium.
-    n_sample : float (structcol.Quantity [dimensionless] or 
+    n_sample: float (structcol.Quantity [dimensionless] or 
         structcol.refractive_index object)
         Refractive index of the sample.
-    radius : float (structcol.Quantity [length])
-        radius of spherical boundary
-    seed : int or None
+    boundary: string
+        Geometrical boundary for Monte Carlo calculations. Current options 
+        are 'film' or 'sphere'.
+    seed: int or None
         If seed is int, the simulation results will be reproducible. If seed is
         None, the simulation results are actually random.
-    incidence_angle : float
+    incidence_angle: float
         Maximum value for theta when it incides onto the sample.
         Should be between 0 and pi/2.
-    plot_inital : boolean
+    plot_inital: boolean
         If plot_initial is set to True, function will create a 3d plot showing
         initial positions and directions of trajectories before entering the 
         sphere and directly after refraction correction upon entering the 
@@ -1348,18 +1866,18 @@ def initialize(nevents, ntraj, n_medium, n_sample, boundary, seed=None,
     
     Returns
     ----------
-    r0 : 2D array_like (structcol.Quantity [length])
+    r0 : 3D array-like (structcol.Quantity [length])
         Trajectory positions. Has shape of (3, number of events + 1, number 
         of trajectories). r0[0,0,:] contains random x-positions within a circle 
         on the x-y plane whose radius is the sphere radius. r0[1, 0, :] contains
         random y-positions within the same circle on the x-y plane. r0[2, 0, :]
         contains z-positions on the top hemisphere at the sphere boundary. The 
         rest of the elements are initialized to zero.
-    k0 : array_like (structcol.Quantity [dimensionless])
+    k0 : 3D array-like (structcol.Quantity [dimensionless])
         Initial direction of propagation. Has shape of (3, number of events,
         number of trajectories). k0[0,:,:] and k0[1,:,:] are initalized to zero,
         and k0[2,0,:] is initalized to 1.
-    weight0 : array_like (structcol.Quantity [dimensionless])
+    weight0 : 3D array-like (structcol.Quantity [dimensionless])
         Initial weight. Has shape of (number of events, number of trajectories)
         - Note that the photon weight represents the fraction of 
         that particular photon that is propagated through the sample. It does 
@@ -1379,7 +1897,6 @@ def initialize(nevents, ntraj, n_medium, n_sample, boundary, seed=None,
         reflectance, and transmittance. Therefore the weights array begins with 
         the weight of the photons after their first event.
         
-    **note: currently only works for normal incidence
     """
 
     if seed is not None:
@@ -1453,8 +1970,8 @@ def initialize(nevents, ntraj, n_medium, n_sample, boundary, seed=None,
     k0[1,0,:] = sintheta * sinphi
     k0[2,0,:] = costheta
     
+    # plot the initial positions and directions of the trajectories
     if plot_initial == True and boundary == 'sphere':
-        # plot the initial positions and directions of the trajectories
         fig = plt.figure()
         ax = fig.add_subplot(111, projection='3d')
         ax.set_xlabel('x')
@@ -1907,6 +2424,22 @@ def sample_step(nevents, ntraj, mu_abs, mu_scat):
 
 
 def normalize(x,y,z):
+    '''
+    normalize a vector
+    
+    Parameters
+    ----------
+    x: float or array
+        1st component of vector
+    y: float or array
+        2nd component of vector
+    z: float or array
+        3rd component of vector
+    
+    Returns
+    -------
+    array of normalized vector(s) components
+    '''
     magnitude = np.sqrt(x**2 + y**2 + z**2)
     
     # we ignore divide by zero error here because we do not want an error
@@ -1915,6 +2448,25 @@ def normalize(x,y,z):
         return np.array([x/magnitude, y/magnitude, z/magnitude])
 
 def rotate_reflect(k_out, normal):
+    '''
+    Find the reflection vector given an initial vector and the normal vector
+    to the surface at the reflection.
+    
+    see http://mathworld.wolfram.com/Reflection.html for more details
+    
+    Paremeters
+    ----------
+    k_out: array 
+        3d vector to be reflected. Usually refers to vector describing trajectory
+        direction as it exits sample.
+    normal: array
+        3d vector normal to the surface on which to reflect
+        .
+    Returns
+    -------
+    k_refl: array
+        3d vector that is reflected. 
+    '''
             
     dot_k_out_normal = (k_out[0]*normal[0] + k_out[1]*normal[1] + 
                         k_out[2]*normal[2])
