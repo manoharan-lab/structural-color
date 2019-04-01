@@ -2302,48 +2302,6 @@ def phase_function(m, x, angles, volume_fraction, k, number_density,
         
     return(p, p_par, p_perp, cscat_total)
 
-
-def calc_distance(m, x, angles, volume_fraction, k, number_density, 
-                  diameters, form_type='sphere'):
-    """    
-    Use the exact Mie solutions to calculate the total scattering cross 
-    section at the surface of the scatterer. Then calculate the scattering
-    length associated to this cross section, and calculate the cross section
-    again at a distance of this scattering length. Repeat iteratively until
-    the new scattering length matches the previous scattering length 
-    (converges). Then choose the converged scattering length as the distance
-    for the integration of the differential cross sections. 
-    """ 
-    if form_type=='polydisperse':
-        distance = diameters.to('um').magnitude / 2
-    else:
-        distance = diameters.max().to('um').magnitude / 2
-    
-    lscat_array = np.array([1.,2.])
-    
-    while np.abs(1 - lscat_array[0]/lscat_array[1]) > 0.05:
-        lscat_array[0] = distance       
-        
-        distance2 = sc.Quantity(distance, 'um')
-        
-        form = mie.diff_scat_intensity_complex_medium(m, x, angles, k*distance2)
-        qd = 4*np.array(np.abs(x)).max()*np.sin(angles/2)        
-        s = sc.structure.factor_py(qd, volume_fraction)
-        diff_cscat_par = form[0] * s
-        diff_cscat_perp = form[1] * s
-        
-        cscat_total, _, _, _, _ = mie.integrate_intensity_complex_medium(diff_cscat_par, 
-                                                                      diff_cscat_perp, 
-                                                                      distance2,angles,k)  
-    
-        # calculate the scattering length associated to this cross section
-        lscat = (1 / number_density / cscat_total).to('um')
-       
-        distance = lscat.magnitude
-        lscat_array[1] = lscat.magnitude
-        
-    return sc.Quantity(lscat_array[1], 'um')
-
     
 def sample_angles(nevents, ntraj, p):
     """
