@@ -117,7 +117,7 @@ def test_trajectories():
     # Initialize runs
     nevents = 2
     ntrajectories = 3
-    r0, k0, W0 = det.initialize(nevents, ntrajectories, n_medium, n_sample, 'film', seed=1)
+    r0, k0, W0 = mc.initialize(nevents, ntrajectories, n_medium, n_sample, 'film', seed=1)
     r0 = sc.Quantity(r0, 'um')
     k0 = sc.Quantity(k0, '')
     W0 = sc.Quantity(W0, '')
@@ -480,7 +480,7 @@ def calc_montecarlo(nevents, ntrajectories, radius, n_particle, n_sample,
                                       concentration=concentration, pdi=pdi, 
                                       polydisperse=polydisperse)
 
-    r0, k0, W0 = det.initialize(nevents, ntrajectories, n_medium, n_sample, 'film', seed=seed)
+    r0, k0, W0 = mc.initialize(nevents, ntrajectories, n_medium, n_sample, 'film', seed=seed)
     r0 = sc.Quantity(r0, 'um')
     k0 = sc.Quantity(k0, '')
     W0 = sc.Quantity(W0, '')
