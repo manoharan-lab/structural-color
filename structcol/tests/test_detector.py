@@ -494,7 +494,7 @@ def calc_montecarlo(nevents, ntrajectories, radius, n_particle, n_sample,
     r0 = sc.Quantity(r0, 'um')
     k0 = sc.Quantity(k0, '')
     W0 = sc.Quantity(W0, '')
-    sintheta, costheta, sinphi, cosphi, _, _= mc.sample_angles(nevents, 
+    sintheta, costheta, sinphi, cosphi, _, _= mc.sample_angles(nevents,
                                                                ntrajectories,p)
     step = mc.sample_step(nevents, ntrajectories, mu_abs, mu_scat)
     trajectories = mc.Trajectory(r0, k0, W0)

@@ -46,3 +46,21 @@ Physical Review E 90, no. 6 (2014): 62302. doi:10.1103/PhysRevE.90.062302
 # make unit mistakes.
 # Also load commonly used functions from pymie package
 from pymie import Quantity, ureg, q, index_ratio, size_parameter, np, mie
+
+def refraction(angles, n_before, n_after):
+    '''
+    Returns angles after refracting through an interface
+    
+    Parameters
+    ----------
+    angles: float or array of floats
+        angles relative to normal before the interface
+    n_before: float
+        Refractive index of the medium light is coming from
+    n_after: float
+        Refractive index of the medium light is going to
+    
+    '''
+    snell = n_before / n_after * np.sin(angles)
+    snell[abs(snell) > 1] = np.nan # this avoids a warning
+    return np.arcsin(snell)
