@@ -165,7 +165,9 @@ def test_index_match():
     refl_sphere, trans = mc.calc_refl_trans_sphere(trajectories_sphere, 
                                                    n_medium, n_sample, 
                                                    microsphere_radius, 
-                                                   p, mu_abs, mu_scat, max_stuck = 0.0001)    
+                                                   p, mu_abs, mu_scat, 
+                                                   run_tir=True,
+                                                   max_stuck = 0.0001)    
     
     # calculated by hand from fresnel infinite sum
     refl_fresnel_int = 0.053 # calculated by hand

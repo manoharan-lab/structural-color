@@ -386,7 +386,7 @@ def select_events(inarray, events):
     tr = np.where(valid_events)[0]
 
     # want output of the same form as events
-    outarray = np.zeros(len(events), dtype = 'complex')
+    outarray = np.zeros(len(events), dtype = type(np.ndarray.flatten(inarray)[0]))
     
     # get an output array with elements corresponding to the input events
     outarray[valid_events] = inarray[ev, tr]
@@ -1780,7 +1780,7 @@ def initialize(nevents, ntraj, n_medium, n_sample, seed=None, incidence_angle=0.
     # Refraction of incident light upon entering sample
     # TODO: only real part of n_sample should be used                             
     # for the calculation of angles of integration? Or abs(n_sample)? 
-    theta = refraction(theta, n_medium, np.abs(n_sample))
+    theta = refraction(theta, np.abs(n_medium), np.abs(n_sample))
     sintheta = np.sin(theta)
     costheta = np.cos(theta)
 
@@ -2103,7 +2103,7 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
     mu_abs = mu_abs.to('1/um')
     
     if polarization == True:
-        p = phase_function_pol(m, x, angles, volume_fraction, ksquared)
+        p = phase_function_pol(m, x, angles, volume_fraction, ksquared, mie_theory=mie_theory)
     
     return p, mu_scat, mu_abs
     
@@ -2177,7 +2177,7 @@ def phase_function(m, x, angles, volume_fraction, ksquared, mie_theory=False):
     return(p, p_par, p_perp, cscat_total)
     
     
-def phase_function_pol(m, x, angles, volume_fraction, ksquared):
+def phase_function_pol(m, x, angles, volume_fraction, ksquared, mie_theory=False):
     """
     Calculates the phase function (the phase function is the same for absorbing 
     and non-absorbing systems)
@@ -2222,7 +2222,8 @@ def phase_function_pol(m, x, angles, volume_fraction, ksquared):
         
     """
     phis = sc.Quantity(np.linspace(0.01, 2*np.pi, 300), 'rad')
-    diff_cscat = diff_cscat_pol(m, x, angles, phis, volume_fraction)
+    diff_cscat = diff_cscat_pol(m, x, angles, phis, volume_fraction, 
+                                mie_theory=mie_theory)
     
     # normalize
     p = diff_cscat/sum(diff_cscat)
@@ -2295,7 +2296,7 @@ def calc_as_vec(thetas, phis, m , x):
     
     return as_vec
 
-def diff_cscat_pol(m, x, thetas, phis, volume_fraction):
+def diff_cscat_pol(m, x, thetas, phis, volume_fraction, mie_theory = False):
     """
     TODO: move this function to model.py
     
@@ -2326,11 +2327,14 @@ def diff_cscat_pol(m, x, thetas, phis, volume_fraction):
     
     # calculate the intensity
     form = np.real(as_vec[0,:,:]*np.conj(as_vec[0,:,:]) + as_vec[1,:,:]*np.conj(as_vec[1,:,:]))
-
+    
     # calculate structure factor
-    qd = 4*x*np.sin(thetas_v/2)
-    s = model.structure.factor_py(qd, volume_fraction)
- 
+    if mie_theory==False:
+        qd = 4*np.abs(x)*np.sin(thetas_v/2)
+        s = model.structure.factor_py(qd, volume_fraction)
+    else:
+        s=1
+        
     return s*form
 
 def sample_angles_pol(nevents, ntraj, p):
@@ -2364,7 +2368,9 @@ def sample_angles_pol(nevents, ntraj, p):
     thetas = sc.Quantity(np.linspace(min_angle,np.pi, num_theta), 'rad')  
     phis = sc.Quantity(np.linspace(min_angle,2*np.pi, num_phi), 'rad') 
 
-    # phi_ind.shape(nevents, ntraj)
+    # the direction for the first event is defined upon initialization
+    # so we only need to sample nevents-1
+    nevents = nevents-1 
 
     phi_ind = np.array([np.random.choice(num_phi, ntraj, p = p_phi/np.sum(p_phi))
                         for i in range(nevents)])

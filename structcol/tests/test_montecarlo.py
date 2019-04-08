@@ -27,6 +27,7 @@ from .. import refractive_index as ri
 import os
 import numpy as np
 from numpy.testing import assert_equal, assert_almost_equal
+import matplotlib.pyplot as plt
 
 # Define a system to be used for the tests
 nevents = 3
@@ -280,3 +281,104 @@ def calc_montecarlo(nevents, ntrajectories, radius, n_particle, n_sample,
     R, T = mc.calc_refl_trans(trajectories, z_low, cutoff, n_medium, n_sample)
 
     return R, T
+
+    
+def test_polarization():
+    ntrajectories = 50
+    nevents = 50
+    n_particle = sc.Quantity(1.5, '')
+    n_matrix = sc.Quantity(1.0, '')
+    n_medium = sc.Quantity(1.0, '')
+    n_sample = ri.n_eff(n_particle, n_matrix, volume_fraction) 
+    
+    # run mc trajectories with polarization
+    p, mu_scat, mu_abs = mc.calc_scat(radius, n_particle, n_sample, 
+                                      volume_fraction, wavelen, polarization= True)
+    r0, k0, W0, p0 = mc.initialize(nevents, ntrajectories, n_medium, n_sample
+                                   , pol_inc = np.array([1,0,0]))
+    r0 = sc.Quantity(r0, 'um')
+    k0 = sc.Quantity(k0, '')
+    W0 = sc.Quantity(W0, '')
+    p0 = sc.Quantity(p0,'')
+    sintheta, costheta, sinphi, cosphi, theta, phi= mc.sample_angles_pol(nevents, 
+                                                               ntrajectories,p)
+    loc_pol_x, loc_pol_y = mc.polarize(theta, phi, n_particle, n_sample, 
+                                          radius, wavelen, volume_fraction)
+    trajectories = mc.Trajectory(r0, k0, W0, p0)
+    trajectories.scatter_polarization(sintheta, costheta, sinphi, cosphi,
+                         loc_pol_x, loc_pol_y) 
+    
+    #################### check polarization magnitude is always 1
+    pol_mag = np.sqrt(trajectories.polarization[0,:,:]*np.conj(trajectories.polarization[0,:,:]) + 
+                      trajectories.polarization[1,:,:]*np.conj(trajectories.polarization[1,:,:]) +
+                      trajectories.polarization[2,:,:]*np.conj(trajectories.polarization[2,:,:]))    
+    pol_mag_sum = np.sum(np.abs(pol_mag.magnitude))
+    
+    assert_equal(pol_mag_sum, nevents*ntrajectories)
+    
+    ########### check that trajectories are becoming depolarized after many 
+    ########### scattering events
+    
+    # calculate polarization components at last events
+    pol_x = np.mean(trajectories.polarization[0,-20:-1,:]*np.conj(trajectories.polarization[0,-20:-1,:]))
+    pol_y = np.mean(trajectories.polarization[1,-20:-1,:]*np.conj(trajectories.polarization[1,-20:-1,:]))
+    pol_z = np.mean(trajectories.polarization[2,-20:-1,:]*np.conj(trajectories.polarization[2,-20:-1,:]))
+    
+    assert_almost_equal(pol_x.magnitude, 0.33, decimal=1)
+    assert_almost_equal(pol_y.magnitude, 0.33, decimal=1)
+    assert_almost_equal(pol_z.magnitude, 0.33, decimal=1)
+    
+    ############ check that polarization vector is perpendicular to direction
+    # dot product is a dot conj(b), but b is real, so can just do a dot b
+    dot = (trajectories.polarization[0,:,:]*trajectories.direction[0,:,:]
+    + trajectories.polarization[1,:,:]*trajectories.direction[1,:,:]
+    + trajectories.polarization[2,:,:]*trajectories.direction[2,:,:])
+    
+    dot_sum = np.sum(np.abs(dot.magnitude))
+    
+    assert_almost_equal(dot_sum, 0.0, decimal=12)
+    
+def test_polarization_absorption():
+    n_particle = sc.Quantity(1.5 + 0.01j, '')
+    n_matrix = sc.Quantity(1.0 + 0.01j, '')
+    n_medium = sc.Quantity(1.0 + 0.01j, '')
+    n_sample = ri.n_eff(n_particle, n_matrix, volume_fraction) 
+    
+    # run mc trajectories with polarization
+    p, mu_scat, mu_abs = mc.calc_scat(radius, n_particle, n_sample, 
+                                      volume_fraction, wavelen, polarization= True)
+    #print(p)
+    
+    r0, k0, W0, p0 = mc.initialize(nevents, ntrajectories, n_medium, n_sample
+                                   , pol_inc = np.array([1,0,0]))
+    r0 = sc.Quantity(r0, 'um')
+    k0 = sc.Quantity(k0, '')
+    W0 = sc.Quantity(W0, '')
+    p0 = sc.Quantity(p0,'')
+    sintheta, costheta, sinphi, cosphi, theta, phi= mc.sample_angles_pol(nevents, 
+                                                               ntrajectories,p)
+    loc_pol_x, loc_pol_y = mc.polarize(theta, phi, n_particle, n_sample, 
+                                          radius, wavelen, volume_fraction)
+
+    trajectories = mc.Trajectory(r0, k0, W0, p0)
+    trajectories.scatter_polarization(sintheta, costheta, sinphi, cosphi,
+                         loc_pol_x, loc_pol_y) 
+
+    #################### check polarization magnitude is always 1
+    pol_mag = np.sqrt(trajectories.polarization[0,:,:]*np.conj(trajectories.polarization[0,:,:]) + 
+                      trajectories.polarization[1,:,:]*np.conj(trajectories.polarization[1,:,:]) +
+                      trajectories.polarization[2,:,:]*np.conj(trajectories.polarization[2,:,:]))    
+    pol_mag_sum = np.sum(np.abs(pol_mag.magnitude))
+    
+    assert_equal(pol_mag_sum, nevents*ntrajectories)
+
+    
+    ############ check that polarization vector is perpendicular to direction
+    # dot product is a dot conj(b), but b is real, so can just do a dot b
+    dot = (trajectories.polarization[0,:,:]*trajectories.direction[0,:,:]
+    + trajectories.polarization[1,:,:]*trajectories.direction[1,:,:]
+    + trajectories.polarization[2,:,:]*trajectories.direction[2,:,:])
+    
+    dot_sum = np.sum(np.abs(dot.magnitude))
+    
+    assert_almost_equal(dot_sum, 0.0, decimal=12)
