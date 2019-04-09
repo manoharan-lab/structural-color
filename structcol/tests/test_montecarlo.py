@@ -300,13 +300,12 @@ def test_polarization():
     k0 = sc.Quantity(k0, '')
     W0 = sc.Quantity(W0, '')
     p0 = sc.Quantity(p0,'')
-    sintheta, costheta, sinphi, cosphi, theta, phi= mc.sample_angles_pol(nevents, 
+    sintheta, costheta, sinphi, cosphi, theta, phi= mc.sample_angles(nevents, 
                                                                ntrajectories,p)
-    loc_pol_x, loc_pol_y = mc.polarize(theta, phi, n_particle, n_sample, 
-                                          radius, wavelen, volume_fraction)
     trajectories = mc.Trajectory(r0, k0, W0, p0)
-    trajectories.scatter_polarization(sintheta, costheta, sinphi, cosphi,
-                         loc_pol_x, loc_pol_y) 
+    trajectories.scatter(sintheta, costheta, sinphi, cosphi)
+    trajectories.polarize(theta, phi, sintheta, costheta, sinphi,cosphi,
+                          n_particle, n_sample, radius, wavelen, volume_fraction)
     
     #################### check polarization magnitude is always 1
     pol_mag = np.sqrt(trajectories.polarization[0,:,:]*np.conj(trajectories.polarization[0,:,:]) + 
@@ -349,20 +348,19 @@ def test_polarization_absorption():
                                       volume_fraction, wavelen, polarization= True)
     #print(p)
     
-    r0, k0, W0, p0 = mc.initialize(nevents, ntrajectories, n_medium, n_sample
-                                   , pol_inc = np.array([1,0,0]))
+    r0, k0, W0, p0 = mc.initialize(nevents, ntrajectories, n_medium, n_sample,
+                                   pol_inc = np.array([1,0,0]))
     r0 = sc.Quantity(r0, 'um')
     k0 = sc.Quantity(k0, '')
     W0 = sc.Quantity(W0, '')
     p0 = sc.Quantity(p0,'')
-    sintheta, costheta, sinphi, cosphi, theta, phi= mc.sample_angles_pol(nevents, 
+    sintheta, costheta, sinphi, cosphi, theta, phi= mc.sample_angles(nevents, 
                                                                ntrajectories,p)
-    loc_pol_x, loc_pol_y = mc.polarize(theta, phi, n_particle, n_sample, 
-                                          radius, wavelen, volume_fraction)
 
     trajectories = mc.Trajectory(r0, k0, W0, p0)
-    trajectories.scatter_polarization(sintheta, costheta, sinphi, cosphi,
-                         loc_pol_x, loc_pol_y) 
+    trajectories.scatter(sintheta, costheta, sinphi, cosphi)
+    trajectories.polarize(theta, phi, sintheta, costheta, sinphi, cosphi,
+                          n_particle, n_sample, radius, wavelen, volume_fraction)
 
     #################### check polarization magnitude is always 1
     pol_mag = np.sqrt(trajectories.polarization[0,:,:]*np.conj(trajectories.polarization[0,:,:]) + 

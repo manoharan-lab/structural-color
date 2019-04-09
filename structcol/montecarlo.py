@@ -185,49 +185,8 @@ class Trajectory:
                                                          axis=0)).to(''))
 
         self.weight = sc.Quantity(weight)
-
-
+        
     def scatter(self, sintheta, costheta, sinphi, cosphi):
-        """
-        Calculates the directions of propagation (or direction cosines) after
-        scattering.
-        At a scattering event, a photon packet adopts a new direction of
-        propagation, which is randomly sampled from the phase function.
-        
-        Parameters
-        ----------
-        sintheta, costheta, sinphi, cosphi : array_like
-            Sines and cosines of scattering (theta) and azimuthal (phi) angles
-            sampled from the phase function. Theta and phi are angles that are
-            defined with respect to the previous corresponding direction of
-            propagation. Thus, they are defined in a local spherical coordinate
-            system. All have dimensions of (nevents, ntrajectories).
-        
-        """
-
-        kn = self.direction.magnitude
-
-        # Calculate the new x, y, z coordinates of the propagation direction
-        # using the following equations, which can be derived by using matrix
-        # operations to perform a rotation about the y-axis by angle theta
-        # followed by a rotation about the z-axis by angle phi
-        # see pg 105 in A.B. Stephenson lab notebook 1 for derivation and
-        # notes
-        for n in np.arange(1,self.nevents):
-            kx = ((kn[0,n-1,:]*costheta[n-1,:] + kn[2,n-1,:]*sintheta[n-1,:])*
-                  cosphi[n-1,:]) - kn[1,n-1,:]*sinphi[n-1,:]
-
-            ky = ((kn[0,n-1,:]*costheta[n-1,:] + kn[2,n-1,:]*sintheta[n-1,:])*
-                  sinphi[n-1,:]) + kn[1,n-1,:]*cosphi[n-1,:]
-
-            kz = -kn[0,n-1,:]*sintheta[n-1,:] + kn[2,n-1,:]*costheta[n-1,:]
-
-            kn[:,n,:] = kx, ky, kz
-
-        # Update all the directions of the trajectories
-        
-    def scatter_polarization(self, sintheta, costheta, sinphi, cosphi, 
-                             local_pol_x, local_pol_y):
         """
         TODO integrate this with scatter() to avoid repeated code
         Calculates the directions of polarization vectors after scattering.
@@ -246,46 +205,93 @@ class Trajectory:
             system. All have dimensions of (nevents, ntrajectories).
         
         """
-        if self.polarization is None:
-            raise ValueError('''cannot scatter polarization because 
-                             polarization is None''')
-            
-        pn = self.polarization.magnitude
         kn = self.direction.magnitude
 
-        pn[0,1:,:] = local_pol_x
-        pn[1,1:,:] = local_pol_y
-        
-        # Calculate the new x, y, z coordinates of the propagation direction
-        # using the following equations, which can be derived by using matrix
-        # operations to perform a rotation about the y-axis by angle theta
-        # followed by a rotation about the z-axis by angle phi
         for n in np.arange(1,self.nevents):
-            
             # update directions
-            
+            # Calculate the new x, y, z coordinates of the propagation direction
+            # using the following equations, which can be derived by using matrix
+            # operations to perform a rotation about the y-axis by angle theta
+            # followed by a rotation about the z-axis by angle phi
+            # see pg 105 in A.B. Stephenson lab notebook 1 for derivation and
+            # notes
             kn[0,n,:] = ((kn[0,n-1,:]*costheta[n-1,:] + kn[2,n-1,:]*sintheta[n-1,:])*
                   cosphi[n-1,:]) - kn[1,n-1,:]*sinphi[n-1,:]
-
             kn[1,n,:] = ((kn[0,n-1,:]*costheta[n-1,:] + kn[2,n-1,:]*sintheta[n-1,:])*
                   sinphi[n-1,:]) + kn[1,n-1,:]*cosphi[n-1,:]
-
             kn[2,n,:] = -kn[0,n-1,:]*sintheta[n-1,:] + kn[2,n-1,:]*costheta[n-1,:]
-            
-            # update polarizations
         
+    
+    def polarize(self, theta, phi, sintheta, costheta, sinphi, cosphi,
+                 n_particle, n_sample, radius, wavelen, volume_fraction):
+        """
+        Calculates local x and y polarization rotated in reference frame where 
+        initial polarization is x-polarized
+        
+        Parameters
+        ----------
+        theta: 2d array
+            theta angles
+        phi: 2d array
+            phi angles
+        sintheta, costheta, sinphi, cosphi : array_like
+            Sines and cosines of scattering (theta) and azimuthal (phi) angles
+            sampled from the phase function. Theta and phi are angles that are
+            defined with respect to the previous corresponding direction of
+            propagation. Thus, they are defined in a local spherical coordinate
+            system. All have dimensions of (nevents, ntrajectories).
+        n_particle: float
+            index of refraction of particle
+        n_sample: float
+            index of refraction of sample
+        radius: float
+            radius of particle
+        wavelen: float
+            wavelength
+        volume_fraction: float
+            volume fraction of particles
+        
+        Returns
+        -------
+        singamma: 2d array
+            sin(gamma) where gamma is angle from x-axis
+        cosgamma: 2d array
+            cos(gamma) wjere gamma is angle from x-axis
+        pol_x, pol_y: local x and y polarizations for all events and trajectories
+        
+        """
+        m = index_ratio(n_particle, n_sample)
+        x = size_parameter(wavelen, n_sample, radius)
+        
+        # calculate as_vec for all phis and thetas
+        as_vec_x, as_vec_y = mie.vector_scattering_amplitude(m, x, theta, 
+                                                coordinate_system = 'cartesian',
+                                                phis = phi)    
+        # normalize as_vecs
+        local_pol_x = as_vec_x
+        local_pol_y = as_vec_y
+        local_pol_z = 0
+        local_pol_x, local_pol_y, local_pol_z = normalize(local_pol_x, 
+                                                          local_pol_y, 
+                                                          local_pol_z)
+        
+        # set the local polarizations in the trajectories object
+        pn = self.polarization.magnitude
+        pn[0,1:,:] = local_pol_x
+        pn[1,1:,:] = local_pol_y
+            
+        for n in np.arange(1,self.nevents):
+            # update polarizations
+            # Calculate the new x, y, z coordinates of the propagation direction
+            # using the following equations, which can be derived by using matrix
+            # operations to perform a rotation about the y-axis by angle theta
+            # followed by a rotation about the z-axis by angle phi
             px = ((pn[0,n:,:]*costheta[n-1,:] + pn[2,n:,:]*sintheta[n-1,:])*
                     cosphi[n-1,:]) - pn[1,n:,:]*sinphi[n-1,:]
-
             py = ((pn[0,n:,:]*costheta[n-1,:] + pn[2,n:,:]*sintheta[n-1,:])*
                   sinphi[n-1,:]) + pn[1,n:,:]*cosphi[n-1,:]
-
-            pz = -pn[0,n:,:]*sintheta[n-1,:] + pn[2,n:,:]*costheta[n-1,:]
-            
+            pz = -pn[0,n:,:]*sintheta[n-1,:] + pn[2,n:,:]*costheta[n-1,:]    
             pn[:,n:,:] = px, py, pz
-           
-        # Update all the directions of the trajectories
-
 
     def move(self, step):
         """
@@ -2211,66 +2217,15 @@ def phase_function(m, x, angles, volume_fraction, ksquared, mie_theory=False,
     return(p, cscat_total)
 
 
-def sample_angles_pol(nevents, ntraj, p):
+def sample_angles(nevents, ntraj, p, min_angle=0.01):
     """
-    Samples azimuthal angles (phi) from uniform distribution, and scattering
-    angles (theta) from 2d phase function distribution.
+    Samples scattering angles (theta) and azimuthal angles (phi) 
     
-    Parameters
-    ----------
-    nevents : int
-        Number of scattering events.
-    ntraj : int
-        Number of trajectories.
-    p : 2d array_like (structcol.Quantity [dimensionless])
-        Phase function values returned from 'phase_function'.
+    if phase function p is 1d, phi is sampled from uniform distribution, and 
+    theta from phase function distribution.
     
-    Returns
-    -------
-    sintheta, costheta, sinphi, cosphi, theta, phi : ndarray
-        Sampled azimuthal and scattering angles, and their sines and cosines.
-        
-    Note: see pg 31 in Annie Stephenson lab notebook #3 for details
-    
-    """
-    
-    p_phi = np.sum(p, axis = 0)
-    
-    min_angle = 0.01
-    num_phi = 300            
-    num_theta = 200
-    thetas = sc.Quantity(np.linspace(min_angle,np.pi, num_theta), 'rad')  
-    phis = sc.Quantity(np.linspace(min_angle,2*np.pi, num_phi), 'rad') 
-
-    # the direction for the first event is defined upon initialization
-    # so we only need to sample nevents-1
-    nevents = nevents-1 
-
-    phi_ind = np.array([np.random.choice(num_phi, ntraj, p = p_phi/np.sum(p_phi))
-                        for i in range(nevents)])
-    
-    
-    theta_ind = np.zeros((nevents,ntraj))
-    theta = np.zeros((nevents,ntraj))
-    phi = np.zeros((nevents,ntraj))
-    for i in range(nevents):
-        for j in range(ntraj):
-            p_theta = p[:,phi_ind[i,j]]*np.sin(thetas)
-            theta_ind[i,j] = np.random.choice(num_theta, p = p_theta/np.sum(p_theta))
-            theta[i,j] = thetas[int(theta_ind[i,j])]
-            phi[i,j] = phis[int(phi_ind[i,j])]
-    
-    sintheta = np.sin(theta)
-    costheta = np.cos(theta)
-    sinphi = np.sin(phi)
-    cosphi = np.cos(phi)
-
-    return sintheta, costheta, sinphi, cosphi, theta, phi
-
-def sample_angles(nevents, ntraj, p):
-    """
-    Samples azimuthal angles (phi) from uniform distribution, and scattering
-    angles (theta) from phase function distribution.
+    if phase function p is 2d, both theta and phi are sampled from p. Note that
+    theta must come first in the shape of the phase function
     
     Parameters
     ----------
@@ -2280,6 +2235,8 @@ def sample_angles(nevents, ntraj, p):
         Number of trajectories.
     p : array_like (structcol.Quantity [dimensionless])
         Phase function values returned from 'phase_function'.
+    min_angle: float
+        min_angle to prevent error because structure factor is zero at theta=0
     
     Returns
     -------
@@ -2287,76 +2244,63 @@ def sample_angles(nevents, ntraj, p):
         Sampled azimuthal and scattering angles, and their sines and cosines.
     
     """
+    num_theta = len(p)
     
     # Scattering angles for the phase function calculation (typically from 0 to 
     # pi). A non-zero minimum angle is needed because in the single scattering 
     # model, if the analytic formula is used, S(q=0) returns nan.
-    min_angle = 0.01            
-    angles = sc.Quantity(np.linspace(min_angle,np.pi, 200), 'rad')  
-    # Random sampling of azimuthal angle phi from uniform distribution [0 -
-    # 2pi]
-    rand = np.random.random((nevents,ntraj))
-    phi = 2*np.pi*rand
+    thetas = sc.Quantity(np.linspace(min_angle, np.pi, num_theta), 'rad') 
+    
+    if len(p.shape)==1: 
+ 
+        # Random sampling of azimuthal angle phi from uniform distribution [0 -
+        # 2pi]
+        rand = np.random.random((nevents,ntraj))
+        phi = 2*np.pi*rand
+    
+        # make sure probability is normalized
+        prob = p * np.sin(thetas)*2*np.pi    # prob is integral of p in solid angle
+        prob_norm = prob/sum(prob)           # normalize to make it add up to 1
+        
+        # Randomly sample scattering angle theta
+        theta = np.array([np.random.choice(thetas, ntraj, p = prob_norm)
+                          for i in range(nevents)])
+        
+    if len(p.shape)==2:
+            # get the number of phis from the shape of the phase function
+            num_phi = p.shape[1]
+            
+            # sum for theta axis to get phi probabilities
+            p_phi = np.sum(p, axis = 0)
+            
+            # define phi values from which to sample 
+            phis = sc.Quantity(np.linspace(min_angle,2*np.pi, num_phi), 'rad') 
+        
+            # the direction for the first event is defined upon initialization
+            # so we only need to sample nevents-1
+            nevents = nevents-1 
+        
+            # sample indices for phi values
+            phi_ind = np.array([np.random.choice(num_phi, ntraj, p = p_phi/np.sum(p_phi))
+                                for i in range(nevents)])
+            
+            # sample thetas based on sampled phi values
+            theta_ind = np.zeros((nevents,ntraj))
+            theta = np.zeros((nevents,ntraj))
+            phi = np.zeros((nevents,ntraj))
+            for i in range(nevents):
+                for j in range(ntraj):
+                    p_theta = p[:,phi_ind[i,j]]*np.sin(thetas)
+                    theta_ind[i,j] = np.random.choice(num_theta, p = p_theta/np.sum(p_theta))
+                    theta[i,j] = thetas[int(theta_ind[i,j])]
+                    phi[i,j] = phis[int(phi_ind[i,j])]
+            
+    sintheta = np.sin(theta)
+    costheta = np.cos(theta)
     sinphi = np.sin(phi)
     cosphi = np.cos(phi)
 
-    # Random sampling of scattering angle theta
-    prob = p * np.sin(angles)*2*np.pi    # prob is integral of p in solid angle
-    prob_norm = prob/sum(prob)           # normalize to make it add up to 1
-    
-    theta = np.array([np.random.choice(angles, ntraj, p = prob_norm)
-                      for i in range(nevents)])
-    
-    sintheta = np.sin(theta)
-    costheta = np.cos(theta)
-
     return sintheta, costheta, sinphi, cosphi, theta, phi
-
-def polarize(theta, phi, n_particle, n_sample, radius, wavelen, volume_fraction):
-    """
-    Calculates polarization angle rotated in reference frame where 
-    initial polarization is x-polarized
-    
-    Parameters
-    ----------
-    theta: 2d array
-        theta angles
-    phi: 2d array
-        phi angles
-    n_particle: float
-        index of refraction of particle
-    n_sample: float
-        index of refraction of sample
-    radius: float
-        radius of particle
-    wavelen: float
-        wavelength
-    volume_fraction: float
-        volume fraction of particles
-    
-    Returns
-    -------
-    singamma: 2d array
-        sin(gamma) where gamma is angle from x-axis
-    cosgamma: 2d array
-        cos(gamma) wjere gamma is angle from x-axis
-    pol_x, pol_y: local x and y polarizations for all events and trajectories
-    
-    """
-    m = index_ratio(n_particle, n_sample)
-    x = size_parameter(wavelen, n_sample, radius)
-    
-    # calculate as_vec for all phis and thetas
-    as_vec_x, as_vec_y = mie.vector_scattering_amplitude(m, x, theta, 
-                                            coordinate_system = 'cartesian',
-                                            phis = phi)    
-    # normalize as_vecs
-    pol_x = as_vec_x
-    pol_y = as_vec_y
-    pol_z = 0
-    pol_x, pol_y, pol_z = normalize(pol_x, pol_y, pol_z)
-    
-    return pol_x, pol_y
 
 def normalize(x,y,z):
     magnitude = np.sqrt(np.abs(x)**2 + np.abs(y)**2 + np.abs(z)**2)
