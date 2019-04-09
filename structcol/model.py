@@ -362,7 +362,9 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
 @ureg.check('[]', '[]', '[]', '[]')
 def differential_cross_section(m, x, angles, volume_fraction, 
                                structure_type = 'glass', 
-                               form_type = 'sphere'):
+                               form_type = 'sphere',
+                               coordinate_system = 'scattering plane',
+                               phis = None, kd=1):
     """
     Calculate dimensionless differential scattering cross-section for a sphere,
     including contributions from the structure factor. Need to multiply by k**2
@@ -386,6 +388,18 @@ def differential_cross_section(m, x, angles, volume_fraction,
     form_type: str or None
         type of particle geometry to calculate the form factor. Can be 'sphere'
         or None.
+    coordinate_system: string
+        default value 'scattering plane' means scattering calculations will be 
+        carried out in the basis defined by basis vectors parallel and 
+        perpendicular to scattering plane. Variable also accepts value 
+        'cartesian' which scattering calculations will be carried out in the 
+        basis defined by basis vectors x and y in the lab frame, with z 
+        as the direction of propagation.
+    phis: None or ndarray
+        azimuthal angles
+    kd: k * distance, where k = 2*np.pi*n_matrix/wavelen, and distance is the
+        distance away from the center of the particle. The far-field solution
+        is obtained when distance >> radius. (Quantity, dimensionless)
     
     Returns
     -------
@@ -395,10 +409,15 @@ def differential_cross_section(m, x, angles, volume_fraction,
 
     """    
     # calculate form factor    
-    if form_type == 'sphere':   
-        form_factor = mie.calc_ang_dist(m, x, angles)
-        f_par = form_factor[0]  
-        f_perp = form_factor[1]
+    if form_type == 'sphere':  
+        if coordinate_system == 'scattering plane':
+            f_par, f_perp = mie.calc_ang_dist(m, x, angles)
+        if coordinate_system == 'cartesian':
+            thetas = angles
+            f_par, f_perp = mie.diff_scat_intensity_complex_medium(m, x, 
+                                                thetas, kd, 
+                                                coordinate_system='cartesian',
+                                                phis=phis)
     elif form_type is None:
         f_par = 1
         f_perp = 1
@@ -438,12 +457,14 @@ def _integrate_cross_section(cross_section, factor, angles,
     """
     Integrate differential cross-section (multiplied by factor) over angles
     using trapezoid rule
-    """
+    """    
     # integrand
     integrand = cross_section * factor * np.sin(angles)
+    
     # np.trapz does not preserve units, so need to state explicitly that we are
     # in the same units as the integrand
     integral = np.trapz(integrand, x=angles) * integrand.units
+    
     # multiply by 2*pi to account for integral over phi
     sigma = azi_angle_range * integral
     #sigma = 2 * np.pi * integral

@@ -314,7 +314,7 @@ def test_polarization():
                       trajectories.polarization[2,:,:]*np.conj(trajectories.polarization[2,:,:]))    
     pol_mag_sum = np.sum(np.abs(pol_mag.magnitude))
     
-    assert_equal(pol_mag_sum, nevents*ntrajectories)
+    assert_almost_equal(pol_mag_sum, nevents*ntrajectories, decimal=10)
     
     ########### check that trajectories are becoming depolarized after many 
     ########### scattering events

@@ -1985,6 +1985,9 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
         from Mie theory. If False (default), they are calculated from the 
         single scattering model, which includes a correction for the structure
         factor
+    polarization: bool
+        If True, returns phase function as function of theta and phi, so
+        it can be used in polarization calculations
     
     Returns
     -------
@@ -2093,7 +2096,7 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
             mu_scat = cscat_total * number_density
         
         else:           
-            p, p_par, p_perp,cscat_total = phase_function(m, x, angles, volume_fraction, 
+            p, cscat_total = phase_function(m, x, angles, volume_fraction, 
                                            ksquared, mie_theory=False) 
             mu_scat = number_density * cscat_total
 
@@ -2103,12 +2106,22 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
     mu_abs = mu_abs.to('1/um')
     
     if polarization == True:
-        p = phase_function_pol(m, x, angles, volume_fraction, ksquared, mie_theory=mie_theory)
-    
+        min_angle = 0.01            
+        phis = sc.Quantity(np.linspace(min_angle, 2*np.pi, 300), 'rad') 
+        phis_2d, thetas_2d = np.meshgrid(phis, angles) # theta dimension must come first
+        distance=radius        
+        p, cscat = phase_function(m, x, thetas_2d, volume_fraction, ksquared, 
+                                  mie_theory=mie_theory,
+                                  coordinate_system='cartesian',
+                                  phis = phis_2d, k=k, distance=distance)
+        print(p)
+
     return p, mu_scat, mu_abs
     
 
-def phase_function(m, x, angles, volume_fraction, ksquared, mie_theory=False):
+def phase_function(m, x, angles, volume_fraction, ksquared, mie_theory=False,
+                   coordinate_system='scattering plane', structure_type = 'glass',
+                   phis = None, k=None, distance=None):
     """
     Calculates the phase function (the phase function is the same for absorbing 
     and non-absorbing systems)
@@ -2135,18 +2148,26 @@ def phase_function(m, x, angles, volume_fraction, ksquared, mie_theory=False):
         function is calculated according to single scattering theory 
         (which uses Mie and structure factor contributions)
         
+    coordinate_system: string
+        default value 'scattering plane' means scattering calculations will be 
+        carried out in the basis defined by basis vectors parallel and 
+        perpendicular to scattering plane. Variable also accepts value 
+        'cartesian' which scattering calculations will be carried out in the 
+        basis defined by basis vectors x and y in the lab frame, with z 
+        as the direction of propagation.
+    structure_type: str or None
+        type of structure to calculate the structure factor. Can be 'glass', 
+        'paracrystal', or None. 
+    k: wavevector given by 2 * pi * n_medium / wavelength 
+       (Quantity in [1/length])
+    distance: float (Quantity in [length])
+        distance away from the scatterer 
     
     Returns:
     --------
     
     p: array
         phase function for unpolarized light
-        
-    p_par: array
-        phase function for parallel polarized light
-        
-    p_perp: array
-        phase function for perpendicularly polarized light
         
     cscat_total: float
         total scattering cross section for unpolarized light
@@ -2156,186 +2177,39 @@ def phase_function(m, x, angles, volume_fraction, ksquared, mie_theory=False):
     # If mie_theory = True, calculate the phase function for 1 particle 
     # using Mie theory (excluding the structure factor)
     if mie_theory == True:
-        diff_cscat_par, diff_cscat_perp = \
-            model.differential_cross_section(m, x, angles, volume_fraction,
-                                             structure_type=None)
-    else:
-        diff_cscat_par, diff_cscat_perp = \
-            model.differential_cross_section(m, x, angles, volume_fraction)
+        structure_type = None
+    if coordinate_system == 'cartesian':
+        kd = k*distance
+    if coordinate_system == 'scattering plane':
+        kd = None
+    
+    diff_cscat_par, diff_cscat_perp = \
+        model.differential_cross_section(m, x, angles, volume_fraction,
+                                         structure_type=structure_type,
+                                         coordinate_system=coordinate_system,
+                                         phis=phis,kd=kd)
+    if coordinate_system=='scattering plane':
+    
+        cscat_total_par = model._integrate_cross_section(diff_cscat_par,
+                                                          1.0/ksquared, angles)
+        cscat_total_perp = model._integrate_cross_section(diff_cscat_perp,
+                                                          1.0/ksquared, angles)
+        cscat_total = (cscat_total_par + cscat_total_perp)/2.0
+        
+    if coordinate_system=='cartesian':
+        thetas_1d = angles[:,0] 
+        phis_1d = phis[0,:]
+        cscat_total = mie.integrate_intensity_complex_medium(diff_cscat_par,
+                                                    diff_cscat_perp,
+                                                    distance,
+                                                    thetas_1d, k,
+                                                    coordinate_system='cartesian',
+                                                    phis=phis_1d)[0]
+    
+    p = (diff_cscat_par + diff_cscat_perp)/(ksquared * 2 * cscat_total)    
+        
+    return(p, cscat_total)
 
-    cscat_total_par = model._integrate_cross_section(diff_cscat_par,
-                                                      1.0/ksquared, angles)
-    cscat_total_perp = model._integrate_cross_section(diff_cscat_perp,
-                                                      1.0/ksquared, angles)
-    cscat_total = (cscat_total_par + cscat_total_perp)/2.0
-    
-    p = (diff_cscat_par + diff_cscat_perp)/(ksquared * 2 * cscat_total)
-    # TODO remove p_par, p_perp stuff
-    p_par = diff_cscat_par/(ksquared * cscat_total_par)
-    p_perp = diff_cscat_perp/(ksquared * cscat_total_perp)
-    
-    return(p, p_par, p_perp, cscat_total)
-    
-    
-def phase_function_pol(m, x, angles, volume_fraction, ksquared, mie_theory=False):
-    """
-    Calculates the phase function (the phase function is the same for absorbing 
-    and non-absorbing systems)
-    
-    Parameters:
-    ----------
-    m: float
-        index ratio between the particle and sample
-        
-    x: float
-        size parameter
-        
-    angles: array
-        theta angles at which to calculate phase function
-    
-    volume_fraction: float (sc.Quantity [dimensionless])
-        
-    ksquared: float (sc.Quantity [1/length])
-        k-vector squared, where k = 2*pi*n_sample / wavelength
-        
-    mie_theory: bool
-        If TRUE, phase function is calculated according to Mie theory 
-        (assuming no contribution from structure factor). If FALSE, phase
-        function is calculated according to single scattering theory 
-        (which uses Mie and structure factor contributions)
-        
-    
-    Returns:
-    --------
-    
-    p: array
-        phase function for unpolarized light
-        
-    p_par: array
-        phase function for parallel polarized light
-        
-    p_perp: array
-        phase function for perpendicularly polarized light
-        
-    cscat_total: float
-        total scattering cross section for unpolarized light
-        
-    """
-    phis = sc.Quantity(np.linspace(0.01, 2*np.pi, 300), 'rad')
-    diff_cscat = diff_cscat_pol(m, x, angles, phis, volume_fraction, 
-                                mie_theory=mie_theory)
-    
-    # normalize
-    p = diff_cscat/sum(diff_cscat)
-    
-    return p
-
-def amplitude_scat_mat_pol(m, x, thetas):
-    """
-    DEPRECATED. A replacement function has been added to pymie
-    
-    Calculates the amplitude scattering matrix for a 2d array of thetas
-    
-    Parameters:
-    ----------
-    m: float
-        index ratio between the particle and sample  
-    x: float
-        size parameter  
-    thetas: 2d array
-        theta angles 
-
-    Returns:
-    --------
-    asmat: 4d array, dimension lengths: thetas.shape[0], thetas.shape[1], 2, 2
-        amplitude scattering matrix for all theta
-    """
-    nstop = mie._nstop(x)
-    n = np.arange(nstop)+1.
-    prefactor  = (2*n+1)/(n*(n+1))
-    coeffs = mie._scatcoeffs(m,x,nstop)
-
-    asmat = np.zeros((thetas.shape[0], thetas.shape[1], 2, 2), dtype = complex)    
-    for i in range(thetas.shape[0]):# nevents
-        for j in range(thetas.shape[1]): # ntraj
-            S21 = mie._amplitude_scattering_matrix(nstop, prefactor, coeffs, thetas[i,j])
-            asmat[i,j,0,0] = S21[0]
-            asmat[i,j,1,1] = S21[1]
-    return asmat
-
-def calc_as_vec(thetas, phis, m , x):
-    """
-    DEPRECATED. A replacement function has been added to pymie
-    
-    Calculates the amplitude scattering vector for a 2d array of thetas and phis
-    in the xy basis
-    
-    Parameters:
-    ----------
-    m: float
-        index ratio between the particle and sample  
-    x: float
-        size parameter  
-    thetas: 2d array
-        theta angles
-    phis: 2d array (same shape as theta)
-        phi angles
-    Returns:
-    --------
-    as_vec: 4d array, dimension lengths: 2, thetas.shape[0], thetas.shape[1]
-    """
-    asmat = amplitude_scat_mat_pol(m, x, thetas)
-    
-    basis_change_mat = np.array(([np.cos(phis), np.sin(phis)],[np.sin(phis), -np.cos(phis)])) 
-    basis_change_mat = np.swapaxes(np.swapaxes(basis_change_mat,0,2),1,3)
-    asmat_prime = np.matmul(basis_change_mat, np.matmul(asmat, basis_change_mat))
-    
-    as_vec = np.zeros((2,thetas.shape[0],thetas.shape[1]), dtype = complex)
-    as_vec[0,:,:] = asmat_prime[:,:,0,0]#0,0
-    as_vec[1,:,:] = asmat_prime[:,:,1,0]#1,0
-    
-    return as_vec
-
-def diff_cscat_pol(m, x, thetas, phis, volume_fraction, mie_theory = False):
-    """
-    TODO: move this function to model.py
-    
-    Calculates a 2d (function of theta and phi) differential scattering cross
-    section that includes a form and structure factor.
-    
-    Parameters:
-    ----------
-    m: float
-        index ratio between the particle and sample  
-    x: float
-        size parameter  
-    thetas: 2d array
-        theta angles
-    phis: 2d array (same shape as theta)
-        phi angles
-    volume_fraction: float
-        volume fraction of particles
-    Returns:
-    --------
-    as_vec: 4d array, dimension lengths: 2, thetas.shape[0], thetas.shape[1]
-    """
-    
-    thetas_v, phis_v = np.meshgrid(thetas, phis)
-    thetas_v = np.swapaxes(thetas_v, 0,1)
-    phis_v = np.swapaxes(phis_v, 0 ,1)
-    as_vec = calc_as_vec(thetas_v, phis_v, m , x)
-    
-    # calculate the intensity
-    form = np.real(as_vec[0,:,:]*np.conj(as_vec[0,:,:]) + as_vec[1,:,:]*np.conj(as_vec[1,:,:]))
-    
-    # calculate structure factor
-    if mie_theory==False:
-        qd = 4*np.abs(x)*np.sin(thetas_v/2)
-        s = model.structure.factor_py(qd, volume_fraction)
-    else:
-        s=1
-        
-    return s*form
 
 def sample_angles_pol(nevents, ntraj, p):
     """
@@ -2473,21 +2347,14 @@ def polarize(theta, phi, n_particle, n_sample, radius, wavelen, volume_fraction)
     x = size_parameter(wavelen, n_sample, radius)
     
     # calculate as_vec for all phis and thetas
-    as_vec = calc_as_vec(theta, phi, m, x)
-    
+    as_vec_x, as_vec_y = mie.vector_scattering_amplitude(m, x, theta, 
+                                            coordinate_system = 'cartesian',
+                                            phis = phi)    
     # normalize as_vecs
-    pol_x = as_vec[0,:,:]#np.real(as_vec[0,:,:])# + np.imag(as_vec[0,:,:])#*s
-    pol_y = as_vec[1,:,:]#np.real(as_vec[1,:,:])# + np.imag(as_vec[1,:,:])#*s
+    pol_x = as_vec_x
+    pol_y = as_vec_y
     pol_z = 0
     pol_x, pol_y, pol_z = normalize(pol_x, pol_y, pol_z)
-    #print('pol_x: ' + str(pol_x.shape))
-    #print('pol_y: ' + str(pol_y.shape))
-
-    # calculate gamma
-    #gamma = np.arccos(pol_x)
-    #print('gamma: ' +str(gamma))
-    #cosgamma = pol_x
-    #singamma = np.sin(gamma)
     
     return pol_x, pol_y
 
