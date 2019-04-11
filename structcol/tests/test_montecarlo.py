@@ -294,8 +294,8 @@ def test_polarization():
     # run mc trajectories with polarization
     p, mu_scat, mu_abs = mc.calc_scat(radius, n_particle, n_sample, 
                                       volume_fraction, wavelen, polarization= True)
-    r0, k0, W0, p0 = mc.initialize(nevents, ntrajectories, n_medium, n_sample
-                                   , pol_inc = np.array([1,0,0]))
+    r0, k0, W0, p0 = mc.initialize(nevents, ntrajectories, n_medium, n_sample,
+                                   polarization=True)
     r0 = sc.Quantity(r0, 'um')
     k0 = sc.Quantity(k0, '')
     W0 = sc.Quantity(W0, '')
@@ -349,7 +349,7 @@ def test_polarization_absorption():
     #print(p)
     
     r0, k0, W0, p0 = mc.initialize(nevents, ntrajectories, n_medium, n_sample,
-                                   pol_inc = np.array([1,0,0]))
+                                   polarization=True )
     r0 = sc.Quantity(r0, 'um')
     k0 = sc.Quantity(k0, '')
     W0 = sc.Quantity(W0, '')

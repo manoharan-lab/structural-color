@@ -1703,7 +1703,7 @@ def calc_refl_trans_sphere(trajectories, n_medium, n_sample, radius, p, mu_abs,
             return (reflectance_mean, transmittance_mean) 
 
 def initialize(nevents, ntraj, n_medium, n_sample, seed=None, incidence_angle=0.,
-               pol_inc = np.array([0,0,0])):
+               polarization=False):
 
     """
     Sets the trajectories' initial conditions (position, direction, and weight).
@@ -1730,6 +1730,9 @@ def initialize(nevents, ntraj, n_medium, n_sample, seed=None, incidence_angle=0.
     incidence_angle : float
         Maximum value for theta when it incides onto the sample.
         Should be between 0 and pi/2.
+    polarization: bool
+        If True, function returns a matrix of initial polarization vectors in
+        the x direction
     
     Returns
     -------
@@ -1802,16 +1805,16 @@ def initialize(nevents, ntraj, n_medium, n_sample, seed=None, incidence_angle=0.
     # Initial weight
     weight0 = np.ones((nevents, ntraj))
     
-    # initial polarization
-    
-    if all(pol_inc == np.array([0, 0, 0])):
+    if polarization==False:
         return r0, k0, weight0
     
     else:
+        # initial polarization, we always assume x-polarized because
+        # python-mie assumes x-polarized when including polarization
         pol0 = np.zeros((3, nevents, ntraj), dtype = 'complex')
-        pol0[0,:,:] = pol_inc[0]
-        pol0[1,:,:] = pol_inc[1]
-        pol0[2,:,:] = pol_inc[2] # pol_inc[2]=0 for incident light in z
+        pol0[0,:,:] = 1
+        pol0[1,:,:] = 0
+        pol0[2,:,:] = 0
         return r0, k0, weight0, pol0
 
 
@@ -2120,7 +2123,6 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
                                   mie_theory=mie_theory,
                                   coordinate_system='cartesian',
                                   phis = phis_2d, k=k, distance=distance)
-        print(p)
 
     return p, mu_scat, mu_abs
     
@@ -2340,3 +2342,36 @@ def sample_step(nevents, ntraj, mu_abs, mu_scat):
     step = -np.log(1.0-rand) / mu_total
 
     return step
+
+def calc_pol_frac(trajectories, indices):
+    '''
+    calculates polarization contribution to the event type indicate by indices
+    (usually reflection or transmission) for each polariztion component,
+    in global, cartesian coordinates
+    
+    Parameters
+    ----------
+    trajectories: Trajectory object
+        trajectories from Monte Carlo calculation
+    indices: 1d array (length ntrajectories)
+        event indices of interest, often indices of reflected or transmitted 
+        events
+    
+    '''
+    
+    polarization = trajectories.polarization
+    if isinstance(polarization, sc.Quantity):
+        polarization = polarization.magnitude
+        
+    pol_x = select_events(polarization[0,:,:], indices) 
+    pol_y = select_events(polarization[1,:,:], indices)
+    pol_z = select_events(polarization[2,:,:], indices)
+    
+    ntrajectories = len(indices)
+    pol_frac_x = np.sum(np.abs(pol_x)**2)/ntrajectories
+    pol_frac_y = np.sum(np.abs(pol_y)**2)/ntrajectories
+    pol_frac_z = np.sum(np.abs(pol_z)**2)/ntrajectories
+    
+    return pol_frac_x, pol_frac_y, pol_frac_z
+    
+    
