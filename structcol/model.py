@@ -204,7 +204,7 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
     # particle-matrix composite
     n_sample = ri.n_eff(n_particle, n_matrix, vf_array, 
                         maxwell_garnett=maxwell_garnett)
-                   
+         
     if len(np.atleast_1d(radius)) > 1:
         m = index_ratio(n_particle, n_sample).flatten()  
         x = size_parameter(wavelen, n_sample, radius).flatten()
@@ -351,13 +351,15 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
     # transmission coefficients for the two polarization channels before
     # integrating. However, we do average the total cross section to normalize
     # the reflection cross-sections (that is, we use sigma_total rather than
-    # sigma_total_par or sigma_total_perp).
     reflected_par = t_medium_sample[0] * cscat_detected_par/cext_total * \
                         factor + r_medium_sample[0]  
     reflected_perp = t_medium_sample[1] * cscat_detected_perp/cext_total * \
-                         factor + r_medium_sample[1]             
+                         factor + r_medium_sample[1]      
+                         
+#    reflected_par = cscat_detected_par/cext_total * factor 
+#    reflected_perp = cscat_detected_perp/cext_total * factor 
     reflectance = (reflected_par + reflected_perp)/2
-    
+ 
     # and the transport length for unpolarized light
     # (see eq. 5 of Kaplan, Dinsmore, Yodh, Pine, PRE 50(6): 4827, 1994)
     transport_length = 1/(1.0-asymmetry_parameter)/rho/cscat_total  # TODO is this cscat or cext_tot?
@@ -416,9 +418,7 @@ def differential_cross_section(m, x, angles, volume_fraction,
         k vector. k = 2*pi*n_sample / wavelength 
     distance: float (sc.Quantity [length])
         distance at which we perform the integration of the differential 
-        cross section to get the total cross section. If distance >> radius,
-        the integration will be done in the far-field, and if it's close to the
-        radius, it will be done in the near-field. 
+        cross section to get the total cross section.
     
     Returns
     -------
@@ -530,9 +530,7 @@ def polydisperse_form_factor(m, angles, diameters, concentration, pdi, wavelen,
         k vector. k = 2*pi*n_sample / wavelength 
     distance: float (sc.Quantity [length])
         distance at which we perform the integration of the differential 
-        cross section to get the total cross section. If distance >> radius,
-        the integration will be done in the far-field, and if it's close to the
-        radius, it will be done in the near-field.     
+        cross section to get the total cross section.  
     
     Returns
     -------
