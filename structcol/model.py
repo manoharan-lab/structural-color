@@ -266,7 +266,7 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
     cabs_total = absorption_cross_section(form_type, m, mean_diameters, n_sample, 
                                           x, wavelen, n_particle,
                                           concentration=concentration, pdi=pdi)                                                                                                               
-     
+    
     # calculate the differential cross section in the detected range of angles  
     # and in the total angles 
     diff_cs_detected = differential_cross_section(m, x, angles, volume_fraction,
@@ -275,7 +275,8 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
                                                   diameters=mean_diameters,
                                                   concentration=concentration,
                                                   pdi=pdi, wavelen=wavelen, 
-                                                  n_matrix=n_sample, k=k, distance=thickness) 
+                                                  n_matrix=n_sample, k=k, distance=thickness)
+
     diff_cs_total = differential_cross_section(m, x, angles_tot, volume_fraction,
                                                structure_type=structure_type, 
                                                form_type=form_type,
@@ -302,7 +303,8 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
     
         cscat_total = mie.integrate_intensity_complex_medium(diff_cs_total[0], 
                                                              diff_cs_total[1], 
-                                                             thickness, angles_tot, k)[0]  
+                                                             thickness, angles_tot, k)[0] 
+
         factor = np.cos(angles_tot)
         asymmetry_unpolarized = mie.integrate_intensity_complex_medium(diff_cs_total[0]*factor, 
                                                            diff_cs_total[1]*factor, 
@@ -331,7 +333,7 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
                                                   angles_tot, azi_angle_range_tot)
         asymmetry_parameter = (asymmetry_par + asymmetry_perp)/cscat_total/2.0
     
-    cext_total = cscat_total + cabs_total
+    cext_total = cscat_total.to('um**2') + cabs_total.to('um**2')
     
     # now eq. 6 for the total reflection
     rho1 = _number_density(volume_fraction, radius.max())
@@ -371,7 +373,10 @@ def differential_cross_section(m, x, angles, volume_fraction,
                                structure_type = 'glass', form_type = 'sphere', 
                                diameters=None, concentration=None, pdi=None, 
                                wavelen=None, n_matrix=None, k=None, 
-                               distance=None):
+                               distance=None, 
+                               coordinate_system='scattering plane',
+                               incident_vector=None,
+                               phis=None):
     """
     Calculate dimensionless differential scattering cross-section for a sphere,
     including contributions from the structure factor. Need to multiply by k**2
@@ -419,6 +424,34 @@ def differential_cross_section(m, x, angles, volume_fraction,
         cross section to get the total cross section. If distance >> radius,
         the integration will be done in the far-field, and if it's close to the
         radius, it will be done in the near-field. 
+    coordinate_system: string
+        default value 'scattering plane' means scattering calculations will be 
+        carried out in the basis defined by basis vectors parallel and 
+        perpendicular to scattering plane. Variable also accepts value 
+        'cartesian' which scattering calculations will be carried out in the 
+        basis defined by basis vectors x and y in the lab frame, with z 
+        as the direction of propagation.
+    incident_vector: None or tuple
+        vector describing the incident electric field. It is multiplied by the 
+        amplitude scattering matrix to find the vector scattering amplitude. If
+        coordinate_system is 'scattering plane', then this vector should be in 
+        the 'scattering plane' basis, where the first element is the parallel 
+        component and the second element is the perpendicular component. If 
+        coordinate_system is 'cartesian', then this vector should be in the 
+        'cartesian' basis, where the first element is the x-component and the 
+        second element is the y-component. Note that the vector for unpolarized
+        light is the same in either basis, since either way it should be an 
+        equal mix between the two othogonal polarizations: (1,1). Note that if 
+        indicent_vector is None, the function assigns a value based on the 
+        coordinate system. For 'scattering plane', the assigned value is (1,1) 
+        because most scattering plane calculations we're interested in involve 
+        unpolarized light. For 'cartesian', the assigned value is (1,0) because
+        if we are going to the trouble to use the cartesian coordinate system, 
+        it is usually because we want to do calculations using polarization, 
+        and these calculations are much easier to convert to measured 
+        quantities when in the cartesian coordinate system.
+    phis: None or ndarray
+        azimuthal angles
     
     Returns
     -------
@@ -426,26 +459,40 @@ def differential_cross_section(m, x, angles, volume_fraction,
         parallel and perpendicular components of the differential scattering
         cross section.
     """     
+    
+    if isinstance(k, Quantity):
+        k = k.to('1/um')
+    if isinstance(distance, Quantity):
+        distance = distance.to('um')
+    
     # calculate form factor    
     if form_type == 'sphere': 
-        if k is not None and np.abs(k.imag.magnitude) > 0.:
+        if k is not None and (np.abs(k.imag.magnitude) > 0. or coordinate_system == 'cartesian'):
             if distance is None:
                 raise ValueError('must specify distance for absorbing systems')
             form_factor = mie.diff_scat_intensity_complex_medium(m, x, angles, 
-                                                                 k*distance)
+                                            k*distance,
+                                            coordinate_system=coordinate_system,
+                                            incident_vector=incident_vector,
+                                            phis=phis)
             
         else:
             form_factor = mie.calc_ang_dist(m, x, angles)
 
         f_par = form_factor[0]  
         f_perp = form_factor[1]
+        #print(np.sum(f_par))
+        
     
     elif form_type == 'polydisperse':
         if diameters is None or concentration is None or pdi is None or wavelen is None or n_matrix is None:
             raise ValueError('must specify diameters, concentration, pdi, wavelength, and n_matrix for polydisperse systems')
         form_factor = polydisperse_form_factor(m, angles, diameters, 
                                                concentration, pdi, wavelen, 
-                                               n_matrix, k=k, distance=distance)
+                                               n_matrix, k=k, distance=distance,
+                                               coordinate_system=coordinate_system,
+                                               incident_vector=incident_vector,
+                                               phis=phis)
         f_par = form_factor[0]  
         f_perp = form_factor[1]
         
@@ -498,7 +545,9 @@ def differential_cross_section(m, x, angles, volume_fraction,
 
 
 def polydisperse_form_factor(m, angles, diameters, concentration, pdi, wavelen, 
-                             n_matrix, k=None, distance=None):
+                             n_matrix, k=None, distance=None, 
+                             coordinate_system=None,
+                             incident_vector=None, phis=None):
     """   
     Calculate the form factor for polydisperse systems. 
     
@@ -577,11 +626,15 @@ def polydisperse_form_factor(m, angles, diameters, concentration, pdi, wavelen,
         # and the total form factors for absorbing systems
         for s in np.arange(len(diameter_range)):
             # if the system has absorption, use the absorption formula from Mie            
-            if np.abs(n_matrix.imag.magnitude) > 0. and k is not None and distance is not None:
+            if ((np.abs(n_matrix.imag.magnitude) > 0. or coordinate_system == 'cartesian') 
+                 and (k is not None and distance is not None)):
                 distance_array = np.resize(distance, len(np.atleast_1d(diameters)))
                 form_factor = mie.diff_scat_intensity_complex_medium(m, x_poly[s], 
-                                                                     Quantity(angles_array[s], angles.units),
-                                                                     k*Quantity(distance_array[d], distance.units))          
+                                        Quantity(angles_array[s], angles.units),
+                                        k*Quantity(distance_array[d], distance.units),
+                                        coordinate_system=coordinate_system,
+                                        incident_vector=incident_vector,
+                                        phis=phis)          
             
             else:
                 form_factor = mie.calc_ang_dist(m, x_poly[s], Quantity(angles_array[s], angles.units))
@@ -691,13 +744,13 @@ def absorption_cross_section(form_type, m, diameters, n_matrix, x, wavelen, n_pa
                 cabs = mie._cross_sections_complex_medium_fu(coeffs[0], coeffs[1], 
                                                              internal_coeffs[0], 
                                                              internal_coeffs[1], 
-                                                             Quantity(diameter_range[s], diameters.units), 
+                                                             Quantity(diameter_range[s]/2, diameters.units), 
                                                              n_particle, 
                                                              n_matrix, x_scat, 
                                                              x_poly[s], wavelen)[1]
                 cabs_magn[s] = cabs.magnitude
             # integrate and multiply the mu_abs by the concentrations to get the polydisperse mu_abs
-            cabs_poly[d] = np.trapz(cabs_magn*distr, x=diameter_range) * np.atleast_1d(concentration)[d]            
+            cabs_poly[d] = np.trapz(cabs_magn*distr, x=diameter_range) * np.atleast_1d(concentration)[d]
         cabs_total = Quantity(np.sum(cabs_poly), cabs.units)
     
     if form_type == None:    
@@ -757,6 +810,8 @@ def size_distribution(diameter_range, mean, t):
     else:
         std_dev = diameter_range / np.sqrt(t+1)
         distr = np.exp(-(diameter_range - mean)**2 / (2 * std_dev**2)) / np.sqrt(2*np.pi*std_dev**2)
+        norm = np.trapz(distr, x=diameter_range)
+        distr = distr/norm
     return(distr)
             
             
@@ -765,12 +820,14 @@ def _integrate_cross_section(cross_section, factor, angles,
     """
     Integrate differential cross-section (multiplied by factor) over angles
     using trapezoid rule
-    """
+    """    
     # integrand
     integrand = cross_section * factor * np.sin(angles)
+    
     # np.trapz does not preserve units, so need to state explicitly that we are
     # in the same units as the integrand
     integral = np.trapz(integrand, x=angles) * integrand.units
+    
     # multiply by 2*pi to account for integral over phi
     sigma = azi_angle_range * integral
     #sigma = 2 * np.pi * integral
