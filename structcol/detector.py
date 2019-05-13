@@ -225,7 +225,11 @@ def exit_kz(indices, trajectories, boundary, thickness, n_inside, n_outside):
     theta = theta_2-theta_1
 
     # perform the rotation
-    k2z = rotate_refract(norm, kr, theta, k1)
+    _, _, k2z = rotate_refract(norm[0]*thickness/2, 
+                               norm[1]*thickness/2, 
+                               norm[2]*thickness/2, 
+                               kr[0], kr[1], kr[2],
+                               k1[0], k1[1], k1[2], theta)
     
     # if kz is nan, leave uncorrected
     # since nan means the trajectory was totally internally reflected, the
@@ -237,53 +241,7 @@ def exit_kz(indices, trajectories, boundary, thickness, n_inside, n_outside):
     
     return k2z
 
-def rotate_refract(abc, uvw, theta, xyz):
-    '''
-    TODO replace with rotate_refract_new() from polarization branch    
-    
-    rotates unit vector <xyz> by angle theta around unit vector <uvw>,
-    where abs is a point on the vector we are rotating around
-    
-    Parameters
-    ----------
-    abc: 3D array
-       point (a,b,c) on vector to rotate around. Length is number of exit
-       trajectories we are considering
-    uvw: 3D array
-        unit vector to rotate around. Length is number of exit trajectories
-        we are considering
-    theta: 1D array
-        angle we are rotating by. Length is number if exit trajectories we are
-        considering
-    xyz: 3D array
-        vector to rotate. Length is number of exit trajectories we are 
-        considering
-
-    Returns
-    -------
-    k2z: 1D array (length ntraj)
-        z components of refracted kz upon trajectory exit
-        
-    Note: see more on rotations at
-    https://sites.google.com/site/glennmurray/Home/rotation-matrices
-    -and-formulas/rotation-about-an-arbitrary-axis-in-3-dimensions
-    
-    '''
-    a = abc[0,:]
-    b = abc[1,:]
-    c = abc[2,:]
-    u = uvw[0,:]
-    v = uvw[1,:]
-    w = uvw[2,:]
-    x = xyz[0,:]
-    y = xyz[1,:]
-    z = xyz[2,:]
-    
-    # rotation matrix 
-    k2z = (c*(u**2 + v**2)-w*(a*u+b*v-u*x-v*y-w*z))*(1-np.cos(theta)) + z*np.cos(theta) + (-b*u + a*v - v*x + u*y)*np.sin(theta) 
-    return k2z
-
-def rotate_refract_new(a, b, c, u, v, w, kx_1, ky_1, kz_1, alpha):
+def rotate_refract(a, b, c, u, v, w, kx_1, ky_1, kz_1, alpha):
     '''
     rotates vector <k1> by angle alpha about the unit vector <uvw>. where (a,b,c)
     is a point on the vector we are rotating about
@@ -1297,8 +1255,8 @@ def calc_refracted_direction(kx_1, ky_1, kz_1, x_1, y_1, z_1, n1, n2, plot):
     alpha = - (theta_2 - theta_1)
     
     # rotate exit direction by refracted angle
-    kx_2, ky_2, kz_2 = rotate_refract_new(x_plane, y_plane, z_plane, 
-                                          u, v, w, kx_1, ky_1, kz_1, alpha)
+    kx_2, ky_2, kz_2 = rotate_refract(x_plane, y_plane, z_plane, 
+                                      u, v, w, kx_1, ky_1, kz_1, alpha)
     
     if plot == True:
         fig = plt.figure()
@@ -1355,7 +1313,7 @@ def calc_indices_detected(indices, trajectories, det_theta, det_len, det_dist,
     nmedium: float
         refractive index of the medium
     plot: boolean
-        if True, will plot refraction plots and exit and detected trajectories
+        if True, will plot exit and detected trajectories
     
     Returns
     -------
@@ -1388,7 +1346,8 @@ def calc_indices_detected(indices, trajectories, det_theta, det_len, det_dist,
     kz0 = select_events(kz, indices)
  
     # calculate new directions from refraction at exit interface 
-    kx, ky, kz, x, y, z = calc_refracted_direction(kx0, ky0, kz0, x0, y0, z0, nsample, nmedium, plot)
+    kx, ky, kz, x, y, z = calc_refracted_direction(kx0, ky0, kz0, x0, y0, z0, 
+                                                   nsample, nmedium, plot=False)
         
     # get the radius of the detection hemisphere
     det_rad = np.sqrt(det_dist**2 + (det_len/2)**2)
@@ -1451,6 +1410,7 @@ def calc_indices_detected(indices, trajectories, det_theta, det_len, det_dist,
         ax.scatter(x, y, z, s = 5) # plot last position in film before exit
         ax.scatter(x_int, y_int, z_int, s = 3, c = 'b', label = 'exit traj')        
         ax.scatter(x_int_detected, y_int_detected, z_int_detected, s = 20, label = 'detected traj')
+        ax.view_init(elev=-148., azim=-112)
         plt.legend()
             
     return indices_detected

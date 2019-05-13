@@ -532,7 +532,7 @@ def initialize(nevents, ntraj, n_medium, n_sample, boundary, seed=None,
         r0_magnitude = np.sqrt(r0[0,0,:]**2 + r0[1,0,:]**2 + (r0[2,0,:]-sample_radius)**2)
         neg_normal[0,:] = -r0[0,0,:]/r0_magnitude
         neg_normal[1,:] = -r0[1,0,:]/r0_magnitude
-        neg_normal[2,:] = -(r0[2,0,:]-1)/r0_magnitude
+        neg_normal[2,:] = -(r0[2,0,:]-sample_radius)/r0_magnitude
         
         # solve for theta and phi for these samples
         theta = np.arccos(neg_normal[2,:])

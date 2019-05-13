@@ -604,3 +604,28 @@ def test_polarization_absorption():
     dot_sum = np.sum(np.abs(dot.magnitude))
     
     assert_almost_equal(dot_sum, 0.0, decimal=12)
+
+def test_goniometer_detector():
+    # test
+    z_pos = np.array([[0,0,0,0],[1,1,1,1],[-1,-1,2,2],[-2,-2,20,-0.0000001]])
+    ntrajectories = z_pos.shape[1]
+    nevents = z_pos.shape[0]
+    x_pos = np.zeros((nevents, ntrajectories))
+    y_pos = np.zeros((nevents, ntrajectories))
+    ky = np.zeros((nevents, ntrajectories))
+    kx = np.array([[0,0,0,0],[0,0,0,0],[0,0,0,1/np.sqrt(2)]])
+    kz = np.array([[1,1,1,1],[-1,-1,1,1],[-1,-1,1,-1/np.sqrt(2)]])
+    weights = np.ones((nevents, ntrajectories))
+    trajectories = mc.Trajectory([x_pos, y_pos, z_pos],[kx, ky, kz], weights)
+    thickness = 10
+    n_medium = 1
+    n_sample = 1
+    R, T = det.calc_refl_trans(trajectories, thickness, n_medium, n_sample, 'film',
+                               detector=True, 
+                               det_theta=sc.Quantity('45 degrees'), 
+                               det_len=sc.Quantity('1 um'), 
+                               det_dist=sc.Quantity('10 cm'),
+                               plot_detector=True)
+    
+    assert_almost_equal(R, 0.25)
+    
