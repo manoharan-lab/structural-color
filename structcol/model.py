@@ -518,6 +518,9 @@ def differential_cross_section(m, x, angles, volume_fraction,
 
         elif structure_type == 'paracrystal':
             s = structure.factor_para(qd)
+            
+        elif structure_type == 'data':
+            s = structure.factor_data(qd)
         
         elif structure_type == 'polydisperse':
             if diameters is None or concentration is None or pdi is None:

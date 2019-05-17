@@ -593,7 +593,8 @@ def initialize(nevents, ntraj, n_medium, n_sample, boundary, seed=None,
 def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
               radius2=None, concentration=None, pdi=None, polydisperse=False,
               mie_theory = False, polarization = False, min_angle = 0.01, 
-              num_angles = 200, num_phis = 300):
+              num_angles = 200, num_phis = 300, structure_type = 'glass',
+              form_type = 'sphere'):
     """
     Calculates the phase function and scattering coefficient from either the
     single scattering model or Mie theory. Calculates the absorption coefficient
@@ -694,9 +695,6 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
         
         form_type = 'polydisperse'
         structure_type = 'polydisperse'
-    else:
-        form_type = 'sphere'
-        structure_type = 'glass'
         
     # define the mean diameters in case the system is polydisperse    
     mean_diameters = sc.Quantity(np.array([2*radius.magnitude, 2*radius2.magnitude]),

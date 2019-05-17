@@ -24,6 +24,8 @@ structure factors
 
 import numpy as np
 from . import ureg, Quantity  # unit registry and Quantity constructor from pint
+import scipy as sp
+import os
 
 @ureg.check('[]','[]')    # inputs should be dimensionless
 def factor_py(qd, phi):
@@ -265,3 +267,23 @@ def factor_poly(q, phi, diameters, c, pdi):
     SM = 1 - 2*h2
     SM[SM<0] = 0
     return(SM)
+    
+def factor_data(qd):
+    
+    path = os.path.dirname(os.path.realpath(__file__))
+    data_path = os.path.join(path, 'silica-suspension_vs_model.txt')
+    
+    [qd_data, s_data] = np.loadtxt(data_path)
+
+    # scale so ends at 0
+    s_data = s_data-s_data[-2]
+
+    # scale so max is 1
+    s_data = s_data*1/(np.max(s_data)-np.min(s_data))
+    
+    # shift so ends at 1 and max is 2
+    s_data = s_data + 1
+    
+    s_func = sp.interpolate.interp1d(qd_data, s_data, kind = 'linear')
+    
+    return s_func(qd)
