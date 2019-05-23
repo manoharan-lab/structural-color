@@ -26,6 +26,9 @@ def calc_refl_trans_event(refl_per_traj, inc_refl_per_traj, trans_per_traj,
     return refl_events, trans_events
 
 def calc_thetas_event_traj(theta, refl_indices, nevents, ntraj = 100):
+    # answers the question:
+    # What is the theta for a given event and given trajectory that is 
+    # reflected at that event
     theta_event_traj = np.zeros((nevents, ntraj))
     refl_indices = refl_indices[0:ntraj]
     
