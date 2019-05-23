@@ -376,7 +376,8 @@ def differential_cross_section(m, x, angles, volume_fraction,
                                distance=None, 
                                coordinate_system='scattering plane',
                                incident_vector=None,
-                               phis=None):
+                               phis=None, 
+                               structure_s_data=None, structure_qd_data=None):
     """
     Calculate dimensionless differential scattering cross-section for a sphere,
     including contributions from the structure factor. Need to multiply by k**2
@@ -520,7 +521,7 @@ def differential_cross_section(m, x, angles, volume_fraction,
             s = structure.factor_para(qd)
             
         elif structure_type == 'data':
-            s = structure.factor_data(qd)
+            s = structure.factor_data(qd, structure_s_data, structure_qd_data)
         
         elif structure_type == 'polydisperse':
             if diameters is None or concentration is None or pdi is None:

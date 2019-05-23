@@ -594,7 +594,7 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
               radius2=None, concentration=None, pdi=None, polydisperse=False,
               mie_theory = False, polarization = False, min_angle = 0.01, 
               num_angles = 200, num_phis = 300, structure_type = 'glass',
-              form_type = 'sphere'):
+              form_type = 'sphere', structure_s_data=None, structure_qd_data=None):
     """
     Calculates the phase function and scattering coefficient from either the
     single scattering model or Mie theory. Calculates the absorption coefficient
@@ -743,7 +743,9 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
                                     structure_type=structure_type,
                                     mie_theory=mie_theory,
                                     coordinate_system=coordinate_system,
-                                    phis = phis)
+                                    phis = phis,
+                                    structure_s_data=structure_s_data,
+                                    structure_qd_data=structure_qd_data)
 
     mu_scat = number_density * cscat_total
 
@@ -759,7 +761,7 @@ def phase_function(m, x, angles, volume_fraction, k, number_density,
                    wavelen=None, diameters=None, concentration=None, pdi=None, 
                    n_sample=None, form_type='sphere', structure_type='glass', 
                    mie_theory=False, coordinate_system = 'scattering plane', 
-                   phis=None):
+                   phis=None, structure_s_data=None, structure_qd_data=None):
     """
     Calculates the phase function (the phase function is the same for absorbing 
     and non-absorbing systems)
@@ -847,7 +849,9 @@ def phase_function(m, x, angles, volume_fraction, k, number_density,
                                              concentration=concentration,
                                              pdi=pdi, wavelen=wavelen, 
                                              n_matrix=n_sample, k=k, 
-                                             distance=distance)
+                                             distance=distance,
+                                             structure_s_data=structure_s_data,
+                                             structure_qd_data=structure_qd_data)
          
     # If in cartesian coordinate system, integrate the differential cross
     # section using integration functions in mie.py that can handle cartesian
