@@ -374,9 +374,10 @@ def calc_refl_event_fresnel_avg(refl_events, refl_indices, trans_indices,
     # add the frensel reflected trajectory event to the average event of reflection
     # or transmission
     for ev in range(1, nevents + 1): 
-        traj_ind_event = np.where(refl_indices == ev)[0]
-        fresnel_avg[int(ev + avg_refl_event)] += refl_frac*np.sum(refl_fresnel[traj_ind_event])
-        fresnel_avg[int(ev + avg_trans_event)] += trans_frac*np.sum(trans_fresnel[traj_ind_event])
+        traj_ind_event_refl = np.where(refl_indices == ev)[0]
+        traj_ind_event_trans = np.where(trans_indices == ev)[0]
+        fresnel_avg[int(ev + avg_refl_event)] += refl_frac*np.sum(refl_fresnel[traj_ind_event_refl])
+        fresnel_avg[int(ev + avg_trans_event)] += trans_frac*np.sum(trans_fresnel[traj_ind_event_trans])
     return refl_events + fresnel_avg
 
 def plot_refl_event(wavelengths, refl_events, event):
