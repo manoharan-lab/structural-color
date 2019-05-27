@@ -646,6 +646,9 @@ def find_valid_exits(n_sample, n_medium, thickness, z_low, boundary,
         boolean for negative exits. Value of 1 means the trajectory exited in
         the negative (reflection) direction for that event
         trajectory and event.
+    tir_bool: 2d array of booleans (shape: nevents, ntraj)
+        describe whether a trajectory gets totally internally reflected at any 
+        event
     '''
     
     if boundary == 'film':    
@@ -671,6 +674,10 @@ def find_valid_exits(n_sample, n_medium, thickness, z_low, boundary,
         exits_pos_dir = potential_exits & no_tir & pos_dir
         exits_neg_dir = potential_exits & no_tir & ~pos_dir
         
+        # construct boolean array to describe whether a trajectory gets
+        # totally internally reflected at any event
+        tir_bool = potential_exits&~no_tir.astype(bool)&~pos_dir
+        
     if boundary == 'sphere':
         
         # get variables we need from trajectories
@@ -685,8 +692,11 @@ def find_valid_exits(n_sample, n_medium, thickness, z_low, boundary,
         # potential exits whenever trajectories are outside sphere boundary
         potential_exits = (x[1:,:]**2 + y[1:,:]**2 + (z[1:,:]-radius)**2) > radius**2
         potential_exit_indices = np.argmax(np.vstack([np.zeros(ntraj), potential_exits]), axis=0)
+        
+        # kz_correct will be nan is trajectory is totally internall reflected
         kz_correct = exit_kz(potential_exit_indices, trajectories, boundary, 
                              thickness, n_sample, n_medium)
+        no_tir = ~np.isnan(kz_correct) # calculated to match film case for event_distribution
         
         # exit in positive direction (transmission)
         # kz_correct will be nan if trajectory is totally internally reflected
@@ -695,8 +705,12 @@ def find_valid_exits(n_sample, n_medium, thickness, z_low, boundary,
         # construct boolean arrays of all valid exits in pos & neg directions
         exits_pos_dir = potential_exits & pos_dir
         exits_neg_dir = potential_exits & ~pos_dir 
+        
+        # construct boolean array to describe whether a trajectory gets
+        # totally internally reflected at any event
+        tir_bool = potential_exits&~no_tir.astype(bool)&~pos_dir
     
-    return exits_pos_dir, exits_neg_dir
+    return exits_pos_dir, exits_neg_dir, tir_bool
     
 def find_event_indices(exits_neg_dir, exits_pos_dir):    
     '''
@@ -1548,9 +1562,11 @@ def calc_refl_trans(trajectories, thickness, n_medium, n_sample, boundary,
                                                               z_low, thickness)        
     
     # construct booleans for positive and negative exits
-    exits_pos_dir, exits_neg_dir = find_valid_exits(n_sample, n_medium, 
-                                                    thickness, z_low, boundary, 
-                                                    trajectories)     
+    exits_pos_dir, exits_neg_dir, tir_bool = find_valid_exits(n_sample, 
+                                                              n_medium, 
+                                                              thickness, z_low, 
+                                                              boundary, 
+                                                              trajectories)     
     
     # find event indices for each trajectory outcome
     (refl_indices, 
@@ -1642,8 +1658,9 @@ def calc_refl_trans(trajectories, thickness, n_medium, n_sample, boundary,
                              refl_weights_pass/ntraj, trans_weights_pass/ntraj,
                              trans_frac, refl_frac,
                              refl_fresnel/ntraj, trans_fresnel/ntraj,
-                             norm_vec_refl, norm_vec_trans,
-                             reflectance, transmittance)
+                             reflectance, transmittance,
+                             tir_bool,
+                             norm_vec_refl, norm_vec_trans)
         
     else:
         refl_trans_result = reflectance, transmittance
