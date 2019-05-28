@@ -646,9 +646,9 @@ def find_valid_exits(n_sample, n_medium, thickness, z_low, boundary,
         boolean for negative exits. Value of 1 means the trajectory exited in
         the negative (reflection) direction for that event
         trajectory and event.
-    tir_bool: 2d array of booleans (shape: nevents, ntraj)
+    tir_refl_bool: 2d array of booleans (shape: nevents, ntraj)
         describe whether a trajectory gets totally internally reflected at any 
-        event
+        event and also exits in the negative direction to contribute to reflectance
     '''
     
     if boundary == 'film':    
@@ -676,7 +676,7 @@ def find_valid_exits(n_sample, n_medium, thickness, z_low, boundary,
         
         # construct boolean array to describe whether a trajectory gets
         # totally internally reflected at any event
-        tir_bool = potential_exits&~no_tir.astype(bool)&~pos_dir
+        tir_refl_bool = potential_exits&~no_tir.astype(bool)&~pos_dir
         
     if boundary == 'sphere':
         
@@ -708,9 +708,9 @@ def find_valid_exits(n_sample, n_medium, thickness, z_low, boundary,
         
         # construct boolean array to describe whether a trajectory gets
         # totally internally reflected at any event
-        tir_bool = potential_exits&~no_tir.astype(bool)&~pos_dir
+        tir_refl_bool = potential_exits&~no_tir.astype(bool)&~pos_dir
     
-    return exits_pos_dir, exits_neg_dir, tir_bool
+    return exits_pos_dir, exits_neg_dir, tir_refl_bool
     
 def find_event_indices(exits_neg_dir, exits_pos_dir):    
     '''
@@ -1562,7 +1562,7 @@ def calc_refl_trans(trajectories, thickness, n_medium, n_sample, boundary,
                                                               z_low, thickness)        
     
     # construct booleans for positive and negative exits
-    exits_pos_dir, exits_neg_dir, tir_bool = find_valid_exits(n_sample, 
+    exits_pos_dir, exits_neg_dir, tir_refl_bool = find_valid_exits(n_sample, 
                                                               n_medium, 
                                                               thickness, z_low, 
                                                               boundary, 
@@ -1659,7 +1659,7 @@ def calc_refl_trans(trajectories, thickness, n_medium, n_sample, boundary,
                              trans_frac, refl_frac,
                              refl_fresnel/ntraj, trans_fresnel/ntraj,
                              reflectance, transmittance,
-                             tir_bool,
+                             tir_refl_bool,
                              norm_vec_refl, norm_vec_trans)
         
     else:

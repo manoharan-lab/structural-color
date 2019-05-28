@@ -109,8 +109,7 @@ def calc_thetas_event_traj(theta, refl_indices, nevents, ntraj = 100):
     return theta_event_traj
 
 def calc_tir(tir_refl_bool, refl_indices, trans_indices, inc_refl_per_traj, 
-             weights, ntraj, n_sample, n_medium,
-             boundary, trajectories, thickness):
+             n_sample, n_medium, boundary, trajectories, thickness):
     '''
     Returns weights of various types of totally internally reflected trajectories
     as a function of event number
@@ -130,10 +129,6 @@ def calc_tir(tir_refl_bool, refl_indices, trans_indices, inc_refl_per_traj,
         Reflectance contribution for each trajectory at the sample interface. 
         This contribution comes from the Fresnel reflection as the light
         enters the sample
-    weights: 2d array (shape: nevents, ntrajectories)
-        weights of Monte Carlo trajectories. Property of trajectories object
-    ntraj: int 
-        number of trajectories in Monte Carlo simulation
     n_sample: float (structcol.Quantity [dimensionless] or 
         structcol.refractive_index object)
         Refractive index of the sample.
@@ -172,7 +167,10 @@ def calc_tir(tir_refl_bool, refl_indices, trans_indices, inc_refl_per_traj,
         The event indices of trajectories that are totally internally reflected 
         after a single scattering event.
     '''
-    # TODO remove weights as input since trajectories already has this
+    
+    weights = trajectories.weight
+    nevents = trajectories.nevents
+    ntraj = trajectories.direction.shape[2]
     if isinstance(weights, sc.Quantity):
         weights = weights.magnitude
     if isinstance(n_sample, sc.Quantity):
@@ -188,9 +186,9 @@ def calc_tir(tir_refl_bool, refl_indices, trans_indices, inc_refl_per_traj,
     # make event indices of zero larger than possible nevents
     # so that refl_events of 0 never have a smaller number than any other events
     refl_ind_inf = np.copy(refl_indices)
-    refl_ind_inf[refl_ind_inf == 0] = ntraj*10
+    refl_ind_inf[refl_ind_inf == 0] = nevents*10
     trans_ind_inf = np.copy(trans_indices)
-    trans_ind_inf[trans_ind_inf == 0] = ntraj*10
+    trans_ind_inf[trans_ind_inf == 0] = nevents*10
     
     # find  tir indices where trajectories are tir'd before getting reflected
     # or transmitted

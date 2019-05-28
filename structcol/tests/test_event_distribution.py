@@ -156,8 +156,6 @@ def test_tir_events():
     tir_single_refl,\
     tir_indices_single = ed.calc_tir(tir_refl_bool, refl_indices, 
                                      trans_indices, inc_refl_per_traj, 
-                                     trajectories.weight,
-                                     ntrajectories, 
                                      n_sample, 
                                      n_medium,
                                      boundary, 
