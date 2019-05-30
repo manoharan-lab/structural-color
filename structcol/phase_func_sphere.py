@@ -79,9 +79,13 @@ def calc_pdf(x, y, z, radius, plot = False, phi_dependent = False,
         radius of sphere boundary
     plot: boolean
         If set to True, the intermediate and final pdfs will be plotted
-    phi_dependent: boolean
+    phi_dependent: boolean (optional)
         If set to True, the returned pdf will require both a nu and a phi
         input
+    nu_range: 1d array (optional)
+        the nu values for which the pdf
+    phi_range: 1d array (optional)
+        the phi values for which to calculate the pdf, if the pdf is phi-dependent
     
     Returns
     -------
@@ -178,11 +182,12 @@ def plot_phase_func(pdf, nu=np.linspace(0, 1, 200), phi=None, save=False):
         probability density function that requires an input of nu values 
         or nu and phi values
        
-    nu: 1d array-like
+    nu: 1d array-like (optional)
         y-coordinate of each trajectory at exit event
-    phi: None or 1d array-like
+    phi: None or 1d array-like (optional)
         z-coordinate of each trajectory at exit event
-    save: boolean
+    save: boolean (optional)
+        tells whether or not to save the plot
         
     Notes
     -----
@@ -228,6 +233,7 @@ def plot_phase_func(pdf, nu=np.linspace(0, 1, 200), phi=None, save=False):
     
 def plot_dist_1d(var_range, var_data, var_data_edge_correct, pdf_var_vals):
     '''
+    plots the probability distribution of a variable of interest
 
     Parameters
     ----------
@@ -265,7 +271,7 @@ def plot_dist_1d(var_range, var_data, var_data_edge_correct, pdf_var_vals):
     plt.ylabel('probability density')
     
 
-def calc_directions(theta_sample, phi_sample, x_inter,y_inter, z_inter, k1, microsphere_radius):
+def calc_directions(theta_sample, phi_sample, x_inter,y_inter, z_inter, k1, radius):
     '''
     calculates directions of exit trajectories
     
@@ -282,18 +288,20 @@ def calc_directions(theta_sample, phi_sample, x_inter,y_inter, z_inter, k1, micr
         y-coordinate of each trajectory at exit event
     z_inter: 1d array-like
         z-coordinate of each trajectory at exit event
+    k1: 2d array
+        direction vector for trajectories
     radius: float-like
         radius of sphere boundary
         
     Returns
     -------
     k1: 2d array
-        direction vector for trajectories
+        direction vector for exit trajectories
     
     '''
-    z_sample = microsphere_radius*np.cos(theta_sample)
-    y_sample = microsphere_radius*np.sin(phi_sample)*np.sin(theta_sample)
-    x_sample = microsphere_radius*np.cos(phi_sample)*np.sin(theta_sample)
+    z_sample = radius*np.cos(theta_sample)
+    y_sample = radius*np.sin(phi_sample)*np.sin(theta_sample)
+    x_sample = radius*np.cos(phi_sample)*np.sin(theta_sample)
 
     xa = np.vstack((x_sample,y_sample,z_sample)).T
     xb = np.vstack((x_inter,y_inter, z_inter)).T
@@ -320,7 +328,7 @@ def plot_exit_points(x, y, z, radius, plot_dimension = '3d'):
         z-coordinate of each trajectory at exit event
     radius: float-like
         radius of sphere boundary
-    plot_dimension: string
+    plot_dimension: string (optional)
         If set to '3d' the plot is a 3d plot on a sphere. If set to '2d', plots
         on a 2d plot theta vs phi
     '''
@@ -381,8 +389,6 @@ def calc_d_avg(volume_fraction, radius):
     
     '''
     
-    
-    
     # calculate the number density
     number_density = volume_fraction/(4/3*np.pi*radius**3)
     
@@ -391,19 +397,41 @@ def calc_d_avg(volume_fraction, radius):
     
     return d_avg
     
-def calc_lscat(refl_per_traj, trans_per_traj, trans_indices, volume_fraction, radius):
+def calc_mu_scat_abs(refl_per_traj, trans_per_traj, trans_indices, volume_fraction, radius):
     '''
+    Calculates scattering coefficient and absorption coefficient using results
+    of the Monte Carlo calc_refl_trans() function
+    
     calculates the scattering length from the formula:
+        
+        mu_scat = number density * total scattering cross section
+        
+    where the scattering length is the inverse of the above expression:
         
         lscat = 1/(number density * total scattering cross section)
         
-    where the total scattering cross section is found by integrating the 
-    fraction of scattered light and multiplying by the initial are
+    and the total scattering cross section is found by integrating the 
+    fraction of scattered light and multiplying by the initial area:
+        
+        total scattering cross section = power scattered / incident intensity
+                           = power scattered / (incident power / incident area)
+                           = power scattered / incident power * 2*pi*radius**2
+                           = (scattered fraction)*2*pi*radius**2
     
-    total scattering cross section = power scattered / incident intensity
-                                   = power scattered / (incident power / incident area)
-                                   = power scattered / incident power * 2*pi*radius**2
-                                   = (scattered fraction)*2*pi*radius**2
+    calculates the absorption length from the formula:
+        
+        mu_abs = number density * total absorption cross section
+        
+    where the absorption length is the inverse of the above expression:
+        
+        l_abs = 1/(number density * total absorption cross section)
+        
+    and the total absorption cross section is found by subtracting the 
+        
+        total absorption cross section = power absorbed / incident intensity
+                    = power absorbed / (incident power / indcident area)
+                    = power absorbed / incident power *2*pi*radius**2
+                    = (absobred fraction)*2*pi*radius**2
     
     Parameters
     ----------
@@ -423,13 +451,19 @@ def calc_lscat(refl_per_traj, trans_per_traj, trans_indices, volume_fraction, ra
         
     Returns
     -------
-    lscat: float-like
-        scattering length for bulk film of structured spheres
+    mu_scat: float-like
+        scattering coefficient for bulk film of structured spheres
+    mu_abs: float-like
+        absorption coefficient for bulk film of structured spheres
     
     '''
     
     # calculate the number density
     number_density = volume_fraction/(4/3*np.pi*radius**3)
+    
+    # calculate the total absorption cross section
+    # assumes no stuck
+    tot_abs_cross_section = (1 - np.sum(refl_per_traj + trans_per_traj))*2*np.pi*radius**2
     
     # remove transmission contribution from trajectories that did not scatter
     trans_per_traj[trans_indices == 1] = 0
@@ -437,11 +471,75 @@ def calc_lscat(refl_per_traj, trans_per_traj, trans_indices, volume_fraction, ra
     # calculate the total scattering cross section
     tot_scat_cross_section = np.sum(refl_per_traj + trans_per_traj)*2*np.pi*radius**2
     
-    # calculate the scattering length
-    lscat = 1/(number_density*tot_scat_cross_section)
+    # calculate mu_scat, mu_abs
+    mu_scat = number_density*tot_scat_cross_section
+    mu_abs = number_density*tot_abs_cross_section
     
-    return lscat
+    return mu_scat, mu_abs
     
+def calc_scat_bulk(refl_per_traj, trans_per_traj, trans_indices, norm_refl, 
+                   norm_trans, volume_fraction, radius,
+                   plot=False, phi_dependent=False, 
+                   nu_range = np.linspace(0.01, 1, 200), 
+                   phi_range = np.linspace(0, 2*np.pi, 300)):
+    '''
+     Parameters
+    ----------
+    refl_per_traj: 1d array
+        array of trajectory weights that exit through reflection, normalized
+        by the total number of trajectories
+    trans_per_traj: 1d array
+        array of trajectory weights that exit through transmission, normalized
+        by the total number of trajectories
+    trans_indices: 1d array
+        array of event indices at which trajectories exit structured sphere
+        through transmission
+    norm_refl: 2d array-like, shape (3, number of trajectories)
+        array of normal vectors for trajectories at their 
+        reflection exit from the sphere
+    norm_trans: 2d array-like, shape (3, number of trajectoires)
+        array of normal vectors for trajectories at their 
+        transmission exit from the sphere
+        norm_trans
+    volume_fraction: float-like
+        volume fraction of structured spheres in a bulk film
+    radius: float-like
+        radius of structured spheres in a bulk film
+    plot: boolean (optional)
+        If set to True, the intermediate and final pdfs will be plotted
+    phi_dependent: boolean (optional)
+        If set to True, the returned pdf will require both a nu and a phi
+        input
+    nu_range: 1d array (optional)
+        the nu values for which the pdf
+    phi_range: 1d array (optional)
+        the phi values for which to calculate the pdf, if the pdf is phi-dependent
+        
+    Returns
+    -------
+    p: 1d array 
+        phase function for bulk film
+    mu_scat: float-like
+        scattering coefficient for bulk film
+    mu_abs: float-like
+        absorption coefficient for bulk film
+    
+    '''
+    # calculate the lscat of the microsphere for use in the bulk simulation
+    mu_scat, mu_abs = calc_mu_scat_abs(refl_per_traj, trans_per_traj, trans_indices, 
+                              volume_fraction, radius)
+    
+    # find the points on the sphere where trajectories exit
+    x_inter, y_inter, z_inter = get_exit_pos(norm_refl, norm_trans, radius)
+    
+    # calculate the probability density function as a function of nu, which depends on the scattering angle
+    p = calc_pdf(x_inter, y_inter, z_inter, radius, 
+                 plot = plot, 
+                 phi_dependent = phi_dependent, 
+                 nu_range = nu_range,
+                 phi_range = phi_range)
+    
+    return p, mu_scat, mu_abs
     
 def size_distribution(diameter_range, mean, t):
     '''
@@ -598,14 +696,35 @@ def sample_radii(pdi, rad_list, radius_mean, ntrajectories_bulk, nevents_bulk):
     
     # sample diameter distribution
     diams_sampled = np.reshape(np.random.choice(2*rad_list.magnitude, 
-                                                              ntrajectories_bulk*nevents_bulk, p = pdf_norm), 
-                                                              (nevents_bulk,ntrajectories_bulk))                          
+                                                ntrajectories_bulk*nevents_bulk, 
+                                                p = pdf_norm), 
+                                                (nevents_bulk,ntrajectories_bulk))                          
     rads_sampled = diams_sampled/2
 
     return rads_sampled     
     
 def sample_radii_concentration(p, rad_list, ntrajectories_bulk, nevents_bulk):
+    '''
+    Sample the radii to simulate polydispersity in the bulk Monte Carlo simulation
+    using pre-calculated probabilities 
     
+    Parameters
+    ----------
+    p: 1d numpy array
+        probability distribution of radii in rad_list
+    rad_list: 1d numpy array
+        list of radii from which to sample in polydisperse bulk Monte Carlo
+    ntrajectories_bulk: int
+        number of trajectories in the bulk Monte Carlo simulation
+    nevents_bulk: int
+        number of trajectories in the bulk Monte Carlo simulation
+
+    Returns
+    -------
+    rads_sampled: 2d array (shape nevents_bulk, ntrajectories_bulk)
+        array of the samples microsphere radii for polydisperity in the bulk 
+        Monte Carlo calculations
+    '''
     # sample diameter distribution
     rads_sampled = np.reshape(np.random.choice(rad_list.magnitude, 
                                                ntrajectories_bulk*nevents_bulk, p = p), 
