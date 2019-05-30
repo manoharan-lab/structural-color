@@ -1044,6 +1044,7 @@ def calc_refl_trans(trajectories, z_low, cutoff, n_medium, n_sample,
     # calculate transmittance and reflectance for each trajectory (in terms of trajectory weights)
     transmittance = trans_detected + extra_trans * trans_det_frac
     reflectance = refl_detected + extra_refl * refl_det_frac + inc_refl
+
     #calculate mean reflectance and transmittance for all trajectories
     if return_extra:
         # divide by ntraj to get reflectance per trajectory
@@ -1829,12 +1830,15 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
     if radius2 is None:
         radius2 = radius    
     
-    # For now, set the number_density to be the average number_density if the 
-    # system is polydisperse
-    # TODO: should the number_density account for polydispersity as well?
-    number_density1 = 3.0 * volume_fraction / (4.0 * np.pi * radius.max()**3)    
-    number_density2 = 3.0 * volume_fraction / (4.0 * np.pi * radius2.max()**3)
-    number_density = (number_density1 + number_density2)/2
+    # General number density formula for binary systems, converges to monospecies 
+    # formula when the concentration of either particle goes to zero. When the
+    # system is monospecies, define a concentration array to be able to use the
+    # general formula.
+    if concentration is None:
+        concentration = sc.Quantity(np.array([1,0]), '')
+    term1 = 1/(radius.max()**3 + radius2.max()**3 * concentration[1]/concentration[0])
+    term2 = 1/(radius2.max()**3 + radius.max()**3 * concentration[0]/concentration[1])
+    number_density = 3.0 * volume_fraction / (4.0 * np.pi) * (term1 + term2)
     
     # if the system is polydisperse, use the polydisperse form and structure 
     # factors
@@ -1991,7 +1995,7 @@ def phase_function(m, x, angles, volume_fraction, k, number_density,
         distance = diameters/2
     else:
         distance = diameters.max()/2 
-
+  
     # If mie_theory = True, calculate the phase function for 1 particle 
     # using Mie theory (excluding the structure factor)
     if mie_theory == True:

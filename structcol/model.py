@@ -204,7 +204,7 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
     # particle-matrix composite
     n_sample = ri.n_eff(n_particle, n_matrix, vf_array, 
                         maxwell_garnett=maxwell_garnett)
-         
+
     if len(np.atleast_1d(radius)) > 1:
         m = index_ratio(n_particle, n_sample).flatten()  
         x = size_parameter(wavelen, n_sample, radius).flatten()
@@ -355,9 +355,7 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
                         factor + r_medium_sample[0]  
     reflected_perp = t_medium_sample[1] * cscat_detected_perp/cext_total * \
                          factor + r_medium_sample[1]      
-                         
-#    reflected_par = cscat_detected_par/cext_total * factor 
-#    reflected_perp = cscat_detected_perp/cext_total * factor 
+
     reflectance = (reflected_par + reflected_perp)/2
  
     # and the transport length for unpolarized light
@@ -541,6 +539,11 @@ def polydisperse_form_factor(m, angles, diameters, concentration, pdi, wavelen,
     
     if len(np.atleast_1d(m)) > 1:
         raise ValueError('cannot handle polydispersity in core-shell particles')
+    
+    # if the pdi is zero, assume it's very small (we get the same results)
+    # because otherwise we get a divide by zero error
+    pdi = Quantity(pdi.astype(float), pdi.units)
+    np.atleast_1d(pdi)[np.atleast_1d(pdi) < 1e-5] = 1e-5   
     
     # t is a measure of the width of the Schulz distribution, and
     # pdi is the polydispersity index
