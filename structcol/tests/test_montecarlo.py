@@ -223,8 +223,8 @@ def test_reflection_core_shell():
 
     assert_almost_equal(R_abs_before, R_abs, decimal=15)
     assert_almost_equal(R_cs_abs_before, R_cs_abs, decimal=15)
-    assert_equal(T_abs_before, T_abs)
-    assert_equal(T_cs_abs_before, T_cs_abs)
+    assert_almost_equal(T_abs_before, T_abs, decimal=15)
+    assert_almost_equal(T_cs_abs_before, T_cs_abs, decimal=15)
     
     # Same as previous test but with absorbing matrix as well
     # Reflection using a non-core-shell absorbing system
@@ -252,10 +252,10 @@ def test_reflection_core_shell():
     T_abs_before = 0.0002140495990985143 #0.002180700021951509
     T_cs_abs_before = 0.0002140495990985143 #0.002180700021951509
 
-    assert_equal(R_abs_before, R_abs)
-    assert_equal(R_cs_abs_before, R_cs_abs)
-    assert_equal(T_abs_before, T_abs)
-    assert_equal(T_cs_abs_before, T_cs_abs)
+    assert_almost_equal(R_abs_before, R_abs, decimal=15)
+    assert_almost_equal(R_cs_abs_before, R_cs_abs, decimal=15)
+    assert_almost_equal(T_abs_before, T_abs, decimal=15)
+    assert_almost_equal(T_cs_abs_before, T_cs_abs, decimal=15)
     
     
 def test_reflection_absorbing_particle_or_matrix():
@@ -275,8 +275,8 @@ def test_reflection_absorbing_particle_or_matrix():
                                    n_particle_abs, n_sample, n_medium, 
                                    volume_fraction, wavelen, seed)
   
-    assert_almost_equal(R, R_abs)
-    assert_almost_equal(T, T_abs)
+    assert_equal(R, R_abs)
+    assert_equal(T, T_abs)
     
     # Outputs before refactoring structcol
     R_before = 0.81382378303119451
@@ -297,8 +297,8 @@ def test_reflection_absorbing_particle_or_matrix():
                                    n_particle, n_sample_abs, n_medium, 
                                    volume_fraction, wavelen, seed)
     
-    assert_almost_equal(R, R_abs)
-    assert_almost_equal(T, T_abs)
+    assert_equal(R, R_abs)
+    assert_equal(T, T_abs)
     
     # Outputs before refactoring structcol
     R_before = 0.81382378303119451
@@ -311,6 +311,15 @@ def test_reflection_absorbing_particle_or_matrix():
     assert_almost_equal(T_before, T, decimal=15)
     assert_almost_equal(T_abs_before, T_abs, decimal=15)
     
+    # test that the reflection is essentially the same when the imaginary
+    # index is 0 or very close to 0
+    n_matrix_abs = sc.Quantity(1. + 1e-10j, '')
+    n_sample_abs = ri.n_eff(n_particle, n_matrix_abs, volume_fraction)
+    R_abs, T_abs = calc_montecarlo(nevents, ntrajectories, radius, 
+                                   n_particle, n_sample_abs, n_medium, 
+                                   volume_fraction, wavelen, seed)
+    assert_almost_equal(R, R_abs, decimal=6)
+    assert_almost_equal(T, T_abs, decimal=6)
     
 def test_reflection_polydispersity():
     seed = 1

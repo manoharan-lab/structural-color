@@ -164,7 +164,7 @@ class Trajectory:
     def nevents(self):
         return self.weight.shape[0]
 
-    def absorb(self, mu_abs, step_size, radius=None):
+    def absorb(self, mu_abs, step_size):
         """
         Calculates absorption of photon packet due to traveling the sample 
         between scattering events. Absorption is modeled as a reduction of a 
@@ -181,11 +181,6 @@ class Trajectory:
         # beer lambert
         weight = self.weight*np.exp(-(mu_abs * np.cumsum(step_size[:,:], 
                                                          axis=0)).to(''))
-#        fraction = mu_abs * np.cumsum(step_size[:,:], axis=0)
-#        fraction[fraction > 1.] = 1
-#            
-#        weight = self.weight*(1-fraction).to('')
-        
         self.weight = sc.Quantity(weight)
 
 
@@ -2066,8 +2061,8 @@ def phase_function(m, x, angles, volume_fraction, k, number_density,
         p_par = diff_cscat_par/(ksquared * 2 * cscat_total_par)
         p_perp = diff_cscat_perp/(ksquared * 2 * cscat_total_perp)
         
-        diff_cscat_par2 = diff_cscat_par / (np.abs(k)**2)
-        diff_cscat_perp2 = diff_cscat_perp / (np.abs(k)**2)
+#        diff_cscat_par2 = diff_cscat_par / (np.abs(k)**2)
+#        diff_cscat_perp2 = diff_cscat_perp / (np.abs(k)**2)
         
     return(p, p_par, p_perp, cscat_total)
 

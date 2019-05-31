@@ -343,10 +343,6 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
     term1 = 1/(radius.max()**3 + radius2.max()**3 * concentration[1]/concentration[0])
     term2 = 1/(radius2.max()**3 + radius.max()**3 * concentration[0]/concentration[1])
     rho = 3.0 * volume_fraction / (4.0 * np.pi) * (term1 + term2)
-
-#    rho1 = _number_density(volume_fraction, radius.max())
-#    rho2 = _number_density(volume_fraction, radius2.max())
-#    rho = (rho1 + rho2) / 2    # TODO: CHECK THAT THIS AVERAGE IS OKAY
     
     if thickness is None:
         # assume semi-infinite sample
@@ -668,7 +664,7 @@ def absorption_cross_section(form_type, m, diameters, n_matrix, x, wavelen, n_pa
         # if the pdi is zero, assume it's very small (we get the same results)
         # because otherwise we get a divide by zero error
         pdi = Quantity(np.atleast_1d(pdi).astype(float), pdi.units)
-        np.atleast_1d(pdi)[np.atleast_1d(pdi) < 1e-5] = 1e-5   
+        np.atleast_1d(pdi)[np.atleast_1d(pdi) < 1e-5] = 1e-5 
         
         # t is a measure of the width of the Schulz distribution, and
         # pdi is the polydispersity index

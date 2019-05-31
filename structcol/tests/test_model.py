@@ -281,12 +281,12 @@ def test_reflection_absorbing_particle():
     lstar_mg1_before = 10810.069633192961
     lstar_mg2_before = 10810.069633193001
     
-    assert_equal(refl_mg1_before, refl_mg1)
-    assert_equal(refl_mg2_before, refl_mg2)
-    assert_equal(g_mg1_before, g_mg1)
-    assert_equal(g_mg2_before, g_mg2)
-    assert_equal(lstar_mg1_before, lstar_mg1.magnitude)
-    assert_equal(lstar_mg2_before, lstar_mg2.magnitude)
+    assert_array_almost_equal(refl_mg1_before, refl_mg1, decimal=14)
+    assert_array_almost_equal(refl_mg2_before, refl_mg2, decimal=14)
+    assert_array_almost_equal(g_mg1_before, g_mg1, decimal=14)
+    assert_array_almost_equal(g_mg2_before, g_mg2, decimal=14)
+    assert_array_almost_equal(lstar_mg1_before, lstar_mg1.magnitude, decimal=14)
+    assert_array_almost_equal(lstar_mg2_before, lstar_mg2.magnitude, decimal=14)
     
     # With Bruggeman
     refl_bg1, _, _, g_bg1, lstar_bg1 = model.reflection(n_particle_real, n_matrix, 
@@ -310,12 +310,12 @@ def test_reflection_absorbing_particle():
     lstar_bg1_before = 11593.280877304634
     lstar_bg2_before = 11593.280877304634
 
-    assert_equal(refl_bg1_before, refl_bg1)
-    assert_equal(refl_bg2_before, refl_bg2)
-    assert_equal(g_bg1_before, g_bg1)
-    assert_equal(g_bg2_before, g_bg2)
-    assert_equal(lstar_bg1_before, lstar_bg1.magnitude)
-    assert_equal(lstar_bg2_before, lstar_bg2.magnitude)
+    assert_array_almost_equal(refl_bg1_before, refl_bg1, decimal=10)
+    assert_array_almost_equal(refl_bg2_before, refl_bg2, decimal=10)
+    assert_array_almost_equal(g_bg1_before, g_bg1, decimal=10)
+    assert_array_almost_equal(g_bg2_before, g_bg2, decimal=10)
+    assert_array_almost_equal(lstar_bg1_before, lstar_bg1.magnitude, decimal=10)
+    assert_array_almost_equal(lstar_bg2_before, lstar_bg2.magnitude, decimal=10)
     
     # test that the reflectance is (almost) the same when using an
     # almost-non-absorbing index vs a non-absorbing index
@@ -633,7 +633,7 @@ def test_reflection_polydispersity_with_absorption():
     g2_before = 0.6150771864230516 #0.6156292197400548 #726274264.1349416
     lstar_before = 0.0044653875445681166 #0.0044717814146885779 #0.006279358811781641
     lstar2_before = 0.00447762476116312 #0.0044840361567639936 #0.006296567149019748
-    
+
     assert_equal(refl_before, refl.magnitude)
     assert_equal(refl2_before, refl2.magnitude)
     assert_equal(g_before, g.magnitude)
@@ -708,12 +708,12 @@ def test_reflection_polydispersity_with_absorption():
     lstar5_before = 0.013713468137103935 #0.013809880819376879 #0.013405648948885825
     lstar6_before = 0.013751049358954354 #0.013847726256293521 #0.013442386605693767
     
-    assert_equal(refl5_before, refl5.magnitude)
-    assert_equal(refl6_before, refl6.magnitude)
-    assert_equal(g5_before, g5.magnitude)
-    assert_equal(g6_before, g6.magnitude)
-    assert_equal(lstar5_before, lstar5.to('mm').magnitude)
-    assert_equal(lstar6_before, lstar6.to('mm').magnitude)
+    assert_array_almost_equal(refl5_before, refl5.magnitude, decimal=12)
+    assert_array_almost_equal(refl6_before, refl6.magnitude, decimal=12)
+    assert_array_almost_equal(g5_before, g5.magnitude, decimal=12)
+    assert_array_almost_equal(g6_before, g6.magnitude, decimal=12)
+    assert_array_almost_equal(lstar5_before, lstar5.to('mm').magnitude, decimal=12)
+    assert_array_almost_equal(lstar6_before, lstar6.to('mm').magnitude, decimal=12)
     
     # test that the reflectances are (almost) the same when using an 
     # almost-non-absorbing vs an non-absorbing system
