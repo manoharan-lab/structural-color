@@ -1318,7 +1318,7 @@ def calc_refl_trans_sphere(trajectories, n_medium, n_sample, radius, p, mu_abs,
         sintheta, costheta, sinphi, cosphi, _, _ = sample_angles(nevents, ntraj, p)
 
         # Create step size distribution
-        step = sample_step(nevents, ntraj, mu_abs, mu_scat)
+        step = sample_step(nevents, ntraj, mu_scat)
     
         # Run photons
         trajectories_tir.absorb(mu_abs, step)
@@ -2155,7 +2155,7 @@ def sample_angles(nevents, ntraj, p):
     return sintheta, costheta, sinphi, cosphi, theta, phi
 
 
-def sample_step(nevents, ntraj, mu_abs, mu_scat, fine_roughness=0.):
+def sample_step(nevents, ntraj, mu_scat, fine_roughness=0.):
     """
     Samples step sizes from exponential distribution.
     
@@ -2165,8 +2165,6 @@ def sample_step(nevents, ntraj, mu_abs, mu_scat, fine_roughness=0.):
         Number of scattering events.
     ntraj : int
         Number of trajectories.
-    mu_abs : float (structcol.Quantity [1/length])
-        Absorption coefficient.
     mu_scat : float or 2-element array (structcol.Quantity [1/length])
         Scattering coefficient. When fine_roughness is larger than 0, mu_scat 
         is a 2-element array, where the first element is the scattering 
@@ -2178,7 +2176,7 @@ def sample_step(nevents, ntraj, mu_abs, mu_scat, fine_roughness=0.):
         hit fine surface roughness (e.g. will "see" a Mie scatterer first). The 
         rest of the light will see a smooth surface, which could be flat or 
         have coarse roughness (long in the lengthscale of light). 
-        
+
     Returns
     -------
     step : ndarray
@@ -2192,21 +2190,17 @@ def sample_step(nevents, ntraj, mu_abs, mu_scat, fine_roughness=0.):
     if len(np.array([mu_scat.magnitude]).flatten()) > 1:
         mu_scat, mu_scat_mie = mu_scat
 
-    # Calculate total extinction coefficient
-    mu_total = mu_scat + mu_abs 
-
     # Generate array of random numbers from 0 to 1
     rand = np.random.random((nevents,ntraj))
 
-    step = -np.log(1.0-rand) / mu_total
+    step = -np.log(1.0-rand) / mu_scat
     
     # If there is fine surface roughness, sample the first step from Mie theory
     # for the number of trajectories set by fine_roughness
     if mu_scat_mie is not None:
         ntraj_mie = int(round(ntraj * fine_roughness))
-        mu_total_mie = mu_scat_mie + mu_abs
         rand_ntraj = np.random.random(ntraj_mie)
-        step[0,0:ntraj_mie] = -np.log(1.0-rand_ntraj) / mu_total_mie
+        step[0,0:ntraj_mie] = -np.log(1.0-rand_ntraj) / mu_scat_mie
     
     return step
 

@@ -54,7 +54,7 @@ def test_sampling():
     mc.sample_angles(nevents, ntrajectories, p)
     
     # Test that 'sample_step' runs
-    mc.sample_step(nevents, ntrajectories, mu_abs, mu_scat)
+    mc.sample_step(nevents, ntrajectories, mu_scat)
 
 def test_calc_refl_trans():
     low_thresh = 0
@@ -216,10 +216,10 @@ def test_reflection_core_shell():
     assert_almost_equal(T_abs, T_cs_abs, decimal=3)
 
     # Outputs before refactoring structcol
-    R_abs_before = 0.40749467236951037 #0.50534237684703909
-    R_cs_abs_before = 0.4074946723689386 #0.50534237684642402
-    T_abs_before = 0.0053095057615145302 #0.017215194324142709
-    T_cs_abs_before = 0.0053095057614589471 #0.017215194324029608
+    R_abs_before = 0.3956821177047554 #0.50534237684703909
+    R_cs_abs_before = 0.39568211770416667 #0.50534237684642402
+    T_abs_before = 0.009944245822685388 #0.017215194324142709
+    T_cs_abs_before = 0.009944245822595715 #0.017215194324029608
 
     assert_almost_equal(R_abs_before, R_abs, decimal=15)
     assert_almost_equal(R_cs_abs_before, R_cs_abs, decimal=15)
@@ -247,10 +247,10 @@ def test_reflection_core_shell():
     assert_almost_equal(T_abs, T_cs_abs, decimal=3)
 
     # Outputs before refactoring structcol
-    R_abs_before = 0.29026980076407527 #0.37384878890851575
-    R_cs_abs_before = 0.29026980076407527 #0.37384878890851575
-    T_abs_before = 0.0002140495990985143 #0.002180700021951509
-    T_cs_abs_before = 0.0002140495990985143 #0.002180700021951509
+    R_abs_before = 0.27087005070007175 #0.37384878890851575
+    R_cs_abs_before = 0.27087005070007175 #0.37384878890851575
+    T_abs_before = 0.0006391960305096798 #0.002180700021951509
+    T_cs_abs_before = 0.0006391960305096798 #0.002180700021951509
 
     assert_almost_equal(R_abs_before, R_abs, decimal=15)
     assert_almost_equal(R_cs_abs_before, R_cs_abs, decimal=15)
@@ -378,10 +378,10 @@ def test_reflection_polydispersity():
     assert_almost_equal(T_mono_abs, T_poly_abs, decimal=3)
     
     # Outputs before refactoring structcol
-    R_mono_abs_before = 0.6575973175344868 #0.74182070115289855
-    R_poly_abs_before = 0.657237174225057 #0.74153254583803685
-    T_mono_abs_before = 0.080731949531112429 #0.083823525277616467
-    T_poly_abs_before = 0.08057424468342524 #0.083720861809212316
+    R_mono_abs_before = 0.6480185516058052 #0.74182070115289855
+    R_poly_abs_before = 0.6476683654364985 #0.74153254583803685
+    T_mono_abs_before = 0.09473841417422774 #0.083823525277616467
+    T_poly_abs_before = 0.09456832138047852 #0.083720861809212316
     
     assert_equal(R_mono_abs_before, R_mono_abs)
     assert_equal(R_poly_abs_before, R_poly_abs)
@@ -561,7 +561,8 @@ def calc_montecarlo(nevents, ntrajectories, radius, n_particle, n_sample,
     
     sintheta, costheta, sinphi, cosphi, _, _= mc.sample_angles(nevents, 
                                                                ntrajectories,p)
-    step = mc.sample_step(nevents, ntrajectories, mu_abs, mu_scat, 
+
+    step = mc.sample_step(nevents, ntrajectories, mu_scat, 
                           fine_roughness=fine_roughness)
                     
     trajectories = mc.Trajectory(r0, k0, W0)
