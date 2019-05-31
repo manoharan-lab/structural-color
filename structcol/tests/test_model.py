@@ -460,18 +460,18 @@ def test_reflection_polydispersity():
     
     # Outputs before refactoring structcol
     refl_before = 0.021202873774022364
-    refl2_before = 0.02120287377402078
+    refl2_before = 0.0212028737585751
     g_before = 0.6149959692900278
-    g2_before = 0.6149959692900626
+    g2_before = 0.6149959696365628
     lstar_before = 0.0037795694345017063
-    lstar2_before = 0.0037899271967178523
+    lstar2_before = 0.0037899271938978255
   
-    assert_array_almost_equal(refl_before, refl, decimal=14)
-    assert_array_almost_equal(refl2_before, refl2, decimal=14)
-    assert_array_almost_equal(g_before, g, decimal=14)
-    assert_array_almost_equal(g2_before, g2, decimal=14)
-    assert_array_almost_equal(lstar_before, lstar.to('mm').magnitude, decimal=14)
-    assert_array_almost_equal(lstar2_before, lstar2.to('mm').magnitude, decimal=14)
+    assert_equal(refl_before, refl)
+    assert_equal(refl2_before, refl2.magnitude)
+    assert_equal(g_before, g)
+    assert_equal(g2_before, g2.magnitude)
+    assert_equal(lstar_before, lstar.to('mm').magnitude)
+    assert_equal(lstar2_before, lstar2.to('mm').magnitude)
     
     # test that the reflectance using only the structure factor is the same 
     # using the polydisperse formula vs using Percus-Yevick in the limit of 
@@ -501,12 +501,12 @@ def test_reflection_polydispersity():
     lstar3_before = 0.0002005604473366244
     lstar4_before = 0.00020056044751316733
     
-    assert_array_almost_equal(refl3_before, refl3, decimal=14)
-    assert_array_almost_equal(refl4_before, refl4, decimal=14)
-    assert_array_almost_equal(g3_before, g3, decimal=14)
-    assert_array_almost_equal(g4_before, g4, decimal=14)
-    assert_array_almost_equal(lstar3_before, lstar3.to('mm').magnitude, decimal=14)
-    assert_array_almost_equal(lstar4_before, lstar4.to('mm').magnitude, decimal=14)
+    assert_equal(refl3_before, refl3)
+    assert_equal(refl4_before, refl4)
+    assert_equal(g3_before, g3)
+    assert_equal(g4_before, g4)
+    assert_equal(lstar3_before, lstar3.to('mm').magnitude)
+    assert_equal(lstar4_before, lstar4.to('mm').magnitude)
     
     # test that the reflectance using both the structure and form factors is 
     # the same using the polydisperse formula vs using Mie and Percus-Yevick in 
@@ -536,12 +536,12 @@ def test_reflection_polydispersity():
     lstar5_before = 0.011593280877304636
     lstar6_before = 0.011625051809100308
     
-    assert_array_almost_equal(refl5_before, refl5, decimal=12)
-    assert_array_almost_equal(refl6_before, refl6, decimal=12)
-    assert_array_almost_equal(g5_before, g5, decimal=12)
-    assert_array_almost_equal(g6_before, g6, decimal=12)
-    assert_array_almost_equal(lstar5_before, lstar5.to('mm').magnitude, decimal=12)
-    assert_array_almost_equal(lstar6_before, lstar6.to('mm').magnitude, decimal=12)
+    assert_equal(refl5_before, refl5)
+    assert_equal(refl6_before, refl6)
+    assert_equal(g5_before, g5)
+    assert_equal(g6_before, g6)
+    assert_equal(lstar5_before, lstar5.to('mm').magnitude)
+    assert_equal(lstar6_before, lstar6.to('mm').magnitude)
     
     # test that the reflectance is the same for a polydisperse monospecies
     # and a bispecies with equal types of particles
@@ -628,18 +628,18 @@ def test_reflection_polydispersity_with_absorption():
 
     # Outputs before refactoring structcol
     refl_before = 0.020910087489548684 #0.020791487299024698
-    refl2_before = 0.020909855944662756 #0.02079125872215926
+    refl2_before = 0.020909855930303707 #0.02079125872215926
     g_before = 0.6150771860765984 #0.61562921974002 #726274264.1349005
-    g2_before = 0.6150771860766332 #0.6156292197400548 #726274264.1349416
+    g2_before = 0.6150771864230516 #0.6156292197400548 #726274264.1349416
     lstar_before = 0.0044653875445681166 #0.0044717814146885779 #0.006279358811781641
-    lstar2_before = 0.0044776247644925321 #0.0044840361567639936 #0.006296567149019748
+    lstar2_before = 0.00447762476116312 #0.0044840361567639936 #0.006296567149019748
       
-    assert_array_almost_equal(refl_before, refl.magnitude, decimal=14)
-    assert_array_almost_equal(refl2_before, refl2.magnitude, decimal=14)
-    assert_array_almost_equal(g_before, g.magnitude, decimal=14)
-    assert_array_almost_equal(g2_before, g2.magnitude, decimal=14)
-    assert_array_almost_equal(lstar_before, lstar.to('mm').magnitude, decimal=14)
-    assert_array_almost_equal(lstar2_before, lstar2.to('mm').magnitude, decimal=14)
+    assert_equal(refl_before, refl.magnitude)
+    assert_equal(refl2_before, refl2.magnitude)
+    assert_equal(g_before, g.magnitude)
+    assert_equal(g2_before, g2.magnitude)
+    assert_equal(lstar_before, lstar.to('mm').magnitude)
+    assert_equal(lstar2_before, lstar2.to('mm').magnitude)
     
     # test that the reflectance using only the structure factor is the same 
     # using the polydisperse formula vs using Percus-Yevick in the limit of 
@@ -671,12 +671,12 @@ def test_reflection_polydispersity_with_absorption():
     lstar3_before = 8.8037552221780592e-09 #1.4399291088853016e-08
     lstar4_before = 8.8037552299275471e-09 #1.4399291096668534e-08
   
-    assert_array_almost_equal(refl3_before, refl3.magnitude, decimal=14)
-    assert_array_almost_equal(refl4_before, refl4.magnitude, decimal=14)
-    assert_array_almost_equal(g3_before, g3.magnitude, decimal=14)
-    assert_array_almost_equal(g4_before, g4.magnitude, decimal=14)
-    assert_array_almost_equal(lstar3_before, lstar3.to('mm').magnitude, decimal=14)
-    assert_array_almost_equal(lstar4_before, lstar4.to('mm').magnitude, decimal=14)
+    assert_equal(refl3_before, refl3.magnitude)
+    assert_equal(refl4_before, refl4.magnitude)
+    assert_equal(g3_before, g3.magnitude)
+    assert_equal(g4_before, g4.magnitude)
+    assert_equal(lstar3_before, lstar3.to('mm').magnitude)
+    assert_equal(lstar4_before, lstar4.to('mm').magnitude)
     
     # test that the reflectance using both the structure and form factors is 
     # the same using the polydisperse formula vs using Mie and Percus-Yevick in 

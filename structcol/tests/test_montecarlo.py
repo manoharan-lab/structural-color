@@ -379,36 +379,36 @@ def test_reflection_polydispersity():
     
     # Outputs before refactoring structcol
     R_mono_abs_before = 0.6575973175344868 #0.74182070115289855
-    R_poly_abs_before = 0.65723717422505701 #0.74153254583803685
+    R_poly_abs_before = 0.657237174225057 #0.74153254583803685
     T_mono_abs_before = 0.080731949531112429 #0.083823525277616467
-    T_poly_abs_before = 0.080574244683425236 #0.083720861809212316
+    T_poly_abs_before = 0.08057424468342524 #0.083720861809212316
     
-    assert_almost_equal(R_mono_abs_before, R_mono_abs, decimal=12)
-    assert_almost_equal(R_poly_abs_before, R_poly_abs, decimal=12)
-    assert_almost_equal(T_mono_abs_before, T_mono_abs, decimal=12)
-    assert_almost_equal(T_poly_abs_before, T_poly_abs, decimal=12)
+    assert_equal(R_mono_abs_before, R_mono_abs)
+    assert_equal(R_poly_abs_before, R_poly_abs)
+    assert_almost_equal(T_mono_abs_before, T_mono_abs, decimal=15)
+    assert_almost_equal(T_poly_abs_before, T_poly_abs, decimal=15)
     
     # test that the reflectance is the same for a polydisperse monospecies
     # and a bispecies with equal types of particles
     concentration_mono = sc.Quantity(np.array([0.,1.]), '')
     concentration_bi = sc.Quantity(np.array([0.3,0.7]), '')
-    pdi = sc.Quantity(np.array([1e-1, 1e-1]), '')
+    pdi2 = sc.Quantity(np.array([1e-1, 1e-1]), '')
     
-    R_mono, T_mono = calc_montecarlo(nevents, ntrajectories, radius, 
+    R_mono2, T_mono2 = calc_montecarlo(nevents, ntrajectories, radius, 
                                      n_particle, n_sample, n_medium, 
                                      volume_fraction, wavelen, seed,  
                                      radius2 = radius2, 
-                                     concentration = concentration_mono, pdi = pdi,
+                                     concentration = concentration_mono, pdi = pdi2,
                                      polydisperse=True)
     R_bi, T_bi = calc_montecarlo(nevents, ntrajectories, radius, 
                                      n_particle, n_sample, n_medium, 
                                      volume_fraction, wavelen, seed, 
                                      radius2 = radius2, 
-                                     concentration = concentration_bi, pdi = pdi,
+                                     concentration = concentration_bi, pdi = pdi2,
                                      polydisperse=True)                               
                                    
-    assert_equal(R_mono, R_bi)
-    assert_equal(T_mono, T_bi)
+    assert_equal(R_mono2, R_bi)
+    assert_equal(T_mono2, T_bi)
     
     # test that the reflectance is the same regardless of the order in which
     # the radii are specified
@@ -426,7 +426,21 @@ def test_reflection_polydispersity():
                                    
     assert_almost_equal(R, R2)
     assert_almost_equal(T, T2)
-
+    
+    # test that the second size is ignored when its concentration is set to 0
+    radius1 = sc.Quantity('150 nm')
+    radius2 = sc.Quantity('100 nm')
+    concentration3 = sc.Quantity(np.array([1,0]), '')
+    pdi3 = sc.Quantity(np.array([0., 0.]), '')  
+    
+    R3, T3 = calc_montecarlo(nevents, ntrajectories, radius1, n_particle, 
+                             n_sample, n_medium, volume_fraction, wavelen, seed,  
+                             radius2 = radius2, concentration = concentration3, 
+                             pdi = pdi3, polydisperse=True)                              
+                                   
+    assert_equal(R_mono, R3)
+    assert_equal(T_mono, T3)
+    
 
 def test_throw_valueerror_for_polydisperse_core_shells(): 
 # test that a valueerror is raised when trying to run polydisperse core-shells                 
