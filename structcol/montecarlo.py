@@ -1258,7 +1258,7 @@ def calc_refl_trans_sphere(trajectories, n_medium, n_sample, radius, p, mu_abs,
         sintheta, costheta, sinphi, cosphi, _, _ = sample_angles(nevents, ntraj, p)
 
         # Create step size distribution
-        step = sample_step(nevents, ntraj, mu_abs, mu_scat)
+        step = sample_step(nevents, ntraj, mu_scat)
     
         # Run photons
         trajectories_tir.absorb(mu_abs, step)
@@ -1945,7 +1945,7 @@ def sample_angles(nevents, ntraj, p):
     return sintheta, costheta, sinphi, cosphi, theta, phi
 
 
-def sample_step(nevents, ntraj, mu_abs, mu_scat, mu_tot_mie=None):
+def sample_step(nevents, ntraj, mu_scat):
     """
     Samples step sizes from exponential distribution.
     
@@ -1955,8 +1955,6 @@ def sample_step(nevents, ntraj, mu_abs, mu_scat, mu_tot_mie=None):
         Number of scattering events.
     ntraj : int
         Number of trajectories.
-    mu_abs : float (structcol.Quantity [1/length])
-        Absorption coefficient.
     mu_scat : float (structcol.Quantity [1/length])
         Scattering coefficient.
     
@@ -1966,17 +1964,9 @@ def sample_step(nevents, ntraj, mu_abs, mu_scat, mu_tot_mie=None):
         Sampled step sizes for all trajectories and scattering events.
     
     """    
-    # Calculate total extinction coefficient
-    mu_total = mu_scat + mu_abs 
-
     # Generate array of random numbers from 0 to 1
     rand = np.random.random((nevents,ntraj))
 
-    step = -np.log(1.0-rand) / mu_total
-    
-    rand_ntraj = np.random.random(ntraj)
-    
-    if mu_tot_mie is not None:
-        step[0,:] = -np.log(1.0-rand_ntraj) / mu_tot_mie
-    
+    step = -np.log(1.0-rand) / mu_scat
+
     return step
