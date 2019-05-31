@@ -370,9 +370,9 @@ def test_reflection_polydispersity():
     
     # Outputs before refactoring structcol
     R_mono_abs_before = 0.6575973175344868 #0.74182070115289855
-    R_poly_abs_before = 0.65723717422505701 #0.74153254583803685
+    R_poly_abs_before = 0.657237174225057 #0.74153254583803685
     T_mono_abs_before = 0.080731949531112429 #0.083823525277616467
-    T_poly_abs_before = 0.080574244683425236 #0.083720861809212316
+    T_poly_abs_before = 0.08057424468342524 #0.083720861809212316
     
     assert_equal(R_mono_abs_before, R_mono_abs)
     assert_equal(R_poly_abs_before, R_poly_abs)

@@ -460,16 +460,16 @@ def test_reflection_polydispersity():
     
     # Outputs before refactoring structcol
     refl_before = 0.021202873774022364
-    refl2_before = 0.02120287377402078
+    refl2_before = 0.0212028737585751
     g_before = 0.6149959692900278
-    g2_before = 0.6149959692900626
+    g2_before = 0.6149959696365628
     lstar_before = 0.0037795694345017063
-    lstar2_before = 0.0037899271967178523
+    lstar2_before = 0.0037899271938978255
   
     assert_equal(refl_before, refl)
-    assert_equal(refl2_before, refl2)
+    assert_equal(refl2_before, refl2.magnitude)
     assert_equal(g_before, g)
-    assert_equal(g2_before, g2)
+    assert_equal(g2_before, g2.magnitude)
     assert_equal(lstar_before, lstar.to('mm').magnitude)
     assert_equal(lstar2_before, lstar2.to('mm').magnitude)
     
@@ -628,12 +628,12 @@ def test_reflection_polydispersity_with_absorption():
 
     # Outputs before refactoring structcol
     refl_before = 0.020910087489548684 #0.020791487299024698
-    refl2_before = 0.020909855944662756 #0.02079125872215926
+    refl2_before = 0.020909855930303707 #0.02079125872215926
     g_before = 0.6150771860765984 #0.61562921974002 #726274264.1349005
-    g2_before = 0.6150771860766332 #0.6156292197400548 #726274264.1349416
+    g2_before = 0.6150771864230516 #0.6156292197400548 #726274264.1349416
     lstar_before = 0.0044653875445681166 #0.0044717814146885779 #0.006279358811781641
-    lstar2_before = 0.0044776247644925321 #0.0044840361567639936 #0.006296567149019748
-      
+    lstar2_before = 0.00447762476116312 #0.0044840361567639936 #0.006296567149019748
+    
     assert_equal(refl_before, refl.magnitude)
     assert_equal(refl2_before, refl2.magnitude)
     assert_equal(g_before, g.magnitude)
