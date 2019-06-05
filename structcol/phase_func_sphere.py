@@ -734,7 +734,7 @@ def sample_radii_concentration(p, rad_list, ntrajectories_bulk, nevents_bulk):
 
 
 def sample_angles_step_poly(nevents_bulk, ntrajectories_bulk, p_sphere, 
-                            rads_sampled, rad_list, lscat):
+                            rads_sampled, rad_list, mu_scat_bulk):
     '''
     Calculate the list of radii to sample from for a given polydispersity and number of radii.
     This function is used specifically to calculate a list of radii to sample
@@ -763,6 +763,9 @@ def sample_angles_step_poly(nevents_bulk, ntrajectories_bulk, p_sphere,
     rad_list: 1d numpy array
         list of radii from which to sample in polydisperse bulk Monte Carlo 
     '''
+    # get scattering length from scattering coefficient
+    lscat = 1/mu_scat_bulk
+    
     # Sample phi angles
     rand = np.random.random((nevents_bulk,ntrajectories_bulk))
     phi = 2*np.pi*rand
@@ -792,7 +795,7 @@ def sample_angles_step_poly(nevents_bulk, ntrajectories_bulk, p_sphere,
     costheta = np.cos(theta)    
     step = lscat_rad_samp*np.ones((nevents_bulk, ntrajectories_bulk))*lscat.units
     
-    return sintheta, costheta, sinphi, cosphi, step, theta, phi    
+    return sintheta, costheta, sinphi, cosphi, step, theta, phi
     
 
 
