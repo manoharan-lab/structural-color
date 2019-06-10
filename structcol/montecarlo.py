@@ -798,9 +798,16 @@ def detect_correct(kz, weights, indices, n_before, n_after, thresh_angle):
     1D array of length Ntraj
     
     '''
-
-    # find angles when crossing interface
+    # find angles when crossing interface.
+    # If there is coarse roughness, then kz must be the rotated directions in the
+    # frame of reference of the tilted surface. It's okay to use get_angles within
+    # the reference frame of the tilted surface. 
     theta = refraction(get_angles(kz, indices), n_before, n_after)
+#------------------------------------------------------------------------------
+    # For implementing coarse roughness when trajectories exit the sample
+    # Need to include tilt angle if there is coarse roughness
+    #theta = theta_refr + theta_a # need to figure out if it's + or - theta_a
+#------------------------------------------------------------------------------
     theta[np.isnan(theta)] = np.inf # this avoids a warning
 
     # choose only the ones inside detection angle
@@ -994,6 +1001,35 @@ def calc_refl_trans(trajectories, z_low, cutoff, n_medium, n_sample,
     stuck_traj_warn = " \n{0}% of trajectories did not exit the sample. Increase Nevents to improve accuracy.".format(str(int(stuck_frac)))
     if stuck_frac >= 20: warnings.warn(stuck_traj_warn)
 
+#------------------------------------------------------------------------------
+#    # For implementing coarse roughness when the trajectories exit the sample
+#    nev = z.shape[0]    
+#    # sample the surface roughness angles theta_a
+#    if coarse_roughness == 0.:
+#        theta_a = np.zeros(ntraj)
+#    else:
+#        theta_a_full = np.linspace(0.,np.pi/2, 500)
+#        prob_a = P_theta_a(theta_a_full,coarse_roughness)/sum(P_theta_a(theta_a_full,coarse_roughness))
+#        
+#        if np.isnan(prob_a).all(): 
+#            theta_a = np.zeros(ntraj)
+#        else: 
+#            theta_a = np.array([np.random.choice(theta_a_full, ntraj, p = prob_a) for i in range(1)]).flatten()
+#    
+#    # In case the surface is rough, then find new coordinates of initial 
+#    # directions after rotating the surface by an angle theta_a around y axis
+#    sintheta_a = np.tile(np.sin(theta_a), (nev, 1))
+#    costheta_a = np.tile(np.cos(theta_a), (nev, 1))
+#    
+#    kx_rot = costheta_a * kx - sintheta_a * kz
+#    ky_rot = ky.copy()
+#    kz_rot = sintheta_a * kx + costheta_a * kz
+#
+#    # correct for non-TIR fresnel reflection upon exiting
+#    reflected = refl_weights * fresnel_pass_frac(kz_rot, refl_indices, n_sample, n_front, n_medium)#<= uncomment
+#    transmitted = trans_weights * fresnel_pass_frac(kz_rot, trans_indices, n_sample, n_back, n_medium)
+#------------------------------------------------------------------------------
+    
     # correct for non-TIR fresnel reflection upon exiting
     reflected = refl_weights * fresnel_pass_frac(kz, refl_indices, n_sample, n_front, n_medium)#<= uncomment
     transmitted = trans_weights * fresnel_pass_frac(kz, trans_indices, n_sample, n_back, n_medium)
@@ -1026,10 +1062,17 @@ def calc_refl_trans(trajectories, z_low, cutoff, n_medium, n_sample,
         # returns an angle that is always on the same side as the detector (the 
         # angles returned are between 0 and np.pi/2 and those are the angles that
         # the detector can cover). Since in this case the fresnel reflected angles
-        # can be on the opposite side of the detector, I manually eliminate the 
-        # weights of the fresnel reflected trajectories that reflect downwards
-        # (towards the transmission direction) and can never be detected. 
+        # can be pointing in the transmission direction, I manually eliminate the 
+        # weights of the fresnel reflected trajectories that reflect outside of
+        # the detected angles (including the trajectories that go towards the 
+        # transmission direction) and can never be detected. 
         inc_refl[angles_from_kz0_refl < np.pi-detection_angle] = 0
+
+#------------------------------------------------------------------------------
+#    # For implementing coarse roughness when the trajectories exit the sample
+    #trans_detected = detect_correct(kz_rot, transmitted, trans_indices, n_sample, n_medium, detection_angle)
+    #refl_detected = detect_correct(kz_rot, reflected, refl_indices, n_sample, n_medium, detection_angle)
+#------------------------------------------------------------------------------
 
     trans_detected = detect_correct(kz, transmitted, trans_indices, n_sample, n_medium, detection_angle)
     refl_detected = detect_correct(kz, reflected, refl_indices, n_sample, n_medium, detection_angle)
