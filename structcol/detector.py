@@ -313,8 +313,8 @@ def rotate_refract(a, b, c, u, v, w, kx_1, ky_1, kz_1, alpha):
 def get_angles(indices, boundary, trajectories, thickness, 
                init_dir = None, plot_exits = False):
     '''
-    Returns angles relative to vector normal to sphere at point on 
-    boundary. 
+    Returns angles relative to vector normal to boundary (either film or sphere)
+    at point on boundary. 
     
     Parameters
     ----------
@@ -448,7 +448,10 @@ def get_angles(indices, boundary, trajectories, thickness,
         # calculate the normal vector
         norm = np.zeros((3, kz.shape[0], kz.shape[1]))
         norm[2,:,:] = np.sign(cosz)
-        
+    
+    # turn nan values to zeros
+    norm = np.nan_to_num(norm)
+    
     return angles, norm
     
 def fresnel_pass_frac(indices, n_before, n_inside, n_after, boundary, 
@@ -505,7 +508,7 @@ def fresnel_pass_frac(indices, n_before, n_inside, n_after, boundary,
     theta_before, norm = get_angles(indices, boundary, trajectories, 
                                         thickness, init_dir = init_dir,
                                         plot_exits = plot_exits)
-        
+  
     #find angles inside
     theta_inside = refraction(theta_before, n_before, n_inside)
     # if theta_inside is nan (because the trajectory doesn't exit due to TIR), 
@@ -526,7 +529,7 @@ def fresnel_pass_frac(indices, n_before, n_inside, n_after, boundary,
     #Any number of higher order reflections off the two interfaces
     #Use converging geometric series 1+a+a**2+a**3...=1/(1-a)
     fresnel_pass = fresnel_trans/(1-fresnel_refl+eps)
-        
+    
     return fresnel_pass, norm
 
 def detect_correct(indices, trajectories, weights, n_before, n_after, boundary, 
@@ -563,6 +566,7 @@ def detect_correct(indices, trajectories, weights, n_before, n_after, boundary,
     # find angles when crossing interface
     angles, _ = get_angles(indices, boundary, trajectories, thickness,
                            init_dir = init_dir)
+
     theta = refraction(angles, n_before, n_after)
     theta[np.isnan(theta)] = np.inf # this avoids a warning
         
@@ -1160,6 +1164,12 @@ def distribute_ambig_traj_weights(refl_fresnel, trans_fresnel,
     transmittance: float
         fraction of light transmitted, including corrections for fresnel and
         detector
+    refl_per_traj: 1d array (length: ntraj)
+        reflectance distributed to each trajectory, including fresnel 
+        contributions
+    trans_per_traj: 1d array (length:ntraj)
+        transmittance distributed to each trajectory, including fresnel 
+        contributions
     '''
     ntraj = len(refl_fresnel)
     
@@ -1194,11 +1204,15 @@ def distribute_ambig_traj_weights(refl_fresnel, trans_fresnel,
     trans_weights = trans_detected + extra_trans * trans_det_frac
     refl_weights = refl_detected + extra_refl * refl_det_frac + inc_refl_detected
     
-    # calculate reflectance and transmittance
-    transmittance = np.sum(trans_weights/ntraj)
-    reflectance = np.sum(refl_weights/ntraj)
+    # divide by ntraj to get refl and trans per traj
+    refl_per_traj = refl_weights/ntraj
+    trans_per_traj = trans_weights/ntraj
     
-    return reflectance, transmittance
+    # sum to calculate reflectance and transmittance
+    transmittance = np.sum(trans_per_traj)
+    reflectance = np.sum(refl_per_traj)
+    
+    return reflectance, transmittance, refl_per_traj, trans_per_traj
 
 def calc_refracted_direction(kx_1, ky_1, kz_1, x_1, y_1, z_1, n1, n2, plot):
     '''
@@ -1600,7 +1614,7 @@ def calc_refl_trans(trajectories, thickness, n_medium, n_sample, boundary,
      absorb_weights) = calc_outcome_weights(inc_pass_frac, refl_indices,
                                             trans_indices, stuck_indices, 
                                             trajectories.weight)
-    
+
     # correct for fresnel reflection upon exiting
     (refl_frac, trans_frac, 
      refl_weights_pass, 
@@ -1630,7 +1644,7 @@ def calc_refl_trans(trajectories, thickness, n_medium, n_sample, boundary,
     # (only implemented for sphere boundary)       
     ntraj = trajectories.position[2].shape[1]
     total_stuck = np.sum(refl_fresnel + trans_fresnel + stuck_weights)/ntraj
-    
+
     if run_fresnel_traj and call_depth < max_call_depth and total_stuck > max_stuck:
         
         # calculate the reflectance and transmittance without fresnel weights
@@ -1653,7 +1667,9 @@ def calc_refl_trans(trajectories, thickness, n_medium, n_sample, boundary,
         
         # distribute ambiguous trajectory weights.
         (reflectance, 
-         transmittance) = distribute_ambig_traj_weights(refl_fresnel, trans_fresnel, 
+         transmittance,
+         refl_per_traj, 
+         trans_per_traj) = distribute_ambig_traj_weights(refl_fresnel, trans_fresnel, 
                                                         refl_frac, trans_frac,
                                                         refl_det_frac, trans_det_frac,
                                                         refl_detected, trans_detected,
@@ -1663,6 +1679,7 @@ def calc_refl_trans(trajectories, thickness, n_medium, n_sample, boundary,
     if return_extra:
         refl_trans_result = (refl_indices, trans_indices,inc_refl_detected/ntraj,
                              refl_weights_pass/ntraj, trans_weights_pass/ntraj,
+                             refl_per_traj, trans_per_traj,
                              trans_frac, refl_frac,
                              refl_fresnel/ntraj, trans_fresnel/ntraj,
                              reflectance, transmittance,

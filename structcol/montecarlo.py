@@ -371,7 +371,7 @@ def initialize(nevents, ntraj, n_medium, n_sample, boundary, seed=None,
     Sets the trajectories' initial conditions (position, direction, weight,
     and polarization if set to true).
     The initial positions are determined randomly in the x-y plane.
-    
+
 
     If boundary is a sphere, the initial z-positions are confined to the 
     surface of a sphere. If boundary is a film, the initial z-positions are set
@@ -1023,4 +1023,3 @@ def sample_step(nevents, ntraj, mu_abs, mu_scat, mu_tot_mie=None):
         step[0,:] = -np.log(1.0-rand_ntraj) / mu_tot_mie
  
     return step
-
