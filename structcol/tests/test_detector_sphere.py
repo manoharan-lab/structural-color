@@ -21,6 +21,8 @@ Tests for the montecarlo model for sphere geometry (in structcol/montecarlo.py)
 .. moduleauthor:: Victoria Hwang <vhwang@g.harvard.edu>
 .. moduleathor:: Solomon Barkley <barkley@g.harvard.edu>
 .. moduleauthor:: Vinothan N. Manoharan <vnm@seas.harvard.edu>
+
+TODO: either delete this file or delete tests repeated in montecarlo.py
 """
 
 import structcol as sc
@@ -55,7 +57,7 @@ def test_sampling():
     mc.sample_angles(nevents, ntrajectories, p)
     
     # Test that 'sample_step' runs
-    mc.sample_step(nevents, ntrajectories, mu_abs, mu_scat)
+    mc.sample_step(nevents, ntrajectories, mu_scat)
 
 def test_calc_refl_trans():
     small_n = sc.Quantity(1,'')
@@ -160,7 +162,7 @@ def test_index_match():
     sintheta, costheta, sinphi, cosphi, _, _ = mc.sample_angles(nevents, ntrajectories, p)
 
     # Create step size distribution
-    step = mc.sample_step(nevents, ntrajectories, mu_abs, mu_scat)
+    step = mc.sample_step(nevents, ntrajectories, mu_scat)
     
     # make trajectories object
     trajectories_sphere = mc.Trajectory(r0_sphere, k0_sphere, W0_sphere)

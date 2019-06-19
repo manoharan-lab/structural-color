@@ -204,7 +204,7 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
     # particle-matrix composite
     n_sample = ri.n_eff(n_particle, n_matrix, vf_array, 
                         maxwell_garnett=maxwell_garnett)
-                   
+
     if len(np.atleast_1d(radius)) > 1:
         m = index_ratio(n_particle, n_sample).flatten()  
         x = size_parameter(wavelen, n_sample, radius).flatten()
@@ -336,9 +336,15 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
     cext_total = cscat_total.to('um**2') + cabs_total.to('um**2')
     
     # now eq. 6 for the total reflection
-    rho1 = _number_density(volume_fraction, radius.max())
-    rho2 = _number_density(volume_fraction, radius2.max())
-    rho = (rho1 + rho2) / 2    # TODO: CHECK THAT THIS AVERAGE IS OKAY
+    # General number density formula for binary systems, converges to monospecies 
+    # formula when the concentration of either particle goes to zero. When the
+    # system is monospecies, define a concentration array to be able to use the
+    # general formula.
+    if concentration is None:
+        concentration = Quantity(np.array([1,0]), '')
+    term1 = 1/(radius.max()**3 + radius2.max()**3 * concentration[1]/concentration[0])
+    term2 = 1/(radius2.max()**3 + radius.max()**3 * concentration[0]/concentration[1])
+    rho = 3.0 * volume_fraction / (4.0 * np.pi) * (term1 + term2)
     
     if thickness is None:
         # assume semi-infinite sample
@@ -357,9 +363,10 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
     reflected_par = t_medium_sample[0] * cscat_detected_par/cext_total * \
                         factor + r_medium_sample[0]  
     reflected_perp = t_medium_sample[1] * cscat_detected_perp/cext_total * \
-                         factor + r_medium_sample[1]             
+                         factor + r_medium_sample[1]      
+
     reflectance = (reflected_par + reflected_perp)/2
-    
+ 
     # and the transport length for unpolarized light
     # (see eq. 5 of Kaplan, Dinsmore, Yodh, Pine, PRE 50(6): 4827, 1994)
     transport_length = 1/(1.0-asymmetry_parameter)/rho/cscat_total  # TODO is this cscat or cext_tot?
@@ -420,10 +427,8 @@ def differential_cross_section(m, x, angles, volume_fraction,
     k: float (sc.Quantity [1/length])
         k vector. k = 2*pi*n_sample / wavelength 
     distance: float (sc.Quantity [length])
-        distance at which we perform the integration of the differential 
-        cross section to get the total cross section. If distance >> radius,
-        the integration will be done in the far-field, and if it's close to the
-        radius, it will be done in the near-field. 
+        distance at which we perform the integration of the differential cross 
+        section to get the total cross section.
     coordinate_system: string
         default value 'scattering plane' means scattering calculations will be 
         carried out in the basis defined by basis vectors parallel and 
@@ -474,15 +479,12 @@ def differential_cross_section(m, x, angles, volume_fraction,
                                             k*distance,
                                             coordinate_system=coordinate_system,
                                             incident_vector=incident_vector,
-                                            phis=phis)
-            
+                                            phis=phis) 
         else:
             form_factor = mie.calc_ang_dist(m, x, angles)
 
         f_par = form_factor[0]  
-        f_perp = form_factor[1]
-        #print(np.sum(f_par))
-        
+        f_perp = form_factor[1]        
     
     elif form_type == 'polydisperse':
         if diameters is None or concentration is None or pdi is None or wavelen is None or n_matrix is None:
@@ -579,9 +581,7 @@ def polydisperse_form_factor(m, angles, diameters, concentration, pdi, wavelen,
         k vector. k = 2*pi*n_sample / wavelength 
     distance: float (sc.Quantity [length])
         distance at which we perform the integration of the differential 
-        cross section to get the total cross section. If distance >> radius,
-        the integration will be done in the far-field, and if it's close to the
-        radius, it will be done in the near-field.     
+        cross section to get the total cross section.  
     
     Returns
     -------
@@ -592,6 +592,12 @@ def polydisperse_form_factor(m, angles, diameters, concentration, pdi, wavelen,
     
     if len(np.atleast_1d(m)) > 1:
         raise ValueError('cannot handle polydispersity in core-shell particles')
+    
+    # if the pdi is zero, assume it's very small (we get the same results)
+    # because otherwise we get a divide by zero error
+    if pdi is not None:
+        pdi = Quantity(np.atleast_1d(pdi).astype(float), pdi.units)
+        np.atleast_1d(pdi)[np.atleast_1d(pdi) < 1e-5] = 1e-5   
     
     # t is a measure of the width of the Schulz distribution, and
     # pdi is the polydispersity index
@@ -706,6 +712,11 @@ def absorption_cross_section(form_type, m, diameters, n_matrix, x, wavelen, n_pa
         if len(np.atleast_1d(m)) > 1:
             raise ValueError('cannot handle polydispersity in core-shell particles')
 
+        # if the pdi is zero, assume it's very small (we get the same results)
+        # because otherwise we get a divide by zero error
+        pdi = Quantity(np.atleast_1d(pdi).astype(float), pdi.units)
+        np.atleast_1d(pdi)[np.atleast_1d(pdi) < 1e-5] = 1e-5 
+        
         # t is a measure of the width of the Schulz distribution, and
         # pdi is the polydispersity index
         t = np.abs(1/(pdi**2)) - 1

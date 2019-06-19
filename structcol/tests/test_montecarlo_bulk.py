@@ -86,7 +86,7 @@ def calc_sphere_mc():
                                                                 p)
     
     # Create step size distribution
-    step = mc.sample_step(nevents, ntrajectories, mu_abs, mu_scat)
+    step = mc.sample_step(nevents, ntrajectories, mu_scat)
     
     # Run photons
     trajectories.absorb(mu_abs, step)                         
