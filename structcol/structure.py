@@ -176,7 +176,8 @@ def factor_poly(q, phi, diameters, c, pdi):
 
     # if the pdi is zero, assume it's very small (we get the same results)
     # because otherwise we get a divide by zero error
-    np.atleast_1d(pdi)[np.atleast_1d(pdi) < 1e-5] = 1e-5   
+    pdi = Quantity(np.atleast_1d(pdi).astype(float), pdi.units)
+    np.atleast_1d(pdi)[np.atleast_1d(pdi) < 1e-5] = 1e-5  
 
     Dsigma = pdi**2    
     Delta = 1 - phi

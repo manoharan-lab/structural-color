@@ -939,9 +939,9 @@ def calc_refl_trans(trajectories, z_low, cutoff, n_medium, n_sample,
     init_dir = np.cos(refraction(get_angles(kz, np.ones(ntraj)), n_sample, n_medium))
     # init_dir is reverse-corrected for refraction. = kz before medium/sample interface
     inc_fraction = fresnel_pass_frac(np.array([init_dir]), np.ones(ntraj), n_medium, n_front, n_sample)
-
+    
     # calculate outcome weights from all trajectories
-    refl_weights = inc_fraction * select_events(weights, refl_indices)
+    refl_weights = inc_fraction * select_events(weights, refl_indices)  # should these be refl_indices-1 to not overestimate absorption?
     trans_weights = inc_fraction * select_events(weights, trans_indices)
     stuck_weights = inc_fraction * select_events(weights, stuck_indices)
     absorb_weights = inc_fraction - refl_weights - trans_weights - stuck_weights
@@ -1258,7 +1258,7 @@ def calc_refl_trans_sphere(trajectories, n_medium, n_sample, radius, p, mu_abs,
         sintheta, costheta, sinphi, cosphi, _, _ = sample_angles(nevents, ntraj, p)
 
         # Create step size distribution
-        step = sample_step(nevents, ntraj, mu_abs, mu_scat)
+        step = sample_step(nevents, ntraj, mu_scat)
     
         # Run photons
         trajectories_tir.absorb(mu_abs, step)
@@ -1297,7 +1297,7 @@ def calc_refl_trans_sphere(trajectories, n_medium, n_sample, radius, p, mu_abs,
         else:               
             return (reflectance_mean, transmittance_mean) 
 
-def initialize(nevents, ntraj, n_medium, n_sample, seed=None, incidence_angle=0.):
+def initialize(nevents, ntraj, n_medium, n_sample, seed=None, incidence_angle=0., spot_size=sc.Quantity('1 um')):
 
     """
     Sets the trajectories' initial conditions (position, direction, and weight).
@@ -1358,9 +1358,10 @@ def initialize(nevents, ntraj, n_medium, n_sample, seed=None, incidence_angle=0.
     # Initial position. The position array has one more row than the direction
     # and weight arrays because it includes the starting positions on the x-y
     # plane
+    spot_size_magnitude = spot_size.to('um').magnitude
     r0 = np.zeros((3, nevents+1, ntraj))
-    r0[0,0,:] = random((1,ntraj))
-    r0[1,0,:] = random((1,ntraj))
+    r0[0,0,:] = random((1,ntraj))*spot_size_magnitude
+    r0[1,0,:] = random((1,ntraj))*spot_size_magnitude
 
     # Create an empty array of the initial direction cosines of the right size
     k0 = np.zeros((3, nevents, ntraj))
@@ -1629,12 +1630,15 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
     if radius2 is None:
         radius2 = radius    
     
-    # For now, set the number_density to be the average number_density if the 
-    # system is polydisperse
-    # TODO: should the number_density account for polydispersity as well?
-    number_density1 = 3.0 * volume_fraction / (4.0 * np.pi * radius.max()**3)    
-    number_density2 = 3.0 * volume_fraction / (4.0 * np.pi * radius2.max()**3)
-    number_density = (number_density1 + number_density2)/2
+    # General number density formula for binary systems, converges to monospecies 
+    # formula when the concentration of either particle goes to zero. When the
+    # system is monospecies, define a concentration array to be able to use the
+    # general formula.
+    if concentration is None:
+        concentration = sc.Quantity(np.array([1,0]), '')
+    term1 = 1/(radius.max()**3 + radius2.max()**3 * concentration[1]/concentration[0])
+    term2 = 1/(radius2.max()**3 + radius.max()**3 * concentration[0]/concentration[1])
+    number_density = 3.0 * volume_fraction / (4.0 * np.pi) * (term1 + term2)
     
     # if the system is polydisperse, use the polydisperse form and structure 
     # factors
@@ -1698,8 +1702,7 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
                                                    pdi=pdi, n_sample=n_sample,
                                                    form_type=form_type,
                                                    structure_type=structure_type,
-                                                   mie_theory=mie_theory)
-
+                                                   mie_theory=mie_theory)            
     mu_scat = number_density * cscat_total
 
     # Here, the resulting units of mu_scat and mu_abs are nm^2/um^3. Thus, we 
@@ -1776,13 +1779,13 @@ def phase_function(m, x, angles, volume_fraction, k, number_density,
     if form_type=='polydisperse':
         distance = diameters/2
     else:
-        distance = diameters.max()/2 # TODO: need to figure out which integration distance to use 
+        distance = diameters.max()/2 
 
     # If mie_theory = True, calculate the phase function for 1 particle 
     # using Mie theory (excluding the structure factor)
     if mie_theory == True:
         structure_type = None
-  
+
     diff_cscat_par, diff_cscat_perp = \
          model.differential_cross_section(m, x, angles, volume_fraction,
                                              structure_type=structure_type,
@@ -1848,8 +1851,8 @@ def phase_function(m, x, angles, volume_fraction, k, number_density,
         p_par = diff_cscat_par/(ksquared * 2 * cscat_total_par)
         p_perp = diff_cscat_perp/(ksquared * 2 * cscat_total_perp)
         
-        diff_cscat_par2 = diff_cscat_par / (np.abs(k)**2)
-        diff_cscat_perp2 = diff_cscat_perp / (np.abs(k)**2)
+#        diff_cscat_par2 = diff_cscat_par / (np.abs(k)**2)
+#        diff_cscat_perp2 = diff_cscat_perp / (np.abs(k)**2)
         
     return(p, p_par, p_perp, cscat_total)
 
@@ -1942,7 +1945,7 @@ def sample_angles(nevents, ntraj, p):
     return sintheta, costheta, sinphi, cosphi, theta, phi
 
 
-def sample_step(nevents, ntraj, mu_abs, mu_scat):
+def sample_step(nevents, ntraj, mu_scat):
     """
     Samples step sizes from exponential distribution.
     
@@ -1952,8 +1955,6 @@ def sample_step(nevents, ntraj, mu_abs, mu_scat):
         Number of scattering events.
     ntraj : int
         Number of trajectories.
-    mu_abs : float (structcol.Quantity [1/length])
-        Absorption coefficient.
     mu_scat : float (structcol.Quantity [1/length])
         Scattering coefficient.
     
@@ -1962,13 +1963,10 @@ def sample_step(nevents, ntraj, mu_abs, mu_scat):
     step : ndarray
         Sampled step sizes for all trajectories and scattering events.
     
-    """
-    # Calculate total extinction coefficient
-    mu_total = mu_scat + mu_abs 
-
+    """    
     # Generate array of random numbers from 0 to 1
     rand = np.random.random((nevents,ntraj))
 
-    step = -np.log(1.0-rand) / mu_total
+    step = -np.log(1.0-rand) / mu_scat
 
     return step

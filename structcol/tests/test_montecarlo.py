@@ -54,7 +54,7 @@ def test_sampling():
     mc.sample_angles(nevents, ntrajectories, p)
     
     # Test that 'sample_step' runs
-    mc.sample_step(nevents, ntrajectories, mu_abs, mu_scat)
+    mc.sample_step(nevents, ntrajectories, mu_scat)
 
 def test_calc_refl_trans():
     low_thresh = 0
@@ -216,15 +216,15 @@ def test_reflection_core_shell():
     assert_almost_equal(T_abs, T_cs_abs, decimal=3)
 
     # Outputs before refactoring structcol
-    R_abs_before = 0.50534237684703909
-    R_cs_abs_before = 0.50534237684642402
-    T_abs_before = 0.017215194324142709
-    T_cs_abs_before = 0.017215194324029608
+    R_abs_before = 0.3956821177047554 #0.50534237684703909
+    R_cs_abs_before = 0.39568211770416667 #0.50534237684642402
+    T_abs_before = 0.009944245822685388 #0.017215194324142709
+    T_cs_abs_before = 0.009944245822595715 #0.017215194324029608
 
-    assert_equal(R_abs_before, R_abs)
-    assert_equal(R_cs_abs_before, R_cs_abs)
-    assert_equal(T_abs_before, T_abs)
-    assert_equal(T_cs_abs_before, T_cs_abs)
+    assert_almost_equal(R_abs_before, R_abs, decimal=15)
+    assert_almost_equal(R_cs_abs_before, R_cs_abs, decimal=15)
+    assert_almost_equal(T_abs_before, T_abs, decimal=15)
+    assert_almost_equal(T_cs_abs_before, T_cs_abs, decimal=15)
     
     # Same as previous test but with absorbing matrix as well
     # Reflection using a non-core-shell absorbing system
@@ -247,15 +247,15 @@ def test_reflection_core_shell():
     assert_almost_equal(T_abs, T_cs_abs, decimal=3)
 
     # Outputs before refactoring structcol
-    R_abs_before = 0.37384878890851575
-    R_cs_abs_before = 0.37384878890851575
-    T_abs_before = 0.002180700021951509
-    T_cs_abs_before = 0.002180700021951509
+    R_abs_before = 0.27087005070007175 #0.37384878890851575
+    R_cs_abs_before = 0.27087005070007175 #0.37384878890851575
+    T_abs_before = 0.0006391960305096798 #0.002180700021951509
+    T_cs_abs_before = 0.0006391960305096798 #0.002180700021951509
 
-    assert_equal(R_abs_before, R_abs)
-    assert_equal(R_cs_abs_before, R_cs_abs)
-    assert_equal(T_abs_before, T_abs)
-    assert_equal(T_cs_abs_before, T_cs_abs)
+    assert_almost_equal(R_abs_before, R_abs, decimal=15)
+    assert_almost_equal(R_cs_abs_before, R_cs_abs, decimal=15)
+    assert_almost_equal(T_abs_before, T_abs, decimal=15)
+    assert_almost_equal(T_cs_abs_before, T_cs_abs, decimal=15)
     
     
 def test_reflection_absorbing_particle_or_matrix():
@@ -275,8 +275,8 @@ def test_reflection_absorbing_particle_or_matrix():
                                    n_particle_abs, n_sample, n_medium, 
                                    volume_fraction, wavelen, seed)
   
-    assert_almost_equal(R, R_abs)
-    assert_almost_equal(T, T_abs)
+    assert_equal(R, R_abs)
+    assert_equal(T, T_abs)
     
     # Outputs before refactoring structcol
     R_before = 0.81382378303119451
@@ -297,8 +297,8 @@ def test_reflection_absorbing_particle_or_matrix():
                                    n_particle, n_sample_abs, n_medium, 
                                    volume_fraction, wavelen, seed)
     
-    assert_almost_equal(R, R_abs)
-    assert_almost_equal(T, T_abs)
+    assert_equal(R, R_abs)
+    assert_equal(T, T_abs)
     
     # Outputs before refactoring structcol
     R_before = 0.81382378303119451
@@ -311,6 +311,15 @@ def test_reflection_absorbing_particle_or_matrix():
     assert_equal(T_before, T)
     assert_equal(T_abs_before, T_abs)
     
+    # test that the reflection is essentially the same when the imaginary
+    # index is 0 or very close to 0
+    n_matrix_abs = sc.Quantity(1. + 1e-10j, '')
+    n_sample_abs = ri.n_eff(n_particle, n_matrix_abs, volume_fraction)
+    R_abs, T_abs = calc_montecarlo(nevents, ntrajectories, radius, 
+                                   n_particle, n_sample_abs, n_medium, 
+                                   volume_fraction, wavelen, seed)
+    assert_almost_equal(R, R_abs, decimal=6)
+    assert_almost_equal(T, T_abs, decimal=6)
     
 def test_reflection_polydispersity():
     seed = 1
@@ -369,37 +378,37 @@ def test_reflection_polydispersity():
     assert_almost_equal(T_mono_abs, T_poly_abs, decimal=3)
     
     # Outputs before refactoring structcol
-    R_mono_abs_before = 0.74182070115289855
-    R_poly_abs_before = 0.74153254583803685
-    T_mono_abs_before = 0.083823525277616467
-    T_poly_abs_before = 0.083720861809212316
+    R_mono_abs_before = 0.6480185516058052 #0.74182070115289855
+    R_poly_abs_before = 0.6476683654364985 #0.74153254583803685
+    T_mono_abs_before = 0.09473841417422774 #0.083823525277616467
+    T_poly_abs_before = 0.09456832138047852 #0.083720861809212316
     
     assert_equal(R_mono_abs_before, R_mono_abs)
     assert_equal(R_poly_abs_before, R_poly_abs)
-    assert_equal(T_mono_abs_before, T_mono_abs)
-    assert_equal(T_poly_abs_before, T_poly_abs)
+    assert_almost_equal(T_mono_abs_before, T_mono_abs, decimal=15)
+    assert_almost_equal(T_poly_abs_before, T_poly_abs, decimal=15)
     
     # test that the reflectance is the same for a polydisperse monospecies
     # and a bispecies with equal types of particles
     concentration_mono = sc.Quantity(np.array([0.,1.]), '')
     concentration_bi = sc.Quantity(np.array([0.3,0.7]), '')
-    pdi = sc.Quantity(np.array([1e-1, 1e-1]), '')
+    pdi2 = sc.Quantity(np.array([1e-1, 1e-1]), '')
     
-    R_mono, T_mono = calc_montecarlo(nevents, ntrajectories, radius, 
+    R_mono2, T_mono2 = calc_montecarlo(nevents, ntrajectories, radius, 
                                      n_particle, n_sample, n_medium, 
                                      volume_fraction, wavelen, seed,  
                                      radius2 = radius2, 
-                                     concentration = concentration_mono, pdi = pdi,
+                                     concentration = concentration_mono, pdi = pdi2,
                                      polydisperse=True)
     R_bi, T_bi = calc_montecarlo(nevents, ntrajectories, radius, 
                                      n_particle, n_sample, n_medium, 
                                      volume_fraction, wavelen, seed, 
                                      radius2 = radius2, 
-                                     concentration = concentration_bi, pdi = pdi,
+                                     concentration = concentration_bi, pdi = pdi2,
                                      polydisperse=True)                               
                                    
-    assert_equal(R_mono, R_bi)
-    assert_equal(T_mono, T_bi)
+    assert_equal(R_mono2, R_bi)
+    assert_equal(T_mono2, T_bi)
     
     # test that the reflectance is the same regardless of the order in which
     # the radii are specified
@@ -417,7 +426,21 @@ def test_reflection_polydispersity():
                                    
     assert_almost_equal(R, R2)
     assert_almost_equal(T, T2)
-
+    
+    # test that the second size is ignored when its concentration is set to 0
+    radius1 = sc.Quantity('150 nm')
+    radius2 = sc.Quantity('100 nm')
+    concentration3 = sc.Quantity(np.array([1,0]), '')
+    pdi3 = sc.Quantity(np.array([0., 0.]), '')  
+    
+    R3, T3 = calc_montecarlo(nevents, ntrajectories, radius1, n_particle, 
+                             n_sample, n_medium, volume_fraction, wavelen, seed,  
+                             radius2 = radius2, concentration = concentration3, 
+                             pdi = pdi3, polydisperse=True)                              
+                                   
+    assert_equal(R_mono, R3)
+    assert_equal(T_mono, T3)
+    
 
 def test_throw_valueerror_for_polydisperse_core_shells(): 
 # test that a valueerror is raised when trying to run polydisperse core-shells                 
@@ -487,7 +510,7 @@ def calc_montecarlo(nevents, ntrajectories, radius, n_particle, n_sample,
     W0 = sc.Quantity(W0, '')
     sintheta, costheta, sinphi, cosphi, _, _= mc.sample_angles(nevents, 
                                                                ntrajectories,p)
-    step = mc.sample_step(nevents, ntrajectories, mu_abs, mu_scat)
+    step = mc.sample_step(nevents, ntrajectories, mu_scat)
     trajectories = mc.Trajectory(r0, k0, W0)
     trajectories.absorb(mu_abs, step)                         
     trajectories.scatter(sintheta, costheta, sinphi, cosphi)         

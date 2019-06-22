@@ -334,9 +334,15 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
     cext_total = cscat_total + cabs_total
     
     # now eq. 6 for the total reflection
-    rho1 = _number_density(volume_fraction, radius.max())
-    rho2 = _number_density(volume_fraction, radius2.max())
-    rho = (rho1 + rho2) / 2    # TODO: CHECK THAT THIS AVERAGE IS OKAY
+    # General number density formula for binary systems, converges to monospecies 
+    # formula when the concentration of either particle goes to zero. When the
+    # system is monospecies, define a concentration array to be able to use the
+    # general formula.
+    if concentration is None:
+        concentration = Quantity(np.array([1,0]), '')
+    term1 = 1/(radius.max()**3 + radius2.max()**3 * concentration[1]/concentration[0])
+    term2 = 1/(radius2.max()**3 + radius.max()**3 * concentration[0]/concentration[1])
+    rho = 3.0 * volume_fraction / (4.0 * np.pi) * (term1 + term2)
     
     if thickness is None:
         # assume semi-infinite sample
@@ -544,6 +550,12 @@ def polydisperse_form_factor(m, angles, diameters, concentration, pdi, wavelen,
     if len(np.atleast_1d(m)) > 1:
         raise ValueError('cannot handle polydispersity in core-shell particles')
     
+    # if the pdi is zero, assume it's very small (we get the same results)
+    # because otherwise we get a divide by zero error
+    if pdi is not None:
+        pdi = Quantity(np.atleast_1d(pdi).astype(float), pdi.units)
+        np.atleast_1d(pdi)[np.atleast_1d(pdi) < 1e-5] = 1e-5   
+    
     # t is a measure of the width of the Schulz distribution, and
     # pdi is the polydispersity index
     t = np.abs(1/(pdi**2)) - 1
@@ -652,7 +664,12 @@ def absorption_cross_section(form_type, m, diameters, n_matrix, x, wavelen, n_pa
             raise ValueError('must specify concentration and pdi for absorbing polydisperse systems')
         if len(np.atleast_1d(m)) > 1:
             raise ValueError('cannot handle polydispersity in core-shell particles')
-
+        
+        # if the pdi is zero, assume it's very small (we get the same results)
+        # because otherwise we get a divide by zero error
+        pdi = Quantity(np.atleast_1d(pdi).astype(float), pdi.units)
+        np.atleast_1d(pdi)[np.atleast_1d(pdi) < 1e-5] = 1e-5 
+        
         # t is a measure of the width of the Schulz distribution, and
         # pdi is the polydispersity index
         t = np.abs(1/(pdi**2)) - 1
