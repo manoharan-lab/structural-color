@@ -21,6 +21,8 @@ Tests for the montecarlo model for sphere geometry (in structcol/montecarlo.py)
 .. moduleauthor:: Victoria Hwang <vhwang@g.harvard.edu>
 .. moduleathor:: Solomon Barkley <barkley@g.harvard.edu>
 .. moduleauthor:: Vinothan N. Manoharan <vnm@seas.harvard.edu>
+
+TODO: either delete this file or delete tests repeated in montecarlo.py
 """
 
 import structcol as sc
@@ -172,7 +174,7 @@ def test_index_match():
     refl_sphere, trans = det.calc_refl_trans(trajectories_sphere, microsphere_radius,
                                                    n_medium, n_sample, 'sphere',
                                                    p=p, mu_abs=mu_abs, mu_scat=mu_scat, 
-                                                   run_fresnel_traj = True,
+                                                   run_fresnel_traj = True, 
                                                    max_stuck = 0.0001)    
     
     # calculated by hand from fresnel infinite sum

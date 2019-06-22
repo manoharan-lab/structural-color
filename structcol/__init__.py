@@ -46,3 +46,45 @@ Physical Review E 90, no. 6 (2014): 62302. doi:10.1103/PhysRevE.90.062302
 # make unit mistakes.
 # Also load commonly used functions from pymie package
 from pymie import Quantity, ureg, q, index_ratio, size_parameter, np, mie
+
+def refraction(angles, n_before, n_after):
+    '''
+    Returns angles after refracting through an interface
+    
+    Parameters
+    ----------
+    angles: float or array of floats
+        angles relative to normal before the interface
+    n_before: float
+        Refractive index of the medium light is coming from
+    n_after: float
+        Refractive index of the medium light is going to
+    
+    '''
+    snell = n_before / n_after * np.sin(angles)
+    snell[abs(snell) > 1] = np.nan # this avoids a warning
+    return np.arcsin(snell)
+
+def normalize(x,y,z):
+    '''
+    normalize a vector
+    
+    Parameters
+    ----------
+    x: float or array
+        1st component of vector
+    y: float or array
+        2nd component of vector
+    z: float or array
+        3rd component of vector
+    
+    Returns
+    -------
+    array of normalized vector(s) components
+    '''
+    magnitude = np.sqrt(np.abs(x)**2 + np.abs(y)**2 + np.abs(z)**2)
+
+    # we ignore divide by zero error here because we do not want an error
+    # in the case where we try to normalize a null vector <0,0,0>
+    with np.errstate(divide='ignore',invalid='ignore'):
+        return np.array([x/magnitude, y/magnitude, z/magnitude])

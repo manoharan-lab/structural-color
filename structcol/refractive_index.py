@@ -125,7 +125,15 @@ n_dict = {
     # data for 24 degrees C, 0.405 - 0.635 micrometers
     'zirconia': lambda w: np.sqrt(1 + 3.3037*w*w/
                                   (w*w - Quantity('0.1987971**2 um**2'))),
-                                      
+
+
+    # ethanol data from J. Rheims, J Köser and T Wriedt. Refractive-index 
+    # measurements in the near-IR using an Abbe refractometer, 
+    # Meas. Sci. Technol. 8, 601-605 (1997)
+    # refractiveindex.info
+    'ethanol': lambda w: 1.35265 + Quantity('0.00306 um^2')/(w**2) + Quantity('0.00002 um^4')/(w**4),
+                                 
+
     # the w/w is a crude hack to make the function output an array when the
     # input is an array
     'vacuum': lambda w: Quantity('1.0')*w/w
@@ -457,8 +465,7 @@ def n_eff(n_particle, n_matrix, volume_fraction, maxwell_garnett=False):
         
         if n_bg_imag == 0:
             return Quantity(n_bg_real)
+        elif n_bg_imag < 0:
+            raise ValueError('Cannot find positive imaginary root for the effective index')
         else:
-            if n_bg_imag >= 1e-10:
-                return Quantity(n_bg_real + n_bg_imag*1j)
-            else:
-                raise ValueError('Cannot find positive imaginary root for the effective index')
+            return Quantity(n_bg_real + n_bg_imag*1j)

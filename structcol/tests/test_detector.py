@@ -19,6 +19,8 @@ Tests for the montecarlo model (in structcol/montecarlo.py)
 
 .. moduleauthor:: Victoria Hwang <vhwang@g.harvard.edu>
 .. moduleauthor:: Vinothan N. Manoharan <vnm@seas.harvard.edu>
+
+TODO: either delete this file or delete tests repeated in montecarlo.py
 """
 
 import structcol as sc
@@ -327,9 +329,9 @@ def test_reflection_polydispersity():
     
     radius2 = radius
     concentration = sc.Quantity(np.array([0.9,0.1]), '')
-    pdi = sc.Quantity(np.array([1e-7,1e-7]), '')  # monodisperse limit 
+    pdi = sc.Quantity(np.array([1e-7,1e-7]), '')  # monodisperse limit
 
-    # Without absorption: test that the reflectance using very small
+    # Without absorption: test that the reflectance using very small 
     # polydispersity is the same as the monodisperse case
     R_mono, T_mono = calc_montecarlo(nevents, ntrajectories, radius, 
                                      n_particle, n_sample, n_medium, 
@@ -425,7 +427,7 @@ def test_reflection_polydispersity():
                                    
     assert_almost_equal(R, R2)
     assert_almost_equal(T, T2)
-
+    
     # test that the second size is ignored when its concentration is set to 0
     radius1 = sc.Quantity('150 nm')
     radius2 = sc.Quantity('100 nm')
@@ -439,7 +441,7 @@ def test_reflection_polydispersity():
                                    
     assert_equal(R_mono, R3)
     assert_equal(T_mono, T3)
-    
+
 
 def test_throw_valueerror_for_polydisperse_core_shells(): 
 # test that a valueerror is raised when trying to run polydisperse core-shells                 
@@ -493,42 +495,6 @@ def test_throw_valueerror_for_polydisperse_unspecified_parameters():
                                      concentration=concentration, pdi=pdi, 
                                      polydisperse=True)  # unspecified radius2
 
-def test_surface_roughness():
-    # test that the reflectance with very small surface roughness is the same 
-    # as without any roughness
-    seed = 1
-    nevents = 60
-    ntrajectories = 30
-
-    # Reflection with no surface roughness
-    R, T = calc_montecarlo(nevents, ntrajectories, radius, n_particle, n_sample, 
-                           n_medium, volume_fraction, wavelen, seed)
-
-    # Reflection with very little fine surface roughness
-    R_fine, T_fine = calc_montecarlo(nevents, ntrajectories, radius, n_particle, 
-                                     n_sample, n_medium, volume_fraction, 
-                                     wavelen, seed, fine_roughness = 1e-4)
-                                     
-    # Reflection with very little coarse surface roughness
-    R_coarse, T_coarse = calc_montecarlo(nevents, ntrajectories, radius, 
-                                         n_particle, n_sample, n_medium, 
-                                         volume_fraction, wavelen, seed, 
-                                         coarse_roughness = 1e-5)
-                                         
-    # Reflection with very little fine and coarse surface roughness
-    R_both, T_both = calc_montecarlo(nevents, ntrajectories, radius, n_particle, 
-                                     n_sample, n_medium, volume_fraction, 
-                                     wavelen, seed, fine_roughness=1e-4, 
-                                     coarse_roughness = 1e-5)
-                                     
-    assert_almost_equal(R, R_fine, decimal=20)                                    
-    assert_almost_equal(T, T_fine, decimal=20)  
-    assert_almost_equal(R, R_coarse, decimal=20)                                    
-    assert_almost_equal(T, T_coarse, decimal=16) 
-    assert_almost_equal(R, R_both, decimal=20)                                    
-    assert_almost_equal(T, T_both, decimal=16) 
-
-                             
 def calc_montecarlo(nevents, ntrajectories, radius, n_particle, n_sample, 
                     n_medium, volume_fraction, wavelen, seed, radius2=None, 
                     concentration=None, pdi=None, polydisperse=False, 
@@ -577,125 +543,3 @@ def calc_montecarlo(nevents, ntrajectories, radius, n_particle, n_sample,
                               fine_roughness=fine_roughness, n_matrix=n_matrix)
 
     return R, T
-
-    
-def test_polarization():
-    ntrajectories = 50
-    nevents = 50
-    n_particle = sc.Quantity(1.5, '')
-    n_matrix = sc.Quantity(1.0, '')
-    n_medium = sc.Quantity(1.0, '')
-    n_sample = ri.n_eff(n_particle, n_matrix, volume_fraction) 
-    
-    # run mc trajectories with polarization
-    p, mu_scat, mu_abs = mc.calc_scat(radius, n_particle, n_sample, 
-                                      volume_fraction, wavelen, polarization= True)
-    r0, k0, W0, p0 = mc.initialize(nevents, ntrajectories, n_medium, n_sample,
-                                   'film', polarization=True)
-    r0 = sc.Quantity(r0, 'um')
-    k0 = sc.Quantity(k0, '')
-    W0 = sc.Quantity(W0, '')
-    p0 = sc.Quantity(p0,'')
-    sintheta, costheta, sinphi, cosphi, theta, phi= mc.sample_angles(nevents, 
-                                                               ntrajectories,p)
-    trajectories = mc.Trajectory(r0, k0, W0, p0)
-    trajectories.scatter(sintheta, costheta, sinphi, cosphi)
-    trajectories.polarize(theta, phi, sintheta, costheta, sinphi,cosphi,
-                          n_particle, n_sample, radius, wavelen, volume_fraction)
-    
-    #################### check polarization magnitude is always 1
-    pol_mag = np.sqrt(trajectories.polarization[0,:,:]*np.conj(trajectories.polarization[0,:,:]) + 
-                      trajectories.polarization[1,:,:]*np.conj(trajectories.polarization[1,:,:]) +
-                      trajectories.polarization[2,:,:]*np.conj(trajectories.polarization[2,:,:]))    
-    pol_mag_sum = np.sum(np.abs(pol_mag.magnitude))
-    assert_almost_equal(pol_mag_sum, nevents*ntrajectories, decimal=10)
-    
-    ########### check that trajectories are becoming depolarized after many 
-    ########### scattering events
-    
-    # calculate polarization components at last events
-    pol_x = np.mean(trajectories.polarization[0,-20:-1,:]*np.conj(trajectories.polarization[0,-20:-1,:]))
-    pol_y = np.mean(trajectories.polarization[1,-20:-1,:]*np.conj(trajectories.polarization[1,-20:-1,:]))
-    pol_z = np.mean(trajectories.polarization[2,-20:-1,:]*np.conj(trajectories.polarization[2,-20:-1,:]))
-    
-    assert_almost_equal(pol_x.magnitude, 0.33, decimal=1)
-    assert_almost_equal(pol_y.magnitude, 0.33, decimal=1)
-    assert_almost_equal(pol_z.magnitude, 0.33, decimal=1)
-    
-    ############ check that polarization vector is perpendicular to direction
-    # dot product is a dot conj(b), but b is real, so can just do a dot b
-    dot = (trajectories.polarization[0,:,:]*trajectories.direction[0,:,:]
-    + trajectories.polarization[1,:,:]*trajectories.direction[1,:,:]
-    + trajectories.polarization[2,:,:]*trajectories.direction[2,:,:])
-    
-    dot_sum = np.sum(np.abs(dot.magnitude))
-    
-    assert_almost_equal(dot_sum, 0.0, decimal=10)
-    
-def test_polarization_absorption():
-    n_particle = sc.Quantity(1.5 + 0.01j, '')
-    n_matrix = sc.Quantity(1.0 + 0.01j, '')
-    n_medium = sc.Quantity(1.0 + 0.01j, '')
-    n_sample = ri.n_eff(n_particle, n_matrix, volume_fraction) 
-    
-    # run mc trajectories with polarization
-    p, mu_scat, mu_abs = mc.calc_scat(radius, n_particle, n_sample, 
-                                      volume_fraction, wavelen, polarization= True)
-    #print(p)
-    
-    r0, k0, W0, p0 = mc.initialize(nevents, ntrajectories, n_medium, n_sample,
-                                   'film', polarization=True )
-    r0 = sc.Quantity(r0, 'um')
-    k0 = sc.Quantity(k0, '')
-    W0 = sc.Quantity(W0, '')
-    p0 = sc.Quantity(p0,'')
-    sintheta, costheta, sinphi, cosphi, theta, phi= mc.sample_angles(nevents, 
-                                                               ntrajectories,p)
-
-    trajectories = mc.Trajectory(r0, k0, W0, p0)
-    trajectories.scatter(sintheta, costheta, sinphi, cosphi)
-    trajectories.polarize(theta, phi, sintheta, costheta, sinphi, cosphi,
-                          n_particle, n_sample, radius, wavelen, volume_fraction)
-
-    #################### check polarization magnitude is always 1
-    pol_mag = np.sqrt(trajectories.polarization[0,:,:]*np.conj(trajectories.polarization[0,:,:]) + 
-                      trajectories.polarization[1,:,:]*np.conj(trajectories.polarization[1,:,:]) +
-                      trajectories.polarization[2,:,:]*np.conj(trajectories.polarization[2,:,:]))    
-    pol_mag_sum = np.sum(np.abs(pol_mag.magnitude))
-    
-    assert_equal(pol_mag_sum, nevents*ntrajectories)
-
-    
-    ############ check that polarization vector is perpendicular to direction
-    # dot product is a dot conj(b), but b is real, so can just do a dot b
-    dot = (trajectories.polarization[0,:,:]*trajectories.direction[0,:,:]
-    + trajectories.polarization[1,:,:]*trajectories.direction[1,:,:]
-    + trajectories.polarization[2,:,:]*trajectories.direction[2,:,:])
-    
-    dot_sum = np.sum(np.abs(dot.magnitude))
-    
-    assert_almost_equal(dot_sum, 0.0, decimal=12)
-
-def test_goniometer_detector():
-    # test
-    z_pos = np.array([[0,0,0,0],[1,1,1,1],[-1,-1,2,2],[-2,-2,20,-0.0000001]])
-    ntrajectories = z_pos.shape[1]
-    nevents = z_pos.shape[0]
-    x_pos = np.zeros((nevents, ntrajectories))
-    y_pos = np.zeros((nevents, ntrajectories))
-    ky = np.zeros((nevents, ntrajectories))
-    kx = np.array([[0,0,0,0],[0,0,0,0],[0,0,0,1/np.sqrt(2)]])
-    kz = np.array([[1,1,1,1],[-1,-1,1,1],[-1,-1,1,-1/np.sqrt(2)]])
-    weights = np.ones((nevents, ntrajectories))
-    trajectories = mc.Trajectory([x_pos, y_pos, z_pos],[kx, ky, kz], weights)
-    thickness = 10
-    n_medium = 1
-    n_sample = 1
-    R, T = det.calc_refl_trans(trajectories, thickness, n_medium, n_sample, 'film',
-                               detector=True, 
-                               det_theta=sc.Quantity('45 degrees'), 
-                               det_len=sc.Quantity('1 um'), 
-                               det_dist=sc.Quantity('10 cm'),
-                               plot_detector=True)
-    
-    assert_almost_equal(R, 0.25)
