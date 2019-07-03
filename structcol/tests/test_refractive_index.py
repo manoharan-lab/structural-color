@@ -143,3 +143,28 @@ def test_neff():
     neff_bg3_cs = ri.n_eff(n_particle2, n_matrix, vf3_cs, maxwell_garnett=False)
     
     assert_almost_equal(neff_bg3, neff_bg3_cs)
+    
+    # repeat the tests using complex indices    
+    n_particle_complex = Quantity(2.7+0.001j, '')
+    n_matrix_complex = Quantity(2.2+0.001j, '')
+    
+    neff_mg_complex = ri.n_eff(n_particle_complex, n_matrix_complex, vf, maxwell_garnett=True)
+    neff_bg_complex = ri.n_eff(n_particle_complex, n_matrix_complex, vf, maxwell_garnett=False)
+
+    assert_almost_equal(neff_mg_complex, neff_bg_complex)
+    
+    # test that the non-core-shell particle with Maxwell-Garnett matches with 
+    # the core-shell of shell index of air with Bruggeman at low volume fractions
+    n_particle2_complex = Quantity(np.array([2.7+0.001j, 2.2+0.001j]), '')
+    neff_bg2_complex = ri.n_eff(n_particle2_complex, n_matrix_complex, vf2, maxwell_garnett=False)
+    
+    assert_almost_equal(neff_mg_complex, neff_bg2_complex)
+    assert_almost_equal(neff_bg_complex, neff_bg2_complex)
+    
+    # test that the effective indices for a non-core-shell and a core-shell of
+    # shell index of air match using Bruggeman at intermediate volume fractions
+    neff_bg3_complex = ri.n_eff(n_particle_complex, n_matrix_complex, vf3, maxwell_garnett=False)
+    
+    neff_bg3_cs_complex = ri.n_eff(n_particle2_complex, n_matrix_complex, vf3_cs, maxwell_garnett=False)
+    
+    assert_almost_equal(neff_bg3_complex, neff_bg3_cs_complex)
