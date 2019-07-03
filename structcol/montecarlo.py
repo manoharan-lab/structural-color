@@ -2033,7 +2033,7 @@ def phase_function(m, x, angles, volume_fraction, k, number_density,
         distance = diameters/2
     else:
         distance = diameters.max()/2 
-  
+
     # If mie_theory = True, calculate the phase function for 1 particle 
     # using Mie theory (excluding the structure factor)
     if mie_theory == True:
@@ -2199,6 +2199,7 @@ def sample_angles(nevents, ntraj, p):
 
 
 def sample_step(nevents, ntraj, mu_scat, fine_roughness=0.):
+
     """
     Samples step sizes from exponential distribution.
     
@@ -2237,7 +2238,7 @@ def sample_step(nevents, ntraj, mu_scat, fine_roughness=0.):
     rand = np.random.random((nevents,ntraj))
 
     step = -np.log(1.0-rand) / mu_scat
-    
+
     # If there is fine surface roughness, sample the first step from Mie theory
     # for the number of trajectories set by fine_roughness
     if mu_scat_mie is not None:

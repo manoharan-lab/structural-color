@@ -378,7 +378,7 @@ def test_reflection_polydispersity():
     assert_almost_equal(T_mono_abs, T_poly_abs, decimal=3)
     
     # Outputs before refactoring structcol
-    R_mono_abs_before = 0.6480185516058053 #0.74182070115289855
+    R_mono_abs_before = 0.6480185516058052 #0.74182070115289855
     R_poly_abs_before = 0.6476683654364985 #0.74153254583803685
     T_mono_abs_before = 0.09473841417422774 #0.083823525277616467
     T_poly_abs_before = 0.09456832138047852 #0.083720861809212316
@@ -561,10 +561,9 @@ def calc_montecarlo(nevents, ntrajectories, radius, n_particle, n_sample,
     
     sintheta, costheta, sinphi, cosphi, _, _= mc.sample_angles(nevents, 
                                                                ntrajectories,p)
-
     step = mc.sample_step(nevents, ntrajectories, mu_scat, 
                           fine_roughness=fine_roughness)
-                    
+
     trajectories = mc.Trajectory(r0, k0, W0)
     trajectories.absorb(mu_abs, step)                         
     trajectories.scatter(sintheta, costheta, sinphi, cosphi)         
