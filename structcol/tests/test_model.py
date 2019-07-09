@@ -373,6 +373,35 @@ def test_calc_g():
     assert_equal(g2_before, g2)
     
     
+def test_transport_length_dilute():
+    # test that the transport length for a dilute system matches the transport
+    # length calculated from Mie theory    
+   
+    # transport length from single scattering model for a dilute system
+    wavelength = Quantity(500, 'nm')
+    volume_fraction = Quantity(0.0000001, '')
+    radius = Quantity('120 nm')
+    n_matrix = Quantity(1.0, '')
+    n_medium = n_matrix
+    n_particle = Quantity(1.5, '')
+    _, _, _, _, lstar_model = model.reflection(n_particle, n_matrix, n_medium, 
+                                            wavelength, radius, volume_fraction, 
+                                            maxwell_garnett=False)
+
+    # transport length from Mie theory
+    n_sample = ri.n_eff(n_particle, n_matrix, volume_fraction)
+    m = index_ratio(n_particle, n_sample)
+    x = size_parameter(wavelength, n_sample, radius)
+    g = mie.calc_g(m,x)   
+                                            
+    number_density = model._number_density(volume_fraction, radius)   
+    cscat = mie.calc_cross_sections(m, x, wavelength)[0]      
+
+    lstar_mie = 1 / (number_density * cscat * (1-g))
+     
+    assert_array_almost_equal(lstar_model.to('m'), lstar_mie.to('m'), decimal=4)
+    
+
 def test_reflection_absorbing_matrix():
     # test that the reflections with a real n_matrix and with a complex
     # n_matrix with a 0 imaginary component are the same 
