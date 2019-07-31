@@ -469,4 +469,3 @@ def n_eff(n_particle, n_matrix, volume_fraction, maxwell_garnett=False):
             raise ValueError('Cannot find positive imaginary root for the effective index')
         else:
             return Quantity(n_bg_real + n_bg_imag*1j)
-                

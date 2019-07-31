@@ -178,7 +178,8 @@ def factor_poly(q, phi, diameters, c, pdi):
 
     # if the pdi is zero, assume it's very small (we get the same results)
     # because otherwise we get a divide by zero error
-    np.atleast_1d(pdi)[np.atleast_1d(pdi) < 1e-5] = 1e-5   
+    pdi = Quantity(np.atleast_1d(pdi).astype(float), pdi.units)
+    np.atleast_1d(pdi)[np.atleast_1d(pdi) < 1e-5] = 1e-5  
 
     Dsigma = pdi**2    
     Delta = 1 - phi
@@ -187,7 +188,7 @@ def factor_poly(q, phi, diameters, c, pdi):
     t1 = tm(1, Dsigma, t)
     t2 = Dsigma + 1
     t3 = (Dsigma + 1) * (2*Dsigma + 1)
-
+    
     # if monospecies, no need to calculate individual species parameters
     if len(np.atleast_1d(c)) == 1:
         rho = 6*phi/(t3*np.pi*diameters**3)
