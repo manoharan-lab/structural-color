@@ -270,7 +270,24 @@ def factor_poly(q, phi, diameters, c, pdi):
     return(SM)
     
 def factor_data(qd, s_data, qd_data):
+    """
+    Calculate an interpolated structure factor using data
     
+    Parameters:
+    ----------
+    qd: 1D numpy array
+        dimensionless quantity that represents the frequency space value that 
+        the structure factor depends on     
+    s_data: 1D numpy array
+        structure factor values from data
+    qd_data: 1D numpy array
+        qd values from data
+    
+    Returns:
+    -------
+    1D numpy array:
+        The structure factor as a function of qd.
+    """
     s_func = sp.interpolate.interp1d(qd_data, s_data, kind = 'linear')
     
     return s_func(qd)
