@@ -625,7 +625,10 @@ def initialize(nevents, ntraj, n_medium, n_sample, boundary, seed=None,
 def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
               radius2=None, concentration=None, pdi=None, polydisperse=False,
               mie_theory = False, polarization = False, fine_roughness=0, 
-              min_angle = 0.01, num_angles = 200, num_phis = 300):
+              min_angle = 0.01, num_angles = 200, num_phis = 300,
+              structure_type = 'glass', form_type = 'sphere', 
+              structure_s_data=None, structure_qd_data=None,
+              ):
     """
     Calculates the phase function and scattering coefficient from either the
     single scattering model or Mie theory. Calculates the absorption coefficient
@@ -687,6 +690,18 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
     num_phis: int
         Sets the number of phis at which phase function p will be calculated. 
         Only used if polarization is True. 
+    structure_type: string or None
+        structure factor desired for calculation. Can be 'glass', 'paracrystal', 
+        'polydisperse', 'data', or None. 
+    form_type: string or None
+        form factor desired for calculation. Can be 'sphere', 'polydisperse', 
+        or None.
+    structure_s_data: None or 1d array
+        if structure_type is 'data', the structure factor data must be provided
+        here in the form of a one dimensional array 
+    structure_qd_array: None of 1d array
+        if structure_type is 'data', the qd data must be provided here in the 
+        form of a one dimensional array 
     
     Returns
     -------
@@ -745,9 +760,6 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
         
         form_type = 'polydisperse'
         structure_type = 'polydisperse'
-    else:
-        form_type = 'sphere'
-        structure_type = 'glass'
         
     # define the mean diameters in case the system is polydisperse    
     mean_diameters = sc.Quantity(np.array([2*radius.magnitude, 2*radius2.magnitude]),
@@ -796,7 +808,9 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
                                     structure_type=structure_type,
                                     mie_theory=mie_theory,
                                     coordinate_system=coordinate_system,
-                                    phis = phis)
+                                    phis = phis,
+                                    structure_s_data=structure_s_data,
+                                    structure_qd_data=structure_qd_data)
 
     mu_scat = number_density * cscat_total
     
@@ -831,7 +845,7 @@ def phase_function(m, x, angles, volume_fraction, k, number_density,
                    wavelen=None, diameters=None, concentration=None, pdi=None, 
                    n_sample=None, form_type='sphere', structure_type='glass', 
                    mie_theory=False, coordinate_system = 'scattering plane', 
-                   phis=None):
+                   phis=None, structure_s_data=None, structure_qd_data=None):
     """
     Calculates the phase function (the phase function is the same for absorbing 
     and non-absorbing systems)
@@ -870,7 +884,7 @@ def phase_function(m, x, angles, volume_fraction, k, number_density,
         or None.
     structure_type: str or None
         structure factor desired for calculation. Can be 'glass', 'paracrystal', 
-        'polydisperse', or None. 
+        'polydisperse', 'data', or None. 
     mie_theory: bool
         If TRUE, phase function is calculated according to Mie theory 
         (assuming no contribution from structure factor). If FALSE, phase
@@ -885,6 +899,15 @@ def phase_function(m, x, angles, volume_fraction, k, number_density,
         as the direction of propagation.
     phis: array (sc.Quantity [rad])
         phi angles at which to calculate phase function
+        structure_type: string or None
+        structure factor desired for calculation. Can be 'glass', 'paracrystal', 
+        'polydisperse', 'data', or None. 
+    structure_s_data: None or 1d array
+        if structure_type is 'data', the structure factor data must be provided
+        here in the form of a one dimensional array 
+    structure_qd_array: None of 1d array
+        if structure_type is 'data', the qd data must be provided here in the 
+        form of a one dimensional array 
         
     Returns:
     --------
@@ -919,7 +942,9 @@ def phase_function(m, x, angles, volume_fraction, k, number_density,
                                              concentration=concentration,
                                              pdi=pdi, wavelen=wavelen, 
                                              n_matrix=n_sample, k=k, 
-                                             distance=distance)
+                                             distance=distance,
+                                             structure_s_data=structure_s_data,
+                                             structure_qd_data=structure_qd_data)
          
     # If in cartesian coordinate system, integrate the differential cross
     # section using integration functions in mie.py that can handle cartesian
