@@ -144,26 +144,26 @@ def calc_tir(tir_refl_bool, refl_indices, trans_indices, inc_refl_per_traj,
     
     Returns
     -------
-    tir_all: 1d array (length: nevents)
+    tir_all_events: 1d array (length: nevents)
         summed weights of trajectories that are totally internally reflected at 
         any event, regardeless of whether they are reflected, transmitted, or stuck.
         The event index of the array corresponds to the event at which they are 
         totally internally reflected. 
-    tir_all_refl: 1d array (length: nevents)
+    tir_all_refl_events: 1d array (length: nevents)
         summed weights of trajectories that are totally internally reflected at any 
         event, but only those which eventually contribute to reflectance. The
         event index of the array corresponds to the event at which they are
         reflected. 
-    tir_single: 1d array (length: nevents)
+    tir_single_events: 1d array (length: nevents)
         summed weights of trajectories that are totally internally reflected 
         after the first scattering event, regardless of whether they are 
         reflected, transmitted, or stuck. The event index corresponds to the 
         event at which they are totally internally reflected
-    tir_single_refl: 1d array (length: nevents)
+    tir_single_refl_events: 1d array (length: nevents)
         summed weights of trajectories that are totally internally reflected
         adter the first scattering event and eventually contribute to reflectance. 
         The event index corresponds to the event at which they are reflected.
-    tir_indices_single: 1d array (length: nevents)
+    tir_indices_single_events: 1d array (length: nevents)
         The event indices of trajectories that are totally internally reflected 
         after a single scattering event.
     '''
@@ -194,7 +194,7 @@ def calc_tir(tir_refl_bool, refl_indices, trans_indices, inc_refl_per_traj,
     # or transmitted
     tir_indices[np.where(tir_indices>refl_ind_inf)[0]] = 0
     tir_indices[np.where(tir_indices>trans_ind_inf)[0]] = 0
-    tir_all = np.sum((1-inc_refl_per_traj) * select_events(weights, tir_indices))
+    tir_all = (1-inc_refl_per_traj) * select_events(weights, tir_indices)/ntraj
     
     ### tir for all events that gets reflected eventually ###
     
@@ -204,16 +204,16 @@ def calc_tir(tir_refl_bool, refl_indices, trans_indices, inc_refl_per_traj,
     tir_indices_refl[tir_ev_ind] = refl_indices[tir_ev_ind]
     
     # find the tir reflectance at each event
-    tir_all_refl = np.sum((1-inc_refl_per_traj) * select_events(weights, tir_indices_refl)*
+    tir_all_refl = ((1-inc_refl_per_traj) * select_events(weights, tir_indices_refl)*
                    fresnel_pass_frac(tir_indices_refl, n_sample, None, n_medium,
-                                     boundary, trajectories, thickness)[0])
+                                     boundary, trajectories, thickness)[0])/ntraj
     
     ### tir for only single scat event ###
     
     # find the event indices where single scat trajectories are tir'd
     tir_indices_single = np.copy(tir_indices)
     tir_indices_single[np.where(tir_indices!=2)] = 0
-    tir_single = np.sum((1-inc_refl_per_traj) * select_events(weights, tir_indices_single))
+    tir_single = (1-inc_refl_per_traj) * select_events(weights, tir_indices_single)/ntraj
     
     ### tir for only single scat event that gets reflected eventually ###
     
@@ -223,11 +223,34 @@ def calc_tir(tir_refl_bool, refl_indices, trans_indices, inc_refl_per_traj,
     tir_indices_single_refl[tir_ev_sing_ind] = refl_indices[tir_ev_sing_ind]
 
     # calculate the single scat tir'd reflectance at each event
-    tir_single_refl = np.sum((1-inc_refl_per_traj) * select_events(weights, tir_indices_single_refl)*
+    tir_single_refl = ((1-inc_refl_per_traj) * select_events(weights, tir_indices_single_refl)*
                       fresnel_pass_frac(tir_indices_single_refl, n_sample, None, n_medium,
-                                        boundary, trajectories, thickness)[0])
+                                        boundary, trajectories, thickness)[0])/ntraj
+                                        
+    #loop through all events
+    tir_all_events = np.zeros(2*nevents + 1)
+    tir_all_refl_events = np.zeros(2*nevents + 1)
+    tir_single_events = np.zeros(2*nevents + 1)
+    tir_single_refl_events = np.zeros(2*nevents + 1)
+    for ev in range(1, nevents + 1):
+        # find trajectories that were reflected/transmitted at this event
+        traj_ind_tir_ev = np.where(tir_indices == ev)[0]
+        traj_ind_tir_refl_ev = np.where(tir_indices_refl == ev)[0]
+        traj_ind_tir_sing_ev = np.where(tir_indices_single == ev)[0]
+        traj_ind_tir_sing_refl_ev = np.where(tir_indices_single_refl == ev)[0]
+        
+        # add reflectance/transmittance due to trajectories 
+        # reflected/transmitted at this event
+        tir_all_events[ev] += np.sum(tir_all[traj_ind_tir_ev])
+        tir_all_refl_events[ev] += np.sum(tir_all_refl[traj_ind_tir_refl_ev])
+        tir_single_events[ev] += np.sum(tir_single[traj_ind_tir_sing_ev])
+        tir_single_refl_events[ev] += np.sum(tir_single_refl[traj_ind_tir_sing_refl_ev])
      
-    return tir_all, tir_all_refl, tir_single, tir_single_refl, tir_indices_single
+    return (tir_all_events, 
+            tir_all_refl_events, 
+            tir_single_events, 
+            tir_single_refl_events, 
+            tir_indices_single)
     
     
     

@@ -663,8 +663,8 @@ def calc_diam_list(num_diam, diameter_mean, pdi, equal_spacing = False, plot = T
             pdf_range  = size_distribution(diam_range, 2*radius_mean,t)
             
         plt.figure()
-        plt.plot(diam_range, pdf_range, linewidth = 2.5)
         plt.scatter(2*rad_list, pdf, s = 45, color = [0.8,0.3,0.3])
+        plt.plot(diam_range, pdf_range, linewidth = 2.5)
         plt.xlabel('diameter (' + str(radius_mean.units) + ')')
         plt.ylabel('probability density')
         
@@ -711,7 +711,7 @@ def sample_diams(pdi, diam_list, diam_mean, ntrajectories_bulk, nevents_bulk):
 
     return diams_sampled     
     
-def sample_concentration(p, rad_list, ntrajectories_bulk, nevents_bulk):
+def sample_concentration(p, ntrajectories_bulk, nevents_bulk):
     '''
     Sample the radii to simulate polydispersity in the bulk Monte Carlo simulation
     using pre-calculated probabilities 
@@ -719,9 +719,7 @@ def sample_concentration(p, rad_list, ntrajectories_bulk, nevents_bulk):
     Parameters
     ----------
     p: 1d numpy array
-        probability distribution of radii in rad_list
-    rad_list: 1d numpy array
-        list of radii from which to sample in polydisperse bulk Monte Carlo
+        probability distribution of parameters in rad_list
     ntrajectories_bulk: int
         number of trajectories in the bulk Monte Carlo simulation
     nevents_bulk: int
@@ -729,20 +727,22 @@ def sample_concentration(p, rad_list, ntrajectories_bulk, nevents_bulk):
 
     Returns
     -------
-    rads_sampled: 2d array (shape nevents_bulk, ntrajectories_bulk)
-        array of the samples microsphere radii for polydisperity in the bulk 
+    params_sampled: 2d array (shape nevents_bulk, ntrajectories_bulk)
+        array of the sample parameter for polydisperity in the bulk 
         Monte Carlo calculations
     '''
-    # sample diameter distribution
-    rads_sampled = np.reshape(np.random.choice(rad_list.magnitude, 
+    # sample distribution    
+    param_list = np.arange(np.size(p))+1
+    
+    params_sampled = np.reshape(np.random.choice(param_list, 
                                                ntrajectories_bulk*nevents_bulk, p = p), 
                                                (nevents_bulk,ntrajectories_bulk))                          
 
-    return rads_sampled     
+    return params_sampled     
 
 
 def sample_angles_step_poly(nevents_bulk, ntrajectories_bulk, p_sphere, 
-                            params_sampled, param_list, mu_scat_bulk):
+                            params_sampled, mu_scat_bulk, param_list=None):
     '''
     Calculate the list of radii to sample from for a given polydispersity and number of radii.
     This function is used specifically to calculate a list of radii to sample
@@ -754,19 +754,18 @@ def sample_angles_step_poly(nevents_bulk, ntrajectories_bulk, p_sphere,
         number of trajectories in the bulk Monte Carlo simulation
     nevents_bulk: int
         number of trajectories in the bulk Monte Carlo simulation
-    p_sphere: array
+    p_sphere: 2d array (shape number of sphere types, number of angles)
         phase function for a sphere, found from a Monte Carlo simulation
         with spherical boundary conditions
     params_sampled: 2d array (shape nevents_bulk, ntrajectories_bulk)
         array of the sampled microsphere parameters (could be radius or diameter) 
         for polydisperity in the bulk Monte Carlo calculations
+    mu_scat_bulk: float, sc.Quantity
+        scattering coefficient for a sphere, calculated using Monte Carlo
+        simulation with spherical boundary conditions
     param_list: 1d numpy array
         list of parameters (usually radius or diameter) from which to sample 
         in polydisperse bulk Monte Carlo
-    lscat: float, sc.Quantity
-        scattering length for a sphere, calculated using Monte Carlo
-        simulation with spherical boundary conditions
-    
     Returns
     -------
     sintheta, costheta, sinphi, cosphi: ndarray
@@ -776,6 +775,12 @@ def sample_angles_step_poly(nevents_bulk, ntrajectories_bulk, p_sphere,
     theta, phi: ndarray
         Sampled scattering and azimuthal angles
     '''
+    # get param_list
+    if param_list is None:
+        param_list = np.arange(p_sphere.shape[0])+1   
+    elif isinstance(param_list, sc.Quantity):
+        param_list = param_list.magnitude
+      
     # get scattering length from scattering coefficient
     lscat = 1/mu_scat_bulk
     
@@ -788,13 +793,13 @@ def sample_angles_step_poly(nevents_bulk, ntrajectories_bulk, p_sphere,
     # Sample theta angles and calculate step size based on sampled radii
     theta = np.zeros((nevents_bulk, ntrajectories_bulk))
     lscat_rad_samp = np.zeros((nevents_bulk, ntrajectories_bulk))
-    angles = np.linspace(0.01,np.pi, 200)   
+    angles = np.linspace(0.01,np.pi, p_sphere.shape[1])   
     
     # loop through all the radii, finding the positions of each radius 
     # in the sampled radii array, and assigning the appropriate phase fun and 
     # lscat for each one
-    for j in range(param_list.size):
-        ind_ev, ind_tr = np.where(params_sampled == param_list[j].magnitude)
+    for j in range(p_sphere.shape[0]):
+        ind_ev, ind_tr = np.where(params_sampled == param_list[j])
         if ind_ev.size==0:
             continue
         prob = p_sphere[j,:]*np.sin(angles)*2*np.pi
