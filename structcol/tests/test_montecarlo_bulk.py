@@ -117,7 +117,9 @@ def calc_sphere_mc():
                                                            trans_indices, 
                                                            norm_refl, norm_trans, 
                                                            volume_fraction_bulk, 
-                                                           sphere_boundary_diameter)
+                                                           sphere_boundary_diameter,
+                                                           n_matrix_bulk,
+                                                           wavelength)
     return p_bulk, mu_scat_bulk, mu_abs_bulk
 
 def test_mu_scat_abs_bulk():
@@ -133,7 +135,9 @@ def test_mu_scat_abs_bulk():
                                            trans_indices, 
                                            norm_refl, norm_trans, 
                                            volume_fraction_bulk, 
-                                           sphere_boundary_diameter)
+                                           sphere_boundary_diameter,
+                                           n_matrix_bulk,
+                                           wavelength)
     
     assert_almost_equal(mu_abs_bulk.magnitude, 0)
     
@@ -144,7 +148,9 @@ def test_mu_scat_abs_bulk():
                                                       trans_indices, 
                                                       norm_refl, norm_trans, 
                                                       volume_fraction_bulk, 
-                                                      sphere_boundary_diameter)
+                                                      sphere_boundary_diameter,
+                                                      n_matrix_bulk,
+                                                      wavelength)
 
     number_density = volume_fraction_bulk.magnitude/(4/3*np.pi*
                                         (sphere_boundary_diameter.magnitude/2)**3)
@@ -161,7 +167,9 @@ def test_mu_scat_abs_bulk():
                                             np.ones(ntrajectories)+3, 
                                             norm_refl, norm_trans, 
                                             volume_fraction_bulk, 
-                                            sphere_boundary_diameter)
+                                            sphere_boundary_diameter,
+                                            n_matrix_bulk,
+                                            wavelength)
 
     number_density = volume_fraction_bulk.magnitude/(4/3*np.pi*
                                         (sphere_boundary_diameter.magnitude/2)**3)

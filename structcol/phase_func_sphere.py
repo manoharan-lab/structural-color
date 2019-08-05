@@ -397,7 +397,8 @@ def calc_d_avg(volume_fraction, radius):
     
     return d_avg
     
-def calc_mu_scat_abs(refl_per_traj, trans_per_traj, trans_indices, volume_fraction, radius):
+def calc_mu_scat_abs(refl_per_traj, trans_per_traj, trans_indices, 
+                     volume_fraction, radius, n_sample, wavelength):
     '''
     Calculates scattering coefficient and absorption coefficient using results
     of the Monte Carlo calc_refl_trans() function
@@ -448,6 +449,11 @@ def calc_mu_scat_abs(refl_per_traj, trans_per_traj, trans_indices, volume_fracti
         volume fraction of structured spheres in a bulk film
     radius: float-like
         radius of structured spheres in a bulk film
+    n_sample: float-like
+        refractive index of the material surrounding the sphere, oven referred
+        to as the bulk matrix
+    wavelength: float-like
+        source light wavelength
         
     Returns
     -------
@@ -471,14 +477,20 @@ def calc_mu_scat_abs(refl_per_traj, trans_per_traj, trans_indices, volume_fracti
     # calculate the total scattering cross section
     tot_scat_cross_section = np.sum(refl_per_traj + trans_per_traj)*2*np.pi*radius**2
     
-    # calculate mu_scat, mu_abs
+    # calculate mu_scat, mu_abs using the sphere
     mu_scat = number_density*tot_scat_cross_section
-    mu_abs = number_density*tot_abs_cross_section
+    mu_abs_sphere = number_density*tot_abs_cross_section
+    
+    # don't need to include volume fraction for mu_abs_sphere component
+    # because already included in number_density
+    mu_abs_matrix = 4*np.pi*np.imag(n_sample)/wavelength
+    mu_abs = mu_abs_sphere + mu_abs_matrix*(1-volume_fraction)
     
     return mu_scat, mu_abs
     
 def calc_scat_bulk(refl_per_traj, trans_per_traj, trans_indices, norm_refl, 
                    norm_trans, volume_fraction, diameter,
+                   n_sample, wavelength,
                    plot=False, phi_dependent=False, 
                    nu_range = np.linspace(0.01, 1, 200), 
                    phi_range = np.linspace(0, 2*np.pi, 300)):
@@ -505,6 +517,11 @@ def calc_scat_bulk(refl_per_traj, trans_per_traj, trans_indices, norm_refl,
         volume fraction of structured spheres in a bulk film
     diameter: float-like
         diameter of structured spheres in a bulk film
+    n_sample: float-like
+        refractive index of the material surrounding the sphere, oven referred
+        to as the bulk matrix
+    wavelength: float-like
+        source light wavelength
     plot: boolean (optional)
         If set to True, the intermediate and final pdfs will be plotted
     phi_dependent: boolean (optional)
@@ -530,7 +547,7 @@ def calc_scat_bulk(refl_per_traj, trans_per_traj, trans_indices, norm_refl,
     
     # calculate the lscat of the microsphere for use in the bulk simulation
     mu_scat, mu_abs = calc_mu_scat_abs(refl_per_traj, trans_per_traj, trans_indices, 
-                              volume_fraction, radius)
+                              volume_fraction, radius, n_sample, wavelength)
     
     # find the points on the sphere where trajectories exit
     x_inter, y_inter, z_inter = get_exit_pos(norm_refl, norm_trans, radius)
