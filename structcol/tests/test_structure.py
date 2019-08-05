@@ -26,6 +26,7 @@ from .. import refractive_index as ri
 from nose.tools import assert_raises, assert_equal
 from numpy.testing import assert_almost_equal, assert_array_almost_equal
 from pint.errors import DimensionalityError
+import scipy.interpolate
 
 def test_structure_factor_percus_yevick():
     # Test structure factor as calculated by solution of Ornstein-Zernike
@@ -113,3 +114,13 @@ def test_structure_factor_polydisperse():
     S_poly = structure.factor_poly(q2, phi, d, c, pdi)    
     
     assert_almost_equal(S_py.magnitude, S_poly.magnitude)
+
+def test_structure_factor_data():
+    qd = np.array([1,2])
+    qd_data = np.array([0.5,2.5])
+    s_data = np.array([1,1])
+    s = structure.factor_data(qd, s_data, qd_data)
+    assert_equal(s[0],1)
+    
+    
+    

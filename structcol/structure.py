@@ -24,6 +24,8 @@ structure factors
 
 import numpy as np
 from . import ureg, Quantity  # unit registry and Quantity constructor from pint
+import scipy as sp
+import os
 
 @ureg.check('[]','[]')    # inputs should be dimensionless
 def factor_py(qd, phi):
@@ -266,3 +268,26 @@ def factor_poly(q, phi, diameters, c, pdi):
     SM = 1 - 2*h2
     SM[SM<0] = 0
     return(SM)
+    
+def factor_data(qd, s_data, qd_data):
+    """
+    Calculate an interpolated structure factor using data
+    
+    Parameters:
+    ----------
+    qd: 1D numpy array
+        dimensionless quantity that represents the frequency space value that 
+        the structure factor depends on     
+    s_data: 1D numpy array
+        structure factor values from data
+    qd_data: 1D numpy array
+        qd values from data
+    
+    Returns:
+    -------
+    1D numpy array:
+        The structure factor as a function of qd.
+    """
+    s_func = sp.interpolate.interp1d(qd_data, s_data, kind = 'linear')
+    
+    return s_func(qd)
