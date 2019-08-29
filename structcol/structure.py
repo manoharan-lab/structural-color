@@ -94,7 +94,7 @@ def factor_para(qd, phi, sigma = .15):
         the structure factor depends on        
     phi: structcol.Quantity [dimensionless]
         volume fraction of particles or voids in matrix       
-    sigma: int
+    sigma: float
         The standard deviation of a Gaussian representing the distribution of 
         particle/void spacings in the structure. Sigma has implied units of 
         particle diamter squared. A larger sigma will give more broad peaks,

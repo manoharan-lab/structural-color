@@ -526,7 +526,7 @@ def differential_cross_section(m, x, angles, volume_fraction,
             s = structure.factor_py(qd, volume_fraction)
 
         elif structure_type == 'paracrystal':
-            s = structure.factor_para(qd)
+            s = structure.factor_para(qd, volume_fraction)
             
         elif structure_type == 'data':
             s = structure.factor_data(qd, structure_s_data, structure_qd_data)
