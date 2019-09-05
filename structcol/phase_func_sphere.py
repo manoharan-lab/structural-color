@@ -12,6 +12,7 @@ from mpl_toolkits.mplot3d import Axes3D
 from scipy.stats import gaussian_kde
 from scipy.spatial.distance import cdist 
 import structcol as sc
+from . import montecarlo as mc
 from scipy.misc import factorial
 
 def get_exit_pos(norm_refl, norm_trans, radius):
@@ -777,7 +778,7 @@ def sample_angles_step_poly(nevents_bulk, ntrajectories_bulk, p_sphere,
     params_sampled: 2d array (shape nevents_bulk, ntrajectories_bulk)
         array of the sampled microsphere parameters (could be radius or diameter) 
         for polydisperity in the bulk Monte Carlo calculations
-    mu_scat_bulk: float, sc.Quantity
+    mu_scat_bulk: 1d array (sc.Quantity, length number of sphere types)
         scattering coefficient for a sphere, calculated using Monte Carlo
         simulation with spherical boundary conditions
     param_list: 1d numpy array
@@ -817,13 +818,19 @@ def sample_angles_step_poly(nevents_bulk, ntrajectories_bulk, p_sphere,
     # lscat for each one
     for j in range(p_sphere.shape[0]):
         ind_ev, ind_tr = np.where(params_sampled == param_list[j])
+
         if ind_ev.size==0:
             continue
         prob = p_sphere[j,:]*np.sin(angles)*2*np.pi
         prob_norm = prob/np.sum(prob)
-        lscat_rad_samp[ind_ev, ind_tr] = lscat[j]
+        
+        # sample step sizes
+        rand = np.random.random(ind_ev.size)
+        lscat_rad_samp[ind_ev, ind_tr] = -np.log(1.0-rand)*lscat[j].magnitude        
+        
+        # sample angles        
         theta[ind_ev, ind_tr] = np.random.choice(angles, ind_ev.size, 
-                                                 p = prob_norm)    
+                                                 p = prob_norm)   
         
     # calculate sines, cosines, and step
     sintheta = np.sin(theta)
