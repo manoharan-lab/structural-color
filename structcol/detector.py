@@ -2123,6 +2123,45 @@ def calc_pol_frac(trajectories, indices):
     
     return pol_frac_x, pol_frac_y, pol_frac_z
 
+def normalize_refl_goniometer(refl, det_dist, det_len):
+    '''
+    calculates the reflectance renormalized for goniometer measurement
+    
+    This normalization scheme makes several key assumptions:
+    (1) The area of the detection hemisphere spanned by the detector aperture is
+        a square. As the detector size approaches the diameter of the detection
+        hemisphere, this assumption becomes worse. In reality, the detection hemisphere
+        area spanned by the detector is the projection of a square on the sphere
+        surface, which looks like a curved square patch.
+    (2) The reference reflector (maximum reflectance) is that of a lambertian
+        reflector, meaning the reflectance is uniform over the detection hemisphere
+        and that the integrated reflected intensity is equal to the intensity 
+        of the incident beam. This means that if the sample has a specular 
+        component, the reflectance could be greater than one for the specular angle.
+        
+    The normalization formula:
+
+    refl_renormlized = (area of detection hemisphere)/(area detected) * reflectance   
+
+    We are just scaling up the reflectance based on the area detected relative 
+    to the total possible area that can be detected.      
+        
+    vocab
+    -----
+    detection hemisphere: the hemisphere surrounding the sample, 
+                          having radius of the detector distance. In the case
+                          of reflectance measurements, it is a reflection hemisphere.
+    '''
+
+    # calculate the area of the detection hemisphere divided by the area of the
+    # detector
+    area_frac = (2*np.pi*det_dist**2)/det_len**2    
+
+    # multiply the area fraction by the input reflectance    
+    refl_renormalized = area_frac*refl    
+    
+    return refl_renormalized
+
 
 #------------------------------------------------------------------------------
 #    # For implementing coarse roughness when the trajectories exit the sample
