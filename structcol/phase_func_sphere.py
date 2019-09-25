@@ -60,7 +60,8 @@ def get_exit_pos(norm_refl, norm_trans, radius):
 
 def calc_pdf(x, y, z, radius, plot = False, phi_dependent = False, 
              nu_range = np.linspace(0.01, 1, 200), 
-             phi_range = np.linspace(0, 2*np.pi, 300)):
+             phi_range = np.linspace(0, 2*np.pi, 300),
+             kz = None):
     '''
     Calculates kernel density estimate of probability density function 
     as a function of nu or nu and phi for a given set of x,y, and z coordinates
@@ -87,6 +88,8 @@ def calc_pdf(x, y, z, radius, plot = False, phi_dependent = False,
         the nu values for which the pdf
     phi_range: 1d array (optional)
         the phi values for which to calculate the pdf, if the pdf is phi-dependent
+    kz: 1d array or None (optional)
+        the kz values at the exit events for all the trajectories
     
     Returns
     -------
@@ -108,7 +111,12 @@ def calc_pdf(x, y, z, radius, plot = False, phi_dependent = False,
     '''
     
     # calculate thetas for each exit point
-    theta = np.arccos(z/radius)
+    # If optional parameter kz is specified, we calculate theta based on kz. 
+    # If not, we calculate theta based on the z exit position
+    if kz is not None:
+        theta = np.arccos(kz)
+    else:
+        theta = np.arccos(z/radius)
     
     # convert thetas to nus
     nu = (np.cos(theta) + 1) / 2
@@ -494,7 +502,8 @@ def calc_scat_bulk(refl_per_traj, trans_per_traj, trans_indices, norm_refl,
                    n_sample, wavelength,
                    plot=False, phi_dependent=False, 
                    nu_range = np.linspace(0.01, 1, 200), 
-                   phi_range = np.linspace(0, 2*np.pi, 300)):
+                   phi_range = np.linspace(0, 2*np.pi, 300),
+                   kz=None):
     '''
      Parameters
     ----------
@@ -532,6 +541,8 @@ def calc_scat_bulk(refl_per_traj, trans_per_traj, trans_indices, norm_refl,
         the nu values for which the pdf
     phi_range: 1d array (optional)
         the phi values for which to calculate the pdf, if the pdf is phi-dependent
+    kz: None or 1d array (optional)
+        the kz values at the exit events of the trajectories
         
     Returns
     -------
@@ -553,12 +564,13 @@ def calc_scat_bulk(refl_per_traj, trans_per_traj, trans_indices, norm_refl,
     # find the points on the sphere where trajectories exit
     x_inter, y_inter, z_inter = get_exit_pos(norm_refl, norm_trans, radius)
     
-    # calculate the probability density function as a function of nu, which depends on the scattering angle
+    # calculate the probability density function as a function of nu, which depends on the scattering angle   
     p = calc_pdf(x_inter, y_inter, z_inter, radius, 
                  plot = plot, 
                  phi_dependent = phi_dependent, 
                  nu_range = nu_range,
-                 phi_range = phi_range)
+                 phi_range = phi_range,
+                 kz=kz)
     
     return p, mu_scat, mu_abs
     

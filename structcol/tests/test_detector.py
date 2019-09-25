@@ -543,3 +543,15 @@ def calc_montecarlo(nevents, ntrajectories, radius, n_particle, n_sample,
                               fine_roughness=fine_roughness, n_matrix=n_matrix)
 
     return R, T
+
+def test_goniometer_normalization():
+   
+    # test the goniometer renormalization function
+    refl = 0.002
+    det_distance = 13.
+    det_len = 2.4
+    refl_renorm = det.normalize_refl_goniometer(refl, det_distance, det_len)
+    
+    assert_almost_equal(refl_renorm, 0.368700804483) # calculated by hand
+    
+    return refl_renorm

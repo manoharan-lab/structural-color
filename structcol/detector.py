@@ -35,6 +35,7 @@ from pymie import mie, size_parameter, index_ratio
 from pymie import multilayer_sphere_lib as msl
 from . import model
 from . import montecarlo as mc
+from . import phase_func_sphere as pfs
 from . import refraction
 from . import normalize
 import numpy as np
@@ -1794,15 +1795,19 @@ def calc_refl_trans(trajectories, thickness, n_medium, n_sample, boundary,
     total_stuck = np.sum(refl_fresnel + trans_fresnel + stuck_weights)/ntraj
 
     if run_fresnel_traj and call_depth < max_call_depth and total_stuck > max_stuck:
-        
-        # calculate the reflectance and transmittance without fresnel weights
-        reflectance_no_fresnel = np.sum(refl_detected + inc_refl_detected)/ntraj
-        transmittance_no_fresnel = np.sum(trans_detected)/ntraj
+
+        # calculate the reflectance and transmittance per trajectory
+        # without fresnel weights
+        refl_per_traj_nf = (refl_detected + inc_refl_detected)/ntraj
+        trans_per_traj_nf = trans_detected/ntraj
+
         
         # rerun fresnel reflected components of trajectories
         (reflectance, 
-         transmittance) = run_sphere_fresnel_traj(reflectance_no_fresnel,
-                                                  transmittance_no_fresnel, 
+         transmittance,
+         refl_per_traj,
+         trans_per_traj) = run_sphere_fresnel_traj(refl_per_traj_nf,
+                                                  trans_per_traj_nf, 
                                                   refl_fresnel, 
                                                   trans_fresnel,stuck_weights,
                                                   trajectories,refl_indices, 
@@ -1812,7 +1817,6 @@ def calc_refl_trans(trajectories, thickness, n_medium, n_sample, boundary,
                                                   max_stuck, max_call_depth, 
                                                   call_depth, plot_exits)    
     else:
-        
         # distribute ambiguous trajectory weights.
         (reflectance, 
          transmittance,
@@ -1823,6 +1827,7 @@ def calc_refl_trans(trajectories, thickness, n_medium, n_sample, boundary,
                                                         refl_detected, trans_detected,
                                                         stuck_weights, inc_refl_detected, 
                                                         boundary, detector)
+
     # return desired results
     if return_extra:
         refl_trans_result = (refl_indices, trans_indices,inc_refl_detected/ntraj,
@@ -1840,7 +1845,7 @@ def calc_refl_trans(trajectories, thickness, n_medium, n_sample, boundary,
     return refl_trans_result
 
     
-def run_sphere_fresnel_traj(reflectance_no_fresnel, transmittance_no_fresnel, 
+def run_sphere_fresnel_traj(refl_per_traj_nf, trans_per_traj_nf, 
                              refl_fresnel, trans_fresnel, stuck_weights,
                              trajectories, refl_indices, trans_indices, stuck_indices,
                              thickness, boundary, z_low, p, n_medium, n_sample, mu_scat, mu_abs, 
@@ -1856,12 +1861,12 @@ def run_sphere_fresnel_traj(reflectance_no_fresnel, transmittance_no_fresnel,
         
     Parameters
     ----------
-    reflectance_no_fresnel: float
-        reflectance, not counting trajectory weights fresnel reflected back 
-        into the sample
-    transmittance_no_fresnel: float
-        transmittance, not counting trajectory weights fresnel reflected back 
-        into the sample
+    refl_per_traj_nf: 1d array (length: ntraj)
+        reflectance per trajectory, not counting trajectory weights fresnel 
+        reflected back into the sample
+    trans_per_traj_nf: 1d array (length: ntraj)
+        transmittance per trajectory, not counting trajectory weights fresnel 
+        reflected back into the sample
     refl_fresnel: 1d array (length: ntraj)
         weights of reflected trajectories that are fresnel reflected
         back into the sample
@@ -2029,20 +2034,33 @@ def run_sphere_fresnel_traj(reflectance_no_fresnel, transmittance_no_fresnel,
     trajectories_fresnel.scatter(sintheta, costheta, sinphi, cosphi)         
     trajectories_fresnel.move(step)
 
-    # Calculate reflection and transmition 
-    reflectance_fresnel, transmittance_fresnel = calc_refl_trans(trajectories_fresnel, 
-                                                         thickness, n_medium,
-                                                         n_sample, boundary,
-                                                         p = p, mu_abs = mu_abs,
-                                                         mu_scat = mu_scat, 
-                                                         plot_exits = plot_exits,
-                                                         run_fresnel_traj = True,
-                                                         fresnel_traj = True, 
-                                                         call_depth = call_depth+1,
-                                                         max_stuck = max_stuck)
+    # Calculate reflection and transmition                                                       
+    (_, trans_indices_fresnel, _, _, _,
+     refl_per_traj_fresnel, 
+     trans_per_traj_fresnel,
+     _, _, _, _, 
+     reflectance_fresnel, 
+     transmittance_fresnel,_, 
+     norm_refl_f, norm_trans_f) = calc_refl_trans(trajectories_fresnel, 
+                                                      thickness, n_medium,
+                                                      n_sample, boundary,
+                                                      p = p, mu_abs = mu_abs,
+                                                      mu_scat = mu_scat, 
+                                                      plot_exits = plot_exits,
+                                                      run_fresnel_traj = True,
+                                                      fresnel_traj = True, 
+                                                      call_depth = call_depth+1,
+                                                      max_stuck = max_stuck,
+                                                      return_extra = True)                                             
+
+    # Calculate reflectance and transmittance without fresnel
+    reflectance_no_fresnel = np.sum(refl_per_traj_nf)
+    transmittance_no_fresnel = np.sum(trans_per_traj_nf)
 
     return (reflectance_fresnel + reflectance_no_fresnel, 
-            transmittance_fresnel + transmittance_no_fresnel)
+            transmittance_fresnel + transmittance_no_fresnel,
+            refl_per_traj_fresnel + refl_per_traj_nf,
+            trans_per_traj_fresnel + trans_per_traj_nf)
 
 
 def rotate_reflect(k_out, normal):
@@ -2104,6 +2122,45 @@ def calc_pol_frac(trajectories, indices):
     pol_frac_z = np.sum(np.abs(pol_z)**2)/ntrajectories
     
     return pol_frac_x, pol_frac_y, pol_frac_z
+
+def normalize_refl_goniometer(refl, det_dist, det_len):
+    '''
+    calculates the reflectance renormalized for goniometer measurement
+    
+    This normalization scheme makes several key assumptions:
+    (1) The area of the detection hemisphere spanned by the detector aperture is
+        a square. As the detector size approaches the diameter of the detection
+        hemisphere, this assumption becomes worse. In reality, the detection hemisphere
+        area spanned by the detector is the projection of a square on the sphere
+        surface, which looks like a curved square patch.
+    (2) The reference reflector (maximum reflectance) is that of a lambertian
+        reflector, meaning the reflectance is uniform over the detection hemisphere
+        and that the integrated reflected intensity is equal to the intensity 
+        of the incident beam. This means that if the sample has a specular 
+        component, the reflectance could be greater than one for the specular angle.
+        
+    The normalization formula:
+
+    refl_renormlized = (area of detection hemisphere)/(area detected) * reflectance   
+
+    We are just scaling up the reflectance based on the area detected relative 
+    to the total possible area that can be detected.      
+        
+    vocab
+    -----
+    detection hemisphere: the hemisphere surrounding the sample, 
+                          having radius of the detector distance. In the case
+                          of reflectance measurements, it is a reflection hemisphere.
+    '''
+
+    # calculate the area of the detection hemisphere divided by the area of the
+    # detector
+    area_frac = (2*np.pi*det_dist**2)/det_len**2    
+
+    # multiply the area fraction by the input reflectance    
+    refl_renormalized = area_frac*refl    
+    
+    return refl_renormalized
 
 
 #------------------------------------------------------------------------------
