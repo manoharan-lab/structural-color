@@ -2106,6 +2106,14 @@ def calc_pol_frac(trajectories, indices):
         event indices of interest, often indices of reflected or transmitted 
         events
     
+    Returns
+    -------
+    pol_frac_x: float
+        x-polarized intensity fraction
+    pol_frac_y: float
+        y-polarized intensity fraction
+    pol_frac_z: float
+        z-polarized intensity fraction
     '''
     
     polarization = trajectories.polarization
@@ -2122,6 +2130,67 @@ def calc_pol_frac(trajectories, indices):
     pol_frac_z = np.sum(np.abs(pol_z)**2)/ntrajectories
     
     return pol_frac_x, pol_frac_y, pol_frac_z
+    
+    
+def calc_refl_co_cross(trajectories, indices, det_theta):
+    '''
+    Calculates the co, cross, and perp polarized reflectance, where 'perp' in this 
+    case refers to light polarized in the direction perpendicular to the co/cross
+    plane. Only a small fraction of light of the light should be perpendicular 
+    to the co/cross plane, since light cannot be polarized in the direction of
+    propagation, and the detected signal should be composed mostly of light 
+    propagating perpendicularly to the co/cross plane.
+    
+    Parameters
+    ----------
+    trajectories: Trajectory object
+        trajectories from Monte Carlo calculation
+    indices: 1d array (length ntrajectories)
+        event indices of interest, often indices of reflected or transmitted 
+        events
+    det_theta: float-like
+        angle between the normal to the sample (-z axis) and the center of the 
+        detector 
+        
+    Returns
+    -------
+    refl_co: float
+        co-polarized reflectance
+    refl_cr: float
+        cross-polarized reflectance
+    refl_perp: float
+        reflectance perpendicularly polarized to co and cross
+    refl_co_per_traj: 1d array (length: ntraj)
+        co-polarized reflectance for each trajectory
+    refl_cr_per_traj: 1d array (length: ntraj)
+        cross-polarized reflectance for each trajectory
+    refl_perp_per_traj: 1d array (length: ntraj)
+        perpendicularly polarized reflectance for each trajectory
+    '''
+    # first calculate refl co/cross per trajctory
+    
+    # calculate polarization intensity per traj
+    pol_x_abs = np.abs(select_events(trajectories.polarization[0,:,:], indices))**2 
+    pol_y_abs = np.abs(select_events(trajectories.polarization[1,:,:], indices))**2
+    pol_z_abs = np.abs(select_events(trajectories.polarization[2,:,:], indices))**2
+    
+    # this comes from the geometry of the goniometer setup
+    refl_co_per_traj = pol_z_abs*np.sin(det_theta) + pol_x_abs*np.cos(det_theta)
+    refl_cr_per_traj = pol_y_abs
+    refl_perp_per_traj = -pol_z_abs*np.cos(det_theta) + pol_x_abs*np.sin(det_theta)    
+    
+    # calculate pol fraction
+    pol_frac_x, pol_frac_y, pol_frac_z = calc_pol_frac(trajectories, indices)
+    
+    # incorporate geometry of the goniometer setup
+    refl_co = pol_frac_z*np.sin(det_theta) + pol_frac_x*np.cos(det_theta)
+    refl_cr = pol_frac_y
+    refl_perp = -pol_frac_z*np.cos(det_theta) + pol_frac_x*np.sin(det_theta)
+    
+    
+    return (refl_co, refl_cr, refl_perp, refl_co_per_traj, 
+            refl_cr_per_traj, refl_perp_per_traj)
+    
 
 def normalize_refl_goniometer(refl, det_dist, det_len):
     '''
