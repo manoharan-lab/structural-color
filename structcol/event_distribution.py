@@ -107,6 +107,13 @@ def calc_refl_trans_event_traj(refl_per_traj, inc_refl_per_traj, trans_per_traj,
     refl_events_traj = np.zeros((2*nevents + 1, ntraj))
     trans_events_traj = np.zeros((2*nevents + 1, ntraj))
     
+    # shorten parameters to just look at number of trajectores specified
+    refl_per_traj = refl_indices[0:ntraj]
+    inc_refl_per_traj = refl_indices[0:ntraj]
+    trans_per_traj = refl_indices[0:ntraj]
+    refl_indices = refl_indices[0:ntraj]
+    trans_indices = refl_indices[0:ntraj]
+    
     # add fresnel reflection at first interface
     refl_events_traj[0,:] = inc_refl_per_traj
     
