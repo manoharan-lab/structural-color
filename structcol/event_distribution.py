@@ -63,6 +63,65 @@ def calc_refl_trans_event(refl_per_traj, inc_refl_per_traj, trans_per_traj,
         refl_events[ev] += np.sum(refl_per_traj[traj_ind_refl_ev])
         trans_events[ev] += np.sum(trans_per_traj[traj_ind_trans_ev])
     return refl_events, trans_events
+    
+    
+def calc_refl_trans_event_traj(refl_per_traj, inc_refl_per_traj, trans_per_traj, 
+                          refl_indices, trans_indices, nevents, ntraj=100):
+    '''
+    Returns reflectance and transmittance as a function of event number
+    and trajectory
+    
+    Parameters
+    ----------
+    refl_per_traj: 1d array (length: ntrajectories)
+        Reflectance contribution for each trajectory from Monte Carlo simulation.
+        Sum should be total reflectance from Monte Carlo calculation, 
+        without corrections for Fresnel reflected and stuck weights.
+    inc_refl_per_traj: 1d array (length: ntrajectories)
+        Reflectance contribution for each trajectory at the sample interface. 
+        This contribution comes from the Fresnel reflection as the light
+        enters the sample
+    trans_per_traj: 1d array (length: ntrajectories)
+        Transmittance contribution for each trajectory from Monte Carlo simulation.
+        Sum should be total transmittance from Monte Carlo calculation,
+        without corrections for Fresnel reflected and stick weights.
+    refl_indices: 1d array (length: ntrajectories)
+        Event indices at which each trajectory is reflected. Value of 0 means
+        trajectory is not reflected at any event. 
+    trans_indices: 1d array (length: ntrajectories)
+        Event indices at which each trajectory is transmitted. Value of 0 means
+        trajectory is not transmitted at any event
+    nevents: int
+        number of events for which Monte Carlo Calculation is run 
+    ntraj: int
+        number of trajectories to keep track of. If this number is too high, 
+        the arrays will be way too large. 
+    
+    Returns
+    -------
+    refl_events_traj: 2d array (shape: 2*nevents + 1, ntraj)
+        reflectance contribution for each event and trajectory. 
+    trans_events_taj: 2d array (shape: 2*nevents + 1, ntraj)
+        transmittance contribution for each event and trajectory.
+    '''
+    refl_events_traj = np.zeros((2*nevents + 1, ntraj))
+    trans_events_traj = np.zeros((2*nevents + 1, ntraj))
+    
+    # add fresnel reflection at first interface
+    refl_events_traj[0,:] = inc_refl_per_traj
+    
+    #loop through all events
+    for ev in range(1, nevents + 1):
+        # find trajectories that were reflected/transmitted at this event
+        traj_ind_refl_ev = np.where(refl_indices == ev)[0]
+        traj_ind_trans_ev = np.where(trans_indices == ev)[0]
+        
+        # add reflectance/transmittance due to trajectories 
+        # reflected/transmitted at this event
+        refl_events_traj[ev, traj_ind_refl_ev] += np.sum(refl_per_traj[traj_ind_refl_ev])
+        trans_events_traj[ev, traj_ind_trans_ev] += np.sum(trans_per_traj[traj_ind_trans_ev])
+        
+    return refl_events_traj, trans_events_traj
 
 def calc_thetas_event_traj(theta, refl_indices, nevents, ntraj = 100):
     '''
