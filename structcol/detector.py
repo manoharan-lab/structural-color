@@ -2170,9 +2170,10 @@ def calc_refl_co_cross(trajectories, indices, det_theta):
     # first calculate refl co/cross per trajctory
     
     # calculate polarization intensity per traj
-    pol_x_abs = np.abs(select_events(trajectories.polarization[0,:,:], indices))**2 
-    pol_y_abs = np.abs(select_events(trajectories.polarization[1,:,:], indices))**2
-    pol_z_abs = np.abs(select_events(trajectories.polarization[2,:,:], indices))**2
+    ntrajectories = len(indices)
+    pol_x_abs = np.abs(select_events(trajectories.polarization[0,:,:], indices))**2/ntrajectories 
+    pol_y_abs = np.abs(select_events(trajectories.polarization[1,:,:], indices))**2/ntrajectories
+    pol_z_abs = np.abs(select_events(trajectories.polarization[2,:,:], indices))**2/ntrajectories
     
     # this comes from the geometry of the goniometer setup
     refl_co_per_traj = pol_z_abs*np.sin(det_theta) + pol_x_abs*np.cos(det_theta)
@@ -2191,6 +2192,43 @@ def calc_refl_co_cross(trajectories, indices, det_theta):
     return (refl_co, refl_cr, refl_perp, refl_co_per_traj, 
             refl_cr_per_traj, refl_perp_per_traj)
     
+def calc_refl_pol_angle(angle, refl_co, refl_cr, 
+                        refl_events_co=None, refl_events_cr=None):
+    '''
+    Calculates reflectance for spectrum angle between co and cross    
+    
+    Parameters
+    ----------
+    angle: float-like (sc.Quantity)
+        angle between co and cross polarized, where 0 deg is co and 90 deg is cross
+    refl_co: float
+        co-polarized reflectance
+    refl_cr: float
+        cross-polarized reflectance
+    refl_events_co: 1d array (length: ntraj)
+        co-polarized reflectance for each event
+    refl_events_cr: 1d array (length: ntraj)
+        cross-polarized reflectance for each event
+
+    Returns
+    -------
+    refl_pol_ang: float
+        reflectance for the polarization angle
+    refl_pol_ang_events: 1d array (length nevents)
+        reflectance for the polarization angle as a function of event number
+    
+    '''
+    if isinstance(angle, sc.Quantity):
+        angle = angle.to('rad').magnitude
+    
+    refl_pol_ang = refl_co*(np.cos(angle))**2 + refl_cr*(np.sin(angle))**2
+    
+    if refl_events_co is not None:
+        refl_pol_ang_events = (refl_events_co*(np.cos(angle))**2
+                                    + refl_events_cr*(np.sin(angle))**2)
+        return (refl_pol_ang, refl_pol_ang_events)
+    else:
+        return refl_pol_ang
 
 def normalize_refl_goniometer(refl, det_dist, det_len):
     '''
