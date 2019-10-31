@@ -383,8 +383,8 @@ def test_reflection_polydispersity():
     T_mono_abs_before = 0.09473841417422774 #0.083823525277616467
     T_poly_abs_before = 0.09456832138047852 #0.083720861809212316
     
-    assert_equal(R_mono_abs_before, R_mono_abs)
-    assert_equal(R_poly_abs_before, R_poly_abs)
+    assert_almost_equal(R_mono_abs_before, R_mono_abs, decimal=15)
+    assert_almost_equal(R_poly_abs_before, R_poly_abs, decimal=15)
     assert_almost_equal(T_mono_abs_before, T_mono_abs, decimal=15)
     assert_almost_equal(T_poly_abs_before, T_poly_abs, decimal=15)
     
