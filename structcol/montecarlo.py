@@ -627,8 +627,7 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
               mie_theory = False, polarization = False, fine_roughness=0, 
               min_angle = 0.01, num_angles = 200, num_phis = 300,
               structure_type = 'glass', form_type = 'sphere', 
-              structure_s_data=None, structure_qd_data=None,
-              ):
+              structure_s_data=None, structure_qd_data=None):
     """
     Calculates the phase function and scattering coefficient from either the
     single scattering model or Mie theory. Calculates the absorption coefficient
@@ -702,7 +701,7 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
     structure_qd_array: None of 1d array
         if structure_type is 'data', the qd data must be provided here in the 
         form of a one dimensional array 
-    
+
     Returns
     -------
     p : array_like (structcol.Quantity [dimensionless])

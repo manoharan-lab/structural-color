@@ -198,7 +198,6 @@ def test_reflection_core_shell():
     g = Quantity(-0.18931942267032678, '')
     lstar = Quantity(10810.088573316663, 'nm')
     
-    
     # Compare old outputs (before adding core-shell capability) and new outputs
     # for a non-core-shell using Maxwell-Garnett
     assert_array_almost_equal(refl, refl1)

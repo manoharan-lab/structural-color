@@ -55,6 +55,7 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
                structure_type='glass',
                form_type='sphere',
                maxwell_garnett=False):
+                   
     """
     Calculate fraction of light reflected from an amorphous colloidal
     suspension (a "photonic glass").
@@ -177,6 +178,7 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
     Beetles” Physical Review E 90, no. 6 (2014): 62302.
     doi:10.1103/PhysRevE.90.062302
     """
+
     # radius and radius2 should be in the same units (for polydisperse samples)
     if radius2 is not None:
         radius2 = radius2.to(radius.units)
@@ -405,6 +407,7 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
     
 
 @ureg.check('[]', '[]', '[]', '[]')
+
 def differential_cross_section(m, x, angles, volume_fraction,
                                structure_type = 'glass', form_type = 'sphere', 
                                diameters=None, concentration=None, pdi=None, 
@@ -545,7 +548,7 @@ def differential_cross_section(m, x, angles, volume_fraction,
 
     if isinstance(structure_type, dict):
         if structure_type['name'] == 'paracrystal':
-            s = structure.factor_para(qd, volume_fraction, 
+            s = structure.factor_para(qd, volume_fraction_shell, 
                                       sigma = structure_type['sigma'])
         else:
             raise ValueError('structure factor type not recognized!')
