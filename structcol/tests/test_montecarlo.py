@@ -251,8 +251,8 @@ def test_reflection_core_shell():
     T_abs_before = 0.0006391960305096798#A:0.0002140495990985143 #A/V:0.002180700021951509
     T_cs_abs_before = 0.0006391960305096798#A:0.0002140495990985143 #A/V:0.002180700021951509
 
-    assert_almost_equal(R_abs_before, R_abs, decimal=2)
-    assert_almost_equal(R_cs_abs_before, R_cs_abs, decimal=2)
+    assert_almost_equal(R_abs_before, R_abs, decimal=3)
+    assert_almost_equal(R_cs_abs_before, R_cs_abs, decimal=3)
     assert_almost_equal(T_abs_before, T_abs, decimal=4)
     assert_almost_equal(T_cs_abs_before, T_cs_abs, decimal=4)
     
@@ -382,9 +382,9 @@ def test_reflection_polydispersity():
     T_mono_abs_before = 0.09473841417422774 #A:0.080731949531112429 #A/V:0.083823525277616467
     T_poly_abs_before = 0.09456832138047852 #A:0.080574244683425236 #A/V:0.083720861809212316
     
-    assert_almost_equal(R_mono_abs_before, R_mono_abs, decimal=3)
+    assert_almost_equal(R_mono_abs_before, R_mono_abs, decimal=4)
     assert_almost_equal(R_poly_abs_before, R_poly_abs, decimal=3)
-    assert_almost_equal(T_mono_abs_before, T_mono_abs, decimal=3)
+    assert_almost_equal(T_mono_abs_before, T_mono_abs, decimal=4)
     assert_almost_equal(T_poly_abs_before, T_poly_abs, decimal=3)
     
     # test that the reflectance is the same for a polydisperse monospecies
