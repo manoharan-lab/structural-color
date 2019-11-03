@@ -187,6 +187,16 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
     mean_diameters = Quantity(np.array([2*radius.magnitude, 2*radius2.magnitude]),
                               radius.units)
     
+    # General number density formula for binary systems, converges to monospecies 
+    # formula when the concentration of either particle goes to zero. When the
+    # system is monospecies, define a concentration array to be able to use the
+    # general formula.
+    if concentration is None:
+        concentration = Quantity(np.array([1,0]), '')
+    term1 = 1/(radius.max()**3 + radius2.max()**3 * concentration[1]/concentration[0])
+    term2 = 1/(radius2.max()**3 + radius.max()**3 * concentration[0]/concentration[1])
+    rho = 3.0 * volume_fraction / (4.0 * np.pi) * (term1 + term2)
+    
     # check that the number of indices and radii is the same
     if len(np.atleast_1d(n_particle)) != len(np.atleast_1d(radius)):
        raise ValueError('Arrays of indices and radii must be the same length')
@@ -268,7 +278,14 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
                                           concentration=concentration, pdi=pdi)                                                                                                               
     
     # calculate the differential cross section in the detected range of angles  
-    # and in the total angles 
+    # and in the total angles. We calculate it at a distance = thickness when 
+    # there is absorption in the system. Calculating at the surface of the
+    # particle leads to strange near field effects when the calculation is done 
+    # not over all angles but only a subset. Choosing an arbitrary distance is 
+    # OK because we care about the ratio of differential to total cross section
+    # for the reflectance, but it is not OK for the calculation of asymmetry 
+    # parameter and transport length, both of which use the total cros section.
+    # When there isn't absorption, the distance does not enter the calculation.
     diff_cs_detected = differential_cross_section(m, x, angles, volume_fraction,
                                                   structure_type=structure_type, 
                                                   form_type=form_type, 
@@ -276,7 +293,6 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
                                                   concentration=concentration,
                                                   pdi=pdi, wavelen=wavelen, 
                                                   n_matrix=n_sample, k=k, distance=thickness)
-
     diff_cs_total = differential_cross_section(m, x, angles_tot, volume_fraction,
                                                structure_type=structure_type, 
                                                form_type=form_type,
@@ -305,11 +321,33 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
                                                              diff_cs_total[1], 
                                                              thickness, angles_tot, k)[0] 
 
+        # Calculate the differential and total scattering cross sections at the 
+        # surface of the particle for the asymmetry parameter and transport
+        # length        
+        diff_cs_total_surf = differential_cross_section(m, x, angles_tot, volume_fraction,
+                                                        structure_type=structure_type, 
+                                                        form_type=form_type,
+                                                        diameters=mean_diameters,
+                                                        concentration=concentration,
+                                                        pdi=pdi, wavelen=wavelen, 
+                                                        n_matrix=n_sample, k=k, 
+                                                        distance=mean_diameters.max()/2) 
+        
+        cscat_total_surf = mie.integrate_intensity_complex_medium(diff_cs_total_surf[0], 
+                                                                  diff_cs_total_surf[1], 
+                                                                  mean_diameters.max()/2, 
+                                                                  angles_tot, k)[0]                                      
+        
         factor = np.cos(angles_tot)
-        asymmetry_unpolarized = mie.integrate_intensity_complex_medium(diff_cs_total[0]*factor, 
-                                                           diff_cs_total[1]*factor, 
-                                                           thickness, angles_tot, k)[0]  
-        asymmetry_parameter = asymmetry_unpolarized/cscat_total
+        asymmetry_unpolarized = mie.integrate_intensity_complex_medium(diff_cs_total_surf[0]*factor, 
+                                                                       diff_cs_total_surf[1]*factor, 
+                                                                       mean_diameters.max()/2,
+                                                                       angles_tot, k)[0]  
+        asymmetry_parameter = asymmetry_unpolarized/cscat_total_surf
+        
+        # Calculate the transport length for unpolarized light (see eq. 5 of 
+        # Kaplan, Dinsmore, Yodh, Pine, PRE 50(6): 4827, 1994)
+        transport_length = 1/(1.0-asymmetry_parameter)/rho/cscat_total_surf  # TODO is this cscat or cext_tot?
     
     # if there is no absorption in the system
     else:
@@ -333,19 +371,13 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
                                                   angles_tot, azi_angle_range_tot)
         asymmetry_parameter = (asymmetry_par + asymmetry_perp)/cscat_total/2.0
     
+        # Calculate the transport length for unpolarized light (see eq. 5 of 
+        # Kaplan, Dinsmore, Yodh, Pine, PRE 50(6): 4827, 1994)
+        transport_length = 1/(1.0-asymmetry_parameter)/rho/cscat_total  # TODO is this cscat or cext_tot?
+    
     cext_total = cscat_total.to('um**2') + cabs_total.to('um**2')
     
     # now eq. 6 for the total reflection
-    # General number density formula for binary systems, converges to monospecies 
-    # formula when the concentration of either particle goes to zero. When the
-    # system is monospecies, define a concentration array to be able to use the
-    # general formula.
-    if concentration is None:
-        concentration = Quantity(np.array([1,0]), '')
-    term1 = 1/(radius.max()**3 + radius2.max()**3 * concentration[1]/concentration[0])
-    term2 = 1/(radius2.max()**3 + radius.max()**3 * concentration[0]/concentration[1])
-    rho = 3.0 * volume_fraction / (4.0 * np.pi) * (term1 + term2)
-    
     if thickness is None:
         # assume semi-infinite sample
         factor = 1.0
@@ -367,10 +399,7 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
 
     reflectance = (reflected_par + reflected_perp)/2
  
-    # and the transport length for unpolarized light
-    # (see eq. 5 of Kaplan, Dinsmore, Yodh, Pine, PRE 50(6): 4827, 1994)
-    transport_length = 1/(1.0-asymmetry_parameter)/rho/cscat_total  # TODO is this cscat or cext_tot?
-
+ 
     return reflectance, reflected_par, reflected_perp, asymmetry_parameter, \
            transport_length
     
