@@ -652,20 +652,20 @@ def test_reflection_polydispersity_with_absorption():
                                                thickness=thickness)
     
     assert_array_almost_equal(refl, refl2, decimal=5)
-    assert_array_almost_equal(g, g2, decimal=4)
-    assert_array_almost_equal(lstar.to('mm'), lstar2.to('mm'), decimal=4)
+    assert_array_almost_equal(g, g2, decimal=9)
+    assert_array_almost_equal(lstar.to('mm'), lstar2.to('mm'), decimal=5)
 
     # Outputs before refactoring structcol
     refl_before = 0.020910087489548684 #0.020791487299024698
     refl2_before = 0.020909855930303707 #0.02079125872215926
     g_before = 0.6150771860765984 #0.61562921974002 #726274264.1349005
     g2_before = 0.6150771864230516 #0.6156292197400548 #726274264.1349416
-    lstar_before = 0.0044653875445681166 #0.0044717814146885779 #0.006279358811781641
-    lstar2_before = 0.00447762476116312 #0.0044840361567639936 #0.006296567149019748
-      
+    lstar_before = 0.0037892294836040373 #0.0044653875445681166 #0.0044717814146885779 #0.006279358811781641
+    lstar2_before = 0.0037996137159816796 #0.00447762476116312 #0.0044840361567639936 #0.006296567149019748
+
     assert_equal(refl_before, refl.magnitude)
     assert_equal(refl2_before, refl2.magnitude)
-    assert_equal(g_before, g.magnitude)
+    assert_almost_equal(g_before, g.magnitude, decimal=15)
     assert_equal(g2_before, g2.magnitude)
     assert_equal(lstar_before, lstar.to('mm').magnitude)
     assert_equal(lstar2_before, lstar2.to('mm').magnitude)
@@ -697,13 +697,13 @@ def test_reflection_polydispersity_with_absorption():
     refl4_before = 0.6311022434374303
     g3_before = -0.6356307606571816 #-27901.50120849103
     g4_before = -0.6356307601051542 #-27901.50118425936
-    lstar3_before = 8.8037552221780592e-09 #1.4399291088853016e-08
-    lstar4_before = 8.8037552299275471e-09 #1.4399291096668534e-08
+    lstar3_before = 5.7241468935761515e-05 #8.8037552221780592e-09 #1.4399291088853016e-08
+    lstar4_before = 5.72414689861482e-05 #8.8037552299275471e-09 #1.4399291096668534e-08
   
     assert_equal(refl3_before, refl3.magnitude)
     assert_equal(refl4_before, refl4.magnitude)
     assert_equal(g3_before, g3.magnitude)
-    assert_equal(g4_before, g4.magnitude)
+    assert_almost_equal(g4_before, g4.magnitude, decimal=15)
     assert_equal(lstar3_before, lstar3.to('mm').magnitude)
     assert_equal(lstar4_before, lstar4.to('mm').magnitude)
     
@@ -734,8 +734,8 @@ def test_reflection_polydispersity_with_absorption():
     refl6_before = 0.11377420192668616 #0.11259532698024184
     g5_before = -0.176272600668118 # -0.17376384100464944 #-209.15733480514967
     g6_before = -0.1762725998533963 #-0.17376384019461683 #-209.1573338372998
-    lstar5_before = 0.013713468137103935 #0.013809880819376879 #0.013405648948885825
-    lstar6_before = 0.013751049358954354 #0.013847726256293521 #0.013442386605693767
+    lstar5_before = 0.01163694691#0.013713468137103935 #0.013809880819376879 #0.013405648948885825
+    lstar6_before = 0.011668837507 #0.013751049358954354 #0.013847726256293521 #0.013442386605693767
     
     assert_array_almost_equal(refl5_before, refl5.magnitude, decimal=12)
     assert_array_almost_equal(refl6_before, refl6.magnitude, decimal=12)
@@ -773,6 +773,31 @@ def test_reflection_polydispersity_with_absorption():
     assert_array_almost_equal(lstar7.to('mm'), lstar8.to('mm'), decimal=4)
 
 
+def test_g_transport_length():
+# test that the g and transport length do not depend on the thickness in the 
+# presence of absorption
+    wavelength = Quantity(600, 'nm')
+    volume_fraction = Quantity(0.55, '')
+    radius = Quantity('100 nm')
+    n_matrix = Quantity(1.0+0.0004j, '')
+    n_medium = Quantity(1.0, '')
+    n_particle = Quantity(1.5+0.0006j, '')
+    thickness1 = Quantity('10 um')
+    thickness2 = Quantity('100 um')
+    # test that the reflectance using only the form factor is the same using
+    # the polydisperse formula vs using Mie in the limit of monodispersity
+    _, _, _, g, lstar = model.reflection(n_particle, n_matrix, n_medium, 
+                                            wavelength, radius, volume_fraction, 
+                                            thickness=thickness1)
+    _, _, _, g2, lstar2 = model.reflection(n_particle, n_matrix, n_medium, 
+                                               wavelength, radius, 
+                                               volume_fraction, 
+                                               thickness=thickness2)
+    
+    assert_equal(g, g2)
+    assert_equal(lstar.to('mm'), lstar2.to('mm'))
+    
+    
 def test_reflection_throws_valueerror_for_polydisperse_core_shells(): 
 # test that a valueerror is raised when trying to run polydisperse core-shells                 
     with pytest.raises(ValueError):

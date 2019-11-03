@@ -191,8 +191,8 @@ def test_reflection_core_shell():
     
     assert_equal(R_before, R)
     assert_equal(R_cs_before, R_cs)
-    assert_equal(T_before, T)
-    assert_equal(T_cs_before, T_cs)
+    assert_almost_equal(T_before, T, decimal=15)
+    assert_almost_equal(T_cs_before, T_cs, decimal=15)
     
     # Test that the reflectance is the same for a core-shell that absorbs (with
     # the same refractive indices for all layers) and a non-core-shell that 
@@ -286,8 +286,8 @@ def test_reflection_absorbing_particle_or_matrix():
     
     assert_equal(R_before, R)
     assert_equal(R_abs_before, R_abs)
-    assert_equal(T_before, T)
-    assert_equal(T_abs_before, T_abs)
+    assert_almost_equal(T_before, T, decimal=15)
+    assert_almost_equal(T_abs_before, T_abs, decimal=15)
 
     # Same as previous test but with absorbing matrix
     # Reflection using matrix with an imaginary component of 0
@@ -308,8 +308,8 @@ def test_reflection_absorbing_particle_or_matrix():
 
     assert_equal(R_before, R)
     assert_equal(R_abs_before, R_abs)
-    assert_equal(T_before, T)
-    assert_equal(T_abs_before, T_abs)
+    assert_almost_equal(T_before, T, decimal=15)
+    assert_almost_equal(T_abs_before, T_abs, decimal=15)
     
     # test that the reflection is essentially the same when the imaginary
     # index is 0 or very close to 0
@@ -328,9 +328,9 @@ def test_reflection_polydispersity():
     
     radius2 = radius
     concentration = sc.Quantity(np.array([0.9,0.1]), '')
-    pdi = sc.Quantity(np.array([1e-7, 1e-7]), '')  # monodisperse limit
+    pdi = sc.Quantity(np.array([1e-7,1e-7]), '')  # monodisperse limit 
 
-    # Without absorption: test that the reflectance using with very small 
+    # Without absorption: test that the reflectance using 0
     # polydispersity is the same as the monodisperse case
     R_mono, T_mono = calc_montecarlo(nevents, ntrajectories, radius, 
                                      n_particle, n_sample, n_medium, 
@@ -354,8 +354,8 @@ def test_reflection_polydispersity():
 
     assert_equal(R_mono_before, R_mono)
     assert_equal(R_poly_before, R_poly)
-    assert_equal(T_mono_before, T_mono)
-    assert_equal(T_poly_before, T_poly)
+    assert_almost_equal(T_mono_before, T_mono, decimal=15)
+    assert_almost_equal(T_poly_before, T_poly, decimal=15)
     
     # With absorption: test that the reflectance using with very small 
     # polydispersity is the same as the monodisperse case  
@@ -383,8 +383,8 @@ def test_reflection_polydispersity():
     T_mono_abs_before = 0.09473841417422774 #0.083823525277616467
     T_poly_abs_before = 0.09456832138047852 #0.083720861809212316
     
-    assert_equal(R_mono_abs_before, R_mono_abs)
-    assert_equal(R_poly_abs_before, R_poly_abs)
+    assert_almost_equal(R_mono_abs_before, R_mono_abs, decimal=15)
+    assert_almost_equal(R_poly_abs_before, R_poly_abs, decimal=15)
     assert_almost_equal(T_mono_abs_before, T_mono_abs, decimal=15)
     assert_almost_equal(T_poly_abs_before, T_poly_abs, decimal=15)
     
@@ -426,7 +426,7 @@ def test_reflection_polydispersity():
                                    
     assert_almost_equal(R, R2)
     assert_almost_equal(T, T2)
-    
+
     # test that the second size is ignored when its concentration is set to 0
     radius1 = sc.Quantity('150 nm')
     radius2 = sc.Quantity('100 nm')
@@ -494,29 +494,85 @@ def test_throw_valueerror_for_polydisperse_unspecified_parameters():
                                      concentration=concentration, pdi=pdi, 
                                      polydisperse=True)  # unspecified radius2
 
+def test_surface_roughness():
+    # test that the reflectance with very small surface roughness is the same 
+    # as without any roughness
+    seed = 1
+    nevents = 60
+    ntrajectories = 30
+
+    # Reflection with no surface roughness
+    R, T = calc_montecarlo(nevents, ntrajectories, radius, n_particle, n_sample, 
+                           n_medium, volume_fraction, wavelen, seed)
+
+    # Reflection with very little fine surface roughness
+    R_fine, T_fine = calc_montecarlo(nevents, ntrajectories, radius, n_particle, 
+                                     n_sample, n_medium, volume_fraction, 
+                                     wavelen, seed, fine_roughness = 1e-4)
+                                     
+    # Reflection with very little coarse surface roughness
+    R_coarse, T_coarse = calc_montecarlo(nevents, ntrajectories, radius, 
+                                         n_particle, n_sample, n_medium, 
+                                         volume_fraction, wavelen, seed, 
+                                         coarse_roughness = 1e-5)
+                                         
+    # Reflection with very little fine and coarse surface roughness
+    R_both, T_both = calc_montecarlo(nevents, ntrajectories, radius, n_particle, 
+                                     n_sample, n_medium, volume_fraction, 
+                                     wavelen, seed, fine_roughness=1e-4, 
+                                     coarse_roughness = 1e-5)
+                                     
+    assert_almost_equal(R, R_fine, decimal=20)                                    
+    assert_almost_equal(T, T_fine, decimal=20)  
+    assert_almost_equal(R, R_coarse, decimal=20)                                    
+    assert_almost_equal(T, T_coarse, decimal=20) 
+    assert_almost_equal(R, R_both, decimal=20)                                    
+    assert_almost_equal(T, T_both, decimal=20) 
+
+                             
 def calc_montecarlo(nevents, ntrajectories, radius, n_particle, n_sample, 
                     n_medium, volume_fraction, wavelen, seed, radius2=None, 
-                    concentration=None, pdi=None, polydisperse=False):
+                    concentration=None, pdi=None, polydisperse=False, 
+                    fine_roughness=0., coarse_roughness=0.):
+                        
     # Function to run montecarlo for the tests
     p, mu_scat, mu_abs = mc.calc_scat(radius, n_particle, n_sample, 
                                       volume_fraction, wavelen, radius2=radius2, 
                                       concentration=concentration, pdi=pdi, 
-                                      polydisperse=polydisperse)
-
-    r0, k0, W0 = mc.initialize(nevents, ntrajectories, n_medium, n_sample, 
-                               seed=seed, incidence_angle = 0.)
+                                      polydisperse=polydisperse, 
+                                      fine_roughness=fine_roughness)
+    if coarse_roughness > 0.:
+        r0, k0, W0, kz0_rotated, kz0_reflected = mc.initialize(nevents, 
+                                                               ntrajectories, 
+                                                               n_medium, 
+                                                               n_sample, 
+                                                               seed=seed, 
+                                                               incidence_angle=0.,
+                                                               coarse_roughness=coarse_roughness)
+    else:                                                                    
+        r0, k0, W0 = mc.initialize(nevents, ntrajectories, n_medium, n_sample, 
+                                   seed=seed, incidence_angle = 0.)
+        kz0_rotated = None
+        kz0_reflected = None
+        
     r0 = sc.Quantity(r0, 'um')
     k0 = sc.Quantity(k0, '')
     W0 = sc.Quantity(W0, '')
+    
     sintheta, costheta, sinphi, cosphi, _, _= mc.sample_angles(nevents, 
                                                                ntrajectories,p)
-    step = mc.sample_step(nevents, ntrajectories, mu_scat)
+    step = mc.sample_step(nevents, ntrajectories, mu_scat, 
+                          fine_roughness=fine_roughness)
+
     trajectories = mc.Trajectory(r0, k0, W0)
     trajectories.absorb(mu_abs, step)                         
     trajectories.scatter(sintheta, costheta, sinphi, cosphi)         
     trajectories.move(step)
     z_low = sc.Quantity('0.0 um')
     cutoff = sc.Quantity('50 um')
-    R, T = mc.calc_refl_trans(trajectories, z_low, cutoff, n_medium, n_sample)
-
+    
+    R, T = mc.calc_refl_trans(trajectories, z_low, cutoff, n_medium, n_sample,
+                              kz0_rot=kz0_rotated, kz0_refl=kz0_reflected,
+                              fine_roughness=fine_roughness, n_matrix=n_matrix)
+                                                        
     return R, T

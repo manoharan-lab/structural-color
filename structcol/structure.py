@@ -186,7 +186,7 @@ def factor_poly(q, phi, diameters, c, pdi):
     t1 = tm(1, Dsigma, t)
     t2 = Dsigma + 1
     t3 = (Dsigma + 1) * (2*Dsigma + 1)
-
+    
     # if monospecies, no need to calculate individual species parameters
     if len(np.atleast_1d(c)) == 1:
         rho = 6*phi/(t3*np.pi*diameters**3)
