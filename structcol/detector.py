@@ -2269,6 +2269,60 @@ def normalize_refl_goniometer(refl, det_dist, det_len):
     
     return refl_renormalized
 
+def calc_haze(trajectories, trans_per_traj, transmittance, trans_indices):
+    '''
+    Calculates haze, the fraction of diffuse transmittance over total 
+    transmittance:
+     
+    H = T_{diffuse}/T_{total}
+     
+    For diffuse transmittance, we use a cutoff of 4.5 degress, meaning we 
+    call anything scattered more than 4.5 degrees from the forward direction 
+    diffuse transmittance. The 4.5 degree cuttoff comes from:
+     
+    W. B. Rogers, M. Corbett, S. Magkiriadou, P. Guarillof, V. N. Manoharan. 
+    Optical Materials Express. 4,12, 2621 (2014)
+    
+    Parameters
+    ----------    
+    trajectories: Trajectory object
+        Trajectory object used in Monte Carlo simulation
+    trans_per_traj: 1d array (length: ntraj)
+        reflectance distributed to each trajectory, including fresnel 
+        contributions
+    transmittance: float
+        fraction of light transmitted, including corrections for fresnel and
+        detector
+    trans_indices: 1d array (length: ntraj)
+        array of event indices for transmitted trajectories
+        
+    Returns
+    -------
+    haze: float
+        the fraction of diffuse transmittance over total transmittance, can
+        have values from 0 to 1.
+    '''
+    
+    # note: only implemented for film currently    
+    
+    kz = trajectories.direction[2]
+    cosz = select_events(kz, trans_indices)
+    
+    # calculate angle to normal from cos_z component (only want magnitude)
+    angles = sc.Quantity(np.arccos(np.abs(cosz)),'')
+    
+    trans_ind_forward = np.where(angles<4.5*np.pi/180)[0]
+    
+    trans_forward = np.sum(trans_per_traj[trans_ind_forward])
+    
+    trans_diffuse = transmittance - trans_forward
+    
+    haze = trans_diffuse/transmittance
+    
+    return haze
+    
+
+
 
 #------------------------------------------------------------------------------
 #    # For implementing coarse roughness when the trajectories exit the sample
