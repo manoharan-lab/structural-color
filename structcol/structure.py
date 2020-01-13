@@ -18,8 +18,9 @@
 Routines for simulating and calculating structures, structural parameters, and
 structure factors
 
-.. moduleauthor :: Sofia Magkiriadou <sofia@physics.harvard.edu>.
+.. moduleauthor :: Sofia Magkiriadou <sofia@physics.harvard.edu>
 .. moduleauthor :: Vinothan N. Manoharan <vnm@seas.harvard.edu>
+.. moduleauthor :: Victoria Hwang <vhwang@g.harvard.edu>
 """
 
 import numpy as np

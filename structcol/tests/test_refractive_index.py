@@ -18,6 +18,7 @@
 Tests for the refractive_index module of structcol
 
 .. moduleauthor:: Vinothan N. Manoharan <vnm@seas.harvard.edu>
+.. moduleauthor:: Victoria Hwang <vhwang@g.harvard.edu>
 """
 
 from .. import refractive_index as ri
