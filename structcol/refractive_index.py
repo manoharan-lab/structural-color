@@ -35,8 +35,8 @@ References
 http://refractiveindex.info (accessed August 14, 2016).
 
 .. moduleauthor :: Vinothan N. Manoharan <vnm@seas.harvard.edu>
-.. moduleauthor :: Sofia Magkiriadou <sofia@physics.harvard.edu>.
-
+.. moduleauthor :: Sofia Magkiriadou <sofia@physics.harvard.edu>
+.. moduleauthor :: Victoria Hwang <vhwang@g.harvard.edu>.
 """
 
 import numpy as np

@@ -27,6 +27,7 @@ Physical Review E 90, no. 6 (2014): 62302. doi:10.1103/PhysRevE.90.062302
 
 .. moduleauthor :: Vinothan N. Manoharan <vnm@seas.harvard.edu>
 .. moduleauthor :: Sofia Magkiriadou <sofia@physics.harvard.edu>
+.. moduleauthor :: Victoria Hwang <vhwang@g.harvard.edu>
 """
 
 import numpy as np

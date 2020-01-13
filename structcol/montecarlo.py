@@ -367,9 +367,10 @@ class Trajectory:
 
 
 def initialize(nevents, ntraj, n_medium, n_sample, boundary, seed=None,
-               incidence_angle=0., plot_initial=False, 
-               spot_size=sc.Quantity('1 um'), sample_diameter=None, 
-               polarization=False, coarse_roughness=0.):
+               incidence_angle_min=sc.Quantity(0.,'rad'), 
+               incidence_angle_max=sc.Quantity(0.,'rad'), 
+               plot_initial=False, spot_size=sc.Quantity('1 um'), 
+               sample_diameter=None, polarization=False, coarse_roughness=0.):
     """
     Sets the trajectories' initial conditions (position, direction, weight,
     and polarization if set to true).
@@ -404,9 +405,12 @@ def initialize(nevents, ntraj, n_medium, n_sample, boundary, seed=None,
     seed: int or None
         If seed is int, the simulation results will be reproducible. If seed is
         None, the simulation results are actually random.
-    incidence_angle: float
+    incidence_angle_min: float (structcol.Quantity [angle])
+        Minimum value for theta when it incides onto the sample.
+        Should be >= 0 and < pi/2.
+    incidence_angle_max: float (structcol.Quantity [angle])
         Maximum value for theta when it incides onto the sample.
-        Should be between 0 and pi/2.
+        Should be >= 0 and < pi/2.
     plot_inital: boolean
         If plot_initial is set to True, function will create a 3d plot showing
         initial positions and directions of trajectories before entering the 
@@ -528,10 +532,9 @@ def initialize(nevents, ntraj, n_medium, n_sample, boundary, seed=None,
         sinphi = np.sin(phi)
         cosphi = np.cos(phi)
 
-        # Random sampling of scattering angle theta from uniform distribution [0 -
-        # pi] for the first scattering event
-        rand_theta = random((1,ntraj))
-        theta = rand_theta * incidence_angle
+        # Random sampling of scattering angle theta from uniform distribution 
+        # between min and max incidence angles for the first scattering event
+        theta = np.random.uniform(incidence_angle_min, incidence_angle_max, ntraj)
 
     if boundary == 'sphere':
         

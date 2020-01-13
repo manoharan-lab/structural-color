@@ -527,12 +527,13 @@ def test_surface_roughness():
     assert_almost_equal(T, T_coarse, decimal=16) 
     assert_almost_equal(R, R_both, decimal=20)                                    
     assert_almost_equal(T, T_both, decimal=16) 
-
+    
                              
 def calc_montecarlo(nevents, ntrajectories, radius, n_particle, n_sample, 
                     n_medium, volume_fraction, wavelen, seed, radius2=None, 
                     concentration=None, pdi=None, polydisperse=False, 
-                    fine_roughness=0., coarse_roughness=0.):
+                    fine_roughness=0., coarse_roughness=0., 
+                    incidence_angle_min=0., incidence_angle_max=0.):
                         
     # Function to run montecarlo for the tests
     p, mu_scat, mu_abs = mc.calc_scat(radius, n_particle, n_sample, 
@@ -548,10 +549,14 @@ def calc_montecarlo(nevents, ntrajectories, radius, n_particle, n_sample,
                                                                n_sample, 
                                                                'film',
                                                                seed=seed, 
-                                                               coarse_roughness=coarse_roughness)
+                                                               coarse_roughness=coarse_roughness,
+                                                               incidence_angle_min=incidence_angle_min,
+                                                               incidence_angle_max=incidence_angle_max)
     else:                                                                    
         r0, k0, W0 = mc.initialize(nevents, ntrajectories, n_medium, n_sample,
-                                   'film', seed=seed)
+                                   'film', seed=seed, 
+                                   incidence_angle_min=incidence_angle_min,
+                                   incidence_angle_max=incidence_angle_max)
         kz0_rotated = None
         kz0_reflected = None
         

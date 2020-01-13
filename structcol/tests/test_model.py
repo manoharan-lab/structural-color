@@ -18,6 +18,7 @@
 Tests for the single-scattering model (in structcol/model.py)
 
 .. moduleauthor:: Vinothan N. Manoharan <vnm@seas.harvard.edu>
+.. moduleauthor:: Victoria Hwang <vhwang@g.harvard.edu>
 """
 
 from .. import Quantity, ureg, q, index_ratio, size_parameter, np, mie, model
