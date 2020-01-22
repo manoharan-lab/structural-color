@@ -533,7 +533,7 @@ def calc_montecarlo(nevents, ntrajectories, radius, n_particle, n_sample,
                     n_medium, volume_fraction, wavelen, seed, radius2=None, 
                     concentration=None, pdi=None, polydisperse=False, 
                     fine_roughness=0., coarse_roughness=0., 
-                    incidence_angle_min=0., incidence_angle_max=0.):
+                    incidence_theta_min=0., incidence_theta_max=0.):
                         
     # Function to run montecarlo for the tests
     p, mu_scat, mu_abs = mc.calc_scat(radius, n_particle, n_sample, 
@@ -550,13 +550,13 @@ def calc_montecarlo(nevents, ntrajectories, radius, n_particle, n_sample,
                                                                'film',
                                                                seed=seed, 
                                                                coarse_roughness=coarse_roughness,
-                                                               incidence_angle_min=incidence_angle_min,
-                                                               incidence_angle_max=incidence_angle_max)
+                                                               incidence_theta_min=incidence_theta_min,
+                                                               incidence_theta_max=incidence_theta_max)
     else:                                                                    
         r0, k0, W0 = mc.initialize(nevents, ntrajectories, n_medium, n_sample,
                                    'film', seed=seed, 
-                                   incidence_angle_min=incidence_angle_min,
-                                   incidence_angle_max=incidence_angle_max)
+                                   incidence_theta_min=incidence_theta_min,
+                                   incidence_theta_max=incidence_theta_max)
         kz0_rotated = None
         kz0_reflected = None
         

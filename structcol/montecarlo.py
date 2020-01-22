@@ -367,8 +367,12 @@ class Trajectory:
 
 
 def initialize(nevents, ntraj, n_medium, n_sample, boundary, seed=None,
-               incidence_angle_min=sc.Quantity(0.,'rad'), 
-               incidence_angle_max=sc.Quantity(0.,'rad'), 
+               incidence_theta_min=sc.Quantity(0.,'rad'), 
+               incidence_theta_max=sc.Quantity(0.,'rad'), 
+               incidence_theta_data=None, 
+               incidence_phi_min=sc.Quantity(0.,'rad'), 
+               incidence_phi_max=sc.Quantity(2*np.pi,'rad'), 
+               incidence_phi_data=None,
                plot_initial=False, spot_size=sc.Quantity('1 um'), 
                sample_diameter=None, polarization=False, coarse_roughness=0.):
     """
@@ -524,18 +528,29 @@ def initialize(nevents, ntraj, n_medium, n_sample, boundary, seed=None,
         
         # randomly choose y positions on interval [0,1]
         r0[1,0,:] = random((1,ntraj))*spot_size_magnitude
+        
+        # initialize the incident angles theta and phi. The user can input 
+        # data or sample randomly from a uniform distribution between a min and 
+        # a max incident angles. 
+        if incidence_theta_data is not None: 
+            if len(incidence_theta_data) != ntraj:
+                raise ValueError('length of incidence_theta_data must be equal\
+                to number of trajectories')
+            theta = incidence_theta_data
+        else: 
+            theta = np.random.uniform(incidence_theta_min, incidence_theta_max, ntraj)
 
-        # Random sampling of azimuthal angle phi from uniform distribution [0 -
-        # 2pi] for the first scattering event
-        rand_phi = random((1,ntraj))
-        phi = 2*np.pi*rand_phi
+        if incidence_phi_data is not None: 
+            if len(incidence_phi_data) != ntraj:
+                raise ValueError('length of incidence_phi_data must be equal\
+                to number of trajectories')
+            phi = incidence_phi_data
+        else: 
+            phi = np.random.uniform(incidence_phi_min, incidence_phi_max, ntraj)
+
         sinphi = np.sin(phi)
         cosphi = np.cos(phi)
-
-        # Random sampling of scattering angle theta from uniform distribution 
-        # between min and max incidence angles for the first scattering event
-        theta = np.random.uniform(incidence_angle_min, incidence_angle_max, ntraj)
-
+        
     if boundary == 'sphere':
         
         # raise error if user forgets to input a value for the sphere diameter
