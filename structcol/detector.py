@@ -2269,14 +2269,15 @@ def normalize_refl_goniometer(refl, det_dist, det_len):
     
     return refl_renormalized
 
-def calc_haze(trajectories, trans_per_traj, transmittance, trans_indices):
+def calc_haze(trajectories, trans_per_traj, transmittance, trans_indices,
+              cutoff_angle=sc.Quantity(4.5,'deg')):
     '''
     Calculates haze, the fraction of diffuse transmittance over total 
     transmittance:
      
     H = T_{diffuse}/T_{total}
      
-    For diffuse transmittance, we use a cutoff of 4.5 degress, meaning we 
+    For diffuse transmittance, we use a cutoff of 4.5 degrees, meaning we 
     call anything scattered more than 4.5 degrees from the forward direction 
     diffuse transmittance. The 4.5 degree cuttoff comes from:
      
@@ -2295,6 +2296,8 @@ def calc_haze(trajectories, trans_per_traj, transmittance, trans_indices):
         detector
     trans_indices: 1d array (length: ntraj)
         array of event indices for transmitted trajectories
+    cutoff_angle: float-like, sc.Quantity
+        angle greater than which light is considered diffusely transmitted
         
     Returns
     -------
@@ -2311,7 +2314,7 @@ def calc_haze(trajectories, trans_per_traj, transmittance, trans_indices):
     # calculate angle to normal from cos_z component (only want magnitude)
     angles = sc.Quantity(np.arccos(np.abs(cosz)),'')
     
-    trans_ind_forward = np.where(angles<4.5*np.pi/180)[0]
+    trans_ind_forward = np.where(angles<cutoff_angle)[0]
     
     trans_forward = np.sum(trans_per_traj[trans_ind_forward])
     
