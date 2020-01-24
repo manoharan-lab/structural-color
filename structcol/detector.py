@@ -2269,7 +2269,8 @@ def normalize_refl_goniometer(refl, det_dist, det_len):
     
     return refl_renormalized
 
-def calc_haze(trajectories, trans_per_traj, transmittance, trans_indices):
+def calc_haze(trajectories, trans_per_traj, transmittance, trans_indices,
+              cutoff_angle=4.5):
     '''
     Calculates haze, the fraction of diffuse transmittance over total 
     transmittance:
@@ -2311,7 +2312,7 @@ def calc_haze(trajectories, trans_per_traj, transmittance, trans_indices):
     # calculate angle to normal from cos_z component (only want magnitude)
     angles = sc.Quantity(np.arccos(np.abs(cosz)),'')
     
-    trans_ind_forward = np.where(angles<4.5*np.pi/180)[0]
+    trans_ind_forward = np.where(angles<cutoff_angle*np.pi/180)[0]
     
     trans_forward = np.sum(trans_per_traj[trans_ind_forward])
     
