@@ -649,7 +649,7 @@ def polydisperse_form_factor(m, angles, diameters, concentration, pdi, wavelen,
     # define the range of diameters of the size distribution
     three_std_dev = 3*diameters/np.sqrt(t+1)       
     min_diameter = diameters - three_std_dev
-    min_diameter[min_diameter.magnitude < 0] = Quantity(0, diameters.units)
+    min_diameter[min_diameter.magnitude < 0] = Quantity(0.000001, diameters.units)
     max_diameter = diameters + three_std_dev
         
     F_par = np.empty([len(np.atleast_1d(diameters)), len(angles)])
@@ -703,6 +703,7 @@ def polydisperse_form_factor(m, angles, diameters, concentration, pdi, wavelen,
     # calculated as the average of each mean diameter's form factor
     f_par = np.sum(F_par, axis=0)
     f_perp = np.sum(F_perp, axis=0)
+ 
 
     return(f_par, f_perp)
 
