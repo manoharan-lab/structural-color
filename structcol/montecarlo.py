@@ -385,10 +385,10 @@ def initialize(nevents, ntraj, n_medium, n_sample, boundary, seed=None,
     surface of a sphere. If boundary is a film, the initial z-positions are set
     to zero.
     
-    If incidence angle is set to 0, the initial propagation direction
-    is set to be 1 at z, meaning that the photon packets point straight down in z.
-    The initial directions are corrected for refraction, for either type of
-    boundary and for any incidence angle.
+    If incidence_theta_min and incidence_theta_max are both set to 0, the 
+    initial propagation direction is set to be 1 at z, meaning that the photon 
+    packets point straight down in z. The initial directions are corrected for 
+    refraction, for either type of boundary and for any incidence angle.
 
     **notes:
     - for sphere boundary, incidence angle currently must be 0
@@ -409,12 +409,30 @@ def initialize(nevents, ntraj, n_medium, n_sample, boundary, seed=None,
     seed: int or None
         If seed is int, the simulation results will be reproducible. If seed is
         None, the simulation results are actually random.
-    incidence_angle_min: float (structcol.Quantity [angle])
+    incidence_theta_min: float (structcol.Quantity [angle])
         Minimum value for theta when it incides onto the sample.
         Should be >= 0 and < pi/2.
-    incidence_angle_max: float (structcol.Quantity [angle])
+    incidence_theta_max: float (structcol.Quantity [angle])
         Maximum value for theta when it incides onto the sample.
         Should be >= 0 and < pi/2.
+    incidence_theta_data: array (structcol.Quantity [angle]) (optional)
+        Array of values for the incident theta for each trajectory. Length of 
+        the array must therefore be the same as number of trajectories. If
+        None, the code will randomly sample theta angles from a uniform 
+        distribution between incidence_theta_min and incidence_theta_max. If
+        user does not specify units, values must be in radians. 
+    incidence_phi_min: float (structcol.Quantity [angle])
+        Minimum value for phi when it incides onto the sample.
+        Should be >= 0 and <= pi.
+    incidence_phi_max: float (structcol.Quantity [angle])
+        Maximum value for phi when it incides onto the sample.
+        Should be >= 0 and <= pi.
+    incidence_phi_data: array (structcol.Quantity [angle]) (optional)
+        Array of values for the incident phi for each trajectory. Length of 
+        the array must therefore be the same as number of trajectories. If
+        None, the code will randomly sample phi angles from a uniform 
+        distribution between incidence_phi_min and incidence_phi_max.  If
+        user does not specify units, values must be in radians. 
     plot_inital: boolean
         If plot_initial is set to True, function will create a 3d plot showing
         initial positions and directions of trajectories before entering the 
