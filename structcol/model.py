@@ -1,4 +1,4 @@
-# Copyright 2016, Vinothan N. Manoharan, Sofia Makgiriadou
+# Copyright 2016, Vinothan N. Manoharan, Sofia Makgiriadou, Victoria Hwang
 #
 # This file is part of the structural-color python package.
 #
