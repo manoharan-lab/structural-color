@@ -189,12 +189,12 @@ class Trajectory:
         
     def scatter(self, sintheta, costheta, sinphi, cosphi):
         """
-        TODO integrate this with scatter() to avoid repeated code
-        Calculates the directions of polarization vectors after scattering.
+        Calculates the directions of propagation after scattering (for either
+        'scattering plane' or 'cartesian' polarizations).
         
         At a scattering event, a photon packet adopts a new direction of
         propagation, which is randomly sampled from the phase function. The new
-        direction of propagation also changes the polarization direction
+        direction of propagation also changes the polarization direction.
         
         Parameters
         ----------
@@ -222,19 +222,21 @@ class Trajectory:
                   sinphi[n-1,:]) + kn[1,n-1,:]*cosphi[n-1,:]
             kn[2,n,:] = -kn[0,n-1,:]*sintheta[n-1,:] + kn[2,n-1,:]*costheta[n-1,:]
         
-    
+        # Update all the directions of the trajectories
+        self.direction = sc.Quantity(kn, self.direction.units)
+        
     def polarize(self, theta, phi, sintheta, costheta, sinphi, cosphi,
                  n_particle, n_sample, radius, wavelen, volume_fraction):
         """
         Calculates local x and y polarization rotated in reference frame where 
-        initial polarization is x-polarized
+        initial polarization is x-polarized.
         
         Parameters
         ----------
         theta: 2d array
-            theta angles
+            Theta angles.
         phi: 2d array
-            phi angles
+            Phi angles.
         sintheta, costheta, sinphi, cosphi : array_like
             Sines and cosines of scattering (theta) and azimuthal (phi) angles
             sampled from the phase function. Theta and phi are angles that are
@@ -242,23 +244,23 @@ class Trajectory:
             propagation. Thus, they are defined in a local spherical coordinate
             system. All have dimensions of (nevents, ntrajectories).
         n_particle: float
-            index of refraction of particle
+            Index of refraction of particle.
         n_sample: float
-            index of refraction of sample
+            Index of refraction of sample.
         radius: float
-            radius of particle
+            Radius of particle.
         wavelen: float
-            wavelength
+            Wavelength.
         volume_fraction: float
-            volume fraction of particles
+            Volume fraction of particles.
         
         Returns
         -------
         singamma: 2d array
-            sin(gamma) where gamma is angle from x-axis
+            Sin(gamma) where gamma is angle from x-axis.
         cosgamma: 2d array
-            cos(gamma) wjere gamma is angle from x-axis
-        pol_x, pol_y: local x and y polarizations for all events and trajectories
+            Cos(gamma) where gamma is angle from x-axis.
+        pol_x, pol_y: local x and y polarizations for all events and trajectories.
         
         """
         m = index_ratio(n_particle, n_sample)
@@ -287,6 +289,7 @@ class Trajectory:
             # using the following equations, which can be derived by using matrix
             # operations to perform a rotation about the y-axis by angle theta
             # followed by a rotation about the z-axis by angle phi
+            # TODO: integrate this with scatter() to avoid repeated code
             px = ((pn[0,n:,:]*costheta[n-1,:] + pn[2,n:,:]*sintheta[n-1,:])*
                     cosphi[n-1,:]) - pn[1,n:,:]*sinphi[n-1,:]
             py = ((pn[0,n:,:]*costheta[n-1,:] + pn[2,n:,:]*sintheta[n-1,:])*
@@ -365,15 +368,18 @@ class Trajectory:
                              self.position[2,:,n], color=next(colors))
 
 
-
 def initialize(nevents, ntraj, n_medium, n_sample, boundary, seed=None,
-               incidence_angle_min=sc.Quantity(0.,'rad'), 
-               incidence_angle_max=sc.Quantity(0.,'rad'), 
+               incidence_theta_min=sc.Quantity(0.,'rad'), 
+               incidence_theta_max=sc.Quantity(0.,'rad'), 
+               incidence_theta_data=None, 
+               incidence_phi_min=sc.Quantity(0.,'rad'), 
+               incidence_phi_max=sc.Quantity(2*np.pi,'rad'), 
+               incidence_phi_data=None,
                plot_initial=False, spot_size=sc.Quantity('1 um'), 
                sample_diameter=None, polarization=False, coarse_roughness=0.):
     """
     Sets the trajectories' initial conditions (position, direction, weight,
-    and polarization if set to true).
+    and polarization if set to True).
     The initial positions are determined randomly in the x-y plane.
 
 
@@ -381,10 +387,10 @@ def initialize(nevents, ntraj, n_medium, n_sample, boundary, seed=None,
     surface of a sphere. If boundary is a film, the initial z-positions are set
     to zero.
     
-    If incidence angle is set to 0, the initial propagation direction
-    is set to be 1 at z, meaning that the photon packets point straight down in z.
-    The initial directions are corrected for refraction, for either type of
-    boundary and for any incidence angle.
+    If incidence_theta_min and incidence_theta_max are both set to 0, the 
+    initial propagation direction is set to be 1 at z, meaning that the photon 
+    packets point straight down in z. The initial directions are corrected for 
+    refraction, for either type of boundary and for any incidence angle.
 
     **notes:
     - for sphere boundary, incidence angle currently must be 0
@@ -405,24 +411,42 @@ def initialize(nevents, ntraj, n_medium, n_sample, boundary, seed=None,
     seed: int or None
         If seed is int, the simulation results will be reproducible. If seed is
         None, the simulation results are actually random.
-    incidence_angle_min: float (structcol.Quantity [angle])
+    incidence_theta_min: float (structcol.Quantity [angle])
         Minimum value for theta when it incides onto the sample.
         Should be >= 0 and < pi/2.
-    incidence_angle_max: float (structcol.Quantity [angle])
+    incidence_theta_max: float (structcol.Quantity [angle])
         Maximum value for theta when it incides onto the sample.
         Should be >= 0 and < pi/2.
+    incidence_theta_data: array (structcol.Quantity [angle]) (optional)
+        Array of values for the incident theta for each trajectory. Length of 
+        the array must therefore be the same as number of trajectories. If
+        None, the code will randomly sample theta angles from a uniform 
+        distribution between incidence_theta_min and incidence_theta_max. If
+        user does not specify units, values must be in radians. 
+    incidence_phi_min: float (structcol.Quantity [angle])
+        Minimum value for phi when it incides onto the sample.
+        Should be >= 0 and <= pi.
+    incidence_phi_max: float (structcol.Quantity [angle])
+        Maximum value for phi when it incides onto the sample.
+        Should be >= 0 and <= pi.
+    incidence_phi_data: array (structcol.Quantity [angle]) (optional)
+        Array of values for the incident phi for each trajectory. Length of 
+        the array must therefore be the same as number of trajectories. If
+        None, the code will randomly sample phi angles from a uniform 
+        distribution between incidence_phi_min and incidence_phi_max.  If
+        user does not specify units, values must be in radians. 
     plot_inital: boolean
         If plot_initial is set to True, function will create a 3d plot showing
         initial positions and directions of trajectories before entering the 
         sphere and directly after refraction correction upon entering the 
-        sphere
+        sphere.
     spot_size: float (structcol.Quantity [length])
         For film sample, side length of a square spot size. For sphere sample
         diameter of a circular spot size. 
     sample_diameter: None or float (None type or structcol.Quantity [length])
-        diameter of the sample. Default is None. Should be None if sample
+        Diameter of the sample. Default is None. Should be None if sample
         geometry is a film. Should be float equal to the sphere diameter if 
-        sample is a sphere
+        sample is a sphere.
     polarization: bool
         If True, function returns a matrix of initial polarization vectors in
         the x direction
@@ -524,18 +548,29 @@ def initialize(nevents, ntraj, n_medium, n_sample, boundary, seed=None,
         
         # randomly choose y positions on interval [0,1]
         r0[1,0,:] = random((1,ntraj))*spot_size_magnitude
+        
+        # initialize the incident angles theta and phi. The user can input 
+        # data or sample randomly from a uniform distribution between a min and 
+        # a max incident angles. 
+        if incidence_theta_data is not None: 
+            if len(incidence_theta_data) != ntraj:
+                raise ValueError('length of incidence_theta_data must be equal\
+                to number of trajectories')
+            theta = incidence_theta_data
+        else: 
+            theta = np.random.uniform(incidence_theta_min, incidence_theta_max, ntraj)
 
-        # Random sampling of azimuthal angle phi from uniform distribution [0 -
-        # 2pi] for the first scattering event
-        rand_phi = random((1,ntraj))
-        phi = 2*np.pi*rand_phi
+        if incidence_phi_data is not None: 
+            if len(incidence_phi_data) != ntraj:
+                raise ValueError('length of incidence_phi_data must be equal\
+                to number of trajectories')
+            phi = incidence_phi_data
+        else: 
+            phi = np.random.uniform(incidence_phi_min, incidence_phi_max, ntraj)
+
         sinphi = np.sin(phi)
         cosphi = np.cos(phi)
-
-        # Random sampling of scattering angle theta from uniform distribution 
-        # between min and max incidence angles for the first scattering event
-        theta = np.random.uniform(incidence_angle_min, incidence_angle_max, ntraj)
-
+        
     if boundary == 'sphere':
         
         # raise error if user forgets to input a value for the sphere diameter
@@ -568,61 +603,72 @@ def initialize(nevents, ntraj, n_medium, n_sample, boundary, seed=None,
         cosphi = neg_normal[0,:]/np.sin(theta)
         sinphi = neg_normal[1,:]/np.sin(theta)
 
-
-    # Refraction of incident light upon entering the sample
-    # TODO: only real part of n_sample should be used                             
-    # for the calculation of angles of integration? Or abs(n_sample)? 
-    theta = refraction(theta, np.abs(n_medium), np.abs(n_sample))
-    sintheta = np.sin(theta)
-    costheta = np.cos(theta)
-
-    # calculate new directions using refracted theta and initial phi
-    k0[0,0,:] = sintheta * cosphi
-    k0[1,0,:] = sintheta * sinphi
-    k0[2,0,:] = costheta
-
-    # plot the initial positions and directions of the trajectories
-    if plot_initial == True and boundary == 'sphere':
-        fig = plt.figure()
-        ax = fig.add_subplot(111, projection='3d')
-        ax.set_xlabel('x')
-        ax.set_ylabel('y')
-        ax.set_zlabel('z')
-        ax.set_ylim([-sample_radius, sample_radius])
-        ax.set_xlim([-sample_radius, sample_radius])
-        ax.set_zlim([0, sample_radius])
-        ax.set_title('Initial Positions')
-        ax.view_init(-164,-155)
-        X, Y, Z, U, V, W = [r0[0,0,:],r0[1,0,:],r0[2,0,:],k0[0,0,:], k0[1,0,:], k0[2,0,:]]
-        ax.quiver(X, Y, Z, U, V, W, color = 'g')
-        
-        X, Y, Z, U, V, W = [r0[0,0,:],r0[1,0,:],r0[2,0,:],np.zeros(ntraj), np.zeros(ntraj), np.ones(ntraj)]
-        ax.quiver(X, Y, Z, U, V, W)
-        
-        # draw wireframe hemisphere
-        u, v = np.mgrid[0:2*np.pi:20j, np.pi/2:0:10j]
-        x = sample_radius*np.cos(u)*np.sin(v)
-        y = sample_radius*np.sin(u)*np.sin(v)
-        z = sample_radius-sample_radius*np.cos(v)
-        ax.plot_wireframe(x, y, z, color=[0.8,0.8,0.8])
+    # If there is no coarse roughness (e.g. surface is flat)
+    if coarse_roughness == 0:
+        # Refraction of incident light upon entering the sample
+        # TODO: only real part of n_sample should be used                             
+        # for the calculation of angles of integration? Or abs(n_sample)? 
+        theta = refraction(theta, np.abs(n_medium), np.abs(n_sample))
+        sintheta = np.sin(theta)
+        costheta = np.cos(theta)
     
-    if polarization:
-        # initial polarization, we always assume x-polarized because
-        # python-mie assumes x-polarized when including polarization
-        pol0 = np.zeros((3, nevents, ntraj), dtype = 'complex')
-        pol0[0,:,:] = 1
-        pol0[1,:,:] = 0
-        pol0[2,:,:] = 0
-        return r0, k0, weight0, pol0
-    elif coarse_roughness!=0:
+        # calculate new directions using refracted theta and initial phi
+        k0[0,0,:] = sintheta * cosphi
+        k0[1,0,:] = sintheta * sinphi
+        k0[2,0,:] = costheta
+    
+        # plot the initial positions and directions of the trajectories
+        if plot_initial == True and boundary == 'sphere':
+            fig = plt.figure()
+            ax = fig.add_subplot(111, projection='3d')
+            ax.set_xlabel('x')
+            ax.set_ylabel('y')
+            ax.set_zlabel('z')
+            ax.set_ylim([-sample_radius, sample_radius])
+            ax.set_xlim([-sample_radius, sample_radius])
+            ax.set_zlim([0, sample_radius])
+            ax.set_title('Initial Positions')
+            ax.view_init(-164,-155)
+            X, Y, Z, U, V, W = [r0[0,0,:],r0[1,0,:],r0[2,0,:],k0[0,0,:], k0[1,0,:], k0[2,0,:]]
+            ax.quiver(X, Y, Z, U, V, W, color = 'g')
+            
+            X, Y, Z, U, V, W = [r0[0,0,:],r0[1,0,:],r0[2,0,:],np.zeros(ntraj), np.zeros(ntraj), np.ones(ntraj)]
+            ax.quiver(X, Y, Z, U, V, W)
+            
+            # draw wireframe hemisphere
+            u, v = np.mgrid[0:2*np.pi:20j, np.pi/2:0:10j]
+            x = sample_radius*np.cos(u)*np.sin(v)
+            y = sample_radius*np.sin(u)*np.sin(v)
+            z = sample_radius-sample_radius*np.cos(v)
+            ax.plot_wireframe(x, y, z, color=[0.8,0.8,0.8])
+        
+        if polarization:
+            # initial polarization, we always assume x-polarized because
+            # python-mie assumes x-polarized when including polarization
+            pol0 = np.zeros((3, nevents, ntraj), dtype = 'complex')
+            pol0[0,:,:] = 1
+            pol0[1,:,:] = 0
+            pol0[2,:,:] = 0
+            return r0, k0, weight0, pol0
+        else: 
+            return r0, k0, weight0
+    
+    # if the surface has coarse roughness
+    else:
+        sintheta = np.sin(theta)
+        costheta = np.cos(theta)
+    
+        # calculate new directions using refracted theta and initial phi
+        k0[0,0,:] = sintheta * cosphi
+        k0[1,0,:] = sintheta * sinphi
+        k0[2,0,:] = costheta
+        
         k0, kz0_rot, kz0_refl = coarse_roughness_enter(k0, 
                                                  n_medium,
                                                  n_sample,
                                                  coarse_roughness,
                                                  boundary)
         return r0, k0, weight0, kz0_rot, kz0_refl
-    else: 
-        return r0, k0, weight0
 
 
 def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
@@ -630,7 +676,7 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
               mie_theory = False, polarization = False, fine_roughness=0, 
               min_angle = 0.01, num_angles = 200, num_phis = 300,
               structure_type = 'glass', form_type = 'sphere', 
-              structure_s_data=None, structure_qd_data=None):
+              structure_s_data=None, structure_qd_data=None, n_matrix=None):
     """
     Calculates the phase function and scattering coefficient from either the
     single scattering model or Mie theory. Calculates the absorption coefficient
@@ -704,6 +750,13 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
     structure_qd_array: None of 1d array
         if structure_type is 'data', the qd data must be provided here in the 
         form of a one dimensional array 
+    n_matrix : float (structcol.Quantity [dimensionless] or 
+        structcol.refractive_index object)
+        Refractive index of the matrix. It must be specified when the fine
+        roughness is > 0. When there is fine roughness, we assume that light  
+        goes from the index of the matrix to the index of the scatterer. Thus 
+        we assume that fine roughness particles are not embedded in an
+        effective medium. 
 
     Returns
     -------
@@ -822,14 +875,21 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
     mu_abs = mu_abs.to('1/um')
     
     # if there is fine surface roughness, also calculate and return the scatt 
-    # coeff from Mie theory
+    # coeff from Mie theory. We assume that fine roughness particles are in the 
+    # matrix and not in the effective sample medium. 
     if fine_roughness > 0.:
+        if n_matrix is None:
+            raise ValueError('need to specify n_matrix if fine_roughness > 0')
+        m = index_ratio(n_particle, n_matrix)
+        x = size_parameter(wavelen, n_matrix, radius)
+        k = 2 * np.pi * n_matrix / wavelen  
+        
         _, cscat_total_mie = phase_function(m, x, thetas, volume_fraction, 
                                             k, number_density, 
                                             wavelen=wavelen, 
                                             diameters=mean_diameters, 
                                             concentration=concentration, 
-                                            pdi=pdi, n_sample=n_sample,
+                                            pdi=pdi, n_sample=n_matrix,
                                             form_type=form_type,
                                             structure_type=structure_type,
                                             mie_theory=True,
@@ -850,7 +910,7 @@ def phase_function(m, x, angles, volume_fraction, k, number_density,
                    phis=None, structure_s_data=None, structure_qd_data=None):
     """
     Calculates the phase function (the phase function is the same for absorbing 
-    and non-absorbing systems)
+    and non-absorbing systems).
     
     Parameters:
     ----------
@@ -930,12 +990,13 @@ def phase_function(m, x, angles, volume_fraction, k, number_density,
     # using Mie theory (excluding the structure factor)
     if mie_theory == True:
         structure_type = None
-        
-    # Note: In previous version, we passed k=None to make sure we used the 
-    # far-field solutions because the near-field diff cross section behaves
-    # weirdly. Since the complex diff scat cross section function in pymie
-    # only calculates near fields if the user sets near_fields=True, we don't
-    # need to pass k=None. We can just pass k in any case. 
+    
+    # Note that we ignore near fields throughout structcol since we assume 
+    # that the scattering length is larger than the distance at which near
+    # fields are significant (~order of the wavelength of light). In the 
+    # future, we might want to include near field effects. In that case, we 
+    # need to make sure to pass near_fields = True in 
+    # mie.diff_scat_intensity_complex_medium(). The default is False. 
     diff_cscat_par, diff_cscat_perp = \
          model.differential_cross_section(m, x, angles, volume_fraction,
                                              structure_type=structure_type,
@@ -956,17 +1017,21 @@ def phase_function(m, x, angles, volume_fraction, k, number_density,
         thetas_1d = angles[:,0] 
         phis_1d = phis[0,:]
         cscat_total = mie.integrate_intensity_complex_medium(diff_cscat_par,
-                                                    diff_cscat_perp,
-                                                    distance,
-                                                    thetas_1d, k,
-                                                    coordinate_system='cartesian',
-                                                    phis=phis_1d)[0]
+                                                             diff_cscat_perp,
+                                                             distance,
+                                                             thetas_1d, k,
+                                                             coordinate_system='cartesian',
+                                                             phis=phis_1d)[0]
     
     # If absorption, integrate the differential cross section using integration
     # functions in mie.py that use absorption
     elif np.abs(k.imag.magnitude)> 0.:
         # TODO implement cartesian for polydisperse
         if form_type=='polydisperse' and len(concentration)>1:
+            # When the system is binary and absorbing, we integrate the 
+            # polydisperse differential cross section at the surface of each
+            # component (meaning at a distance of each mean radius). Then we
+            # do a number average the total cross sections. 
             cscat_total1, cscat_total_par1, cscat_total_perp1, _, _ = \
                 mie.integrate_intensity_complex_medium(diff_cscat_par, 
                                                        diff_cscat_perp, 
@@ -979,9 +1044,9 @@ def phase_function(m, x, angles, volume_fraction, k, number_density,
         
         else: 
             cscat_total = mie.integrate_intensity_complex_medium(diff_cscat_par, 
-                                            diff_cscat_perp, 
-                                            distance,
-                                            angles,k)[0]     
+                                                                 diff_cscat_perp, 
+                                                                 distance,
+                                                                 angles,k)[0]     
     
     # if there is no absorption in the system, Integrate with function in model
     else:
@@ -1031,7 +1096,7 @@ def sample_angles(nevents, ntraj, p, min_angle=0.01):
     # model, if the analytic formula is used, S(q=0) returns nan.
     thetas = sc.Quantity(np.linspace(min_angle, np.pi, num_theta), 'rad') 
     
-    if len(p.shape)==1:# if p depends on theta and phi
+    if len(p.shape)==1:# if p depends on theta 
  
         # Random sampling of azimuthal angle phi from uniform distribution [0 -
         # 2pi]
@@ -1139,7 +1204,7 @@ def sample_step(nevents, ntraj, mu_scat, fine_roughness=0.):
 def coarse_roughness_enter(k0, n_medium, n_sample,
                            coarse_roughness, boundary):
     '''
-    Calcualtes new initial directions based on the coarse roughness of the sample
+    Calculates new initial directions based on the coarse roughness of the sample.
     
     Parameters
     ----------
@@ -1290,7 +1355,14 @@ def P_theta_a(theta_a, r):
     term2 = np.exp(-(np.tan(theta_a))**2 / (2*r**2))
 
     return term1 * term2
+    
 #------------------------------------------------------------------------------
+# NOTE: The functions below are not currently used in structcol. They are 
+# an alternative implementation of surface roughness (Bram van Ginneken, Marigo 
+# Stavridi, and Jan J. Koenderink, Applied Optics Vol. 37, No. 1, 1998). We 
+# leave them as reference in case we decide to modify the surface roughness 
+# implementation in the future. 
+
 # Ginneken's surface roughness
 def Lambda(r, theta_i):
     term1 = r / (np.sqrt(2*np.pi) / np.tan(np.abs(theta_i))) * np.exp(-(1/np.tan(theta_i))**2/(2*r**2))
