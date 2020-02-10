@@ -25,6 +25,7 @@ import structcol as sc
 from .. import montecarlo as mc
 from .. import detector as det
 from .. import refractive_index as ri
+from .. import index_ratio, size_parameter,model
 import numpy as np
 from numpy.testing import assert_equal, assert_almost_equal
 import pytest
@@ -61,7 +62,7 @@ def test_calc_refl_trans():
     small_n = 1
     large_n = 2
 
-    # test absoprtion and stuck without fresnel
+    # test absorption and stuck without fresnel
     z_pos = np.array([[0,0,0,0],[1,1,1,1],[-1,11,2,11],[-2,12,4,12]])
     ntrajectories = z_pos.shape[1]
     kz = np.array([[1,1,1,1],[-1,1,1,1],[-1,1,1,1]])
@@ -220,10 +221,10 @@ def test_reflection_core_shell():
     T_abs_before = 0.009944245822685388#A:0.0053095057615145302 #A/V:0.017215194324142709
     T_cs_abs_before = 0.009944245822595715#A:0.0053095057614589471 #A/V:0.017215194324029608
 
-    assert_almost_equal(R_abs_before, R_abs, decimal=3)
-    assert_almost_equal(R_cs_abs_before, R_cs_abs, decimal=3)
-    assert_almost_equal(T_abs_before, T_abs, decimal=3)
-    assert_almost_equal(T_cs_abs_before, T_cs_abs, decimal=3)
+    assert_almost_equal(R_abs_before, R_abs, decimal=15)
+    assert_almost_equal(R_cs_abs_before, R_cs_abs, decimal=15)
+    assert_almost_equal(T_abs_before, T_abs, decimal=15)
+    assert_almost_equal(T_cs_abs_before, T_cs_abs, decimal=15)
     
     # Same as previous test but with absorbing matrix as well
     # Reflection using a non-core-shell absorbing system
@@ -251,10 +252,10 @@ def test_reflection_core_shell():
     T_abs_before = 0.0006391960305096798#A:0.0002140495990985143 #A/V:0.002180700021951509
     T_cs_abs_before = 0.0006391960305096798#A:0.0002140495990985143 #A/V:0.002180700021951509
 
-    assert_almost_equal(R_abs_before, R_abs, decimal=3)
-    assert_almost_equal(R_cs_abs_before, R_cs_abs, decimal=3)
-    assert_almost_equal(T_abs_before, T_abs, decimal=4)
-    assert_almost_equal(T_cs_abs_before, T_cs_abs, decimal=4)
+    assert_almost_equal(R_abs_before, R_abs, decimal=15)
+    assert_almost_equal(R_cs_abs_before, R_cs_abs, decimal=15)
+    assert_almost_equal(T_abs_before, T_abs, decimal=15)
+    assert_almost_equal(T_cs_abs_before, T_cs_abs, decimal=15)
     
     
 def test_reflection_absorbing_particle_or_matrix():
@@ -382,9 +383,9 @@ def test_reflection_polydispersity():
     T_mono_abs_before = 0.09473841417422774 #A:0.080731949531112429 #A/V:0.083823525277616467
     T_poly_abs_before = 0.09456832138047852 #A:0.080574244683425236 #A/V:0.083720861809212316
     
-    assert_almost_equal(R_mono_abs_before, R_mono_abs, decimal=4)
+    assert_almost_equal(R_mono_abs_before, R_mono_abs, decimal=15)
     assert_almost_equal(R_poly_abs_before, R_poly_abs, decimal=3)
-    assert_almost_equal(T_mono_abs_before, T_mono_abs, decimal=4)
+    assert_almost_equal(T_mono_abs_before, T_mono_abs, decimal=15)
     assert_almost_equal(T_poly_abs_before, T_poly_abs, decimal=3)
     
     # test that the reflectance is the same for a polydisperse monospecies
@@ -439,7 +440,49 @@ def test_reflection_polydispersity():
                                    
     assert_equal(R_mono, R3)
     assert_equal(T_mono, T3)
+
+    # test that the reflection is essentially the same when the imaginary
+    # index is 0 or very close to 0 in a polydisperse system
+    ## When there's only 1 mean diameter
+    radius1 = sc.Quantity('100 nm')
+    radius2 = sc.Quantity('150 nm')
+    n_matrix_abs = sc.Quantity(1. + 1e-20j, '')
+    n_sample_abs = ri.n_eff(n_particle, n_matrix_abs, volume_fraction)
+    pdi4 = sc.Quantity(np.array([0.2, 0.2]), '')
+    concentration2 = sc.Quantity(np.array([0.1,0.9]), '')
     
+    R_noabs1, T_noabs1 = calc_montecarlo(nevents, ntrajectories, radius1, 
+                                   n_particle, n_sample_abs.real, n_medium, 
+                                   volume_fraction, wavelen, seed, 
+                                   radius2 = radius1, 
+                                   concentration = concentration2, 
+                                   pdi = pdi4, polydisperse=True)
+                                   
+    R_abs1, T_abs1 = calc_montecarlo(nevents, ntrajectories, radius1, 
+                                   n_particle, n_sample_abs, n_medium, 
+                                   volume_fraction, wavelen, seed, 
+                                   radius2 = radius1, 
+                                   concentration = concentration2, 
+                                   pdi = pdi4, polydisperse=True)
+    assert_almost_equal(R_noabs1, R_abs1, decimal=14)
+    assert_almost_equal(T_noabs1, T_abs1, decimal=14)
+
+    # When there are 2 mean diameters    
+    R_noabs2, T_noabs2 = calc_montecarlo(nevents, ntrajectories, radius1, 
+                                   n_particle, n_sample_abs.real, n_medium, 
+                                   volume_fraction, wavelen, seed, 
+                                   radius2 = radius2, 
+                                   concentration = concentration2, 
+                                   pdi = pdi4, polydisperse=True)
+                                   
+    R_abs2, T_abs2 = calc_montecarlo(nevents, ntrajectories, radius1, 
+                                   n_particle, n_sample_abs, n_medium, 
+                                   volume_fraction, wavelen, seed, 
+                                   radius2 = radius2, 
+                                   concentration = concentration2, 
+                                   pdi = pdi4, polydisperse=True)
+    assert_almost_equal(R_noabs2, R_abs2, decimal=14)
+    assert_almost_equal(T_noabs2, T_abs2, decimal=14)       
 
 def test_throw_valueerror_for_polydisperse_core_shells(): 
 # test that a valueerror is raised when trying to run polydisperse core-shells                 
@@ -507,7 +550,8 @@ def test_surface_roughness():
     # Reflection with very little fine surface roughness
     R_fine, T_fine = calc_montecarlo(nevents, ntrajectories, radius, n_particle, 
                                      n_sample, n_medium, volume_fraction, 
-                                     wavelen, seed, fine_roughness = 1e-4)
+                                     wavelen, seed, fine_roughness = 1e-4, 
+                                     n_matrix=n_matrix)
                                      
     # Reflection with very little coarse surface roughness
     R_coarse, T_coarse = calc_montecarlo(nevents, ntrajectories, radius, 
@@ -519,7 +563,7 @@ def test_surface_roughness():
     R_both, T_both = calc_montecarlo(nevents, ntrajectories, radius, n_particle, 
                                      n_sample, n_medium, volume_fraction, 
                                      wavelen, seed, fine_roughness=1e-4, 
-                                     coarse_roughness = 1e-5)
+                                     coarse_roughness = 1e-5, n_matrix=n_matrix)
                                      
     assert_almost_equal(R, R_fine, decimal=20)                                    
     assert_almost_equal(T, T_fine, decimal=20)  
@@ -528,11 +572,115 @@ def test_surface_roughness():
     assert_almost_equal(R, R_both, decimal=20)                                    
     assert_almost_equal(T, T_both, decimal=16) 
     
-                             
+def test_phase_function_absorbing_medium():
+    # test that the phase function using the far-field Mie solutions 
+    # (mie.calc_ang_dist()) in an absorbing medium is the same as the phase 
+    # function using the Mie solutions with the asymptotic form of the spherical 
+    # Hankel functions but using a complex k (mie.diff_scat_intensity_complex_medium()
+    # with near_fields=False)
+    wavelen = sc.Quantity('550 nm')
+    radius = sc.Quantity('105 nm')
+    n_matrix = sc.Quantity(1.47 + 0.001j, '')
+    n_particle = sc.Quantity(1.5 + 1e-1 * 1.0j, '')
+    m = index_ratio(n_particle, n_matrix)
+    x = size_parameter(wavelen, n_matrix, radius)
+    k = 2 * np.pi * n_matrix / wavelen     
+    ksquared = np.abs(k)**2  
+
+    ## Integrating at the surface of the particle
+    # with mie.calc_ang_dist() (this is how it's currently implemented in 
+    # monte carlo)
+    diff_cscat_par_ff, diff_cscat_perp_ff = \
+        model.differential_cross_section(m, x, angles, volume_fraction,
+                                         structure_type='glass',
+                                         form_type='sphere',
+                                         diameters=radius, wavelen=wavelen, 
+                                         n_matrix=n_sample, k=None, distance=radius)
+    cscat_total_par_ff = model._integrate_cross_section(diff_cscat_par_ff,
+                                                      1.0/ksquared, angles)
+    cscat_total_perp_ff = model._integrate_cross_section(diff_cscat_perp_ff,
+                                                      1.0/ksquared, angles)
+    cscat_total_ff = (cscat_total_par_ff + cscat_total_perp_ff)/2.0                                     
+        
+    p_ff = (diff_cscat_par_ff + diff_cscat_perp_ff)/(ksquared * 2 * cscat_total_ff)
+    p_par_ff = diff_cscat_par_ff/(ksquared * 2 * cscat_total_par_ff)
+    p_perp_ff = diff_cscat_perp_ff/(ksquared * 2 * cscat_total_perp_ff)
+                      
+    # with mie.diff_scat_intensity_complex_medium()
+    diff_cscat_par, diff_cscat_perp = \
+        model.differential_cross_section(m, x, angles, volume_fraction,
+                                         structure_type='glass',
+                                         form_type='sphere',
+                                         diameters=radius, wavelen=wavelen, 
+                                         n_matrix=n_sample, k=k, distance=radius)
+    cscat_total_par = model._integrate_cross_section(diff_cscat_par,
+                                                      1.0/ksquared, angles)
+    cscat_total_perp = model._integrate_cross_section(diff_cscat_perp,
+                                                      1.0/ksquared, angles)
+    cscat_total = (cscat_total_par + cscat_total_perp)/2.0                                     
+        
+    p = (diff_cscat_par + diff_cscat_perp)/(ksquared * 2 * cscat_total)
+    p_par = diff_cscat_par/(ksquared * 2 * cscat_total_par)
+    p_perp = diff_cscat_perp/(ksquared * 2 * cscat_total_perp)
+     
+    # test random values of the phase functions
+    assert_almost_equal(p_ff[3], p[3], decimal=15)    
+    assert_almost_equal(p_par_ff[50], p_par[50], decimal=15)    
+    assert_almost_equal(p_perp[83], p_perp_ff[83], decimal=15)   
+    
+    ### Same thing but with a binary and polydisperse mixture
+    ## Integrating at the surface of the particle
+    # with mie.calc_ang_dist() (this is how it's currently implemented in 
+    # monte carlo)
+    radius2 = sc.Quantity('150 nm')
+    concentration = sc.Quantity(np.array([0.2, 0.7]), '')
+    pdi = sc.Quantity(np.array([0.1, 0.1]), '')
+    diameters = sc.Quantity(np.array([radius.magnitude, radius2.magnitude])*2, radius.units)
+    
+    diff_cscat_par_ff, diff_cscat_perp_ff = \
+        model.differential_cross_section(m, x, angles, volume_fraction,
+                                         structure_type='polydisperse',
+                                         form_type='polydisperse',
+                                         diameters=diameters, pdi=pdi, 
+                                         concentration=concentration, wavelen=wavelen, 
+                                         n_matrix=n_sample, k=None, distance=diameters/2)
+    cscat_total_par_ff = model._integrate_cross_section(diff_cscat_par_ff,
+                                                      1.0/ksquared, angles)
+    cscat_total_perp_ff = model._integrate_cross_section(diff_cscat_perp_ff,
+                                                      1.0/ksquared, angles)
+    cscat_total_ff = (cscat_total_par_ff + cscat_total_perp_ff)/2.0                                     
+        
+    p_ff2 = (diff_cscat_par_ff + diff_cscat_perp_ff)/(ksquared * 2 * cscat_total_ff)
+    p_par_ff2 = diff_cscat_par_ff/(ksquared * 2 * cscat_total_par_ff)
+    p_perp_ff2 = diff_cscat_perp_ff/(ksquared * 2 * cscat_total_perp_ff)
+                      
+    # with mie.diff_scat_intensity_complex_medium()
+    diff_cscat_par, diff_cscat_perp = \
+        model.differential_cross_section(m, x, angles, volume_fraction,
+                                         structure_type='polydisperse',
+                                         form_type='polydisperse',
+                                         diameters=diameters, pdi=pdi, 
+                                         concentration=concentration, wavelen=wavelen, 
+                                         n_matrix=n_sample, k=k, distance=diameters/2)
+    cscat_total_par = model._integrate_cross_section(diff_cscat_par,
+                                                      1.0/ksquared, angles)
+    cscat_total_perp = model._integrate_cross_section(diff_cscat_perp,
+                                                      1.0/ksquared, angles)
+    cscat_total = (cscat_total_par + cscat_total_perp)/2.0                                     
+        
+    p2 = (diff_cscat_par + diff_cscat_perp)/(ksquared * 2 * cscat_total)
+    p_par2 = diff_cscat_par/(ksquared * 2 * cscat_total_par)
+    p_perp2 = diff_cscat_perp/(ksquared * 2 * cscat_total_perp)
+     
+    # test random values of the phase functions
+    assert_almost_equal(p_ff2[3], p2[3], decimal=15)    
+    assert_almost_equal(p_par_ff2[50], p_par2[50], decimal=15)    
+    assert_almost_equal(p_perp2[83], p_perp_ff2[83], decimal=15)   
+                           
 def calc_montecarlo(nevents, ntrajectories, radius, n_particle, n_sample, 
                     n_medium, volume_fraction, wavelen, seed, radius2=None, 
                     concentration=None, pdi=None, polydisperse=False, 
-                    fine_roughness=0., coarse_roughness=0., 
+                    fine_roughness=0., coarse_roughness=0., n_matrix=None,
                     incidence_theta_min=0., incidence_theta_max=0.):
                         
     # Function to run montecarlo for the tests
@@ -540,8 +688,7 @@ def calc_montecarlo(nevents, ntrajectories, radius, n_particle, n_sample,
                                       volume_fraction, wavelen, radius2=radius2, 
                                       concentration=concentration, pdi=pdi, 
                                       polydisperse=polydisperse,
-                                      fine_roughness=fine_roughness)
-
+                                      fine_roughness=fine_roughness, n_matrix=n_matrix)
     if coarse_roughness > 0.:
         r0, k0, W0, kz0_rotated, kz0_reflected = mc.initialize(nevents, 
                                                                ntrajectories, 
