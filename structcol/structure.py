@@ -1,4 +1,5 @@
-# Copyright 2016, Sofia Makgiriadou, Vinothan N. Manoharan, Victoria Hwang
+# Copyright 2016, Sofia Makgiriadou, Vinothan N. Manoharan, Victoria Hwang, 
+# Annie Stephenson
 #
 # This file is part of the structural-color python package.
 #
@@ -21,6 +22,7 @@ structure factors
 .. moduleauthor :: Sofia Magkiriadou <sofia@physics.harvard.edu>
 .. moduleauthor :: Vinothan N. Manoharan <vnm@seas.harvard.edu>
 .. moduleauthor :: Victoria Hwang <vhwang@g.harvard.edu>
+.. moduleauthor :: Annie Stephenson <stephenson@g.harvard.edu>
 """
 
 import numpy as np

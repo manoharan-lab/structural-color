@@ -1,4 +1,4 @@
-# Copyright 2016, Vinothan N. Manoharan, Victoria Hwang
+# Copyright 2016, Vinothan N. Manoharan, Annie Stephenson
 #
 # This file is part of the structural-color python package.
 #
@@ -18,7 +18,6 @@
 Tests for the montecarlo bulk model
 
 .. moduleauthor:: Anna B. Stephenson <stephenson@g.harvard.edu>
-.. moduleauthor:: Victoria Hwang <vhwang@g.harvard.edu>
 .. moduleauthor:: Vinothan N. Manoharan <vnm@seas.harvard.edu>
 """
 
