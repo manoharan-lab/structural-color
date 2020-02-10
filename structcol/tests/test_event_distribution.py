@@ -1,4 +1,4 @@
-# Copyright 2016, Vinothan N. Manoharan, Victoria Hwang, Annie Stephenson
+# Copyright 2016, Vinothan N. Manoharan, Annie Stephenson
 #
 # This file is part of the structural-color python package.
 #
@@ -17,7 +17,7 @@
 """
 Tests for the montecarlo model (in structcol/montecarlo.py)
 
-.. moduleauthor:: Victoria Hwang <vhwang@g.harvard.edu>
+.. moduleauthor:: Annie Stephenson <stephenson@g.harvard.edu>
 .. moduleauthor:: Vinothan N. Manoharan <vnm@seas.harvard.edu>
 """
 
