@@ -859,8 +859,7 @@ def calc_outcome_weights(inc_fraction, refl_indices, trans_indices, stuck_indice
 
       
 def fresnel_correct_enter(n_medium, n_front, n_sample, boundary, thickness,
-                          trajectories, fresnel_traj, kz0_rot, fine_roughness, 
-                          n_matrix):
+                          trajectories, fresnel_traj, kz0_rot):
     '''
     Corrects weights for fresnel reflection when light enters the sample,
     taking into account the refractive index of the medium, a material in 
@@ -895,15 +894,6 @@ def fresnel_correct_enter(n_medium, n_front, n_sample, boundary, thickness,
         z-directions of the Fresnel reflected light after it hits the sample
         surface for the first time. These directions are in the global 
         coordinate system. The array size is (1, ntraj). 
-    fine_roughness : float (structcol.Quantity [dimensionless])
-        Fraction of the sample area that has fine roughness. Should be between 
-        0 and 1. For ex, a value of 0.3 means that 30% of incident light will 
-        hit fine surface roughness (e.g. will "see" a Mie scatterer first). The 
-        rest of the light will see a smooth surface, which could be flat or 
-        have coarse roughness (long in the lengthscale of light).  
-    n_matrix : None or float ((structcol.Quantity [dimensionless] or 
-        structcol.refractive_index object))
-        Refractive index of the matrix. It is required if fine_roughness is > 0.
     
     Returns
     -------
@@ -937,37 +927,7 @@ def fresnel_correct_enter(n_medium, n_front, n_sample, boundary, thickness,
         
     # calculate initial weights that actually enter the sample after fresnel
     if fresnel_traj == False:  
-        # if there is fine roughness
-        if fine_roughness > 0.:
-            # when the first step is from Mie, we assume light travels through 
-            # the matrix first before it sees the particle. But user can set 
-            # n_matrix to be n_medium if they think that light will see the 
-            # particle directly. 
-            ntraj_mie = int(round(ntraj * fine_roughness))
-            inc_pass_frac = np.empty(ntraj)
-            trajectories_mie = mc.Trajectory(trajectories.position[:,:,0:ntraj_mie],
-                                             trajectories.direction[:,:,0:ntraj_mie],
-                                             trajectories.weight[:,0:ntraj_mie])
-            trajectories_no_mie = mc.Trajectory(trajectories.position[:,:,ntraj_mie:],
-                                             trajectories.direction[:,:,ntraj_mie:],
-                                             trajectories.weight[:,ntraj_mie:])
-            inc_pass_frac[0:ntraj_mie], _ = fresnel_pass_frac(np.ones(ntraj_mie), 
-                                                             n_medium, 
-                                                             n_front, n_matrix, 
-                                                             boundary, 
-                                                             trajectories_mie, 
-                                                             thickness,
-                                                             init_dir = init_dir[0:ntraj_mie])
-            inc_pass_frac[ntraj_mie:], _ = fresnel_pass_frac(np.ones(ntraj-ntraj_mie), 
-                                                            n_medium, 
-                                                            n_front, n_sample,
-                                                            boundary,
-                                                            trajectories_no_mie,
-                                                            thickness,
-                                                            init_dir = init_dir[ntraj_mie:])
-        # if there is no fine roughness
-        else:
-            inc_pass_frac, _ = fresnel_pass_frac(indices, n_medium, n_front, 
+        inc_pass_frac, _ = fresnel_pass_frac(indices, n_medium, n_front, 
                                              n_sample, boundary, trajectories, 
                                              thickness, init_dir = init_dir)
 
@@ -1573,8 +1533,7 @@ def calc_refl_trans(trajectories, thickness, n_medium, n_sample, boundary,
                     call_depth = 0, max_call_depth = 20, max_stuck = 0.01, 
                     plot_exits = False, mu_scat = None, mu_abs = None,
                     detector=False, det_theta=None, det_len=None, det_dist=None,
-                    plot_detector=False, kz0_rot=None ,kz0_refl=None, 
-                    fine_roughness=0., n_matrix=None):
+                    plot_detector=False, kz0_rot=None ,kz0_refl=None):
     """
     Calculates the weight fraction of reflected and transmitted trajectories
     (reflectance and transmittance).Identifies which trajectories are reflected
@@ -1672,15 +1631,6 @@ def calc_refl_trans(trajectories, thickness, n_medium, n_sample, boundary,
         z-directions of the Fresnel reflected light after it hits the sample
         surface for the first time. These directions are in the global 
         coordinate system. The array size is (1, ntraj). 
-    fine_roughness : float (structcol.Quantity [dimensionless])
-        Fraction of the sample area that has fine roughness. Should be between 
-        0 and 1. For ex, a value of 0.3 means that 30% of incident light will 
-        hit fine surface roughness (e.g. will "see" a Mie scatterer first). The 
-        rest of the light will see a smooth surface, which could be flat or 
-        have coarse roughness (long in the lengthscale of light).  
-    n_matrix : None or float ((structcol.Quantity [dimensionless] or 
-        structcol.refractive_index object))
-        Refractive index of the matrix. It is required if fine_roughness is > 0.
     
     Returns
     -------
@@ -1712,10 +1662,6 @@ def calc_refl_trans(trajectories, thickness, n_medium, n_sample, boundary,
     
     """
     # make sure roughness-related values make sense
-    if fine_roughness > 1. or fine_roughness < 0.:
-        raise ValueError('fine roughness fraction must be between 0 and 1')
-    if fine_roughness > 0. and n_matrix is None:
-        raise ValueError('when there is fine roughness (meaning the first step is from Mie theory), must specify n_matrix')
     if (kz0_rot is None and kz0_refl is not None) or (kz0_rot is not None and kz0_refl is  None):
         raise ValueError('when including coarse surface roughness, must specify both kz0_rot and kz0_refl')
     
@@ -1724,11 +1670,6 @@ def calc_refl_trans(trajectories, thickness, n_medium, n_sample, boundary,
     (n_sample,trajectories, z_low, thickness) = set_up_values(n_sample,
                                                               trajectories, 
                                                               z_low, thickness)
-    # check whether fine roughness is large enough to count
-    if int(round(ntraj*fine_roughness))==0:
-        # if fine roughness is so small that not even one trajectory 'sees'
-        # the roughness, count it as zero
-        fine_roughness=0
     
     # construct booleans for positive and negative exits
     exits_pos_dir, exits_neg_dir, tir_refl_bool = find_valid_exits(n_sample, 
@@ -1754,8 +1695,7 @@ def calc_refl_trans(trajectories, thickness, n_medium, n_sample, boundary,
     init_dir, inc_pass_frac = fresnel_correct_enter(n_medium, n_front, n_sample, 
                                                     boundary, thickness,
                                                     trajectories, fresnel_traj,
-                                                    kz0_rot, fine_roughness, 
-                                                    n_matrix)      
+                                                    kz0_rot)      
 
     # calculate outcome weights of trajectories
     (refl_weights, 
