@@ -13,7 +13,7 @@ from scipy.stats import gaussian_kde
 from scipy.spatial.distance import cdist 
 import structcol as sc
 from . import montecarlo as mc
-from scipy.misc import factorial
+from scipy.special import factorial
 
 def get_exit_pos(norm_refl, norm_trans, radius):
     '''

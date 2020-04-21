@@ -38,7 +38,7 @@ import pymie as pm
 from pymie import mie, size_parameter, index_ratio
 from pymie import multilayer_sphere_lib as msl
 import scipy
-from scipy.misc import factorial
+from scipy.special import factorial
 
 @ureg.check('[]', '[]', '[]', '[length]', '[length]', '[]')
 def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
