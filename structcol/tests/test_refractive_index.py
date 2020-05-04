@@ -24,7 +24,7 @@ Tests for the refractive_index module of structcol
 from .. import refractive_index as ri
 from .. import Quantity
 from nose.tools import assert_raises, assert_equal
-from numpy.testing import assert_almost_equal, assert_array_almost_equal
+from numpy.testing import assert_almost_equal, assert_array_almost_equal, assert_warns
 from pint.errors import DimensionalityError
 import numpy as np
 
@@ -144,3 +144,44 @@ def test_neff():
     neff_bg3_cs = ri.n_eff(n_particle2, n_matrix, vf3_cs, maxwell_garnett=False)
     
     assert_almost_equal(neff_bg3, neff_bg3_cs)
+    
+    # repeat the tests using complex indices    
+    n_particle_complex = Quantity(2.7+0.001j, '')
+    n_matrix_complex = Quantity(2.2+0.001j, '')
+    
+    neff_mg_complex = ri.n_eff(n_particle_complex, n_matrix_complex, vf, maxwell_garnett=True)
+    neff_bg_complex = ri.n_eff(n_particle_complex, n_matrix_complex, vf, maxwell_garnett=False)
+
+    assert_almost_equal(neff_mg_complex, neff_bg_complex)
+    
+    # test that the non-core-shell particle with Maxwell-Garnett matches with 
+    # the core-shell of shell index of air with Bruggeman at low volume fractions
+    n_particle2_complex = Quantity(np.array([2.7+0.001j, 2.2+0.001j]), '')
+    neff_bg2_complex = ri.n_eff(n_particle2_complex, n_matrix_complex, vf2, maxwell_garnett=False)
+    
+    assert_almost_equal(neff_mg_complex, neff_bg2_complex)
+    assert_almost_equal(neff_bg_complex, neff_bg2_complex)
+    
+    # test that the effective indices for a non-core-shell and a core-shell of
+    # shell index of air match using Bruggeman at intermediate volume fractions
+    neff_bg3_complex = ri.n_eff(n_particle_complex, n_matrix_complex, vf3, maxwell_garnett=False)
+    
+    neff_bg3_cs_complex = ri.n_eff(n_particle2_complex, n_matrix_complex, vf3_cs, maxwell_garnett=False)
+    
+    assert_almost_equal(neff_bg3_complex, neff_bg3_cs_complex)
+    
+def test_data():
+    # Test that we can input data for refractive index
+    wavelength = Quantity(np.array([400,500,600]), 'nm')
+    data = np.array([1.5,1.55,1.6])
+    assert_equal(ri.n('data', wavelength, index=data).all(), data.all())
+    
+    # Test that it also works for complex values
+    data_complex = np.array([1.5+0.01j,1.55+0.02j,1.6+0.03j])
+    assert_equal(ri.n('data', wavelength, index=data_complex).all(), data_complex.all())
+    
+    # Test that keyerror is raised when no index is specified for 'data'
+    assert_raises(KeyError, ri.n, 'data', Quantity('0.5 um'), index=None)
+
+    # Test warning message when user specifies index for a material other than 'data'
+    assert_warns(Warning, ri.n, 'water', Quantity('0.5 um'), index=data)
