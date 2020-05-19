@@ -55,7 +55,9 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
                small_angle=Quantity('1 deg'),
                structure_type='glass',
                form_type='sphere',
-               maxwell_garnett=False):
+               maxwell_garnett=False,
+               structure_s_data=None,
+               structure_qd_data=None):
                    
     """
     Calculate fraction of light reflected from an amorphous colloidal
@@ -139,11 +141,12 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
         reasonable for all calculations.
     structure_type: string, dictionary, or None (optional)
         Can be string specifying structure type. Current options are "glass",
-        "paracrystal", or "polydisperse". Can also be dictionary specifying 
+        "paracrystal", "polydisperse", "data", or None. Can also be dictionary specifying 
         structure type and parameters for structures that require them. Expects 
         keys of 'name': 'paracrystal', and 'sigma': int or float. Can also set 
         to None in order to only visualize effect of form factor on reflectance 
-        spectrum.
+        spectrum. If set to 'data', you must also provide structure_s_data 
+        and structure_qd_data.
     form_type: string or None (optional)
         String specifying form factor type. Currently, 'sphere' or 
         'polydisperse' are the options. Can also set to None in order to only 
@@ -153,6 +156,12 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
         sample. In that case, the user must specify one refractive index for 
         the particle and one for the matrix. If false, the model uses 
         Bruggeman's formula, which can be used for multilayer particles. 
+    structure_s_data: None or 1d array
+        if structure_type is 'data', the structure factor data must be provided
+        here in the form of a one dimensional array 
+    structure_qd_data: None of 1d array
+        if structure_type is 'data', the qd data must be provided here in the 
+        form of a one dimensional array 
         
     Returns
     -------
@@ -302,14 +311,18 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
                                                   diameters=mean_diameters,
                                                   concentration=concentration,
                                                   pdi=pdi, wavelen=wavelen, 
-                                                  n_matrix=n_sample, k=k, distance=distance)
+                                                  n_matrix=n_sample, k=k, distance=distance,
+                                                  structure_s_data=structure_s_data,
+                                                  structure_qd_data=structure_qd_data)
     diff_cs_total = differential_cross_section(m, x, angles_tot, volume_fraction,
                                                structure_type=structure_type, 
                                                form_type=form_type,
                                                diameters=mean_diameters,
                                                concentration=concentration,
                                                pdi=pdi, wavelen=wavelen, 
-                                               n_matrix=n_sample, k=k, distance=distance) 
+                                               n_matrix=n_sample, k=k, distance=distance,
+                                               structure_s_data=structure_s_data,
+                                               structure_qd_data=structure_qd_data) 
     
     # integrate the differential cross sections to get the total cross section    
     if np.abs(n_sample.imag.magnitude) > 0.: 
@@ -479,7 +492,8 @@ def differential_cross_section(m, x, angles, volume_fraction,
         fraction of the entire core-shell particle.
     structure_type: str or None
         type of structure to calculate the structure factor. Can be 'glass', 
-        'paracrystal', 'polydisperse', or None. 
+        'paracrystal', 'polydisperse', 'data', or None. If structure_type=='data',
+        you must also provide structure_s_data and structure_qd_data.
     form_type: str or None
         type of particle geometry to calculate the form factor. Can be 'sphere'
         or None.
@@ -536,7 +550,7 @@ def differential_cross_section(m, x, angles, volume_fraction,
     structure_s_data: None or 1d array
         if structure_type is 'data', the structure factor data must be provided
         here in the form of a one dimensional array 
-    structure_qd_array: None of 1d array
+    structure_qd_data: None or 1d array
         if structure_type is 'data', the qd data must be provided here in the 
         form of a one dimensional array 
     
