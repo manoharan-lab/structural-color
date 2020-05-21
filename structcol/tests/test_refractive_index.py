@@ -173,15 +173,15 @@ def test_neff():
 def test_data():
     # Test that we can input data for refractive index
     wavelength = Quantity(np.array([400,500,600]), 'nm')
-    data = np.array([1.5,1.55,1.6])
-    assert_equal(ri.n('data', wavelength, index=data).all(), data.all())
+    data = Quantity(np.array([1.5,1.55,1.6]), '')
+    assert_equal(ri.n('data', wavelength, index_data=data, wavelength_data=wavelength).magnitude.all(), data.all())
     
     # Test that it also works for complex values
     data_complex = np.array([1.5+0.01j,1.55+0.02j,1.6+0.03j])
-    assert_equal(ri.n('data', wavelength, index=data_complex).all(), data_complex.all())
+    assert_equal(ri.n('data', wavelength, index_data=data, wavelength_data=wavelength).all(), data_complex.all())
     
     # Test that keyerror is raised when no index is specified for 'data'
-    assert_raises(KeyError, ri.n, 'data', Quantity('0.5 um'), index=None)
+    assert_raises(KeyError, ri.n, 'data', Quantity('0.5 um'), index_data=None)
 
     # Test warning message when user specifies index for a material other than 'data'
-    assert_warns(Warning, ri.n, 'water', Quantity('0.5 um'), index=data)
+    assert_warns(Warning, ri.n, 'water', Quantity('0.5 um'), index_data=data)
