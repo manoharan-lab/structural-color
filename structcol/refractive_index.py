@@ -42,6 +42,7 @@ http://refractiveindex.info (accessed August 14, 2016).
 import numpy as np
 from . import ureg, Quantity  # unit registry and Quantity constructor from pint
 from scipy.optimize import fsolve
+from scipy.interpolate import interp1d
 import warnings
 
 # dictionary of refractive index dispersion formulas. This is used by the 'n'
@@ -152,17 +153,31 @@ n_dict = {
 }
 
 @ureg.check(None, '[length]')   # ensures wavelen has units of length
-def n(material, wavelen, index=None):
+def n(material, wavelen, index_data=None, wavelength_data=None, kind='linear'):
     """
     Refractive index of various materials.
 
     Parameters
     ----------
     material: string
-        material type; if not found in dictionary, assumes vacuum
-    w : structcol.Quantity [length]
+        Material type; if not found in dictionary, assumes vacuum
+    w: structcol.Quantity [length]
         Wavelength in vacuum.
-
+    index_data: array (optional)
+        Refractive index data from literature or experiment that the user can 
+        input if desired. The data is interpolated, so that the user can call 
+        specific values of the index. The index data can be real or complex. 
+    wavelength_data: Quantity array (optional)
+        Wavelength data corresponding to index_data. Must be specified as pint
+        Quantity. 
+    kind: string (optional)
+        Type of interpolation. The options are: ‘linear’, ‘nearest’, ‘zero’, 
+        ‘slinear’, ‘quadratic’, ‘cubic’, ‘previous’, ‘next',  
+        where ‘zero’, ‘slinear’, ‘quadratic’ and ‘cubic’ refer to a spline 
+        interpolation of zeroth, first, second or third order; ‘previous’ and 
+        ‘next’ simply return the previous or next value of the point.
+        The default is 'linear'. 
+    
     Returns
     -------
     structcol.Quantity (dimensionless)
@@ -172,13 +187,16 @@ def n(material, wavelen, index=None):
     http://refractiveindex.info (accessed August 14, 2016).
     """
     if material == 'data':
-        if index is None:
-            raise KeyError("'data' material requires input of index values.")
-        return index
-    
+        if index_data is None or wavelength_data is None:
+            raise KeyError("'data' material requires input of index and corresponding wavelength data.")
+                            
+        fit = interp1d(wavelength_data, index_data, kind=kind) 
+        wavelen = np.round(wavelen.to(wavelength_data.units), 2)
+        return Quantity(fit(wavelen), '')
+        
     else:
-        if index is not None:
-            warnings.warn("No need to specify the index values. No material except for 'data' uses the index values.")
+        if index_data is not None or wavelength_data is not None:
+            warnings.warn("No need to specify the index or wavelength data. No material except for 'data' requires input of data.")
         try:
             return n_dict[material](wavelen)
         except KeyError:
