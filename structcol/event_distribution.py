@@ -64,6 +64,34 @@ def calc_refl_trans_event(refl_per_traj, inc_refl_per_traj, trans_per_traj,
         trans_events[ev] += np.sum(trans_per_traj[traj_ind_trans_ev])
     return refl_events, trans_events
     
+def calc_path_length(step, exit_indices):
+    '''
+    Returns reflectance and transmittance as a function of event number
+    
+    Parameters
+    ----------
+    step: 2d array (shape: nevents, ntrajectories)
+        Sampled step sizes for all events and trajectories in Monte 
+        Carlo model
+    exit_indices: 1d array (length: ntrajectories)
+        event number at exit for each trajectory. Input refl_indices if you want
+        to only consider reflectance and trans_indices if you want to only
+        consider transmittance. Input refl_indices + trans_indices if you
+        want to consider both
+    Returns
+    -------
+    path_length_traj: 1d array (length: ntrajectories)
+        path length travelled before exit for each trajectory. 
+    
+    '''
+    ntraj = len(exit_indices)
+    path_length_traj = sc.Quantity(np.zeros(ntraj),'um')
+    
+    for i in range(0, ntraj):
+        path_length_traj[i] = np.sum(step[:exit_indices[i],i])    
+
+    return path_length_traj
+    
     
 def calc_refl_trans_event_traj(refl_per_traj, inc_refl_per_traj, trans_per_traj, 
                           refl_indices, trans_indices, nevents, ntraj=100):
