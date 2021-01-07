@@ -2300,6 +2300,14 @@ def calc_phase_refl_trans_event(refl_per_traj, inc_refl_per_traj, trans_per_traj
         reflectance contribution for each event. 
     trans_events: 1d array (length: 2*nevents + 1)
         transmittance contribution for each event.
+        
+    Note: This function is located in detector.py instead of 
+    event_distribution.py because it is an essental step for reflectance detection
+    including phase. It could be argued that this function belongs instead 
+    in event_distribution.py, but this requires moving around a variety of other
+    helper functions in order to avoid cyclic importing between event_distribution.py 
+    and detector.py. For simplicity, we've chosen for now to leave this function 
+    detector.py.
     '''
     nevents = trajectories.nevents
     ntraj = len(trajectories.direction[0,0,:])
