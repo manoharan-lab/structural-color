@@ -36,6 +36,7 @@ from pymie import multilayer_sphere_lib as msl
 from . import model
 from . import refraction
 from . import normalize
+from . import event_distribution as ed
 import numpy as np
 from numpy.random import random as random
 import structcol as sc
@@ -117,12 +118,15 @@ class Trajectory:
     direction: ndarray (structcol.Quantity [dimensionless])
         array of direction of propagation vectors in cartesian coordinates
         of n trajectories after every scattering event
-    polarization: ndarray (structcol.Quantity [dimensionless])
-        array of direction of polarization vectors in cartesian coordinates
-        or n trajectories after every scattering event
     weight: ndarray (structcol.Quantity [dimensionless])
         array of photon packet weights for absorption modeling of n
         trajectories
+    polarization: ndarray (structcol.Quantity [dimensionless])
+        array of direction of polarization vectors in cartesian coordinates
+        or n trajectories after every scattering event
+    phase: ndarray (structcol.Quantity [dimensionless])
+        array of phase vectors in cartesian coordinates
+        or n trajectories after every scattering event
     nevents: int
         number of scattering events
     
@@ -138,13 +142,19 @@ class Trajectory:
         calculate new positions of the trajectory with given scattering 
         coefficient, obtained from either Mie theory or the single scattering 
         model.
+    polarize(theta, phi, sintheta, costheta, sinphi, cosphi, 
+             n_particle, n_sample, radius, wavelen, volume_fraction)
+        Calculates local x and y polarization rotated in reference frame where 
+        initial polarization is x-polarized.
+    shift_phase()
+        Calculates the phase shift for each trajectory
     plot_coord(ntraj, three_dim=False)
         plot positions of trajectories as a function of number scattering
         events.
     
     """
 
-    def __init__(self, position, direction, weight, polarization = None):
+    def __init__(self, position, direction, weight, polarization = None, phase=None):
         """
         Constructor for Trajectory object.
         
@@ -163,6 +173,7 @@ class Trajectory:
         self.direction = direction
         self.weight = weight
         self.polarization = polarization
+        self.phase = phase
 
     @property
     def nevents(self):
@@ -254,14 +265,13 @@ class Trajectory:
         volume_fraction: float
             Volume fraction of particles.
         
-        Returns
-        -------
-        singamma: 2d array
-            Sin(gamma) where gamma is angle from x-axis.
-        cosgamma: 2d array
-            Cos(gamma) where gamma is angle from x-axis.
-        pol_x, pol_y: local x and y polarizations for all events and trajectories.
+        Calculates:
+        ----------
+        local_pol_x, local_pol_y: local x and y polarizations for all events 
+            and trajectories.
         
+        px, py, pz: polarization vectors in global coordinates, found by 
+            rotating local coordinates from the previous trajectory
         """
         m = index_ratio(n_particle, n_sample)
         x = size_parameter(wavelen, n_sample, radius)
@@ -294,8 +304,144 @@ class Trajectory:
                     cosphi[n-1,:]) - pn[1,n:,:]*sinphi[n-1,:]
             py = ((pn[0,n:,:]*costheta[n-1,:] + pn[2,n:,:]*sintheta[n-1,:])*
                   sinphi[n-1,:]) + pn[1,n:,:]*cosphi[n-1,:]
-            pz = -pn[0,n:,:]*sintheta[n-1,:] + pn[2,n:,:]*costheta[n-1,:]    
+            pz = -pn[0,n:,:]*sintheta[n-1,:] + pn[2,n:,:]*costheta[n-1,:]  
             pn[:,n:,:] = px, py, pz
+            
+            # Update all the pol of the trajectories
+            self.polarization = sc.Quantity(pn, self.polarization.units)
+            
+    def shift_phase(self, step, theta, phi, sintheta, costheta, sinphi, cosphi,
+                 n_particle, n_sample, radius, wavelen, volume_fraction):
+        """
+        
+        Calculates the cumulative phase shift for each trajectory at each event,
+        taking into account the phase shift due to the distance travelled as
+        well as due to the Mie scattering events. 
+        
+        Within one trajectory, phase is accounted for by calculating
+        the form and structure factor. This takes care of the interference
+        within a particle as well as the interference due to scattering based
+        on the arrangement of particles in space. 
+        
+        To calculate the effects of interference between different trajectories, 
+        we include the phase shift calculated from Mie theory, as well as the 
+        phase shift due to the distances travelled. 
+        
+        Here's how it works: 
+        
+        We start by calculating the amplitude scattering vector in the
+        parallel/perpendicular basis. We then extract the phase from these values. 
+        This is the contribution to phase shift from Mie scattering. 
+        
+        Then we add these phase shifts to the phase shift incurred due to distance
+        travelled, calculated as k*distance. 
+        
+        We then rotate these phase values into local x and y coordinates, 
+        and after that, rotate them into global x, y, and z coordinates. 
+        
+        Parameters
+        ----------
+        step: 2d array (structcol.Quantity [length])
+            Step sizes between scattering events in each of the trajectories.
+        theta: 2d array
+            Theta angles.
+        phi: 2d array
+            Phi angles.
+        sintheta, costheta, sinphi, cosphi : array_like
+            Sines and cosines of scattering (theta) and azimuthal (phi) angles
+            sampled from the phase function. Theta and phi are angles that are
+            defined with respect to the previous corresponding direction of
+            propagation. Thus, they are defined in a local spherical coordinate
+            system. All have dimensions of (nevents, ntrajectories).
+        n_particle: float
+            Index of refraction of particle.
+        n_sample: float
+            Index of refraction of sample.
+        radius: float
+            Radius of particle.
+        wavelen: float
+            Wavelength.
+        volume_fraction: float
+            Volume fraction of particles.
+            
+        """
+        m = index_ratio(n_particle, n_sample)
+        x = size_parameter(wavelen, n_sample, radius)
+        k = 2*np.pi/wavelen.magnitude
+        step = step.magnitude
+        
+        # calculate as_vec for all phis and thetas
+        as_vec_par, as_vec_perp = mie.vector_scattering_amplitude(m, x, theta)    
+                                                
+        # add initial polarization to the beginning of as vec
+        #ntraj = len(step[0,:])
+        as_vec_par = np.insert(as_vec_par, 0, cosphi[0,:], axis=0)   
+        as_vec_perp = np.insert(as_vec_perp, 0, sinphi[0,:], axis=0)  
+        #print(as_vec_par.shape)
+        #as_vec_x, as_vec_y, as_vec_z = normalize(as_vec_par, 
+        #                                         as_vec_perp, 
+        #                                         0)                                     
+                                                
+        # normalize as_vecs                                       
+        #local_kx = as_vec_x
+        #local_ky = as_vec_y
+        #local_kz = 0
+        #local_kx, local_ky, local_kz = normalize(local_kx, 
+        #                                         local_ky, 
+        #                                         local_kz)
+                                                          
+        # calculate local phase shift                                  
+        local_phase_par = np.angle(as_vec_par) 
+        local_phase_perp = np.angle(as_vec_perp)  
+        
+        # calculate cumulative phase shift
+        cumul_phase_step = k*np.cumsum(step, axis=0)
+        #print(cumul_phase_step.shape)
+        cumul_phase_par = np.cumsum(local_phase_par, axis=0) + cumul_phase_step
+        cumul_phase_perp = np.cumsum(local_phase_perp, axis=0) + cumul_phase_step
+        
+        # rotate into  local x, y, z coordinates
+        cumul_phase_x_loc = np.zeros(step.shape)
+        cumul_phase_y_loc = np.zeros(step.shape)
+        #print(cumul_phase_y_loc.shape)
+        cumul_phase_x_loc[0,:] = cumul_phase_step[0,:]
+        cumul_phase_x_loc[0,:] = cumul_phase_step[0,:]
+        
+        cumul_phase_x_loc[1:,:] = cumul_phase_par[1:,:]*cosphi + cumul_phase_perp[1:,:]*sinphi
+        cumul_phase_y_loc[1:,:] = cumul_phase_par[1:,:]*sinphi - cumul_phase_perp[1:,:]*cosphi
+        
+        # set the local phases in the trajectories object
+        # local phase for z is zero since always assume traveling in z direction
+        phn = self.phase.magnitude
+        phn[0,:,:] = cumul_phase_x_loc       
+        phn[1,:,:] = cumul_phase_y_loc
+        
+        for n in np.arange(1,self.nevents):
+            # update polarizations
+            # Calculate the new x, y, z coordinates of the propagation direction
+            # using the following equations, which can be derived by using matrix
+            # operations to perform a rotation about the y-axis by angle theta
+            # followed by a rotation about the z-axis by angle phi
+            # TODO: integrate this with scatter() to avoid repeated code
+            phx = ((phn[0,n:,:]*costheta[n-1,:] + phn[2,n:,:]*sintheta[n-1,:])*
+                    cosphi[n-1,:]) - phn[1,n:,:]*sinphi[n-1,:]
+            phy = ((phn[0,n:,:]*costheta[n-1,:] + phn[2,n:,:]*sintheta[n-1,:])*
+                  sinphi[n-1,:]) + phn[1,n:,:]*cosphi[n-1,:]
+            phz = -phn[0,n:,:]*sintheta[n-1,:] + phn[2,n:,:]*costheta[n-1,:]    
+            phn[:,n:,:] = phx, phy, phz
+            
+        #step = step.magnitude 
+        #direction = self.direction.magnitude
+        #phn[0,:,:] = phn[0,:,:] + k*direction[0,:,:]*step
+        #phn[1,:,:] = phn[1,:,:] + k*direction[1,:,:]*step 
+        #phn[2,:,:] = phn[2,:,:] + k*direction[2,:,:]*step 
+        #phn[0,:,:] = k*step
+        #phn[1,:,:] = k*step 
+        #phn[2,:,:] = k*step 
+        #phn = np.mod(phn,2*np.pi)
+        
+        # Update all the phases of the trajectories
+        self.phase = sc.Quantity(phn, self.phase.units)
 
     def move(self, step):
         """
@@ -376,7 +522,8 @@ def initialize(nevents, ntraj, n_medium, n_sample, boundary, seed=None,
                incidence_phi_max=sc.Quantity(2*np.pi,'rad'), 
                incidence_phi_data=None,
                plot_initial=False, spot_size=sc.Quantity('1 um'), 
-               sample_diameter=None, polarization=False, coarse_roughness=0.):
+               sample_diameter=None, polarization=False, phase=False,
+               coarse_roughness=0.):
     """
     Sets the trajectories' initial conditions (position, direction, weight,
     and polarization if set to True).
@@ -450,6 +597,8 @@ def initialize(nevents, ntraj, n_medium, n_sample, boundary, seed=None,
     polarization: bool
         If True, function returns a matrix of initial polarization vectors in
         the x direction
+    phase: bool
+        If True, function returns a matrix of initial phase vectors of 0
     coarse_roughness : float (can be structcol.Quantity [dimensionless])
         Coarse surface roughness should be included when the roughness is large
         on the scale of the wavelength of light. This means that light 
@@ -641,7 +790,9 @@ def initialize(nevents, ntraj, n_medium, n_sample, boundary, seed=None,
             y = sample_radius*np.sin(u)*np.sin(v)
             z = sample_radius-sample_radius*np.cos(v)
             ax.plot_wireframe(x, y, z, color=[0.8,0.8,0.8])
-        
+            
+            
+        init_traj_props = [r0, k0, weight0]
         if polarization:
             # initial polarization, we always assume x-polarized because
             # python-mie assumes x-polarized when including polarization
@@ -649,9 +800,11 @@ def initialize(nevents, ntraj, n_medium, n_sample, boundary, seed=None,
             pol0[0,:,:] = 1
             pol0[1,:,:] = 0
             pol0[2,:,:] = 0
-            return r0, k0, weight0, pol0
-        else: 
-            return r0, k0, weight0
+            init_traj_props.append(pol0)
+        if phase:
+            phas0 = np.zeros((3, nevents, ntraj))
+            init_traj_props.append(phas0)
+        return init_traj_props
     
     # if the surface has coarse roughness
     else:

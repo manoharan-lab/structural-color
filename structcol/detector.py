@@ -39,6 +39,7 @@ from . import montecarlo as mc
 from . import phase_func_sphere as pfs
 from . import refraction
 from . import normalize
+#from . import event_distribution as ed
 import numpy as np
 from numpy.random import random as random
 import structcol as sc
@@ -2265,8 +2266,185 @@ def calc_haze(trajectories, trans_per_traj, transmittance, trans_indices,
     
     return haze
     
+def calc_phase_refl_trans_event(refl_per_traj, inc_refl_per_traj, trans_per_traj, 
+                          refl_indices, trans_indices, trajectories):
+    '''
+    Returns reflectance and transmittance as a function of event number
+    
+    Parameters
+    ----------
+    refl_per_traj: 1d array (length: ntrajectories)
+        Reflectance contribution for each trajectory from Monte Carlo simulation.
+        Sum should be total reflectance from Monte Carlo calculation, 
+        without corrections for Fresnel reflected and stuck weights.
+    inc_refl_per_traj: 1d array (length: ntrajectories)
+        Reflectance contribution for each trajectory at the sample interface. 
+        This contribution comes from the Fresnel reflection as the light
+        enters the sample
+    trans_per_traj: 1d array (length: ntrajectories)
+        Transmittance contribution for each trajectory from Monte Carlo simulation.
+        Sum should be total transmittance from Monte Carlo calculation,
+        without corrections for Fresnel reflected and stick weights.
+    refl_indices: 1d array (length: ntrajectories)
+        Event indices at which each trajectory is reflected. Value of 0 means
+        trajectory is not reflected at any event. 
+    trans_indices: 1d array (length: ntrajectories)
+        Event indices at which each trajectory is transmitted. Value of 0 means
+        trajectory is not transmitted at any event
+    nevents: int
+        number of events for which Monte Carlo Calculation is run 
+    
+    Returns
+    -------
+    refl_intensity_phase_events: 1d array (length: 2*nevents + 1)
+        reflectance contribution for each event. 
+    trans_events: 1d array (length: 2*nevents + 1)
+        transmittance contribution for each event.
+    '''
+    nevents = trajectories.nevents
+    ntraj = len(trajectories.direction[0,0,:])
 
+    # write a sort of unweighted field in reference to global coords
+    # Do we need to think of phase as something cumulative? Like the next phase
+    # adding 
+    #phase_cumul = np.cumsum(trajectories.phase[0,:,:], axis=0)
+    #phase_cumul = np.mod(phase_cumul,2*np.pi)
+    traj_field_x =  trajectories.polarization[0,:,:]*np.exp(trajectories.phase[0,:,:]*1j) 
+    traj_field_y =  trajectories.polarization[1,:,:]*np.exp(trajectories.phase[1,:,:]*1j) 
+    traj_field_z =  trajectories.polarization[2,:,:]*np.exp(trajectories.phase[2,:,:]*1j)    
+    
+    refl_events = np.zeros(2*nevents + 1)
+    tot_field_x_ev = np.zeros(2*nevents + 1)
+    tot_field_y_ev = np.zeros(2*nevents + 1)
+    tot_field_z_ev = np.zeros(2*nevents + 1)
+    trans_events = np.zeros(2*nevents + 1)
+    
+    # add fresnel reflection at first interface
+    refl_events[0] = np.sum(inc_refl_per_traj)
+    
+    #loop through all events
+    for ev in range(1, nevents):
+        # find trajectories that were reflected/transmitted at this event
+        traj_ind_refl_ev = np.where(refl_indices == ev)[0]
+        traj_ind_trans_ev = np.where(trans_indices == ev)[0]
+        
+        # add reflectance/transmittance due to trajectories 
+        # reflected/transmitted at this event
+        #print(ev)
+        w = np.sqrt(refl_per_traj[traj_ind_refl_ev]*ntraj)
+        tot_field_x_ev[ev] += np.sum(w*traj_field_x[ev,traj_ind_refl_ev])
+        tot_field_y_ev[ev] += np.sum(w*traj_field_y[ev,traj_ind_refl_ev])
+        tot_field_z_ev[ev] += np.sum(w*traj_field_z[ev,traj_ind_refl_ev])
+        
+        # trans todo fix this
+        trans_events[ev] += np.sum(trans_per_traj[traj_ind_trans_ev])
+        
+    intensity_x_ev = np.conj(tot_field_x_ev)*tot_field_x_ev
+    intensity_y_ev = np.conj(tot_field_y_ev)*tot_field_y_ev
+    intensity_z_ev = np.conj(tot_field_z_ev)*tot_field_z_ev
+    
+    refl_intensity_phase_events = intensity_x_ev + intensity_y_ev + intensity_z_ev
 
+        
+    
+    return refl_intensity_phase_events, trans_events
+    
+def calc_refl_phase(trajectories, refl_indices, refl_per_traj):
+    '''
+    Calculates the reflectance including contributions from phase as a function 
+    of events.
+    
+    Paramters
+    ---------
+    trajectories: Trajectory object
+        Trajectory object used in Monte Carlo simulation
+    refl_indices: 1d array (length: ntrajectories)
+        Event indices at which each trajectory is reflected. Value of 0 means
+        trajectory is not reflected at any event. 
+    refl_per_traj: 1d array (length: ntrajectories)
+        Reflectance contribution for each trajectory from Monte Carlo simulation.
+        Sum should be total reflectance from Monte Carlo calculation, 
+        without corrections for Fresnel reflected and stuck weights.
+    
+    Returns
+    -------
+    refl_phase: float
+        reflectance including contributions from phase
+    refl_phase_events: 1d array (length: 2*nevents + 1)
+        reflectance including contributions from phase as a function of events
+    
+    '''    
+    
+    # divide by nλ to get rid of 2*pi phase shifts
+    # then write a sort of field as : sqrt(trajectories.weight)*exp(i*phase)
+    # and separate into each component (x,y,z), where W is the trajectory weight and φ is the phase
+    # then add up each component for each trajectory, and then add the resulting weights and square to get the phase-corrected intensity
+    # then normalize to get the phase-corrected reflectance    
+    
+    # get the reflectance per event
+    refl_intensity_phase_events, _ = calc_phase_refl_trans_event(refl_per_traj, np.array([0]), np.array([0]), 
+                          refl_indices, np.array([0]), trajectories)
+                          
+    # normalize
+    intensity_incident = np.sum(trajectories.weight[0,:]) # assumes normalized light is incoherent
+    #intensity_incident_coh = np.sum(np.sqrt(trajectories.weight[0,:]))**2 # assumes normalized light is coherent
+    
+    refl_phase_events = refl_intensity_phase_events/intensity_incident
+    
+    refl_phase = np.sum(refl_phase_events)
+    
+    # sum the "fields" to get intensities
+    #intensity_refl = refl_per_traj*len(refl_per_traj)
+    #print(np.sum(np.sqrt(intensity_refl)))
+    #traj_field_kx_refl = select_events(traj_field_kx, refl_indices)
+    #traj_field_ky_refl = select_events(traj_field_ky, refl_indices)
+    #traj_field_kz_refl = select_events(traj_field_kz, refl_indices)    
+    
+    # give the fields an amplitude and then sum them
+    #tot_field_kx = np.sum(traj_field_kx_refl)
+    #print(tot_field_x)
+    #tot_field_ky = np.sum(traj_field_ky_refl)
+    #print(tot_field_y)
+    #tot_field_kz = np.sum(traj_field_kz_refl)
+    #print(tot_field_z)
+    
+    #intensity_x = np.conj(tot_field_kx)*tot_field_kx
+    #print(intensity_x)
+    #intensity_y = np.conj(tot_field_ky)*tot_field_ky
+    #print(intensity_y)
+    #intensity_z = np.conj(tot_field_kz)*tot_field_kz
+    #print(intensity_z)
+    
+    # renormalize reflectance
+    #intensity_incident = np.sum(np.sqrt(trajectories.weight[0,:]))**2 # assumes normalized light is incoherent
+    #reflectance_phase = (intensity_x + intensity_y + intensity_z)/intensity_incident
+    
+    #reflectance_phase = np.sum(refl_events)
+    return refl_phase, refl_phase_events
+    
+    
+def calc_refl_weighted(refl_phase, reflectance):
+    '''
+    Parameters
+    ---------
+    refl_phase: float
+        reflectance including contributions from phase
+    reflectance: float
+        reflectance not including contributions from phase, as calculated from 
+        calc_refl_trans()
+        
+    Returns
+    -------
+    refl_tot: float
+        The reflectance including both the phase-corrected reflectance and the 
+        non-phase-corrected reflectance, weighted accordingly
+    '''    
+    
+    coherent_frac = refl_phase/(reflectance + refl_phase)
+    incoherent_frac = 1 - coherent_frac
+    refl_tot = coherent_frac*refl_phase + incoherent_frac*reflectance
+    
+    return refl_tot
 
 #------------------------------------------------------------------------------
 #    # For implementing coarse roughness when the trajectories exit the sample
