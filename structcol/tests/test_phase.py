@@ -84,6 +84,11 @@ def test_mod():
     trajectories.move(step)
     trajectories.absorb(mu_abs, step)  
     
+    # make trajectory phase real so we can do mod operation
+    trajectories.phase = np.real(trajectories.phase)
+    
+    
+    # calculate reflectance
     refl_trans_result = det.calc_refl_trans(trajectories, thickness, n_medium, n_sample, boundary, 
                                                  return_extra=True)
 

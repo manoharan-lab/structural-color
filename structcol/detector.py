@@ -2316,16 +2316,15 @@ def calc_phase_refl_trans_event(refl_per_traj, inc_refl_per_traj, trans_per_traj
     traj_field_x =  trajectories.polarization[0,:,:]*np.exp(trajectories.phase[0,:,:]*1j) 
     traj_field_y =  trajectories.polarization[1,:,:]*np.exp(trajectories.phase[1,:,:]*1j) 
     traj_field_z =  trajectories.polarization[2,:,:]*np.exp(trajectories.phase[2,:,:]*1j)  
-    
     refl_events = np.zeros(2*nevents + 1)
     tot_field_x_ev = np.zeros(2*nevents + 1, dtype=complex)
     tot_field_y_ev = np.zeros(2*nevents + 1, dtype=complex)
     tot_field_z_ev = np.zeros(2*nevents + 1, dtype=complex)
     trans_events = np.zeros(2*nevents + 1)
-    
     # add fresnel reflection at first interface
+
     refl_events[0] = np.sum(inc_refl_per_traj)
-    
+
     #loop through all events
     for ev in range(1, nevents):
         # find trajectories that were reflected/transmitted at this event
@@ -2342,9 +2341,10 @@ def calc_phase_refl_trans_event(refl_per_traj, inc_refl_per_traj, trans_per_traj
         tot_field_x_ev[ev] += np.sum(w*traj_field_x[ev,traj_ind_refl_ev])
         tot_field_y_ev[ev] += np.sum(w*traj_field_y[ev,traj_ind_refl_ev])
         tot_field_z_ev[ev] += np.sum(w*traj_field_z[ev,traj_ind_refl_ev])
-        
+
         # TODO fix this for transmittance
         trans_events[ev] += np.sum(trans_per_traj[traj_ind_trans_ev])
+        #print('here 2')
         
     # calculate intensity as E*E
     intensity_x_ev = np.conj(tot_field_x_ev)*tot_field_x_ev

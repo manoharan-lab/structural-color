@@ -388,8 +388,8 @@ class Trajectory:
         cumul_phase_perp = np.cumsum(local_phase_perp, axis=0) + cumul_phase_step
         
         # rotate into  local x, y, z coordinates
-        cumul_phase_x_loc = np.zeros(step.shape)
-        cumul_phase_y_loc = np.zeros(step.shape)
+        cumul_phase_x_loc = np.zeros(step.shape, dtype=complex)
+        cumul_phase_y_loc = np.zeros(step.shape, dtype=complex)
         cumul_phase_x_loc[0,:] = cumul_phase_step[0,:]
         cumul_phase_x_loc[0,:] = cumul_phase_step[0,:]
         cumul_phase_x_loc[1:,:] = cumul_phase_par[1:,:]*cosphi + cumul_phase_perp[1:,:]*sinphi
@@ -776,7 +776,7 @@ def initialize(nevents, ntraj, n_medium, n_sample, boundary, seed=None,
             pol0[2,:,:] = 0
             init_traj_props.append(pol0)
         if phase:
-            phas0 = np.zeros((3, nevents, ntraj))
+            phas0 = np.zeros((3, nevents, ntraj), dtype = 'complex')
             init_traj_props.append(phas0)
         return init_traj_props
     
