@@ -2310,7 +2310,7 @@ def calc_phase_refl_trans_event(refl_per_traj, inc_refl_per_traj, trans_per_traj
     detector.py.
     '''
     nevents = trajectories.nevents
-    ntraj = len(trajectories.direction[0,0,:])
+    ntraj = len(trajectories.polarization[0,0,:])
 
     # write a sort of unweighted field in reference to global coords
     # Do we need to think of phase as something cumulative? Like the next phase
@@ -2319,12 +2319,12 @@ def calc_phase_refl_trans_event(refl_per_traj, inc_refl_per_traj, trans_per_traj
     #phase_cumul = np.mod(phase_cumul,2*np.pi)
     traj_field_x =  trajectories.polarization[0,:,:]*np.exp(trajectories.phase[0,:,:]*1j) 
     traj_field_y =  trajectories.polarization[1,:,:]*np.exp(trajectories.phase[1,:,:]*1j) 
-    traj_field_z =  trajectories.polarization[2,:,:]*np.exp(trajectories.phase[2,:,:]*1j)    
+    traj_field_z =  trajectories.polarization[2,:,:]*np.exp(trajectories.phase[2,:,:]*1j)  
     
     refl_events = np.zeros(2*nevents + 1)
-    tot_field_x_ev = np.zeros(2*nevents + 1)
-    tot_field_y_ev = np.zeros(2*nevents + 1)
-    tot_field_z_ev = np.zeros(2*nevents + 1)
+    tot_field_x_ev = np.zeros(2*nevents + 1, dtype=complex)
+    tot_field_y_ev = np.zeros(2*nevents + 1, dtype=complex)
+    tot_field_z_ev = np.zeros(2*nevents + 1, dtype=complex)
     trans_events = np.zeros(2*nevents + 1)
     
     # add fresnel reflection at first interface
@@ -2340,6 +2340,7 @@ def calc_phase_refl_trans_event(refl_per_traj, inc_refl_per_traj, trans_per_traj
         # reflected/transmitted at this event
         #print(ev)
         w = np.sqrt(refl_per_traj[traj_ind_refl_ev]*ntraj)
+        #print(w*traj_field_x[ev,traj_ind_refl_ev])
         tot_field_x_ev[ev] += np.sum(w*traj_field_x[ev,traj_ind_refl_ev])
         tot_field_y_ev[ev] += np.sum(w*traj_field_y[ev,traj_ind_refl_ev])
         tot_field_z_ev[ev] += np.sum(w*traj_field_z[ev,traj_ind_refl_ev])
@@ -2353,8 +2354,6 @@ def calc_phase_refl_trans_event(refl_per_traj, inc_refl_per_traj, trans_per_traj
     
     refl_intensity_phase_events = intensity_x_ev + intensity_y_ev + intensity_z_ev
 
-        
-    
     return refl_intensity_phase_events, trans_events
     
 def calc_refl_phase(trajectories, refl_indices, refl_per_traj):
