@@ -374,39 +374,24 @@ class Trajectory:
         as_vec_par, as_vec_perp = mie.vector_scattering_amplitude(m, x, theta)    
                                                 
         # add initial polarization to the beginning of as vec
-        #ntraj = len(step[0,:])
         as_vec_par = np.insert(as_vec_par, 0, cosphi[0,:], axis=0)   
-        as_vec_perp = np.insert(as_vec_perp, 0, sinphi[0,:], axis=0)  
-        #print(as_vec_par.shape)
-        #as_vec_x, as_vec_y, as_vec_z = normalize(as_vec_par, 
-        #                                         as_vec_perp, 
-        #                                         0)                                     
-                                                
-        # normalize as_vecs                                       
-        #local_kx = as_vec_x
-        #local_ky = as_vec_y
-        #local_kz = 0
-        #local_kx, local_ky, local_kz = normalize(local_kx, 
-        #                                         local_ky, 
-        #                                         local_kz)
+        as_vec_perp = np.insert(as_vec_perp, 0, sinphi[0,:], axis=0)                                    
                                                           
         # calculate local phase shift                                  
         local_phase_par = np.angle(as_vec_par) 
         local_phase_perp = np.angle(as_vec_perp)  
         
-        # calculate cumulative phase shift
+        # calculate cumulative phase shift, uncluding the contribution from
+        # distance travelled
         cumul_phase_step = k*np.cumsum(step, axis=0)
-        #print(cumul_phase_step.shape)
         cumul_phase_par = np.cumsum(local_phase_par, axis=0) + cumul_phase_step
         cumul_phase_perp = np.cumsum(local_phase_perp, axis=0) + cumul_phase_step
         
         # rotate into  local x, y, z coordinates
         cumul_phase_x_loc = np.zeros(step.shape)
         cumul_phase_y_loc = np.zeros(step.shape)
-        #print(cumul_phase_y_loc.shape)
         cumul_phase_x_loc[0,:] = cumul_phase_step[0,:]
         cumul_phase_x_loc[0,:] = cumul_phase_step[0,:]
-        
         cumul_phase_x_loc[1:,:] = cumul_phase_par[1:,:]*cosphi + cumul_phase_perp[1:,:]*sinphi
         cumul_phase_y_loc[1:,:] = cumul_phase_par[1:,:]*sinphi - cumul_phase_perp[1:,:]*cosphi
         
@@ -418,27 +403,16 @@ class Trajectory:
         
         for n in np.arange(1,self.nevents):
             # update polarizations
-            # Calculate the new x, y, z coordinates of the propagation direction
+            # Calculate the new x, y, z values
             # using the following equations, which can be derived by using matrix
             # operations to perform a rotation about the y-axis by angle theta
             # followed by a rotation about the z-axis by angle phi
-            # TODO: integrate this with scatter() to avoid repeated code
             phx = ((phn[0,n:,:]*costheta[n-1,:] + phn[2,n:,:]*sintheta[n-1,:])*
                     cosphi[n-1,:]) - phn[1,n:,:]*sinphi[n-1,:]
             phy = ((phn[0,n:,:]*costheta[n-1,:] + phn[2,n:,:]*sintheta[n-1,:])*
                   sinphi[n-1,:]) + phn[1,n:,:]*cosphi[n-1,:]
             phz = -phn[0,n:,:]*sintheta[n-1,:] + phn[2,n:,:]*costheta[n-1,:]    
             phn[:,n:,:] = phx, phy, phz
-            
-        #step = step.magnitude 
-        #direction = self.direction.magnitude
-        #phn[0,:,:] = phn[0,:,:] + k*direction[0,:,:]*step
-        #phn[1,:,:] = phn[1,:,:] + k*direction[1,:,:]*step 
-        #phn[2,:,:] = phn[2,:,:] + k*direction[2,:,:]*step 
-        #phn[0,:,:] = k*step
-        #phn[1,:,:] = k*step 
-        #phn[2,:,:] = k*step 
-        #phn = np.mod(phn,2*np.pi)
         
         # Update all the phases of the trajectories
         self.phase = sc.Quantity(phn, self.phase.units)
