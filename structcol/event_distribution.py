@@ -203,7 +203,8 @@ def calc_thetas_event_traj(theta, refl_indices, nevents, ntraj = 100):
     return theta_event_traj
 
 def calc_tir(tir_refl_bool, refl_indices, trans_indices, inc_refl_per_traj, 
-             n_sample, n_medium, boundary, trajectories, thickness):
+             n_sample, n_medium, boundary, trajectories, thickness,
+             phase=False):
     '''
     Returns weights of various types of totally internally reflected trajectories
     as a function of event number
@@ -235,6 +236,12 @@ def calc_tir(tir_refl_bool, refl_indices, trans_indices, inc_refl_per_traj,
         Trajectory object used in Monte Carlo simulation
     thickness: float
         thickness of film or diameter of sphere
+    phase: boolean
+        determines whether the tir trajectory components must be calculated 
+        taking into accout their phase. If True, calc_tir only returns results 
+        for tir_all_refl_events, and returns zeros for the other return values. 
+        This is because the phase calculations have not been implemented for 
+        the other values. 
     
     Returns
     -------
@@ -296,7 +303,6 @@ def calc_tir(tir_refl_bool, refl_indices, trans_indices, inc_refl_per_traj,
     tir_ev_ind = np.where(tir_indices!=0)
     tir_indices_refl = np.zeros(ntraj)
     tir_indices_refl[tir_ev_ind] = refl_indices[tir_ev_ind]
-    
     # find the tir reflectance at each event
     tir_all_refl = ((1-inc_refl_per_traj) * select_events(weights, tir_indices_refl)*
                    fresnel_pass_frac(tir_indices_refl, n_sample, None, n_medium,
@@ -308,7 +314,6 @@ def calc_tir(tir_refl_bool, refl_indices, trans_indices, inc_refl_per_traj,
     tir_indices_single = np.copy(tir_indices)
     tir_indices_single[np.where(tir_indices!=2)] = 0
     tir_single = (1-inc_refl_per_traj) * select_events(weights, tir_indices_single)/ntraj
-    
     ### tir for only single scat event that gets reflected eventually ###
     
     # find event indices where single scat tir'd trajectories are reflected
@@ -326,19 +331,50 @@ def calc_tir(tir_refl_bool, refl_indices, trans_indices, inc_refl_per_traj,
     tir_all_refl_events = np.zeros(2*nevents + 1)
     tir_single_events = np.zeros(2*nevents + 1)
     tir_single_refl_events = np.zeros(2*nevents + 1)
-    for ev in range(1, nevents + 1):
+    
+    # if phase, we need to calculate as fields
+    if phase:
+        traj_field_x =  trajectories.polarization[0,:,:]*np.exp(trajectories.phase[0,:,:]*1j) 
+        traj_field_y =  trajectories.polarization[1,:,:]*np.exp(trajectories.phase[1,:,:]*1j) 
+        traj_field_z =  trajectories.polarization[2,:,:]*np.exp(trajectories.phase[2,:,:]*1j)  
+        tot_field_x_ev = np.zeros(2*nevents + 1, dtype=complex)
+        tot_field_y_ev = np.zeros(2*nevents + 1, dtype=complex)
+        tot_field_z_ev = np.zeros(2*nevents + 1, dtype=complex)
+        
+    for ev in range(1, nevents):
         # find trajectories that were reflected/transmitted at this event
         traj_ind_tir_ev = np.where(tir_indices == ev)[0]
         traj_ind_tir_refl_ev = np.where(tir_indices_refl == ev)[0]
         traj_ind_tir_sing_ev = np.where(tir_indices_single == ev)[0]
         traj_ind_tir_sing_refl_ev = np.where(tir_indices_single_refl == ev)[0]
         
-        # add reflectance/transmittance due to trajectories 
-        # reflected/transmitted at this event
-        tir_all_events[ev] += np.sum(tir_all[traj_ind_tir_ev])
-        tir_all_refl_events[ev] += np.sum(tir_all_refl[traj_ind_tir_refl_ev])
-        tir_single_events[ev] += np.sum(tir_single[traj_ind_tir_sing_ev])
-        tir_single_refl_events[ev] += np.sum(tir_single_refl[traj_ind_tir_sing_refl_ev])
+        if phase:
+            # write expression for field including weight 
+            # since the trajectory weights are in units of intensity, we take the
+            # square root to find the amplitude for the field
+            w = np.sqrt(tir_all_refl)
+            
+            # add reflectance/transmittance due to trajectories 
+            # reflected/transmitted at this event
+            tot_field_x_ev[ev] += np.sum(w[traj_ind_tir_refl_ev]*traj_field_x[ev,traj_ind_tir_refl_ev])
+            tot_field_y_ev[ev] += np.sum(w[traj_ind_tir_refl_ev]*traj_field_y[ev,traj_ind_tir_refl_ev])
+            tot_field_z_ev[ev] += np.sum(w[traj_ind_tir_refl_ev]*traj_field_z[ev,traj_ind_tir_refl_ev])
+            
+        else:
+            # add reflectance/transmittance due to trajectories 
+            # reflected/transmitted at this event
+            tir_all_events[ev] += np.sum(tir_all[traj_ind_tir_ev])
+            tir_all_refl_events[ev] += np.sum(tir_all_refl[traj_ind_tir_refl_ev])
+            tir_single_events[ev] += np.sum(tir_single[traj_ind_tir_sing_ev])
+            tir_single_refl_events[ev] += np.sum(tir_single_refl[traj_ind_tir_sing_refl_ev])
+    
+    if phase:
+            # calculate intensity as E*E
+            intensity_x_ev = np.conj(tot_field_x_ev)*tot_field_x_ev
+            intensity_y_ev = np.conj(tot_field_y_ev)*tot_field_y_ev
+            intensity_z_ev = np.conj(tot_field_z_ev)*tot_field_z_ev
+            # add the x,y, and z intensity
+            tir_all_refl_events = intensity_x_ev + intensity_y_ev + intensity_z_ev
      
     return (tir_all_events, 
             tir_all_refl_events, 

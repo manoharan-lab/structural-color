@@ -2033,7 +2033,6 @@ def rotate_reflect(k_out, normal):
             
     return k_refl
 
-
 def calc_pol_frac(trajectories, indices):
     '''
     calculates polarization contribution to the event type indicate by indices
@@ -2072,6 +2071,102 @@ def calc_pol_frac(trajectories, indices):
     pol_frac_z = np.sum(np.abs(pol_z)**2)/ntrajectories
     
     return pol_frac_x, pol_frac_y, pol_frac_z
+    
+def calc_pol_frac_phase(trajectories, indices, refl_per_traj, event_dist):
+    '''
+    calculates polarization contribution to the event type indicate by indices
+    (usually reflection or transmission) for each polariztion component,
+    in global, cartesian coordinates
+    
+    Parameters
+    ----------
+    trajectories: Trajectory object
+        trajectories from Monte Carlo calculation
+    indices: 1d array (length ntrajectories)
+        event indices of interest, often indices of reflected or transmitted 
+        events
+    refl_per_traj: 1d array (length: ntrajectories)
+        Reflectance contribution for each trajectory from Monte Carlo simulation.
+        Sum should be total reflectance from Monte Carlo calculation, 
+        without corrections for Fresnel reflected and stuck weights.
+    event_dist: boolean
+        determines whether to sum fractions over all events or leave as a function
+        of events
+    Returns
+    -------
+    pol_frac_x: float
+        x-polarized intensity fraction
+    pol_frac_y: float
+        y-polarized intensity fraction
+    pol_frac_z: float
+        z-polarized intensity fraction
+    '''
+    
+    ( _,_,
+    refl_x_ev,
+    refl_y_ev,
+    refl_z_ev) = calc_phase_refl_trans_event(refl_per_traj, np.array([0]), np.array([0]), 
+                          indices, np.array([0]), trajectories)
+                          
+    if event_dist:
+        pol_frac_x = refl_x_ev
+        pol_frac_y = refl_y_ev
+        pol_frac_z = refl_z_ev
+    else:                             
+        pol_frac_x = np.sum(refl_x_ev)
+        pol_frac_y = np.sum(refl_y_ev)
+        pol_frac_z = np.sum(refl_z_ev)
+    
+    return pol_frac_x, pol_frac_y, pol_frac_z
+    
+def calc_refl_co_cross_phase(trajectories, indices, det_theta, refl_per_traj, 
+                             event_dist=False):
+    '''
+    Calculates the co, cross, and perp polarized reflectance, where 'perp' in this 
+    case refers to light polarized in the direction perpendicular to the co/cross
+    plane. Only a small fraction of light of the light should be perpendicular 
+    to the co/cross plane, since light cannot be polarized in the direction of
+    propagation, and the detected signal should be composed mostly of light 
+    propagating perpendicularly to the co/cross plane. 
+    
+    Parameters
+    ----------
+    trajectories: Trajectory object
+        trajectories from Monte Carlo calculation
+    indices: 1d array (length ntrajectories)
+        event indices of interest, often indices of reflected or transmitted 
+        events
+    det_theta: float-like
+        angle between the normal to the sample (-z axis) and the center of the 
+        detector 
+    refl_per_traj: 1d array (length: ntrajectories)
+        Reflectance contribution for each trajectory from Monte Carlo simulation.
+        Sum should be total reflectance from Monte Carlo calculation, 
+        without corrections for Fresnel reflected and stuck weights.
+    event_dist: boolean
+        determines whether returns will be arrays to show reflectance values
+        as a function of event
+    Returns
+    -------
+    refl_co: float or 1d array 
+        co-polarized reflectance
+    refl_cr: float or 1d array
+        cross-polarized reflectance
+    refl_perp: float or 1d array
+        reflectance perpendicularly polarized to co and cross
+    '''
+    
+    # calculate polarization fractions for each component
+    pol_frac_x, pol_frac_y, pol_frac_z = calc_pol_frac_phase(trajectories, indices, refl_per_traj,
+                                                             event_dist)
+    
+    # incorporate geometry of the goniometer setup
+    refl_co = pol_frac_z*np.sin(det_theta) + pol_frac_x*np.cos(det_theta)
+    refl_cr = pol_frac_y
+    refl_perp = -pol_frac_z*np.cos(det_theta) + pol_frac_x*np.sin(det_theta)
+    
+    
+    return (refl_co, refl_cr, refl_perp)
     
     
 def calc_refl_co_cross(trajectories, indices, det_theta):
@@ -2350,6 +2445,7 @@ def calc_phase_refl_trans_event(refl_per_traj, inc_refl_per_traj, trans_per_traj
     intensity_x_ev = np.conj(tot_field_x_ev)*tot_field_x_ev
     intensity_y_ev = np.conj(tot_field_y_ev)*tot_field_y_ev
     intensity_z_ev = np.conj(tot_field_z_ev)*tot_field_z_ev
+
     
     # add the x,y, and z intensity
     refl_intensity_phase_events = intensity_x_ev + intensity_y_ev + intensity_z_ev
@@ -2357,8 +2453,11 @@ def calc_phase_refl_trans_event(refl_per_traj, inc_refl_per_traj, trans_per_traj
     # normalize
     intensity_incident = np.sum(trajectories.weight[0,:]) # assumes normalized light is incoherent
     refl_phase_events = refl_intensity_phase_events/intensity_incident
+    refl_x_ev = intensity_x_ev/intensity_incident
+    refl_y_ev = intensity_y_ev/intensity_incident
+    refl_z_ev = intensity_z_ev/intensity_incident
 
-    return refl_phase_events, trans_events
+    return refl_phase_events, trans_events, refl_x_ev, refl_y_ev, refl_z_ev
     
 def calc_refl_phase(trajectories, refl_indices, refl_per_traj):
     '''
@@ -2387,7 +2486,7 @@ def calc_refl_phase(trajectories, refl_indices, refl_per_traj):
     '''     
     
     # get the reflectance per event
-    refl_phase_events, _ = calc_phase_refl_trans_event(refl_per_traj, np.array([0]), np.array([0]), 
+    refl_phase_events, _, _, _, _ = calc_phase_refl_trans_event(refl_per_traj, np.array([0]), np.array([0]), 
                           refl_indices, np.array([0]), trajectories)
     
     # sum to get the total reflectance
@@ -2396,31 +2495,147 @@ def calc_refl_phase(trajectories, refl_indices, refl_per_traj):
     return refl_phase, refl_phase_events
     
     
-def calc_refl_weighted(refl_phase, reflectance):
+def calc_traj_time(step, exit_indices, radius, volume_fraction,
+                   n_particle, n_sample, wavelength, concentration=None,
+                   radius2=None):
     '''
-    Parameters
-    ---------
+    Calculates the amount of time each trajectory spends scattering in the 
+    sample before exit    
+    
+    parameters:
+    ----------
+    step: 2d array (structcol.Quantity [length])
+        Step sizes between scattering events in each of the trajectories.
+    exit_indices: 1d array (length: ntrajectories)
+        event number at exit for each trajectory. Input refl_indices if you want
+        to only consider reflectance and trans_indices if you want to only
+        consider transmittance. Input refl_indices + trans_indices if you
+        want to consider both
+    radius: float (structcol.Quantity [length])
+        Radius of particle.
+    volume_fraction: float
+        Volume fraction of particles.
+    n_particle: float
+        Index of refraction of particle.
+    n_sample: float
+        Index of refraction of sample.
+    wavelength: float (structcol.Quantity [length])
+        Wavelength.
+    concentration: 2-element array (structcol.Quantity [dimensionless])
+        Concentration of each scatterer if the system is binary. For 
+        polydisperse monospecies systems, specify the concentration as 
+        [0., 1.]. The concentrations must add up to 1. If system is monodisperse
+        and monospecies, do not specify.
+    radius2: float (structcol.Quantity [length])
+        Mean radius of secondary scatterer. Specify only if the system is 
+        binary, meaning that there are two mean particle radii (for example,
+        one small and one large).
+    
+    returns:
+    -------
+    traj_time: 1d array (structcol.Quantity [time], length ntraj)
+        time each trajectory spends traversing inside the sample before exit
+    '''    
+    
+    # calculate the path length
+    ntraj = len(exit_indices)
+    path_length_traj = sc.Quantity(np.zeros(ntraj),'um')
+    
+    for i in range(0, ntraj):
+        path_length_traj[i] = np.sum(step[:exit_indices[i],i])
+    
+    # calculate the time passed based on distance travelled
+    c = sc.Quantity(2.99792e8,'m/s')
+    velocity = c/np.real(n_sample)
+    travel_time = path_length_traj/velocity
+    
+    # calculate the dwell time in a particle
+    #dwell_time = W_ext/(c_scat*c)
+        
+    # add the dwell times and travel times
+    traj_time = travel_time #+ dwell_time
+    # dimensions of traj time are: 
+    traj_time = traj_time.to('fs')
+    
+    return traj_time
+    
+def calc_refl_phase_time(traj_time, trajectories, refl_indices, refl_per_traj):
+    '''
+    Calculates the reflectance including phase, by considering trajectories
+    that exit at the same time to be coherent. To do this we, must bin trajectories
+    with similar exit times and add their fields. 
+    
+    parameters:
+    ----------
+    traj_time: 1d array (structcol.Quantity [time], length ntraj)
+        time each trajectory spends traversing inside the sample before exit
+    trajectories: Trajectory object
+        Trajectory object used in Monte Carlo simulation
+    refl_indices: 1d array (length: ntraj)
+        array of event indices for reflected trajectories
+    refl_per_traj: 1d array (length: ntraj)
+        reflectance distributed to each trajectory, including fresnel 
+        contributions
+    
+    returns:
+    -------
     refl_phase: float
         reflectance including contributions from phase
-    reflectance: float
-        reflectance not including contributions from phase, as calculated from 
-        calc_refl_trans()
-        
-    Returns
-    -------
-    refl_tot: float
-        The reflectance including both the phase-corrected reflectance and the 
-        non-phase-corrected reflectance, weighted accordingly
-    '''    
-    # calculate the relative fraction of coherent and incoherent reflectance
-    coherent_frac = refl_phase/(reflectance + refl_phase)
-    incoherent_frac = 1 - coherent_frac
+    refl_phase_times: 1d array (length: time bins)
+        reflectance including contributions from phase as a function of time
+    '''
     
-    # add the weighted values to get the combined reflectance
-    refl_tot = coherent_frac*refl_phase + incoherent_frac*reflectance
+    ntraj = len(trajectories.polarization[0,0,:])    
     
-    return refl_tot
+    # create the historgram
+    traj_time = traj_time.magnitude
+    bin_width = 20 # femtoseconds
+    bin_range=range(1,int(round(max(traj_time))+bin_width), bin_width)
+    hist, bin_edges = np.histogram(traj_time, bins = bin_range)   
+    bin_min = bin_edges[0::1]
+    bin_max = bin_edges[1::1]
+    n_bins = len(hist)
 
+    # write expression for unweighted field 
+    traj_field_x =  trajectories.polarization[0,:,:]*np.exp(trajectories.phase[0,:,:]*1j) 
+    traj_field_y =  trajectories.polarization[1,:,:]*np.exp(trajectories.phase[1,:,:]*1j) 
+    traj_field_z =  trajectories.polarization[2,:,:]*np.exp(trajectories.phase[2,:,:]*1j)  
+    tot_field_x_tm = np.zeros(n_bins, dtype=complex)
+    tot_field_y_tm = np.zeros(n_bins, dtype=complex)
+    tot_field_z_tm = np.zeros(n_bins, dtype=complex)
+    
+    # loop through the time bins of the histogram
+    for i in range(n_bins):
+        # loop through each trajectory in the bin
+        for j in range(hist[i]):
+            # find trajectories that were reflected/transmitted at this time bin
+            traj_ind_refl = np.where((traj_time>=bin_min[i])& (traj_time < bin_max[i]))[0]
+    
+            w = np.sqrt(refl_per_traj[traj_ind_refl]*ntraj)
+        
+            # add reflectance/transmittance due to trajectories 
+            # reflected/transmitted at this event
+            tot_field_x_tm[i] += np.sum(w*traj_field_x[refl_indices[traj_ind_refl],traj_ind_refl])
+            tot_field_y_tm[i] += np.sum(w*traj_field_y[refl_indices[traj_ind_refl],traj_ind_refl])
+            tot_field_z_tm[i] += np.sum(w*traj_field_z[refl_indices[traj_ind_refl],traj_ind_refl])
+        
+    # calculate intensity as E*E
+    intensity_x_tm = np.conj(tot_field_x_tm)*tot_field_x_tm
+    intensity_y_tm = np.conj(tot_field_y_tm)*tot_field_y_tm
+    intensity_z_tm = np.conj(tot_field_z_tm)*tot_field_z_tm
+
+    
+    # add the x,y, and z intensity
+    refl_intensity_phase_events = intensity_x_tm + intensity_y_tm + intensity_z_tm
+    
+    # normalize
+    intensity_incident = np.sum(trajectories.weight[0,:]) # assumes normalized light is incoherent
+    refl_phase_times = refl_intensity_phase_events/intensity_incident
+    refl_phase = np.sum(refl_phase_times)
+        
+    return refl_phase, refl_phase_times
+    
+    
 #------------------------------------------------------------------------------
 #    # For implementing coarse roughness when the trajectories exit the sample
 #    nev = z.shape[0]    
