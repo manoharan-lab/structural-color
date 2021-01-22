@@ -381,8 +381,78 @@ def calc_tir(tir_refl_bool, refl_indices, trans_indices, inc_refl_per_traj,
             tir_single_events, 
             tir_single_refl_events, 
             tir_indices_single)
+            
+
+def calc_tir_phase_event_input(tir_refl_bool,step, refl_indices, radius, 
+                              volume_fraction, n_particle, n_sample, wavelength,
+                              trajectories, refl_per_traj,
+                              bin_width=sc.Quantity(40,'fs')):                      
+    '''
+    Calculates the parameters needed to input into calc_refl_trans_event 
+    in order to calculate the total internal reflected weights as a function
+    of events number, including phase calculations (coherence effects)    
+    
+    Parameters
+    ----------
+    tir_refl_bool: 2d array of booleans (shape: nevents, ntraj)
+        describe whether a trajectory gets totally internally reflected at any 
+        event and also exits in the negative direction to contribute to reflectance
+    step: 2d array (structcol.Quantity [length])
+        Step sizes between scattering events in each of the trajectories.
+    refl_indices: 1d array (length: ntraj)
+        array of event indices for reflected trajectories
+    radius: float (structcol.Quantity [length])
+        Radius of particle.
+    volume_fraction: float
+        Volume fraction of particles.
+    n_particle: float
+        Index of refraction of particle.
+    n_sample: float
+        Index of refraction of sample.
+    wavelength: float (structcol.Quantity [length])
+        Wavelength.
+    trajectories: Trajectory object
+        Trajectory object used in Monte Carlo simulation
+    refl_per_traj: 1d array (length: ntraj)
+        reflectance distributed to each trajectory, including fresnel 
+        contributions
+    bin_width: float (structcol.Quantity [time])
+        size of time bins for creating field versus time. Should be set equal to
+        coherence time of source
+        
+    Returns
+    -------
+    tir_per_traj_phase: 1d array (length:ntraj)
+        totally internnaly reflected weights for each trajectory
+    tir_indices_refl: 1d array (length:ntraj)
+        event indices at which trajectories are totally internally reflected
+    
+    '''
+                                  
+    nevents = trajectories.nevents
+    ntraj = len(refl_indices)
+    
+    traj_times_tir = det.calc_traj_time(step, refl_indices, radius, volume_fraction,
+                                    n_particle, n_sample, wavelength)
+    _, tir_per_traj_phase = det.calc_refl_phase_time(traj_times_tir, trajectories, 
+                                                 refl_indices, refl_per_traj,
+                                                 bin_width=bin_width)
     
     
+    # calculate tir_indices_refl
+    tir_indices = np.argmax(np.vstack([np.zeros(ntraj),tir_refl_bool]), axis=0)
+        # make event indices of zero larger than possible nevents
+    # so that refl_events of 0 never have a smaller number than any other events
+    refl_ind_inf = np.copy(refl_indices)
+    refl_ind_inf[refl_ind_inf == 0] = nevents*10
+    # find  tir indices where trajectories are tir'd before getting reflected
+    tir_indices[np.where(tir_indices>refl_ind_inf)[0]] = 0
+    tir_ev_ind = np.where(tir_indices!=0)
+    tir_indices_refl = np.zeros(ntraj)
+    tir_indices_refl[tir_ev_ind] = refl_indices[tir_ev_ind]    
+    
+    return tir_per_traj_phase, tir_indices_refl
+        
     
 def calc_pdf_scat(refl_events, trans_events, nevents):
     '''
