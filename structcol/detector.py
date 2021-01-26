@@ -2536,7 +2536,11 @@ def calc_traj_time(step, exit_indices, radius, volume_fraction,
     returns:
     -------
     traj_time: 1d array (structcol.Quantity [time], length ntraj)
-        time each trajectory spends traversing inside the sample before exit
+        time each trajectory spends scattering inside the sample before exit
+    travel_time: 1d array (structcol.Quantity [time], length ntraj)
+        time each trajectory spends travelling inside the sample before exit
+    dwell_time: float (structcol.Quantity [time])
+        time duration of scattering inside a particle
     '''    
     
     # calculate the path length
@@ -2552,15 +2556,14 @@ def calc_traj_time(step, exit_indices, radius, volume_fraction,
     travel_time = path_length_traj/velocity
     
     # calculate the dwell time in a particle
-    E_0=1
-    dwell_time = mie.calc_dwell_time(radius, n_particle, n_sample, E_0, wavelength)
+    dwell_time = mie.calc_dwell_time(radius, n_particle, n_sample, wavelength)
         
     # add the dwell times and travel times
-    #travel_time = np.real(travel_time)
-    #dwell_time = np.real(dwell_time)
     traj_time = travel_time + dwell_time
-    # dimensions of traj time are: 
+    
+    # change units to femtoseconds 
     traj_time = traj_time.to('fs')
+    
     return traj_time, travel_time, dwell_time
     
 def calc_refl_phase_time(traj_time, trajectories, refl_indices, refl_per_traj,
