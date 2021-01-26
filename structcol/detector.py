@@ -2552,14 +2552,16 @@ def calc_traj_time(step, exit_indices, radius, volume_fraction,
     travel_time = path_length_traj/velocity
     
     # calculate the dwell time in a particle
-    #dwell_time = W_ext/(c_scat*c)
+    E_0=1
+    dwell_time = mie.calc_dwell_time(radius, n_particle, n_sample, E_0, wavelength)
         
     # add the dwell times and travel times
-    traj_time = travel_time #+ dwell_time
+    #travel_time = np.real(travel_time)
+    #dwell_time = np.real(dwell_time)
+    traj_time = travel_time + dwell_time
     # dimensions of traj time are: 
     traj_time = traj_time.to('fs')
-    
-    return traj_time
+    return traj_time, travel_time, dwell_time
     
 def calc_refl_phase_time(traj_time, trajectories, refl_indices, refl_per_traj,
                          bin_width=sc.Quantity(40,'fs')):
@@ -2637,19 +2639,19 @@ def calc_refl_phase_time(traj_time, trajectories, refl_indices, refl_per_traj,
         
         # loop through trajecotires in the bin
         for j in range(hist[i]):
-            frac_x = refl_field_x[i]/(np.sum(refl_field_x))
-            frac_y = refl_field_y[i]/(np.sum(refl_field_y))
-            frac_z = refl_field_z[i]/(np.sum(refl_field_z))
+            frac_x = refl_field_x[j]/(np.sum(refl_field_x))
+            frac_y = refl_field_y[j]/(np.sum(refl_field_y))
+            frac_z = refl_field_z[j]/(np.sum(refl_field_z))
             
             Ix_per_traj_phase[j] = (np.abs(refl_field_x[j])**2 + 
-                                    frac_x[j]*np.sum(np.conj(refl_field_x[j])*refl_field_x) +
-                                    frac_x[j]*np.sum(np.conj(refl_field_x)*refl_field_x[j]))
+                                    frac_x*np.sum(np.conj(refl_field_x[j])*refl_field_x) +
+                                    frac_x*np.sum(np.conj(refl_field_x)*refl_field_x[j]))
             Iy_per_traj_phase[j] = (np.abs(refl_field_y[j])**2 + 
-                                    frac_y[j]*np.sum(np.conj(refl_field_y[j])*refl_field_y) +
-                                    frac_y[j]*np.sum(np.conj(refl_field_y)*refl_field_y[j]))
+                                    frac_y*np.sum(np.conj(refl_field_y[j])*refl_field_y) +
+                                    frac_y*np.sum(np.conj(refl_field_y)*refl_field_y[j]))
             Iz_per_traj_phase[j] =(np.abs(refl_field_y[j])**2 + 
-                                    frac_z[j]*np.sum(np.conj(refl_field_y[j])*refl_field_y) +
-                                    frac_z[j]*np.sum(np.conj(refl_field_y)*refl_field_y[j]))
+                                    frac_z*np.sum(np.conj(refl_field_y[j])*refl_field_y) +
+                                    frac_z*np.sum(np.conj(refl_field_y)*refl_field_y[j]))
     
     # define step function to convolve with
     step_func = np.ones(n_bins)
