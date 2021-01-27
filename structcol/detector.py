@@ -2364,6 +2364,8 @@ def calc_haze(trajectories, trans_per_traj, transmittance, trans_indices,
 def calc_phase_refl_trans_event(refl_per_traj, inc_refl_per_traj, trans_per_traj, 
                           refl_indices, trans_indices, trajectories):
     '''
+    DEPRECATED
+    
     Returns reflectance and transmittance as a function of event number
     
     Parameters
@@ -2625,6 +2627,7 @@ def calc_refl_phase_time(traj_time, trajectories, refl_indices, refl_per_traj,
     
     
     # loop through the time bins of the histogram
+    traj_count = 0
     for i in range(n_bins):
         # find trajectories that were reflected/transmitted at this time bin
         traj_ind_refl = np.where((traj_time>=bin_min[i])& (traj_time < bin_max[i]))[0]
@@ -2646,15 +2649,17 @@ def calc_refl_phase_time(traj_time, trajectories, refl_indices, refl_per_traj,
             frac_y = refl_field_y[j]/(np.sum(refl_field_y))
             frac_z = refl_field_z[j]/(np.sum(refl_field_z))
             
-            Ix_per_traj_phase[j] = (np.abs(refl_field_x[j])**2 + 
+            # for each bin, add up the intensities from each trajectory
+            Ix_per_traj_phase[traj_count] = (np.abs(refl_field_x[j])**2 + 
                                     frac_x*np.sum(np.conj(refl_field_x[j])*refl_field_x) +
                                     frac_x*np.sum(np.conj(refl_field_x)*refl_field_x[j]))
-            Iy_per_traj_phase[j] = (np.abs(refl_field_y[j])**2 + 
+            Iy_per_traj_phase[traj_count] = (np.abs(refl_field_y[j])**2 + 
                                     frac_y*np.sum(np.conj(refl_field_y[j])*refl_field_y) +
                                     frac_y*np.sum(np.conj(refl_field_y)*refl_field_y[j]))
-            Iz_per_traj_phase[j] =(np.abs(refl_field_y[j])**2 + 
+            Iz_per_traj_phase[traj_count] =(np.abs(refl_field_y[j])**2 + 
                                     frac_z*np.sum(np.conj(refl_field_y[j])*refl_field_y) +
                                     frac_z*np.sum(np.conj(refl_field_y)*refl_field_y[j]))
+            traj_count+=1
     
     # define step function to convolve with
     step_func = np.ones(n_bins)

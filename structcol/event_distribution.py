@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 import structcol as sc
 from structcol.detector import select_events
 from structcol.detector import fresnel_pass_frac
+from structcol import detector as det
     
 def calc_refl_trans_event(refl_per_traj, inc_refl_per_traj, trans_per_traj, 
                           refl_indices, trans_indices, nevents):
@@ -206,6 +207,8 @@ def calc_tir(tir_refl_bool, refl_indices, trans_indices, inc_refl_per_traj,
              n_sample, n_medium, boundary, trajectories, thickness,
              phase=False):
     '''
+    Note: phase=True argument in this function is DEPRECATED    
+    
     Returns weights of various types of totally internally reflected trajectories
     as a function of event number
     
@@ -432,7 +435,7 @@ def calc_tir_phase_event_input(tir_refl_bool,step, refl_indices, radius,
     nevents = trajectories.nevents
     ntraj = len(refl_indices)
     
-    traj_times_tir = det.calc_traj_time(step, refl_indices, radius, volume_fraction,
+    traj_times_tir,_,_ = det.calc_traj_time(step, refl_indices, radius, volume_fraction,
                                     n_particle, n_sample, wavelength)
     _, tir_per_traj_phase = det.calc_refl_phase_time(traj_times_tir, trajectories, 
                                                  refl_indices, refl_per_traj,
