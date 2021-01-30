@@ -2441,7 +2441,6 @@ def calc_phase_refl_trans_event(refl_per_traj, inc_refl_per_traj, trans_per_traj
 
         # TODO fix this for transmittance
         trans_events[ev] += np.sum(trans_per_traj[traj_ind_trans_ev])
-        #print('here 2')
         
     # calculate intensity as E*E
     intensity_x_ev = np.conj(tot_field_x_ev)*tot_field_x_ev
@@ -2567,8 +2566,10 @@ def calc_traj_time(step, exit_indices, radius, volume_fraction,
     # set traj_time = 0 for stuck trajectories
     traj_time[stuck_traj_ind]=sc.Quantity(0,'fs')
     
-    # change units to femtoseconds 
+    # change units to femtoseconds and discard imaginary part
     traj_time = traj_time.to('fs')
+    traj_time = np.real(traj_time.magnitude)
+    traj_time = sc.Quantity(traj_time,'fs')
     
     return traj_time, travel_time, dwell_time
     
@@ -2610,15 +2611,15 @@ def calc_refl_phase_time(traj_time, trajectories, refl_indices, refl_per_traj,
     bin_width = bin_width.to('fs').magnitude 
     
     # create the historgram  
-    traj_time = traj_time[traj_time>0]
+    traj_time_cut = traj_time[traj_time>0]
     
     no_refl_warn = "No trajectories were reflected. Check sample parameters or increase number of trajectories."
-    if len(traj_time)==0:
+    if len(traj_time_cut)==0:
         warnings.warn(no_refl_warn)
         n_bins = 0
     else:
-        bin_range=range(1,int(round(max(traj_time))+bin_width), bin_width)
-        hist, bin_edges = np.histogram(traj_time, bins = bin_range)   
+        bin_range=range(1,int(round(max(traj_time_cut))+bin_width), bin_width)
+        hist, bin_edges = np.histogram(traj_time_cut, bins = bin_range)   
         bin_min = bin_edges[0::1]
         bin_max = bin_edges[1::1]
         n_bins = len(hist)
@@ -2638,9 +2639,11 @@ def calc_refl_phase_time(traj_time, trajectories, refl_indices, refl_per_traj,
     # loop through the time bins of the histogram
     traj_count = 0
     for i in range(n_bins):
+    
         # find trajectories that were reflected/transmitted at this time bin
         traj_ind_refl = np.where((traj_time>=bin_min[i])& (traj_time < bin_max[i]))[0]
         w = np.sqrt(refl_per_traj[traj_ind_refl]*ntraj)
+        
         refl_field_x = w*traj_field_x[refl_indices[traj_ind_refl]-1,traj_ind_refl]
         refl_field_y = w*traj_field_y[refl_indices[traj_ind_refl]-1,traj_ind_refl]
         refl_field_z = w*traj_field_z[refl_indices[traj_ind_refl]-1,traj_ind_refl]
@@ -2669,10 +2672,10 @@ def calc_refl_phase_time(traj_time, trajectories, refl_indices, refl_per_traj,
                                     frac_z*np.sum(np.conj(refl_field_y)*refl_field_y[j]))
                             
             traj_count+=1
-    
+
     # redefine n_bins and tot_fields to handle no reflectance case
-    if n_bins ==0:
-        n_bins =1
+    if n_bins==0:
+        n_bins=1
         tot_field_x_tm = np.zeros(n_bins, dtype=complex)
         tot_field_y_tm = np.zeros(n_bins, dtype=complex)
         tot_field_z_tm = np.zeros(n_bins, dtype=complex)
