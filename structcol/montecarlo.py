@@ -1124,11 +1124,15 @@ def phase_function(m, x, angles, volume_fraction, k, number_density,
     # future, we might want to include near field effects. In that case, we 
     # need to make sure to pass near_fields = True in 
     # mie.diff_scat_intensity_complex_medium(). The default is False. 
+    # Also note that the diff_cscat_par and perp will actuallly be 
+    # the values diff_cscat_x and y if coordinate_system is cartesian. 
     diff_cscat_par, diff_cscat_perp = \
          model.differential_cross_section(m, x, angles, volume_fraction,
                                              structure_type=structure_type,
                                              form_type=form_type,
                                              diameters=diameters,
+                                             coordinate_system=coordinate_system,
+                                             phis=phis,
                                              concentration=concentration,
                                              pdi=pdi, wavelen=wavelen, 
                                              n_matrix=n_sample, k=k, 
@@ -1143,6 +1147,9 @@ def phase_function(m, x, angles, volume_fraction, k, number_density,
     if coordinate_system=='cartesian':
         thetas_1d = angles[:,0] 
         phis_1d = phis[0,:]
+        
+        # note that the diff_cscat_par and perp calculated above
+        # will actually be diff_cscat_x and y 
         cscat_total = mie.integrate_intensity_complex_medium(diff_cscat_par,
                                                              diff_cscat_perp,
                                                              distance,
@@ -1150,8 +1157,8 @@ def phase_function(m, x, angles, volume_fraction, k, number_density,
                                                              coordinate_system='cartesian',
                                                              phis=phis_1d)[0]
     
-    # If absorption, integrate the differential cross section using integration
-    # functions in mie.py that use absorption
+    # If absorption and not cartesian coords, integrate the differential cross 
+    # section using integration functions in mie.py that use absorption
     elif np.abs(k.imag.magnitude)> 0.:
         # TODO implement cartesian for polydisperse
         if form_type=='polydisperse' and len(concentration)>1:
