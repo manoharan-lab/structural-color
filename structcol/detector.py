@@ -2649,7 +2649,7 @@ def calc_refl_phase_time(traj_time, trajectories, refl_indices, refl_per_traj,
         refl_field_z = w*traj_field_z[refl_indices[traj_ind_refl]-1,traj_ind_refl]
  
         # add reflectance/transmittance due to trajectories 
-        # reflected/transmitted at this event
+        # reflected/transmitted at this time bin
         tot_field_x_tm[i] += np.sum(refl_field_x)
         tot_field_y_tm[i] += np.sum(refl_field_y)
         tot_field_z_tm[i] += np.sum(refl_field_z)
@@ -2661,15 +2661,18 @@ def calc_refl_phase_time(traj_time, trajectories, refl_indices, refl_per_traj,
             frac_z = refl_field_z[j]/(np.sum(refl_field_z))
             
             # for each bin, add up the intensities from each trajectory
-            Ix_per_traj_phase[traj_count] = (np.abs(refl_field_x[j])**2 + 
-                                    frac_x*np.sum(np.conj(refl_field_x[j])*refl_field_x) +
-                                    frac_x*np.sum(np.conj(refl_field_x)*refl_field_x[j]))
+            Ix_per_traj_phase[traj_count] = (np.abs(refl_field_x[j])**2  
+                                    + frac_x*np.sum(np.conj(refl_field_x[j])*refl_field_x) 
+                                    + frac_x*np.sum(np.conj(refl_field_x)*refl_field_x[j])
+                                    - frac_x*2*np.abs(refl_field_x[j])**2)
             Iy_per_traj_phase[traj_count] = (np.abs(refl_field_y[j])**2 + 
                                     frac_y*np.sum(np.conj(refl_field_y[j])*refl_field_y) +
-                                    frac_y*np.sum(np.conj(refl_field_y)*refl_field_y[j]))
-            Iz_per_traj_phase[traj_count] =(np.abs(refl_field_y[j])**2 + 
-                                    frac_z*np.sum(np.conj(refl_field_y[j])*refl_field_y) +
-                                    frac_z*np.sum(np.conj(refl_field_y)*refl_field_y[j]))
+                                    frac_y*np.sum(np.conj(refl_field_y)*refl_field_y[j])
+                                    - frac_x*2*np.abs(refl_field_y[j])**2)
+            Iz_per_traj_phase[traj_count] =(np.abs(refl_field_z[j])**2 + 
+                                    frac_z*np.sum(np.conj(refl_field_z[j])*refl_field_z) +
+                                    frac_z*np.sum(np.conj(refl_field_z)*refl_field_z[j])
+                                    - frac_x*2*np.abs(refl_field_z[j])**2)
                             
             traj_count+=1
 
@@ -2684,14 +2687,21 @@ def calc_refl_phase_time(traj_time, trajectories, refl_indices, refl_per_traj,
     step_func = np.ones(n_bins)
     
     # convolve to get steady state
-    field_x_steady_tm = np.convolve(tot_field_x_tm, step_func)/bin_width
-    field_y_steady_tm = np.convolve(tot_field_y_tm, step_func)/bin_width
-    field_z_steady_tm = np.convolve(tot_field_z_tm, step_func)/bin_width
+    #field_x_steady_tm = np.convolve(tot_field_x_tm, step_func)/bin_width
+    #field_y_steady_tm = np.convolve(tot_field_y_tm, step_func)/bin_width
+    #field_z_steady_tm = np.convolve(tot_field_z_tm, step_func)/bin_width
     
     # take field value after it's reached steady state
-    field_x_steady = field_x_steady_tm[n_bins-1]
-    field_y_steady = field_y_steady_tm[n_bins-1]
-    field_z_steady = field_z_steady_tm[n_bins-1]
+    #field_x_steady = field_x_steady_tm[n_bins-1]
+    #field_y_steady = field_y_steady_tm[n_bins-1]
+    #field_z_steady = field_z_steady_tm[n_bins-1]
+    
+    ###### testing #######
+    field_x_steady = tot_field_x_tm
+    field_y_steady = tot_field_x_tm
+    field_z_steady = tot_field_x_tm
+    
+    ###### end testing #######
     
     # calculate intensity as E*E
     intensity_x = np.conj(field_x_steady)*field_x_steady
@@ -2699,7 +2709,7 @@ def calc_refl_phase_time(traj_time, trajectories, refl_indices, refl_per_traj,
     intensity_z = np.conj(field_z_steady)*field_z_steady
 
     # add the x,y, and z intensity
-    refl_intensity_phase_events = intensity_x + intensity_y + intensity_z
+    refl_intensity_phase_events = np.sum(intensity_x + intensity_y + intensity_z)
     refl_intensity_phase_per_traj = Ix_per_traj_phase + Iy_per_traj_phase + Iz_per_traj_phase
     
     # normalize
