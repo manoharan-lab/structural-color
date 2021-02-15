@@ -367,7 +367,7 @@ class Trajectory:
         """
         m = index_ratio(n_particle, n_sample)
         x = size_parameter(wavelen, n_sample, radius)
-        k = 2*np.pi/wavelen.magnitude
+        k = 2*np.pi*n_sample/wavelen.magnitude
         step = step.magnitude
         
         # calculate as_vec for all phis and thetas
