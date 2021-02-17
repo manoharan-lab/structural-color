@@ -2684,9 +2684,6 @@ def calc_refl_phase_time(traj_time, trajectories, refl_indices, refl_per_traj,
             Iz_per_traj_phase[traj_ind_refl[j]] = np.sum(coherence_terms_z*field_weight_z*np.cos(rel_phase_z))
     
 
-    #print(intensity_z_1)
-    #print(intensity_z_2)
-
     # redefine n_bins and tot_fields to handle no reflectance case
     if n_bins==0:
         n_bins=1
@@ -2724,17 +2721,13 @@ def calc_refl_phase_time(traj_time, trajectories, refl_indices, refl_per_traj,
 
     # add the x,y, and z intensity
     refl_intensity_phase_events = np.sum(intensity_x + intensity_y + intensity_z)
-    #print(np.sum(intensity_x)+np.sum(intensity_y)+np.sum(intensity_z))
-    #print(np.sum(refl_intensity_phase_events))
     refl_intensity_phase_per_traj = Ix_per_traj_phase + Iy_per_traj_phase + Iz_per_traj_phase
-    #print(np.sum(Ix_per_traj_phase)+np.sum(Iy_per_traj_phase)+np.sum(Iz_per_traj_phase))
-    #print(np.sum(refl_intensity_phase_per_traj))
     
     # normalize
     intensity_incident = np.sum(trajectories.weight[0,:]) # assumes normalized light is incoherent
     refl_steady = np.real(refl_intensity_phase_events/intensity_incident)
     refl_phase_per_traj = refl_intensity_phase_per_traj/intensity_incident
-    #print(np.sum(refl_phase_per_traj))
+
     return refl_steady, refl_phase_per_traj
     
 #------------------------------------------------------------------------------
