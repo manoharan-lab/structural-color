@@ -2574,7 +2574,8 @@ def calc_traj_time(step, exit_indices, radius, volume_fraction,
     return traj_time, travel_time, dwell_time
     
 def calc_refl_phase_time(traj_time, trajectories, refl_indices, refl_per_traj,
-                         bin_width=sc.Quantity(40,'fs')):
+                         bin_width=sc.Quantity(40,'fs'),
+                         convolve=False):
     '''
     Calculates the reflectance including phase, by considering trajectories
     that exit at the same time to be coherent. To do this we, must bin trajectories
@@ -2596,6 +2597,12 @@ def calc_refl_phase_time(traj_time, trajectories, refl_indices, refl_per_traj,
     bin_width: float (structcol.Quantity [time])
         size of time bins for creating field versus time. Should be set equal to
         coherence time of source
+   convolve: boolean
+        determines whether the reflectance vs time curve should be convolved 
+        with a step function input signal to simulate a constant input signal
+        instead of a pulse input signal. Note that this is not currently fully
+        implemented and will likely return a noisy result with a magnitude
+        smaller than expected. 
     
     returns:
     -------
@@ -2625,9 +2632,9 @@ def calc_refl_phase_time(traj_time, trajectories, refl_indices, refl_per_traj,
         n_bins = len(hist)
 
     # write expression for unweighted field 
-    traj_field_x =  trajectories.polarization[0,:,:]*np.exp(trajectories.phase[0,:,:]*1j) 
-    traj_field_y =  trajectories.polarization[1,:,:]*np.exp(trajectories.phase[1,:,:]*1j) 
-    traj_field_z =  trajectories.polarization[2,:,:]*np.exp(trajectories.phase[2,:,:]*1j)  
+    traj_field_x =  np.abs(trajectories.polarization[0,:,:])*np.exp(trajectories.phase[0,:,:]*1j) 
+    traj_field_y =  np.abs(trajectories.polarization[1,:,:])*np.exp(trajectories.phase[1,:,:]*1j) 
+    traj_field_z =  np.abs(trajectories.polarization[2,:,:])*np.exp(trajectories.phase[2,:,:]*1j)  
     tot_field_x_tm = np.zeros(n_bins, dtype=complex)
     tot_field_y_tm = np.zeros(n_bins, dtype=complex)
     tot_field_z_tm = np.zeros(n_bins, dtype=complex)
@@ -2637,7 +2644,6 @@ def calc_refl_phase_time(traj_time, trajectories, refl_indices, refl_per_traj,
     
     
     # loop through the time bins of the histogram
-    traj_count = 0
     for i in range(n_bins):
     
         # find trajectories that were reflected/transmitted at this time bin
@@ -2653,28 +2659,33 @@ def calc_refl_phase_time(traj_time, trajectories, refl_indices, refl_per_traj,
         tot_field_x_tm[i] += np.sum(refl_field_x)
         tot_field_y_tm[i] += np.sum(refl_field_y)
         tot_field_z_tm[i] += np.sum(refl_field_z)
-        
+    
         # loop through trajectories in the bin
-        for j in range(hist[i]):
-            frac_x = refl_field_x[j]/(np.sum(refl_field_x))
-            frac_y = refl_field_y[j]/(np.sum(refl_field_y))
-            frac_z = refl_field_z[j]/(np.sum(refl_field_z))
+        for j in range(len(traj_ind_refl)):
+            field_weight_x = np.abs(refl_field_x[j])/(np.abs(refl_field_x[j]) + np.abs(refl_field_x))
+            field_weight_y = np.abs(refl_field_y[j])/(np.abs(refl_field_y[j]) + np.abs(refl_field_y))
+            field_weight_z = np.abs(refl_field_z[j])/(np.abs(refl_field_z[j]) + np.abs(refl_field_z))
             
-            # for each bin, add up the intensities from each trajectory
-            Ix_per_traj_phase[traj_count] = (np.abs(refl_field_x[j])**2  
-                                    + frac_x*np.sum(np.conj(refl_field_x[j])*refl_field_x) 
-                                    + frac_x*np.sum(np.conj(refl_field_x)*refl_field_x[j])
-                                    - frac_x*2*np.abs(refl_field_x[j])**2)
-            Iy_per_traj_phase[traj_count] = (np.abs(refl_field_y[j])**2 + 
-                                    frac_y*np.sum(np.conj(refl_field_y[j])*refl_field_y) +
-                                    frac_y*np.sum(np.conj(refl_field_y)*refl_field_y[j])
-                                    - frac_x*2*np.abs(refl_field_y[j])**2)
-            Iz_per_traj_phase[traj_count] =(np.abs(refl_field_z[j])**2 + 
-                                    frac_z*np.sum(np.conj(refl_field_z[j])*refl_field_z) +
-                                    frac_z*np.sum(np.conj(refl_field_z)*refl_field_z[j])
-                                    - frac_x*2*np.abs(refl_field_z[j])**2)
-                            
-            traj_count+=1
+            coherence_terms_x = 2*np.abs(refl_field_x[j])*np.abs(refl_field_x) 
+            coherence_terms_y = 2*np.abs(refl_field_y[j])*np.abs(refl_field_y) 
+            coherence_terms_z = 2*np.abs(refl_field_z[j])*np.abs(refl_field_z)           
+            
+            rel_phase_x = np.real(trajectories.phase[0,refl_indices[traj_ind_refl[j]]-1,traj_ind_refl[j]]
+                            -trajectories.phase[0,refl_indices[traj_ind_refl]-1,traj_ind_refl])
+            rel_phase_y = (trajectories.phase[1,refl_indices[traj_ind_refl[j]]-1,traj_ind_refl[j]]
+                            -trajectories.phase[1,refl_indices[traj_ind_refl]-1,traj_ind_refl]) 
+            rel_phase_z = (trajectories.phase[2,refl_indices[traj_ind_refl[j]]-1,traj_ind_refl[j]]
+                            -trajectories.phase[2,refl_indices[traj_ind_refl]-1,traj_ind_refl]) 
+            
+            Ix_per_traj_phase[traj_ind_refl[j]] = np.sum(coherence_terms_x*field_weight_x*np.cos(rel_phase_x))
+                                    
+            Iy_per_traj_phase[traj_ind_refl[j]] = np.sum(coherence_terms_y*field_weight_y*np.cos(rel_phase_y))
+                                    
+            Iz_per_traj_phase[traj_ind_refl[j]] = np.sum(coherence_terms_z*field_weight_z*np.cos(rel_phase_z))
+    
+
+    #print(intensity_z_1)
+    #print(intensity_z_2)
 
     # redefine n_bins and tot_fields to handle no reflectance case
     if n_bins==0:
@@ -2683,25 +2694,28 @@ def calc_refl_phase_time(traj_time, trajectories, refl_indices, refl_per_traj,
         tot_field_y_tm = np.zeros(n_bins, dtype=complex)
         tot_field_z_tm = np.zeros(n_bins, dtype=complex)
         
-    # define step function to convolve with
-    step_func = np.ones(n_bins)
+    if convolve:
+    # TODO 
+    # note convolution code not  fully implemented
+    # current code results in impropert normalization
     
-    # convolve to get steady state
-    #field_x_steady_tm = np.convolve(tot_field_x_tm, step_func)/bin_width
-    #field_y_steady_tm = np.convolve(tot_field_y_tm, step_func)/bin_width
-    #field_z_steady_tm = np.convolve(tot_field_z_tm, step_func)/bin_width
-    
-    # take field value after it's reached steady state
-    #field_x_steady = field_x_steady_tm[n_bins-1]
-    #field_y_steady = field_y_steady_tm[n_bins-1]
-    #field_z_steady = field_z_steady_tm[n_bins-1]
-    
-    ###### testing #######
-    field_x_steady = tot_field_x_tm
-    field_y_steady = tot_field_x_tm
-    field_z_steady = tot_field_x_tm
-    
-    ###### end testing #######
+        # define step function to convolve with
+        step_func = np.ones(n_bins)
+        
+        # convolve to get steady state
+        field_x_steady_tm = np.convolve(tot_field_x_tm, step_func)/bin_width
+        field_y_steady_tm = np.convolve(tot_field_y_tm, step_func)/bin_width
+        field_z_steady_tm = np.convolve(tot_field_z_tm, step_func)/bin_width
+        
+        # take field value after it's reached steady state
+        field_x_steady = field_x_steady_tm[n_bins-1]
+        field_y_steady = field_y_steady_tm[n_bins-1]
+        field_z_steady = field_z_steady_tm[n_bins-1]
+        
+    else:
+        field_x_steady = tot_field_x_tm
+        field_y_steady = tot_field_y_tm
+        field_z_steady = tot_field_z_tm
     
     # calculate intensity as E*E
     intensity_x = np.conj(field_x_steady)*field_x_steady
@@ -2710,13 +2724,17 @@ def calc_refl_phase_time(traj_time, trajectories, refl_indices, refl_per_traj,
 
     # add the x,y, and z intensity
     refl_intensity_phase_events = np.sum(intensity_x + intensity_y + intensity_z)
+    #print(np.sum(intensity_x)+np.sum(intensity_y)+np.sum(intensity_z))
+    #print(np.sum(refl_intensity_phase_events))
     refl_intensity_phase_per_traj = Ix_per_traj_phase + Iy_per_traj_phase + Iz_per_traj_phase
+    #print(np.sum(Ix_per_traj_phase)+np.sum(Iy_per_traj_phase)+np.sum(Iz_per_traj_phase))
+    #print(np.sum(refl_intensity_phase_per_traj))
     
     # normalize
-    intensity_incident = np.sum(np.sqrt(trajectories.weight[0,:]))**2 # assumes normalized light is coherent
+    intensity_incident = np.sum(trajectories.weight[0,:]) # assumes normalized light is incoherent
     refl_steady = np.real(refl_intensity_phase_events/intensity_incident)
     refl_phase_per_traj = refl_intensity_phase_per_traj/intensity_incident
-    
+    #print(np.sum(refl_phase_per_traj))
     return refl_steady, refl_phase_per_traj
     
 #------------------------------------------------------------------------------
