@@ -383,7 +383,7 @@ class Trajectory:
         
         # calculate cumulative phase shift, uncluding the contribution from
         # distance travelled
-        cumul_phase_step = k*np.cumsum(step, axis=0)
+        cumul_phase_step = np.abs(k)*np.cumsum(step, axis=0)
         cumul_phase_par = np.cumsum(local_phase_par, axis=0) + cumul_phase_step
         cumul_phase_perp = np.cumsum(local_phase_perp, axis=0) + cumul_phase_step
         
