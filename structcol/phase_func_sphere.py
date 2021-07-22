@@ -46,22 +46,32 @@ def get_exit_pos(norm_refl, norm_trans, radius):
     
     # get the x-coordinate
     x_inter = norm[0,:]
-    x_inter = x_inter[x_inter!=0]*radius
+    #x_inter = x_inter[x_inter!=0]*radius
+    x_inter = x_inter*radius
     
     # get the y-coordinate
     y_inter = norm[1,:]
-    y_inter = y_inter[y_inter!=0]*radius
+    #y_inter = y_inter[y_inter!=0]*radius
+    y_inter = y_inter*radius
     
     # get the z-coordinate
     z_inter = norm[2,:]
-    z_inter = z_inter[z_inter!=0]*radius
+    #z_inter = z_inter[z_inter!=0]*radius
+    z_inter = z_inter*radius
     
     return x_inter, y_inter, z_inter
 
-def calc_pdf(x, y, z, radius, plot = False, phi_dependent = False, 
+def calc_pdf(x, y, z, radius, 
+             refl_per_traj,
+             trans_per_traj,
+             refl_indices,
+             trans_indices,
+             plot = False, phi_dependent = False, 
              nu_range = np.linspace(0.01, 1, 200), 
              phi_range = np.linspace(0, 2*np.pi, 300),
-             kz = None):
+             kz = None,
+             kernel_bin_width='silverman'):
+                   
     '''
     Calculates kernel density estimate of probability density function 
     as a function of nu or nu and phi for a given set of x,y, and z coordinates
@@ -79,6 +89,18 @@ def calc_pdf(x, y, z, radius, plot = False, phi_dependent = False,
         z-coordinate of each trajectory at exit event
     radius: float
         radius of sphere boundary
+    refl_per_traj: 1d array
+        array of trajectory weights that exit through reflection, normalized
+        by the total number of trajectories
+    refl_indices: 1d array
+        array of event indices at which trajectories exit structured sphere
+        through reflection
+    trans_per_traj: 1d array
+        array of trajectory weights that exit through transmission, normalized
+        by the total number of trajectories
+    trans_indices: 1d array
+        array of event indices at which trajectories exit structured sphere
+        through transmission
     plot: boolean
         If set to True, the intermediate and final pdfs will be plotted
     phi_dependent: boolean (optional)
@@ -90,6 +112,10 @@ def calc_pdf(x, y, z, radius, plot = False, phi_dependent = False,
         the phi values for which to calculate the pdf, if the pdf is phi-dependent
     kz: 1d array or None (optional)
         the kz values at the exit events for all the trajectories
+    kernel_bin_width: string or scalar or callable (optional)
+        determines the bin width for the gaussian kde used to calculate the 
+        structured sphere phase function. See scipy's gaussian_kde() function 
+        for more details. Default is 'silverman'
     
     Returns
     -------
@@ -114,20 +140,38 @@ def calc_pdf(x, y, z, radius, plot = False, phi_dependent = False,
     # If optional parameter kz is specified, we calculate theta based on kz. 
     # If not, we calculate theta based on the z exit position
     if kz is not None:
-        theta = np.arccos(kz)
+        # remove the values of kz=0 because they mean that there
+        # was no reflection or transmission (forward scattering) event
+        kz = kz[kz!=0]
+        theta = np.arccos(kz)        
     else:
+        z = z[z!=0]
         theta = np.arccos(z/radius)
     
+    # make sure we have 0 refl counted for trajectories where there is no
+    # actual refl event (and same for trans)
+    refl_indices[refl_indices!=0]=1
+    trans_indices[trans_indices!=0]=1
+    refl_weights = refl_per_traj*refl_indices
+    trans_weights = trans_per_traj*trans_indices
+    
+    # add weights to get scattered weights per traj
+    weights = refl_weights + trans_weights
+    
+    # remove zeros to match kz
+    weights = weights[weights!=0]
+
     # convert thetas to nus
     nu = (np.cos(theta) + 1) / 2
     
     # add reflections of data on to ends to prevent dips in distribution
     # due to edges
     nu_edge_correct = np.hstack((-nu, nu, -nu + 2))
+    weights_edge_correct = np.hstack((weights, weights, weights))
     
     if not phi_dependent:
         # calculate the pdf kernel density estimate
-        pdf = gaussian_kde(nu_edge_correct)
+        pdf = gaussian_kde(nu_edge_correct, bw_method=kernel_bin_width, weights = weights_edge_correct)
         
         # calculate the pdf for specific nu values
         theta = np.linspace(0.01, np.pi, 200)
@@ -407,7 +451,8 @@ def calc_d_avg(volume_fraction, radius):
     return d_avg
     
 def calc_mu_scat_abs(refl_per_traj, trans_per_traj, trans_indices, 
-                     volume_fraction, radius, n_sample, wavelength):
+                     volume_fraction, radius, n_sample, wavelength,
+                     inc_refl = 0):
     '''
     Calculates scattering coefficient and absorption coefficient using results
     of the Monte Carlo calc_refl_trans() function
@@ -463,6 +508,10 @@ def calc_mu_scat_abs(refl_per_traj, trans_per_traj, trans_indices,
         to as the bulk matrix
     wavelength: float-like
         source light wavelength
+    inc_refl: 0 or 1d array (optional)
+        the reflectance per trajectory due to light incident on the sphere surface.
+        This should be a small contribution, so can be ignored by leaving default
+        value 0
         
     Returns
     -------
@@ -484,7 +533,7 @@ def calc_mu_scat_abs(refl_per_traj, trans_per_traj, trans_indices,
     trans_per_traj[trans_indices == 1] = 0
     
     # calculate the total scattering cross section
-    tot_scat_cross_section = np.sum(refl_per_traj + trans_per_traj)*2*np.pi*radius**2
+    tot_scat_cross_section = np.sum(refl_per_traj + trans_per_traj + inc_refl)*2*np.pi*radius**2
     
     # calculate mu_scat, mu_abs using the sphere
     mu_scat = number_density*tot_scat_cross_section
@@ -492,24 +541,32 @@ def calc_mu_scat_abs(refl_per_traj, trans_per_traj, trans_indices,
     
     # don't need to include volume fraction for mu_abs_sphere component
     # because already included in number_density
-    mu_abs_matrix = 4*np.pi*np.imag(n_sample)/wavelength
+    mu_abs_matrix = 4*np.pi*np.imag(n_sample.magnitude)/wavelength
     mu_abs = mu_abs_sphere + mu_abs_matrix*(1-volume_fraction)
     
     return mu_scat, mu_abs
     
-def calc_scat_bulk(refl_per_traj, trans_per_traj, trans_indices, norm_refl, 
-                   norm_trans, volume_fraction, diameter,
+def calc_scat_bulk(refl_per_traj, 
+                   trans_per_traj,
+                   refl_indices,
+                   trans_indices, 
+                   norm_refl, 
+                   norm_trans, 
+                   volume_fraction, diameter,
                    n_sample, wavelength,
                    plot=False, phi_dependent=False, 
                    nu_range = np.linspace(0.01, 1, 200), 
                    phi_range = np.linspace(0, 2*np.pi, 300),
-                   kz=None):
+                   kz=None, inc_refl=0, kernel_bin_width='silverman'):
     '''
      Parameters
     ----------
     refl_per_traj: 1d array
         array of trajectory weights that exit through reflection, normalized
         by the total number of trajectories
+    refl_indices: 1d array
+        array of event indices at which trajectories exit structured sphere
+        through reflection
     trans_per_traj: 1d array
         array of trajectory weights that exit through transmission, normalized
         by the total number of trajectories
@@ -543,6 +600,14 @@ def calc_scat_bulk(refl_per_traj, trans_per_traj, trans_indices, norm_refl,
         the phi values for which to calculate the pdf, if the pdf is phi-dependent
     kz: None or 1d array (optional)
         the kz values at the exit events of the trajectories
+    inc_refl: 0 or 1d array (optional)
+        the reflectance per trajectory due to light incident on the sphere surface.
+        This should be a small contribution, so can be ignored by leaving default
+        value 0
+    kernel_bin_width: string or scalar or callable (optional)
+        determines the bin width for the gaussian kde used to calculate the 
+        structured sphere phase function. See scipy's gaussian_kde() function 
+        for more details. Default is 'silverman'
         
     Returns
     -------
@@ -559,18 +624,24 @@ def calc_scat_bulk(refl_per_traj, trans_per_traj, trans_indices, norm_refl,
     
     # calculate the lscat of the microsphere for use in the bulk simulation
     mu_scat, mu_abs = calc_mu_scat_abs(refl_per_traj, trans_per_traj, trans_indices, 
-                              volume_fraction, radius, n_sample, wavelength)
+                              volume_fraction, radius, n_sample, wavelength, inc_refl=inc_refl)
     
     # find the points on the sphere where trajectories exit
     x_inter, y_inter, z_inter = get_exit_pos(norm_refl, norm_trans, radius)
     
+            
     # calculate the probability density function as a function of nu, which depends on the scattering angle   
     p = calc_pdf(x_inter, y_inter, z_inter, radius, 
+                 refl_per_traj,
+                 trans_per_traj,
+                 refl_indices,
+                 trans_indices,
                  plot = plot, 
                  phi_dependent = phi_dependent, 
                  nu_range = nu_range,
                  phi_range = phi_range,
-                 kz=kz)
+                 kz=kz,
+                 kernel_bin_width = kernel_bin_width)
     
     return p, mu_scat, mu_abs
     
