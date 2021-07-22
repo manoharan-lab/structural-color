@@ -40,7 +40,7 @@ from pymie import multilayer_sphere_lib as msl
 import scipy
 from scipy.special import factorial
 
-@ureg.check('[]', '[]', '[]', '[length]', '[length]', '[]')
+#@ureg.check('[]', '[]', '[]', '[length]', '[length]', '[]')
 def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
                radius2=None, 
                concentration=None,
@@ -462,7 +462,7 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
            transport_length
     
 
-@ureg.check('[]', '[]', '[]', '[]')
+#@ureg.check('[]', '[]', '[]', '[]')
 
 def differential_cross_section(m, x, angles, volume_fraction,
                                structure_type = 'glass', form_type = 'sphere', 
@@ -942,10 +942,13 @@ def _integrate_cross_section(cross_section, factor, angles,
     """    
     # integrand
     integrand = cross_section * factor * np.sin(angles)
-    
+    # for older versions of pint,
     # np.trapz does not preserve units, so need to state explicitly that we are
     # in the same units as the integrand
-    integral = np.trapz(integrand, x=angles) * integrand.units
+    # for newer versions of pint,
+    # np.trapz does preserve units, and add the units of the angles. We therefore
+    # changed to angles.magnitude and removed the extra integrand.units term
+    integral = np.trapz(integrand, x=angles.magnitude) #* integrand.units
     
     # multiply by 2*pi to account for integral over phi
     sigma = azi_angle_range * integral

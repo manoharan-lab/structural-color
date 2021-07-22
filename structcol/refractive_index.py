@@ -152,7 +152,7 @@ n_dict = {
                                   Quantity('2.1798e-3 um^4')/(w*w*w*w)
 }
 
-@ureg.check(None, '[length]')   # ensures wavelen has units of length
+#@ureg.check(None, '[length]')   # ensures wavelen has units of length
 def n(material, wavelen, index_data=None, wavelength_data=None, kind='linear'):
     """
     Refractive index of various materials.
