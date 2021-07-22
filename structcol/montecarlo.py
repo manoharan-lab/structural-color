@@ -44,6 +44,8 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 import itertools
 import scipy
+import seaborn as sns
+from . import structure
 
 eps = 1.e-9
 
@@ -367,51 +369,87 @@ class Trajectory:
         """
         m = index_ratio(n_particle, n_sample)
         x = size_parameter(wavelen, n_sample, radius)
-        k = 2*np.pi*n_sample/wavelen.magnitude
+        k = 2*np.pi*n_sample.magnitude/wavelen.magnitude
         step = step.magnitude
+        ntraj = step.shape[1]
+        nevents = step.shape[0]
         
         # calculate as_vec for all phis and thetas
-        as_vec_par, as_vec_perp = mie.vector_scattering_amplitude(m, x, theta)    
+        as_vec_par, as_vec_perp = mie.vector_scattering_amplitude(m, x, theta) 
                                                 
         # add initial polarization to the beginning of as vec
-        as_vec_par = np.insert(as_vec_par, 0, cosphi[0,:], axis=0)   
-        as_vec_perp = np.insert(as_vec_perp, 0, sinphi[0,:], axis=0)                                    
+        # this isn't needed since we add the initial phase later
+        #as_vec_par = np.insert(as_vec_par, 0, cosphi[0,:], axis=0)   
+        #as_vec_perp = np.insert(as_vec_perp, 0, sinphi[0,:], axis=0)      
+                                               
+        qd = 4*np.array(np.abs(x)).max()*np.sin(theta/2)
+        local_phase_struct = structure.phase_factor_py(qd)
+        # when fine roughness, structure factor does not account for first event phase shift
+        local_phase_struct[0,:] = np.zeros(ntraj)
                                                           
         # calculate local phase shift                                  
-        local_phase_par = np.angle(as_vec_par) 
-        local_phase_perp = np.angle(as_vec_perp)  
+        local_phase_par =  local_phase_struct + np.angle(as_vec_par)
+        local_phase_perp = local_phase_struct + np.angle(as_vec_perp) 
         
-        # calculate cumulative phase shift, uncluding the contribution from
+        # add initial phase 
+        phase_init = np.zeros(ntraj)#np.random.rand(ntraj)*2*np.pi#
+        local_phase_par = np.insert(local_phase_par, 0, phase_init, axis=0)
+        local_phase_perp = np.insert(local_phase_perp, 0, phase_init, axis=0)   
+        
+        # calculate cumulative phase shift, including the contribution from
         # distance travelled
-        cumul_phase_step = np.abs(k)*np.cumsum(step, axis=0)
-        cumul_phase_par = np.cumsum(local_phase_par, axis=0) + cumul_phase_step
-        cumul_phase_perp = np.cumsum(local_phase_perp, axis=0) + cumul_phase_step
+        cumul_phase_step = np.abs(k)*step #np.abs(k)*np.cumsum(step, axis=0)#
+        cumul_phase_step = np.insert(cumul_phase_step, 0, np.zeros(ntraj), axis=0)      
+        cumul_phase_par = cumul_phase_step[0:-1,:] + local_phase_par  
+        cumul_phase_perp = cumul_phase_step[0:-1,:] + local_phase_perp  
+        
+        #####
+        #cumul_phase_par = cumul_phase_par#local_phase_par#cumul_phase_par#np.random.rand(cumul_phase_perp.shape[0],cumul_phase_perp.shape[1])*2*np.pi#
+        #cumul_phase_perp = cumul_phase_perp#local_phase_perp#cumul_phase_perp#np.random.rand(cumul_phase_perp.shape[0],cumul_phase_perp.shape[1])*2*np.pi#
+        ######
         
         # rotate into  local x, y, z coordinates
-        cumul_phase_x_loc = np.zeros(step.shape, dtype=complex)
-        cumul_phase_y_loc = np.zeros(step.shape, dtype=complex)
-        cumul_phase_x_loc[0,:] = cumul_phase_step[0,:]
-        cumul_phase_x_loc[0,:] = cumul_phase_step[0,:]
-        cumul_phase_x_loc[1:,:] = cumul_phase_par[1:,:]*cosphi + cumul_phase_perp[1:,:]*sinphi
-        cumul_phase_y_loc[1:,:] = cumul_phase_par[1:,:]*sinphi - cumul_phase_perp[1:,:]*cosphi
+        cosphi = np.insert(cosphi, 0, np.ones(ntraj), axis=0) # add the initial direction +z
+        sinphi = np.insert(sinphi, 0, np.zeros(ntraj), axis=0)# add the initial direction +z   
+        costheta = np.insert(costheta, 0, np.ones(ntraj), axis=0) # add the initial direction +z
+        sintheta = np.insert(sintheta, 0, np.zeros(ntraj), axis=0) # add the initial direction +z  
+        cumul_phase_x_loc = np.complex64(cumul_phase_par*cosphi + cumul_phase_perp*sinphi)
+        cumul_phase_y_loc = np.complex64(cumul_phase_par*sinphi - cumul_phase_perp*cosphi)
+        
+        #####
+        #cumul_phase_x_loc = cumul_phase_par#np.random.rand(cumul_phase_perp.shape[0],cumul_phase_perp.shape[1])*2*np.pi#
+        #cumul_phase_x_loc[:,0:ntraj/2] = 0
+        #cumul_phase_y_loc = cumul_phase_perp#np.random.rand(cumul_phase_perp.shape[0],cumul_phase_perp.shape[1])*2*np.pi#
+        #cumul_phase_x_loc[:,0:ntraj/2] = 0        
+        ######        
         
         # set the local phases in the trajectories object
         # local phase for z is zero since always assume traveling in z direction
         phn = self.phase.magnitude
-        phn[0,:,:] = cumul_phase_x_loc       
-        phn[1,:,:] = cumul_phase_y_loc
+        phn[0,:,:] = cumul_phase_x_loc #np.random.rand(nevents, ntraj)*2*np.pi#      
+        phn[1,:,:] = cumul_phase_y_loc#np.random.rand(nevents, ntraj)*2*np.pi#
+        #phn[2,:,:] = cumul_phase_x_loc#np.random.rand(nevents, ntraj)*2*np.pi#
         
         for n in np.arange(1,self.nevents):
-            # update polarizations
+            # rotate local phase to global
             # Calculate the new x, y, z values
             # using the following equations, which can be derived by using matrix
             # operations to perform a rotation about the y-axis by angle theta
             # followed by a rotation about the z-axis by angle phi
+            # n or n-1?
+            #phx = ((phn[0,n,:]*costheta[n-1,:] + phn[2,n,:]*sintheta[n-1,:])*
+            #        cosphi[n-1,:]) - phn[1,n,:]*sinphi[n-1,:]
+            #phy = ((phn[0,n,:]*costheta[n-1,:] + phn[2,n,:]*sintheta[n-1,:])*
+            #      sinphi[n-1,:]) + phn[1,n,:]*cosphi[n-1,:]
+            #phz = -phn[0,n,:]*sintheta[n-1,:] + phn[2,n,:]*costheta[n-1,:] 
+            
             phx = ((phn[0,n:,:]*costheta[n-1,:] + phn[2,n:,:]*sintheta[n-1,:])*
                     cosphi[n-1,:]) - phn[1,n:,:]*sinphi[n-1,:]
             phy = ((phn[0,n:,:]*costheta[n-1,:] + phn[2,n:,:]*sintheta[n-1,:])*
                   sinphi[n-1,:]) + phn[1,n:,:]*cosphi[n-1,:]
-            phz = -phn[0,n:,:]*sintheta[n-1,:] + phn[2,n:,:]*costheta[n-1,:]    
+            phz = -phn[0,n:,:]*sintheta[n-1,:] + phn[2,n:,:]*costheta[n-1,:] 
+            
+            #phn[:,n,:] = phx, phy, phz
             phn[:,n:,:] = phx, phy, phz
         
         # Update all the phases of the trajectories
@@ -993,7 +1031,6 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
                                     phis = phis,
                                     structure_s_data=structure_s_data,
                                     structure_qd_data=structure_qd_data)
-
     mu_scat = number_density * cscat_total
     
     # Here, the resulting units of mu_scat and mu_abs are nm^2/um^3. Thus, we 
@@ -1225,6 +1262,10 @@ def sample_angles(nevents, ntraj, p, min_angle=0.01):
     """
     num_theta = len(p)
     
+    # the direction for the first event is defined upon initialization
+    # so we only need to sample nevents-1
+    nevents = nevents-1 
+    
     # Scattering angles for the phase function calculation (typically from 0 to 
     # pi). A non-zero minimum angle is needed because in the single scattering 
     # model, if the analytic formula is used, S(q=0) returns nan.
@@ -1255,10 +1296,6 @@ def sample_angles(nevents, ntraj, p, min_angle=0.01):
             
         # define phi values from which to sample 
         phis = sc.Quantity(np.linspace(min_angle,2*np.pi, num_phi), 'rad') 
-        
-        # the direction for the first event is defined upon initialization
-        # so we only need to sample nevents-1
-        nevents = nevents-1 
     
         # sample indices for phi values
         phi_ind = np.array([np.random.choice(num_phi, ntraj, p = p_phi/np.sum(p_phi))

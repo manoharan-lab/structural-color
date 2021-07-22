@@ -28,6 +28,7 @@ structure factors
 import numpy as np
 from . import ureg, Quantity  # unit registry and Quantity constructor from pint
 import scipy as sp
+import pandas as pd
 import os
 
 @ureg.check('[]','[]')    # inputs should be dimensionless
@@ -294,3 +295,17 @@ def factor_data(qd, s_data, qd_data):
     s_func = sp.interpolate.interp1d(qd_data, s_data, kind = 'linear')
     
     return s_func(qd)
+
+def phase_factor_py(qd, n=10000):
+    df=pd.read_csv('g_4.csv', sep=',',header=None)
+    r_d = np.array(df[0])
+    g = np.array(df[1])
+    r_samp = np.random.choice(r_d, n, p = g/np.sum(g))
+    
+    field_s = np.zeros(qd.shape, dtype='complex')
+    for i in range(qd.shape[0]):
+        for j in range(qd.shape[1]):
+            field_s[i,j] = np.sum(np.exp(1j*qd[i,j]*r_samp))
+            
+    phase_factor = np.angle(field_s)
+    return phase_factor
