@@ -194,6 +194,9 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
         radius2 = radius2.to(radius.units)
     if radius2 is None:
         radius2 = radius
+    if pdi is not None:
+        form_type = 'polydisperse'
+        structure_type='polydisperse'
     
     # define the mean diameters in case the system is polydisperse
     mean_diameters = Quantity(np.array([2*radius.magnitude, 2*radius2.magnitude]),
@@ -216,7 +219,7 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
     # calculate array of volume fractions of each layer in the particle. If 
     # particle is not core-shell, volume fraction remains the same
     vf_array = np.empty(len(np.atleast_1d(radius)))
-    r_array = np.array([0] + np.atleast_1d(radius).tolist()) 
+    r_array = np.array([0] + np.atleast_1d(radius.magnitude).tolist()) 
     for r in np.arange(len(r_array)-1):
         vf_array[r] = (r_array[r+1]**3-r_array[r]**3) / (r_array[-1:]**3) * volume_fraction.magnitude
     if len(vf_array) == 1:
@@ -428,6 +431,14 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
         asymmetry_perp = _integrate_cross_section(diff_cs_total[1], np.cos(angles_tot)*1.0/np.abs(k)**2,
                                                   angles_tot, azi_angle_range_tot)
         asymmetry_parameter = (asymmetry_par + asymmetry_perp)/cscat_total/2.0
+        
+        # calculate transport cscat
+        # not currently returned, but could be useful in the future
+        transport_cscat_par = _integrate_cross_section(diff_cs_total[0], (1-np.cos(angles_tot))*1.0/np.abs(k)**2,
+                                                 angles_tot, azi_angle_range_tot)
+        transport_cscat_perp = _integrate_cross_section(diff_cs_total[1], (1-np.cos(angles_tot))*1.0/np.abs(k)**2,
+                                                 angles_tot, azi_angle_range_tot)
+        transport_cscat = (transport_cscat_par + transport_cscat_perp)/2
     
         # Calculate the transport length for unpolarized light (see eq. 5 of 
         # Kaplan, Dinsmore, Yodh, Pine, PRE 50(6): 4827, 1994)
@@ -475,7 +486,7 @@ def differential_cross_section(m, x, angles, volume_fraction,
                                structure_s_data=None, structure_qd_data=None):
     """
     Calculate dimensionless differential scattering cross-section for a sphere,
-    including contributions from the structure factor. Need to multiply by k**2
+    including contributions from the structure factor. Need to multiply by 1/k**2
     to get the dimensional differential cross section.
     
     Parameters
@@ -565,7 +576,7 @@ def differential_cross_section(m, x, angles, volume_fraction,
         k = k.to('1/um')
     if isinstance(distance, Quantity):
         distance = distance.to('um')
-    
+
     # calculate form factor    
     if form_type == 'sphere': 
         if k is not None and (np.abs(k.imag.magnitude) > 0. or coordinate_system == 'cartesian'):
@@ -578,6 +589,8 @@ def differential_cross_section(m, x, angles, volume_fraction,
                                             phis=phis) 
         else:
             form_factor = mie.calc_ang_dist(m, x, angles)
+            #if k is not None:
+            #    form_factor = form_factor/k**2
 
         f_par = form_factor[0]  
         f_perp = form_factor[1]        
@@ -585,6 +598,7 @@ def differential_cross_section(m, x, angles, volume_fraction,
     elif form_type == 'polydisperse':
         if diameters is None or concentration is None or pdi is None or wavelen is None or n_matrix is None:
             raise ValueError('must specify diameters, concentration, pdi, wavelength, and n_matrix for polydisperse systems')
+            
         form_factor = polydisperse_form_factor(m, angles, diameters, 
                                                concentration, pdi, wavelen, 
                                                n_matrix, k=k, distance=distance,
@@ -688,7 +702,6 @@ def polydisperse_form_factor(m, angles, diameters, concentration, pdi, wavelen,
         polydisperse form factor for parallel and perpendicular polarizations as a 
         function of scattering angle. 
     """
-    
     if len(np.atleast_1d(m)) > 1:
         raise ValueError('cannot handle polydispersity in core-shell particles')
     
@@ -720,7 +733,9 @@ def polydisperse_form_factor(m, angles, diameters, concentration, pdi, wavelen,
         distr = size_distribution(diameter_range, np.atleast_1d(diameters)[d], np.atleast_1d(t)[d])
         distr_array = np.tile(distr, [len(angles),1])
         angles_array = np.tile(angles, [len(diameter_range),1])
-        x_poly = size_parameter(wavelen, n_matrix, Quantity(diameter_range/2, diameters.units))
+        
+        x_poly = size_parameter(wavelen, n_matrix, diameter_range/2) # for new pint
+        #x_poly = size_parameter(wavelen, n_matrix, Quantity(diameter_range/2, diameters.units))
            
         form_factor_par = np.empty([len(angles), len(diameter_range)])
         form_factor_perp = np.empty([len(angles), len(diameter_range)])
@@ -735,8 +750,8 @@ def polydisperse_form_factor(m, angles, diameters, concentration, pdi, wavelen,
                  and (k is not None and distance is not None)):
                 distance_array = np.resize(distance, len(np.atleast_1d(diameters)))
                 form_factor = mie.diff_scat_intensity_complex_medium(m, x_poly[s], 
-                                        Quantity(angles_array[s], angles.units),
-                                        k*Quantity(distance_array[d], distance.units),
+                                        angles_array[s],
+                                        k*distance_array[d], # removed extra units for new pint
                                         coordinate_system=coordinate_system,
                                         incident_vector=incident_vector,
                                         phis=phis)          
@@ -922,6 +937,17 @@ def size_distribution(diameter_range, mean, t):
     Schulz distribution.
     
     """
+    if isinstance(diameter_range, Quantity):
+        diameter_range = diameter_range.magnitude
+    if isinstance(diameter_range, Quantity):
+        diameter_range = diameter_range.magnitude
+    if isinstance(mean, Quantity):
+        mean = mean.magnitude
+    if isinstance(t, Quantity):
+        t = t.magnitude
+    if isinstance(t, Quantity):
+        t = t.magnitude
+
     if t <= 100:
         schulz = ((t+1)/mean)**(t+1) * diameter_range**t / factorial(t) * np.exp(-diameter_range/mean*(t+1))
         norm = np.trapz(schulz, x=diameter_range)
