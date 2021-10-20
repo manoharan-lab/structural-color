@@ -167,9 +167,12 @@ def factor_poly(q, phi, diameters, c, pdi):
     """
     
     def fm(x, t, tm, m):
-        x = x.to('').magnitude
-        t = t.to('').magnitude
-        tm = tm.to('').magnitude
+        if isinstance(x, Quantity):
+            x = x.to('').magnitude
+        if isinstance(t, Quantity):
+            t = t.to('').magnitude
+        if isinstance(tm, Quantity):
+            tm = tm.to('').magnitude
         t = np.reshape(t, (len(np.atleast_1d(t)),1))
         tm = np.reshape(tm, (len(tm),1))
         return(tm * (1 + x/(t+1))**(-(t+1+m)))
@@ -182,7 +185,8 @@ def factor_poly(q, phi, diameters, c, pdi):
 
     # if the pdi is zero, assume it's very small (we get the same results)
     # because otherwise we get a divide by zero error
-    pdi = Quantity(np.atleast_1d(pdi).astype(float), pdi.units)
+    #pdi = Quantity(np.atleast_1d(pdi).astype(float), pdi.units)
+    pdi = np.atleast_1d(pdi).astype(float).magnitude
     np.atleast_1d(pdi)[np.atleast_1d(pdi) < 1e-5] = 1e-5  
 
     Dsigma = pdi**2    
@@ -297,7 +301,8 @@ def factor_data(qd, s_data, qd_data):
     return s_func(qd)
 
 def phase_factor_py(qd, n=10000):
-    df=pd.read_csv('g_4.csv', sep=',',header=None)
+    g_file = os.path.join(os.getcwd(),'g_4.csv')
+    df=pd.read_csv(g_file, sep=',',header=None)
     r_d = np.array(df[0])
     g = np.array(df[1])
     r_samp = np.random.choice(r_d, n, p = g/np.sum(g))
@@ -309,3 +314,17 @@ def phase_factor_py(qd, n=10000):
             
     phase_factor = np.angle(field_s)
     return phase_factor
+    
+def field_phase_py(qd, n=10000):
+    g_file = os.path.join(os.getcwd(),'g_4.csv')
+    df=pd.read_csv(g_file, sep=',',header=None)
+    r_d = np.array(df[0])
+    g = np.array(df[1])
+    r_samp = np.random.choice(r_d, n, p = g/np.sum(g))
+    
+    field_s = np.zeros(qd.shape, dtype='complex')
+    for i in range(qd.shape[0]):
+        for j in range(qd.shape[1]):
+            field_s[i,j] = np.sum(np.exp(1j*qd[i,j]*r_samp))
+            
+    return field_s
