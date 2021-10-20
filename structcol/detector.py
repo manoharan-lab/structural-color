@@ -48,6 +48,7 @@ from mpl_toolkits.mplot3d import Axes3D
 import itertools
 import warnings
 from scipy.optimize import fsolve
+import seaborn as sns
 
 eps = 1.e-9
 
@@ -85,7 +86,7 @@ def select_events(inarray, events):
     # want output of the same form as events, so create variable for object type
     dtype = type(np.ndarray.flatten(inarray)[0])
     
-    # get an output array with elements corresponding to the input events
+    # get an output array with elements corresponding to the input events  
     if len(inarray.shape) == 2:
         outarray = np.zeros(len(events), dtype=dtype)
         outarray[valid_events] = inarray[ev, tr]
@@ -267,8 +268,14 @@ def exit_kz(indices, trajectories, boundary, thickness, n_inside, n_outside):
     # exit kz doesn't matter, but in order to calculate the fresnel reflection
     # back into the sphere, we still need it to count as a potential exit
     # hence we leave the kz unchanged
-    nan_indices = np.where(np.isnan(k2z))
-    k2z[nan_indices] = k1[2,nan_indices]
+    #nan_indices = np.where(np.isnan(k2z))
+    #k2z[nan_indices] = k1[2,nan_indices]
+    # ^ update 7/24/21: decided to comment this out, because removing the nans from k2z
+    # would mean our trans_indices would not represent only transmitted 
+    # trajectories, but also trajectories that were TIR'd on transmission.
+    # while this is useful in run_fresnel_traj as explained above, it becomes
+    # a problem when we are trying to calculate the phase function for a 
+    # structured sphere, as we need the correct trans_indices to do so. 
     
     return k2z
 
@@ -486,6 +493,8 @@ def get_angles(indices, boundary, trajectories, thickness,
         
         # calculate the normal vector
         norm = np.zeros((3, kz.shape[0], kz.shape[1]))
+        if isinstance(cosz,sc.Quantity):
+            cosz=cosz.magnitude
         norm[2,:,:] = np.sign(cosz)
     
     # turn nan values to zeros
@@ -742,7 +751,7 @@ def find_valid_exits(n_sample, n_medium, thickness, z_low, boundary,
         potential_exits = (x[1:,:]**2 + y[1:,:]**2 + (z[1:,:]-radius)**2) > radius**2
         potential_exit_indices = np.argmax(np.vstack([np.zeros(ntraj), potential_exits]), axis=0)
         
-        # kz_correct will be nan is trajectory is totally internall reflected
+        # kz_correct will be nan if trajectory is totally internally reflected
         kz_correct = exit_kz(potential_exit_indices, trajectories, boundary, 
                              thickness, n_sample, n_medium)
         no_tir = ~np.isnan(kz_correct) # calculated to match film case for event_distribution
@@ -750,18 +759,20 @@ def find_valid_exits(n_sample, n_medium, thickness, z_low, boundary,
         # exit in positive direction (transmission)
         # kz_correct will be nan if trajectory is totally internally reflected
         pos_dir = kz_correct > 0
+        neg_dir = kz_correct < 0 # new: can't just do ~pos_dir==> must exclude TIR
         
         # construct boolean arrays of all valid exits in pos & neg directions
         exits_pos_dir = potential_exits & pos_dir
-        exits_neg_dir = potential_exits & ~pos_dir 
+        exits_neg_dir = potential_exits & neg_dir 
         
         # construct boolean array to describe whether a trajectory gets
         # totally internally reflected at any event
-        tir_refl_bool = potential_exits&~no_tir.astype(bool)&~pos_dir
+        # for the sphere 
+        tir_refl_bool = potential_exits&~no_tir.astype(bool)#&neg_dir
     
     return exits_pos_dir, exits_neg_dir, tir_refl_bool
     
-def find_event_indices(exits_neg_dir, exits_pos_dir):    
+def find_event_indices(exits_neg_dir, exits_pos_dir, tir_refl_bool):    
     '''
     Parameters
     ----------
@@ -772,6 +783,9 @@ def find_event_indices(exits_neg_dir, exits_pos_dir):
     exits_pos_dir: 2d array (shape: nevents, ntraj)
         boolean for positive exits. Value of 1 means the trajectory exited in 
         the positive (transmission) direction for that event.
+    tir_refl_bool: 2d array of booleans (shape: nevents, ntraj)
+        describe whether a trajectory gets totally internally reflected at any 
+        event and also exits in the negative direction to contribute to reflectance
     
     Returns
     -------
@@ -780,6 +794,8 @@ def find_event_indices(exits_neg_dir, exits_pos_dir):
     trans_indices: 1d array (length: ntraj)
         array of event indices for transmitted trajectories
     stuck_indices: 1d array (length: ntraj)
+        array of event indices for stuck trajectories
+    tir_indices: 1d array (length: ntraj)
         array of event indices for stuck trajectories
     '''
     
@@ -790,6 +806,9 @@ def find_event_indices(exits_neg_dir, exits_pos_dir):
     # note we convert to 2 1D arrays with len = Ntraj
     # need vstack to reproduce earlier behaviour:
     # an initial row of zeros is used to distinguish no events case
+    # note that exits_neg_dir and exits_pos_dir contain values of 0 or 1,
+    # and argmax returns the *first* instance of the max (1), in cases
+    # where there are multiple 1's
     low_event = np.argmax(np.vstack([np.zeros(ntraj), exits_neg_dir]), axis=0)
     high_event = np.argmax(np.vstack([np.zeros(ntraj), exits_pos_dir]), axis=0)
 
@@ -811,8 +830,9 @@ def find_event_indices(exits_neg_dir, exits_pos_dir):
     refl_indices = low_event * low_first
     trans_indices = high_event * high_first
     stuck_indices = never_exit * nevents
+    tir_indices = np.argmax(np.vstack([np.zeros(ntraj), tir_refl_bool]), axis=0)
     
-    return refl_indices, trans_indices, stuck_indices
+    return refl_indices, trans_indices, stuck_indices, tir_indices
 
 def calc_outcome_weights(inc_fraction, refl_indices, trans_indices, stuck_indices, weights):
     '''
@@ -1264,8 +1284,10 @@ def distribute_ambig_traj_weights(refl_fresnel, trans_fresnel,
         # stuck are 50/50 reflected/transmitted since they are randomized.
         # non-TIR fresnel are treated as new trajectories at the appropriate interface.
         # This means reversed R/T ratios for fresnel reflection at transmission interface.
-        extra_refl = 0.5*(refl_fresnel + trans_fresnel + stuck_weights)
-        extra_trans = 0.5*(trans_fresnel + refl_fresnel + stuck_weights)
+        extra_refl = refl_fresnel * refl_frac + trans_fresnel * trans_frac + stuck_weights * 0.5
+        extra_trans = trans_fresnel * refl_frac + refl_fresnel * trans_frac + stuck_weights * 0.5
+        #extra_refl = 0.5*(refl_fresnel + trans_fresnel + stuck_weights)
+        #extra_trans = 0.5*(trans_fresnel + refl_fresnel + stuck_weights)
         
     if detector==True:
         # TODO make this work for specular angles by checking incident angle
@@ -1669,6 +1691,7 @@ def calc_refl_trans(trajectories, thickness, n_medium, n_sample, boundary,
         absorptance of the sample can be found by 1 - reflectance - transmittance
     
     """
+  
     # make sure roughness-related values make sense
     if (kz0_rot is None and kz0_refl is not None) or (kz0_rot is not None and kz0_refl is  None):
         raise ValueError('when including coarse surface roughness, must specify both kz0_rot and kz0_refl')
@@ -1689,7 +1712,8 @@ def calc_refl_trans(trajectories, thickness, n_medium, n_sample, boundary,
     # find event indices for each trajectory outcome
     (refl_indices, 
      trans_indices, 
-     stuck_indices) = find_event_indices(exits_neg_dir, exits_pos_dir)
+     stuck_indices,
+     tir_indices) = find_event_indices(exits_neg_dir, exits_pos_dir,tir_refl_bool)
 
     # correct indices to account for detector
     # TODO make this work for trans_indices as well
@@ -1707,8 +1731,8 @@ def calc_refl_trans(trajectories, thickness, n_medium, n_sample, boundary,
                                                     
     # if specified, discount the purely transmitted trajectories 
     # (not forward scattered)
-    if not include_trans_indices_1:   
-        trans_indices[trans_indices==1]=0
+    #if not include_trans_indices_1:   
+    #    trans_indices[trans_indices==1]=0
     
     # calculate outcome weights of trajectories
     (refl_weights, 
@@ -1717,7 +1741,7 @@ def calc_refl_trans(trajectories, thickness, n_medium, n_sample, boundary,
      absorb_weights) = calc_outcome_weights(inc_pass_frac, refl_indices,
                                             trans_indices, stuck_indices, 
                                             trajectories.weight)
-
+    
     # correct for fresnel reflection upon exiting 
     (refl_frac, trans_frac, 
      refl_weights_pass, 
@@ -1729,7 +1753,7 @@ def calc_refl_trans(trajectories, thickness, n_medium, n_sample, boundary,
                                                 trans_weights, absorb_weights,
                                                 boundary, thickness, trajectories,
                                                 fresnel_traj, plot_exits)
- 
+
     # correct for effect of detection angle upon leaving sample
     (inc_refl_detected, 
      trans_detected, refl_detected, 
@@ -1764,8 +1788,11 @@ def calc_refl_trans(trajectories, thickness, n_medium, n_sample, boundary,
                                                   trans_per_traj_nf, 
                                                   refl_fresnel, 
                                                   trans_fresnel,stuck_weights,
-                                                  trajectories,refl_indices, 
-                                                  trans_indices, stuck_indices,
+                                                  trajectories,
+                                                  refl_indices, 
+                                                  trans_indices,
+                                                  tir_indices,
+                                                  stuck_indices,
                                                   thickness, boundary, z_low, p,
                                                   n_medium, n_sample, mu_scat, mu_abs,
                                                   max_stuck, max_call_depth, 
@@ -1801,8 +1828,10 @@ def calc_refl_trans(trajectories, thickness, n_medium, n_sample, boundary,
     
 def run_sphere_fresnel_traj(refl_per_traj_nf, trans_per_traj_nf, 
                              refl_fresnel, trans_fresnel, stuck_weights,
-                             trajectories, refl_indices, trans_indices, stuck_indices,
-                             thickness, boundary, z_low, p, n_medium, n_sample, mu_scat, mu_abs, 
+                             trajectories, refl_indices, trans_indices, 
+                             tir_indices, stuck_indices,
+                             thickness, boundary, z_low, p, n_medium, n_sample, 
+                             mu_scat, mu_abs, 
                              max_stuck, max_call_depth, call_depth, plot_exits):
     '''
     For the sphere case, there are many trajectories that are totally internally
@@ -1835,6 +1864,8 @@ def run_sphere_fresnel_traj(refl_per_traj_nf, trans_per_traj_nf,
         array of event indices for reflected trajectories
     trans_indices: 1d array (length: ntraj)
         array of event indices for transmitted trajectories
+    tir_indices: 1d array (length: ntraj)
+        array of event indices for totally internally reflected trajectories
     stuck_indices: 1d array (length: ntraj)
         array of event indices for stuck trajectories
     thickness: float (structcol.Quantity [length])
@@ -1907,8 +1938,8 @@ def run_sphere_fresnel_traj(refl_per_traj_nf, trans_per_traj_nf,
     weights_fresnel[:,:] = refl_fresnel + trans_fresnel + stuck_weights
     weights_fresnel = sc.Quantity(weights_fresnel, '')
     
-    # add refl and trans indices for all exit indices
-    indices = refl_indices + trans_indices
+    # add refl and trans indices for all attempted or successful exit indices
+    indices = refl_indices + trans_indices + tir_indices
     
     # get positions outside of sphere boundary from after exit
     select_x1 = select_events(x[1:,:], indices)
@@ -2575,7 +2606,7 @@ def calc_traj_time(step, exit_indices, radius, volume_fraction,
 
     # calculate the time passed based on distance travelled
     c = sc.Quantity(2.99792e8,'m/s')
-    velocity = c/np.real(n_sample)
+    velocity = c/np.real(n_sample.magnitude)
     travel_time = path_length_traj/velocity
     
     # calculate the dwell time in a scatterer    
@@ -2789,7 +2820,7 @@ def calc_refl_phase_time(traj_time, trajectories, refl_indices, refl_per_traj,
     refl_intensity_phase_per_traj = Ix_per_traj_phase + Iy_per_traj_phase + Iz_per_traj_phase
     
     # normalize
-    intensity_incident = np.sum(trajectories.weight[0,:]) # assumes normalized light is incoherent
+    intensity_incident = np.sum(trajectories.weight[0,:]).magnitude # assumes normalized light is incoherent
     refl_steady = np.real(refl_intensity_phase_events/intensity_incident)
     refl_phase_per_traj = refl_intensity_phase_per_traj/intensity_incident
     
@@ -2801,6 +2832,270 @@ def calc_refl_phase_time(traj_time, trajectories, refl_indices, refl_per_traj,
         return refl_x, refl_y, refl_z
     else:
         return refl_steady, refl_phase_per_traj
+
+def calc_coherence(phase):
+    if isinstance(phase, sc.Quantity):
+        phase = phase.magnitude    
+    
+    phase_diffs = []
+    for i in range(phase.size):
+        for j in range(phase.size):
+            if i == j:
+                continue
+            phase_diffs.append(np.abs(phase[i] - phase[j]))
+    coherence = np.cos(np.array(phase_diffs))
+    # cos(pi) = -1
+    # cos(0) = 1
+    return np.ndarray.flatten(coherence)
+    
+def calc_coherence_refl_fields(fields, refl_indices):
+    phase = np.angle(fields)
+    
+    coh_x, coh_y, coh_z = calc_refl_coherence(phase, refl_indices)
+    
+    return coh_x, coh_y, coh_z
+    
+def calc_refl_coherence(phase, refl_indices):
+    if isinstance(phase, sc.Quantity):
+        phase = phase.magnitude
+    
+    refl_phase_x = select_events(phase[0,:,:], refl_indices)
+    refl_phase_x = refl_phase_x[refl_phase_x!=0]   
+    
+    refl_phase_y = select_events(phase[1,:,:], refl_indices)
+    refl_phase_y = refl_phase_y[refl_phase_y!=0] 
+    
+    refl_phase_z = select_events(phase[2,:,:], refl_indices)
+    refl_phase_z = refl_phase_z[refl_phase_z!=0] 
+    
+    coherence_refl_x = np.mean(calc_coherence(refl_phase_x))
+    coherence_refl_y = np.mean(calc_coherence(refl_phase_y))
+    coherence_refl_z = np.mean(calc_coherence(refl_phase_z))
+    
+    return coherence_refl_x, coherence_refl_y, coherence_refl_z
+
+def calc_refl_phase_test(trajectories, refl_indices, refl_per_traj,
+                         components=False):
+    '''
+    Calculates the reflectance including phase, by considering trajectories
+    that exit at the same time to be coherent. To do this we, must bin trajectories
+    with similar exit times and add their fields. Then we convolve the 
+    reflectance as a function of time with a step function in order to 
+    give a steady state value for the reflectance
+    
+    parameters:
+    ----------
+    traj_time: 1d array (structcol.Quantity [time], length ntraj)
+        time each trajectory spends traversing inside the sample before exit
+    trajectories: Trajectory object
+        Trajectory object used in Monte Carlo simulation
+    refl_indices: 1d array (length: ntraj)
+        array of event indices for reflected trajectories
+    refl_per_traj: 1d array (length: ntraj)
+        reflectance distributed to each trajectory, including fresnel 
+        contributions
+    bin_width: float (structcol.Quantity [time])
+        size of time bins for creating field versus time. Should be set equal to
+        coherence time of source
+   convolve: boolean
+        determines whether the reflectance vs time curve should be convolved 
+        with a step function input signal to simulate a constant input signal
+        instead of a pulse input signal. Note that this is not currently fully
+        implemented and will likely return a noisy result with a magnitude
+        smaller than expected. 
+    components: boolean
+    
+    returns:
+    -------
+    refl_steady: float
+        steady state reflectance including contributions from phase
+    refl_phase_per_traj: ndarray (length: ntraj)
+        phase corrected reflectance as a function of event number. The cross
+        terms for interfering trajectories are distributed to the different 
+        trajectories by relative weight.
+    '''
+  
+    
+    ntraj = len(trajectories.polarization[0,0,:]) 
+    nevents = len(trajectories.polarization[0,:,0]) 
+    
+    no_refl_warn = "No trajectories were reflected. Check sample parameters or increase number of trajectories."
+
+    # write expression for field 
+
+    # what if we didn't use polarization?
+    # but instead used direction??
+    # polarization is orthogonal to direction
+    w = np.sqrt(refl_per_traj*ntraj)
+    traj_field_x =  w*np.abs(trajectories.polarization[0,:,:])*np.exp((trajectories.phase[0,:,:])*1j) 
+    traj_field_y =  w*np.abs(trajectories.polarization[1,:,:])*np.exp(trajectories.phase[1,:,:]*1j) 
+    traj_field_z =  w*np.abs(trajectories.polarization[2,:,:])*np.exp(trajectories.phase[2,:,:]*1j)  
+
+    #w = np.sqrt(refl_per_traj[refl_indices]*ntraj)
+    
+    
+    # select traj_field values only for the reflected indices
+    refl_field_x = select_events(traj_field_x, refl_indices)
+    refl_field_y = select_events(traj_field_y, refl_indices)
+    refl_field_z = select_events(traj_field_z, refl_indices)
+    
+    ## plot distribution of phase refl x,y,z (remove zeros) 
+    trajectories_phase_y = trajectories.phase[1,:,:].magnitude
+    phase_y = np.mod(np.real(trajectories_phase_y), 2*np.pi)
+    phase_y_refl = select_events(phase_y, refl_indices)
+    plt.figure()
+    sns.distplot(phase_y_refl[phase_y_refl!=0])    
+    
+    ## plot distribution of refl_field x,y,z (remove zeros)
+    # should span from -1 to +1 (in the real part)
+    plt.figure()
+    sns.distplot(refl_field_y[refl_field_y!=0]) 
+    plt.figure()
+ 
+    # plot distribution of phase back calculated from refl_field. Should
+    # span -pi to pi
+    plt.figure()
+    phase_field_y = np.angle(refl_field_y)
+    sns.distplot(phase_field_y[refl_field_y!=0])  
+    
+    coherence = calc_coherence(phase_y_refl[refl_field_y!=0])
+    print('coherence: ' + str(np.mean(coherence)))
+    
+    # add reflectance/transmittance due to trajectories 
+    # reflected/transmitted at this time bin
+    tot_field_x = np.sum(refl_field_x)
+    tot_field_y = np.sum(refl_field_y)
+    tot_field_z = np.sum(refl_field_z)
+    
+    non_phase_int_x = np.conj(refl_field_x)*refl_field_x
+    non_phase_int_y = np.conj(refl_field_y)*refl_field_y
+    non_phase_int_z = np.conj(refl_field_z)*refl_field_z
+    refl_non_phase = np.sum(non_phase_int_x + non_phase_int_y + non_phase_int_z)
+
+    ## print tot_field x,y,z
+    #print(np.sum(refl_field_x[refl_field_x!=0]))
+
+    # calculate intensity as E*E
+    intensity_x = np.conj(tot_field_x)*tot_field_x
+    intensity_y = np.conj(tot_field_y)*tot_field_y
+    intensity_z = np.conj(tot_field_z)*tot_field_z
+
+    # add the x,y, and z intensity
+    refl_intensity = np.sum(intensity_x + intensity_y + intensity_z)
+    
+    # normalize
+    intensity_incident = np.sum(trajectories.weight[0,:]).magnitude # assumes normalized light is incoherent
+    #refl_intensity = refl_intensity.magnitude
+    refl = np.real(refl_intensity/intensity_incident)
+    print('refl_phase:' + str(refl))
+    print('refl_non_phase: ' + str(refl_non_phase/intensity_incident))
+    
+    refl_x = np.sum(intensity_x)/intensity_incident
+    refl_y = np.sum(intensity_y)/intensity_incident
+    refl_z = np.sum(intensity_z)/intensity_incident
+
+    if components ==True:
+        return refl_x, refl_y, refl_z
+    else:
+        return refl
+        
+def calc_refl_phase_fields(trajectories, refl_indices, refl_per_traj,
+                         components=False):
+    '''
+    Calculates the reflectance including phase, by considering trajectories
+    that exit at the same time to be coherent. To do this we, must bin trajectories
+    with similar exit times and add their fields. Then we convolve the 
+    reflectance as a function of time with a step function in order to 
+    give a steady state value for the reflectance
+    
+    parameters:
+    ----------
+    traj_time: 1d array (structcol.Quantity [time], length ntraj)
+        time each trajectory spends traversing inside the sample before exit
+    trajectories: Trajectory object
+        Trajectory object used in Monte Carlo simulation
+    refl_indices: 1d array (length: ntraj)
+        array of event indices for reflected trajectories
+    refl_per_traj: 1d array (length: ntraj)
+        reflectance distributed to each trajectory, including fresnel 
+        contributions
+    bin_width: float (structcol.Quantity [time])
+        size of time bins for creating field versus time. Should be set equal to
+        coherence time of source
+   convolve: boolean
+        determines whether the reflectance vs time curve should be convolved 
+        with a step function input signal to simulate a constant input signal
+        instead of a pulse input signal. Note that this is not currently fully
+        implemented and will likely return a noisy result with a magnitude
+        smaller than expected. 
+    components: boolean
+    
+    returns:
+    -------
+    refl_steady: float
+        steady state reflectance including contributions from phase
+    refl_phase_per_traj: ndarray (length: ntraj)
+        phase corrected reflectance as a function of event number. The cross
+        terms for interfering trajectories are distributed to the different 
+        trajectories by relative weight.
+    '''
+  
+    
+    ntraj = len(trajectories.polarization[0,0,:]) 
+    nevents = len(trajectories.polarization[0,:,0]) 
+    
+    no_refl_warn = "No trajectories were reflected. Check sample parameters or increase number of trajectories."
+
+    # write expression for field 
+
+    # what if we didn't use polarization?
+    # but instead used direction??
+    # polarization is orthogonal to direction
+    w = np.sqrt(refl_per_traj*ntraj) #0 for not reflected traj, but that's fine since we only care about refl
+    traj_field_x =  w*trajectories.fields[0,:,:] 
+    traj_field_y =  w*trajectories.fields[1,:,:] 
+    traj_field_z =  w*trajectories.fields[2,:,:] 
+
+    # select traj_field values only for the reflected indices
+    refl_field_x = select_events(traj_field_x, refl_indices)
+    refl_field_y = select_events(traj_field_y, refl_indices)
+    refl_field_z = select_events(traj_field_z, refl_indices)
+    
+    # add reflected fields
+    tot_field_x = np.sum(refl_field_x)
+    tot_field_y = np.sum(refl_field_y)
+    tot_field_z = np.sum(refl_field_z)
+    
+    # for comparing without phase
+    non_phase_int_x = np.conj(refl_field_x)*refl_field_x
+    non_phase_int_y = np.conj(refl_field_y)*refl_field_y
+    non_phase_int_z = np.conj(refl_field_z)*refl_field_z
+    refl_non_phase = np.sum(non_phase_int_x + non_phase_int_y + non_phase_int_z)
+
+
+    # calculate intensity as E*E
+    intensity_x = np.conj(tot_field_x)*tot_field_x
+    intensity_y = np.conj(tot_field_y)*tot_field_y
+    intensity_z = np.conj(tot_field_z)*tot_field_z
+
+    # add the x,y, and z intensity
+    refl_intensity = np.sum(intensity_x + intensity_y + intensity_z)
+    
+    # normalize
+    intensity_incident = np.sum(trajectories.weight[0,:]).magnitude # assumes normalized light is incoherent
+    #refl_intensity = refl_intensity.magnitude
+    refl = np.real(refl_intensity/intensity_incident)
+    print('refl_phase:' + str(refl))
+    print('refl_non_phase: ' + str(refl_non_phase/intensity_incident))
+    
+    refl_x = np.sum(intensity_x)/intensity_incident
+    refl_y = np.sum(intensity_y)/intensity_incident
+    refl_z = np.sum(intensity_z)/intensity_incident
+
+    if components ==True:
+        return refl_x, refl_y, refl_z
+    else:
+        return refl, refl_non_phase/intensity_incident
     
 #------------------------------------------------------------------------------
 #    # For implementing coarse roughness when the trajectories exit the sample
