@@ -9,10 +9,15 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 from mpl_toolkits.mplot3d import Axes3D
+import scipy
 from scipy.stats import gaussian_kde
 from scipy.spatial.distance import cdist 
+from pymie import mie, size_parameter, index_ratio
 import structcol as sc
 from . import montecarlo as mc
+from . import model
+from . import select_events
+from . import structure
 from scipy.special import factorial
 
 def get_exit_pos(norm_refl, norm_trans, radius):
@@ -60,6 +65,14 @@ def get_exit_pos(norm_refl, norm_trans, radius):
     z_inter = z_inter*radius
     
     return x_inter, y_inter, z_inter
+    
+def conv_circ( signal, ker ):
+    '''
+        signal: real 1D array
+        ker: real 1D array
+        signal and ker must have same shape
+    '''
+    return np.real(np.fft.ifft( np.fft.fft(signal)*np.fft.fft(ker) ))
 
 def calc_pdf(x, y, z, radius, 
              refl_per_traj,
@@ -135,30 +148,43 @@ def calc_pdf(x, y, z, radius,
     see http://mathworld.wolfram.com/SpherePointPicking.html for more details
     
     '''
+    trans_indices_scat = np.copy(trans_indices)
+    trans_indices_scat[trans_indices == 1] = 0
     
     # calculate thetas for each exit point
     # If optional parameter kz is specified, we calculate theta based on kz. 
     # If not, we calculate theta based on the z exit position
     if kz is not None:
         # remove the values of kz=0 because they mean that there
-        # was no reflection or transmission (forward scattering) event
+        # was no reflection or transmission event
+        kz = select_events(kz, refl_indices + trans_indices_scat) 
         kz = kz[kz!=0]
         theta = np.arccos(kz)        
-    else:
+    else:    
+        refl_indices[refl_indices!=0]=1
+        trans_indices_scat[trans_indices_scat!=0]=1
+        refl_weights_z = refl_per_traj*refl_indices
+        trans_weights_z = trans_per_traj*trans_indices_scat
+        refl_weights_z[refl_weights_z!=0]=1
+        trans_weights_z[trans_weights_z!=0]=1
+        z = z*(refl_weights_z+trans_weights_z)
         z = z[z!=0]
+
         theta = np.arccos(z/radius)
-    
-    # make sure we have 0 refl counted for trajectories where there is no
-    # actual refl event (and same for trans)
+
+    # since we don't care about event number, change all non-zero values to 1
     refl_indices[refl_indices!=0]=1
-    trans_indices[trans_indices!=0]=1
+    trans_indices_scat[trans_indices_scat!=0]=1
+
+    # mutiply per_traj by indices to get rid of intensities where there is no
+    # actual scattering exit event
     refl_weights = refl_per_traj*refl_indices
-    trans_weights = trans_per_traj*trans_indices
-    
+    trans_weights = trans_per_traj*trans_indices_scat
+
     # add weights to get scattered weights per traj
     weights = refl_weights + trans_weights
-    
-    # remove zeros to match kz
+
+    # remove zeros to match kz size
     weights = weights[weights!=0]
 
     # convert thetas to nus
@@ -174,9 +200,17 @@ def calc_pdf(x, y, z, radius,
         pdf = gaussian_kde(nu_edge_correct, bw_method=kernel_bin_width, weights = weights_edge_correct)
         
         # calculate the pdf for specific nu values
-        theta = np.linspace(0.01, np.pi, 200)
+        theta = np.linspace(0.01, np.pi, 200)# 0.01
         nu = (np.cos(theta)+1)/2
         pdf_array = pdf(nu)
+        pdf_array = pdf_array/np.sum(pdf_array)
+        #pdf_conv = pdf_array #+ p_mie
+        #pdf_conv = conv_circ(pdf_array, p_mie)
+        #p_mie_long = np.hstack((p_mie[::-1],p_mie, p_mie[::-1]))
+        #pdf_array_long = np.hstack((pdf_array[::-1], pdf_array, pdf_array[::-1]))
+        #pdf_conv = np.convolve(p_mie_long, pdf_array_long)
+        #pdf_conv = np.convolve(p_mie, pdf_array)
+        #pdf_conv = pdf_conv[400:600]
         
         if plot == True:
             # plot the distribution from data, with edge correction, and kde
@@ -282,7 +316,6 @@ def plot_phase_func(pdf, nu=np.linspace(0, 1, 200), phi=None, save=False):
         plt.savefig('phase_fun.pdf')
         np.save('phase_function_data',phase_func)
         
-
     
 def plot_dist_1d(var_range, var_data, var_data_edge_correct, pdf_var_vals):
     '''
@@ -450,9 +483,8 @@ def calc_d_avg(volume_fraction, radius):
     
     return d_avg
     
-def calc_mu_scat_abs(refl_per_traj, trans_per_traj, trans_indices, 
-                     volume_fraction, radius, n_sample, wavelength,
-                     inc_refl = 0):
+def calc_mu_scat_abs(refl_per_traj, trans_per_traj, refl_indices, trans_indices, 
+                     volume_fraction, radius, n_sample, wavelength, kz):
     '''
     Calculates scattering coefficient and absorption coefficient using results
     of the Monte Carlo calc_refl_trans() function
@@ -508,11 +540,7 @@ def calc_mu_scat_abs(refl_per_traj, trans_per_traj, trans_indices,
         to as the bulk matrix
     wavelength: float-like
         source light wavelength
-    inc_refl: 0 or 1d array (optional)
-        the reflectance per trajectory due to light incident on the sphere surface.
-        This should be a small contribution, so can be ignored by leaving default
-        value 0
-        
+
     Returns
     -------
     mu_scat: float-like
@@ -520,20 +548,100 @@ def calc_mu_scat_abs(refl_per_traj, trans_per_traj, trans_indices,
     mu_abs: float-like
         absorption coefficient for bulk film of structured spheres
     
-    '''
+    '''   
     
     # calculate the number density
     number_density = volume_fraction/(4/3*np.pi*radius**3)
     
     # calculate the total absorption cross section
     # assumes no stuck
-    tot_abs_cross_section = (1 - np.sum(refl_per_traj + trans_per_traj))*2*np.pi*radius**2
+    tot_abs_cross_section = (1 - np.sum(refl_per_traj + trans_per_traj))*np.pi*radius**2
     
     # remove transmission contribution from trajectories that did not scatter
-    trans_per_traj[trans_indices == 1] = 0
+    trans_per_traj_scat = np.copy(trans_per_traj)
+    trans_per_traj_scat[trans_indices == 1] = 0
     
-    # calculate the total scattering cross section
-    tot_scat_cross_section = np.sum(refl_per_traj + trans_per_traj + inc_refl)*2*np.pi*radius**2
+    '''
+    # remove indices of 1 from trans_indices to get only the forward scattered indices
+    trans_scat_indices = np.copy(trans_per_traj)
+    trans_scat_indices[trans_indices == 1] = 0
+    
+    # get the directions for the scattered incides
+    # and remove the zeros from kz
+    kz = select_events(kz, refl_indices + trans_scat_indices)
+    kz = kz[kz!=0] 
+    thetas  = np.arccos(kz)
+
+    # change all event numbers to 1 to use later
+    refl_indices[refl_indices!=0]=1
+    trans_scat_indices[trans_scat_indices!=0]=1
+    
+    # mutiply per_traj by indices to get rid of intensities where there is no
+    # actual scattering exit event
+    refl_per_traj = refl_per_traj*refl_indices
+    trans_scat_per_traj = trans_per_traj_scat*trans_scat_indices
+
+    # add refl and trans_scat and get rid of zeros
+    scat_per_traj = refl_per_traj + trans_scat_per_traj
+    scat_per_traj = scat_per_traj[scat_per_traj!=0]
+
+    # sort thetas in acsending order, and sort scattered traj accordingly
+    theta_inds = thetas.argsort()
+    thetas = thetas[theta_inds]
+    print(len(thetas))
+    scat_per_traj = scat_per_traj[theta_inds]
+    print(len(scat_per_traj))
+    
+    # prepare the integrand by multiplying by sin(thetas)
+    integrand =  scat_per_traj* np.sin(thetas)
+    factor = (2*np.pi)*(np.pi*radius**2) # phi contribution and area of circle (from incident intensity)
+    
+    # take the integrals
+    integral = np.trapz(y = integrand, x = thetas)
+    tot_scat_cross_section = integral*factor
+    print(tot_scat_cross_section)    
+    '''
+    #### new diffscat method ######
+    '''
+    # remove indices of 1 from trans_indices to get only the forward scattered indices
+    trans_scat_indices = np.copy(trans_per_traj)
+    trans_scat_indices[trans_indices == 1] = 0
+    
+    # get the directions for the scattered incides
+    # and remove the zeros from kz
+    kz = select_events(kz, refl_indices + trans_scat_indices)
+    kz = kz[kz!=0] 
+    thetas  = np.arccos(kz)
+
+    # change all event numbers to 1 to use later
+    refl_indices[refl_indices!=0]=1
+    trans_scat_indices[trans_scat_indices!=0]=1
+    
+    # mutiply per_traj by indices to get rid of intensities where there is no
+    # actual scattering exit event
+    refl_per_traj = refl_per_traj*refl_indices
+    trans_scat_per_traj = trans_per_traj_scat*trans_scat_indices
+
+    # add refl and trans_scat and get rid of zeros
+    scat_per_traj = refl_per_traj + trans_scat_per_traj
+    scat_per_traj = scat_per_traj[scat_per_traj!=0]
+
+    # sort thetas in acsending order, and sort scattered traj accordingly
+    theta_inds = thetas.argsort()
+    thetas = thetas[theta_inds]
+    scat_per_traj = scat_per_traj[theta_inds]
+    
+    # interpolate to make the function
+    diff_cscat_fun = scipy.interpolate.interp1d(thetas, scat_per_traj,fill_value='extrapolate')
+    theta_range = np.linspace(0.01, np.pi, 200)
+    diff_cscat_array = diff_cscat_fun(theta_range)
+    
+    diff_cscat = diff_cscat_array #+ diff_cscat_mie
+    '''
+    #################################    
+    
+    tot_scat_cross_section = np.sum(refl_per_traj + trans_per_traj_scat)*2*np.pi*radius**2    
+    #tot_scat_cross_section = np.sum(refl_per_traj + trans_per_traj_scat)*2*np.pi*radius**2
     
     # calculate mu_scat, mu_abs using the sphere
     mu_scat = number_density*tot_scat_cross_section
@@ -557,7 +665,7 @@ def calc_scat_bulk(refl_per_traj,
                    plot=False, phi_dependent=False, 
                    nu_range = np.linspace(0.01, 1, 200), 
                    phi_range = np.linspace(0, 2*np.pi, 300),
-                   kz=None, inc_refl=0, kernel_bin_width='silverman'):
+                   kz=None, kernel_bin_width='silverman'):
     '''
      Parameters
     ----------
@@ -585,7 +693,7 @@ def calc_scat_bulk(refl_per_traj,
     diameter: float-like
         diameter of structured spheres in a bulk film
     n_sample: float-like
-        refractive index of the material surrounding the sphere, oven referred
+        refractive index of the material surrounding the sphere, often referred
         to as the bulk matrix
     wavelength: float-like
         source light wavelength
@@ -600,10 +708,6 @@ def calc_scat_bulk(refl_per_traj,
         the phi values for which to calculate the pdf, if the pdf is phi-dependent
     kz: None or 1d array (optional)
         the kz values at the exit events of the trajectories
-    inc_refl: 0 or 1d array (optional)
-        the reflectance per trajectory due to light incident on the sphere surface.
-        This should be a small contribution, so can be ignored by leaving default
-        value 0
     kernel_bin_width: string or scalar or callable (optional)
         determines the bin width for the gaussian kde used to calculate the 
         structured sphere phase function. See scipy's gaussian_kde() function 
@@ -623,13 +727,12 @@ def calc_scat_bulk(refl_per_traj,
     radius = diameter/2
     
     # calculate the lscat of the microsphere for use in the bulk simulation
-    mu_scat, mu_abs = calc_mu_scat_abs(refl_per_traj, trans_per_traj, trans_indices, 
-                              volume_fraction, radius, n_sample, wavelength, inc_refl=inc_refl)
-    
+    mu_scat, mu_abs = calc_mu_scat_abs(refl_per_traj, trans_per_traj, refl_indices, trans_indices, 
+                              volume_fraction, radius, n_sample, wavelength, kz)
+
     # find the points on the sphere where trajectories exit
     x_inter, y_inter, z_inter = get_exit_pos(norm_refl, norm_trans, radius)
     
-            
     # calculate the probability density function as a function of nu, which depends on the scattering angle   
     p = calc_pdf(x_inter, y_inter, z_inter, radius, 
                  refl_per_traj,
@@ -642,6 +745,34 @@ def calc_scat_bulk(refl_per_traj,
                  phi_range = phi_range,
                  kz=kz,
                  kernel_bin_width = kernel_bin_width)
+                 
+    number_density = volume_fraction/(4/3*np.pi*radius**3)
+    tot_cscat = mu_scat/number_density
+    print(tot_cscat.to('um**2'))
+    diff_cscat = p*tot_cscat
+    
+    #### added later
+    #x = size_parameter(wavelength, n_sample, radius)
+    # thetas = sc.Quantity(np.linspace(0.01, np.pi, 200),'')
+    #thetas = np.linspace(0.01, np.pi, 200)
+    #k = 2*np.pi*n_sample/wavelength
+    #distance = radius
+    
+    #qd = 4*np.array(np.abs(x)*np.sin(thetas/2))
+    #s = structure.factor_py(qd, volume_fraction)
+    #print(diff_cscat)
+    #diff_cscat_sf = diff_cscat*s
+    #print(diff_cscat_sf)
+    #print('factor bulk')
+    #cscat_total_sf, _, _, _, _ = mie.integrate_intensity_complex_medium(diff_cscat_sf*k**2, 
+    #                                                   diff_cscat_sf*k**2, 
+    #                                                   distance, thetas,k)
+    #cscat_total_sf = model._integrate_cross_section(diff_cscat_sf, 1, thetas)
+    #print(cscat_total_sf.to('um**2'))
+    #mu_scat_sf = cscat_total_sf*number_density 
+    #print(mu_scat_sf.to('1/um'))            
+    ####
+    #return diff_cscat_sf, mu_scat_sf, mu_abs
     
     return p, mu_scat, mu_abs
     
