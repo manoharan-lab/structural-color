@@ -88,3 +88,50 @@ def normalize(x,y,z):
     # in the case where we try to normalize a null vector <0,0,0>
     with np.errstate(divide='ignore',invalid='ignore'):
         return np.array([x/magnitude, y/magnitude, z/magnitude])
+        
+def select_events(inarray, events):
+    '''
+    Selects the items of inarray according to event coordinates
+    
+    Parameters
+    ----------
+    inarray: 2D or 3D array
+        Should have axes corresponding to events, trajectories
+        or coordinates, events, trajectories
+    events: 1D array
+        Should have length corresponding to ntrajectories.
+        Non-zero entries correspond to the event of interest
+    
+    Returns
+    -------
+    1D array: contains only the elements of inarray corresponding to non-zero events values.
+    
+    '''
+    # make inarray a numpy array if not already
+    inarray = np.array(inarray)
+    
+    # there is no 0th event, so disregard a 0 (or less) in the events array
+    valid_events = (events > 0)
+    
+    # The 0th element in arrays such as direction refer to the 1st event
+    # so subtract 1 from all the valid events to correct for array indexing
+    ev = events[valid_events].astype(int) - 1
+    
+    # find the trajectories where there are valid events
+    tr = np.where(valid_events)[0]
+
+    # want output of the same form as events, so create variable for object type
+    dtype = type(np.ndarray.flatten(inarray)[0])
+    
+    # get an output array with elements corresponding to the input events
+    if len(inarray.shape) == 2:
+        outarray = np.zeros(len(events), dtype=dtype)
+        outarray[valid_events] = inarray[ev, tr]
+        
+    if len(inarray.shape) == 3:
+        outarray = np.zeros((inarray.shape[0], len(events)), dtype=dtype)
+        outarray[:,valid_events] = inarray[:, ev, tr]
+        
+    if isinstance(inarray, Quantity):
+        outarray = Quantity(outarray, inarray.units)
+    return outarray
