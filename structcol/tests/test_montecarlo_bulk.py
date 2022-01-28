@@ -52,9 +52,6 @@ n_medium = ri.n('vacuum', wavelength)      # refractive index of medium outside 
 ntrajectories = 2000         # number of trajectories to run with a spherical boundary
 nevents = 300                # number of scattering events for each trajectory in a spherical boundary
 
-# Properties that should not need to be changed
-z_low = sc.Quantity('0.0 um') # sets trajectories starting point
-
 
 def calc_sphere_mc():
     
@@ -127,10 +124,12 @@ def test_mu_scat_abs_bulk():
     (refl_indices, trans_indices, 
      refl_per_traj, trans_per_traj, 
      reflectance_sphere, 
-     norm_refl, norm_trans) = calc_sphere_mc()
+     norm_refl, norm_trans) = calc_sphere_mc()   
+    
     
     _, _, mu_abs_bulk = pfs.calc_scat_bulk(refl_per_traj, 
                                            trans_per_traj, 
+                                           refl_indices,
                                            trans_indices, 
                                            norm_refl, norm_trans, 
                                            volume_fraction_bulk, 
@@ -139,11 +138,12 @@ def test_mu_scat_abs_bulk():
                                            wavelength)
     
     assert_almost_equal(mu_abs_bulk.magnitude, 0)
-    
+    print('here')
     
     # make sure mu_abs reaches limit when there is no scattering
     _, mu_scat_bulk, mu_abs_bulk = pfs.calc_scat_bulk(np.zeros((ntrajectories)), 
-                                                      np.zeros((ntrajectories)), 
+                                                      np.zeros((ntrajectories)),
+                                                      refl_indices,
                                                       trans_indices, 
                                                       norm_refl, norm_trans, 
                                                       volume_fraction_bulk, 

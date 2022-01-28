@@ -40,7 +40,9 @@ from pymie import multilayer_sphere_lib as msl
 import scipy
 from scipy.special import factorial
 
-#@ureg.check('[]', '[]', '[]', '[length]', '[length]', '[]')
+@ureg.check('[]', '[]', '[]', '[length]', '[length]', '[]', None, None, None, 
+            None, None, None, None, None, None, None, None, None, None, None,
+            None, None)
 def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
                radius2=None, 
                concentration=None,
@@ -194,9 +196,6 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
         radius2 = radius2.to(radius.units)
     if radius2 is None:
         radius2 = radius
-    if pdi is not None:
-        form_type = 'polydisperse'
-        structure_type='polydisperse'
     
     # define the mean diameters in case the system is polydisperse
     mean_diameters = Quantity(np.array([2*radius.magnitude, 2*radius2.magnitude]),
@@ -317,6 +316,7 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
                                                   n_matrix=n_sample, k=k, distance=distance,
                                                   structure_s_data=structure_s_data,
                                                   structure_qd_data=structure_qd_data)
+    
     diff_cs_total = differential_cross_section(m, x, angles_tot, volume_fraction,
                                                structure_type=structure_type, 
                                                form_type=form_type,
@@ -326,7 +326,7 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
                                                n_matrix=n_sample, k=k, distance=distance,
                                                structure_s_data=structure_s_data,
                                                structure_qd_data=structure_qd_data) 
-    
+
     # integrate the differential cross sections to get the total cross section    
     if np.abs(n_sample.imag.magnitude) > 0.: 
         if form_type=='polydisperse' and len(concentration)>1:
@@ -467,14 +467,17 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
                          factor + r_medium_sample[1]      
 
     reflectance = (reflected_par + reflected_perp)/2
- 
+    
+    if isinstance(reflectance.magnitude, Quantity):# to remove double dimensionless
+        reflectance = reflectance.magnitude
+        reflectance = reflectance.magnitude
  
     return reflectance, reflected_par, reflected_perp, asymmetry_parameter, \
            transport_length
     
 
-#@ureg.check('[]', '[]', '[]', '[]')
-
+@ureg.check('[]', '[]', '[]', '[]', None, None, None, None, None,None, None, 
+            None, None, None, None, None, None, None)
 def differential_cross_section(m, x, angles, volume_fraction,
                                structure_type = 'glass', form_type = 'sphere', 
                                diameters=None, concentration=None, pdi=None, 
@@ -593,7 +596,7 @@ def differential_cross_section(m, x, angles, volume_fraction,
             #    form_factor = form_factor/k**2
 
         f_par = form_factor[0]  
-        f_perp = form_factor[1]        
+        f_perp = form_factor[1] 
     
     elif form_type == 'polydisperse':
         if diameters is None or concentration is None or pdi is None or wavelen is None or n_matrix is None:
@@ -653,7 +656,7 @@ def differential_cross_section(m, x, angles, volume_fraction,
     else:
         raise ValueError('structure factor type not recognized!')
 
-    scat_par = s * f_par
+    scat_par = s * f_par      
     scat_perp = s * f_perp
 
     return scat_par, scat_perp
@@ -713,6 +716,7 @@ def polydisperse_form_factor(m, angles, diameters, concentration, pdi, wavelen,
     
     # t is a measure of the width of the Schulz distribution, and
     # pdi is the polydispersity index
+    pdi = pdi.magnitude.magnitude # added for testing remove later. 
     t = np.abs(1/(pdi**2)) - 1
         
     # define the range of diameters of the size distribution
@@ -720,7 +724,7 @@ def polydisperse_form_factor(m, angles, diameters, concentration, pdi, wavelen,
     min_diameter = diameters - three_std_dev
     min_diameter[min_diameter.magnitude < 0] = Quantity(0.000001, diameters.units)
     max_diameter = diameters + three_std_dev
-        
+
     F_par = np.empty([len(np.atleast_1d(diameters)), len(angles)])
     F_perp = np.empty([len(np.atleast_1d(diameters)), len(angles)])
     
@@ -734,8 +738,7 @@ def polydisperse_form_factor(m, angles, diameters, concentration, pdi, wavelen,
         distr_array = np.tile(distr, [len(angles),1])
         angles_array = np.tile(angles, [len(diameter_range),1])
         
-        x_poly = size_parameter(wavelen, n_matrix, diameter_range/2) # for new pint
-        #x_poly = size_parameter(wavelen, n_matrix, Quantity(diameter_range/2, diameters.units))
+        x_poly = size_parameter(wavelen, n_matrix, diameter_range/2) 
            
         form_factor_par = np.empty([len(angles), len(diameter_range)])
         form_factor_perp = np.empty([len(angles), len(diameter_range)])
@@ -764,7 +767,7 @@ def polydisperse_form_factor(m, angles, diameters, concentration, pdi, wavelen,
                 # distances we use for the integrand and the integral. For now, 
                 # we use the mean radii. 
             else:
-                form_factor = mie.calc_ang_dist(m, x_poly[s], Quantity(angles_array[s], angles.units))
+                form_factor = mie.calc_ang_dist(m, x_poly[s], angles_array[s]) 
             form_factor_par[:,s] = form_factor[0]
             form_factor_perp[:,s] = form_factor[1]
             
@@ -974,7 +977,7 @@ def _integrate_cross_section(cross_section, factor, angles,
     # for newer versions of pint,
     # np.trapz does preserve units, and add the units of the angles. We therefore
     # changed to angles.magnitude and removed the extra integrand.units term
-    integral = np.trapz(integrand, x=angles.magnitude) #* integrand.units
+    integral = np.trapz(integrand, x=angles.magnitude)* integrand.units # comment this
     
     # multiply by 2*pi to account for integral over phi
     sigma = azi_angle_range * integral
@@ -1007,6 +1010,9 @@ def fresnel_reflection(n1, n2, incident_angle):
         intensity
     """
     theta = np.atleast_1d(incident_angle.to('rad').magnitude)
+    if isinstance(theta, Quantity):
+        theta = theta.magnitude  
+    
     if np.any(theta > np.pi/2.0):
         raise ValueError('Unphysical angle of incidence.  Angle must be \n'+
                          'less than or equal to 90 degrees with respect to' +
@@ -1032,6 +1038,7 @@ def fresnel_reflection(n1, n2, incident_angle):
         # take the absolute value inside the square root because sometimes
         # this value is very close to 0 and negative due to numerical precision
         root = np.sqrt(np.abs(n2**2 - (n1 * np.sin(theta[good_vals]))**2))
+
         costheta = np.cos(theta[good_vals])
         r_par[good_vals] = (np.abs((n1*root - n2**2 * costheta)/ \
                                    (n1*root + n2**2 * costheta)))**2

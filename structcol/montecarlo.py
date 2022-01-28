@@ -627,6 +627,7 @@ class Trajectory:
                 ax3D.scatter(self.position[0,:,n], self.position[1,:,n],
                              self.position[2,:,n], color=next(colors))
 
+#rng_legacy = np.random.RandomState() # remove
 
 def initialize(nevents, ntraj, n_medium, n_sample, boundary, seed=None,
                incidence_theta_min=sc.Quantity(0.,'rad'), 
@@ -780,8 +781,11 @@ def initialize(nevents, ntraj, n_medium, n_sample, boundary, seed=None,
     definition of rsm slope of the surface).
     
     """
+    #rng_legacy = np.random.RandomState(seed=1)
+    
     if seed is not None:
-        np.random.seed([seed])
+        np.random.seed([seed]) # uncomment
+        #rng_legacy.seed([seed]) # remove
         
     # get the spot size magnitude to multiply by initial x and y positions
     spot_size_magnitude = spot_size.to('um').magnitude
@@ -808,10 +812,12 @@ def initialize(nevents, ntraj, n_medium, n_sample, boundary, seed=None,
             raise ValueError('for film geometry, sample_diameter must be set\
                              to None')
         # randomly choose x positions on interval [0,1]
-        r0[0,0,:] = random((1,ntraj))*spot_size_magnitude
+        r0[0,0,:] = random((1,ntraj))*spot_size_magnitude # uncomment
+        #r0[0,0,:] = rng_legacy.random_sample((1,ntraj))*spot_size_magnitude # remove line
         
         # randomly choose y positions on interval [0,1]
         r0[1,0,:] = random((1,ntraj))*spot_size_magnitude
+        #r0[1,0,:] = rng_legacy.random_sample((1,ntraj))*spot_size_magnitude
         
         # initialize the incident angles theta and phi. The user can input 
         # data or sample randomly from a uniform distribution between a min and 
@@ -1385,6 +1391,7 @@ def sample_angles(nevents, ntraj, p, min_angle=0.01):
         Sampled azimuthal and scattering angles, and their sines and cosines.
     
     """
+    #rng_legacy = np.random.RandomState(seed=1)   
    
     if isinstance(p,sc.Quantity):
         p = p.magnitude
@@ -1404,7 +1411,8 @@ def sample_angles(nevents, ntraj, p, min_angle=0.01):
  
         # Random sampling of azimuthal angle phi from uniform distribution [0 -
         # 2pi]
-        rand = np.random.random((nevents,ntraj))
+        rand = np.random.random((nevents,ntraj)) #uncomment
+        #rand = rng_legacy.random_sample((nevents,ntraj)) # remove
         phi = 2*np.pi*rand
     
         # make sure probability is normalized
@@ -1414,6 +1422,8 @@ def sample_angles(nevents, ntraj, p, min_angle=0.01):
         # Randomly sample scattering angle theta
         theta = np.array([np.random.choice(thetas, ntraj, p = prob_norm)
                           for i in range(nevents)])
+        #theta = np.array([rng_legacy.choice(thetas, ntraj, p = prob_norm)
+        #                  for i in range(nevents)])
         
     if len(p.shape)==2: # if p depends on theta and phi
         
@@ -1478,6 +1488,7 @@ def sample_step(nevents, ntraj, mu_scat, fine_roughness=0.):
         Sampled step sizes for all trajectories and scattering events.
     
     """
+    #rng_legacy = np.random.RandomState(seed=1) 
      
     if fine_roughness > 1. or fine_roughness < 0.:
         raise ValueError('fine roughness fraction must be between 0 and 1')
@@ -1489,7 +1500,8 @@ def sample_step(nevents, ntraj, mu_scat, fine_roughness=0.):
         mu_scat_mie = None
 
     # Generate array of random numbers from 0 to 1
-    rand = np.random.random((nevents,ntraj))
+    rand = np.random.random((nevents,ntraj)) #uncomment
+    #rand = rng_legacy.random_sample((nevents,ntraj)) # remove
 
     # sample step sizes
     step = -np.log(1.0-rand) / mu_scat

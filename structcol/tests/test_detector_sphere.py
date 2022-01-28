@@ -131,7 +131,7 @@ def test_get_angles_sphere():
     
     indices = np.array([1,1,1,1])
     thetas, _ = det.get_angles(indices, 'sphere', trajectories, assembly_radius, init_dir = 1)
-    assert_almost_equal(np.sum(thetas), 0.) 
+    assert_almost_equal(np.sum(thetas.magnitude), 0.) 
 
 def test_index_match():
     ntrajectories = 2

@@ -33,7 +33,8 @@ def test_n():
     assert_raises(KeyError, ri.n, 'badkey', Quantity('0.5 um'))
 
     # make sure that specifying no units throws an exception
-    assert_raises(AttributeError, ri.n, 'polystyrene', 0.5)
+    assert_raises(DimensionalityError, ri.n, 'polystyrene', 0.5)
+    
     # and specifying the wrong units, too
     assert_raises(DimensionalityError, ri.n, 'polystyrene', Quantity('0.5 J'))
 
@@ -44,75 +45,75 @@ def test_n():
 
 def test_water():
     # values from refractiveindex.info
-    assert_almost_equal(ri.n('water', Quantity('0.40930 um')),
-                        Quantity('1.3427061376724'))
-    assert_almost_equal(ri.n('water', Quantity('0.80700 um')),
-                        Quantity('1.3284883366632'))
+    assert_almost_equal(ri.n('water', Quantity('0.40930 um')).magnitude,
+                        Quantity('1.3427061376724').magnitude)
+    assert_almost_equal(ri.n('water', Quantity('0.80700 um')).magnitude,
+                        Quantity('1.3284883366632').magnitude)
 
 def test_npmma():
     # values from refractiveindex.info
-    assert_almost_equal(ri.n('pmma', Quantity('0.42 um')),
-                        Quantity('1.5049521933717'))
-    assert_almost_equal(ri.n('pmma', Quantity('0.804 um')),
-                        Quantity('1.4866523830528'))
+    assert_almost_equal(ri.n('pmma', Quantity('0.42 um')).magnitude,
+                        Quantity('1.5049521933717').magnitude)
+    assert_almost_equal(ri.n('pmma', Quantity('0.804 um')).magnitude,
+                        Quantity('1.4866523830528').magnitude)
 
 def test_nps():
     # values from refractiveindex.info
-    assert_almost_equal(ri.n('polystyrene', Quantity('0.4491 um')),
-                        Quantity('1.6137854760669'))
-    assert_almost_equal(ri.n('polystyrene', Quantity('0.7998 um')),
-                        Quantity('1.5781660671827'))
+    assert_almost_equal(ri.n('polystyrene', Quantity('0.4491 um')).magnitude,
+                        Quantity('1.6137854760669').magnitude)
+    assert_almost_equal(ri.n('polystyrene', Quantity('0.7998 um')).magnitude,
+                        Quantity('1.5781660671827').magnitude)
 
 def test_rutile():
     # values from refractiveindex.info
-    assert_almost_equal(ri.n('rutile', Quantity('0.4300 um')),
-                        Quantity('2.8716984534676'))
-    assert_almost_equal(ri.n('rutile', Quantity('0.8040 um')),
-                        Quantity('2.5187663081355'))
+    assert_almost_equal(ri.n('rutile', Quantity('0.4300 um')).magnitude,
+                        Quantity('2.8716984534676').magnitude)
+    assert_almost_equal(ri.n('rutile', Quantity('0.8040 um')).magnitude,
+                        Quantity('2.5187663081355').magnitude)
 
 def test_fused_silica():
     # values from refractiveindex.info
-    assert_almost_equal(ri.n('fused silica', Quantity('0.3850 um')),
-                        Quantity('1.4718556531995'))
-    assert_almost_equal(ri.n('fused silica', Quantity('0.8050 um')),
-                        Quantity('1.4532313266004'))
+    assert_almost_equal(ri.n('fused silica', Quantity('0.3850 um')).magnitude,
+                        Quantity('1.4718556531995').magnitude)
+    assert_almost_equal(ri.n('fused silica', Quantity('0.8050 um')).magnitude,
+                        Quantity('1.4532313266004').magnitude)
 def test_zirconia():
     # values from refractiveindex.info
-    assert_almost_equal(ri.n('zirconia', Quantity('.405 um')),
-                       Quantity('2.3135169070958'))
-    assert_almost_equal(ri.n('zirconia', Quantity('.6350 um')),
-                        Quantity('2.1593242574339'))
+    assert_almost_equal(ri.n('zirconia', Quantity('.405 um')).magnitude,
+                       Quantity('2.3135169070958').magnitude)
+    assert_almost_equal(ri.n('zirconia', Quantity('.6350 um')).magnitude,
+                        Quantity('2.1593242574339').magnitude)
 
 
 def test_vacuum():
-    assert_almost_equal(ri.n('vacuum', Quantity('0.400 um')), Quantity('1.0'))
-    assert_almost_equal(ri.n('vacuum', Quantity('0.800 um')), Quantity('1.0'))
+    assert_almost_equal(ri.n('vacuum', Quantity('0.400 um')).magnitude, Quantity('1.0').magnitude)
+    assert_almost_equal(ri.n('vacuum', Quantity('0.800 um')).magnitude, Quantity('1.0').magnitude)
     
 def test_cargille():
-    assert_almost_equal(ri.n_cargille(1,'AAA',Quantity('0.400 um')),
-                        Quantity('1.3101597437500001'))
-    assert_almost_equal(ri.n_cargille(1,'AAA',Quantity('0.700 um')),
-                        Quantity('1.303526242857143'))
-    assert_almost_equal(ri.n_cargille(1,'AA',Quantity('0.400 um')),
-                        Quantity('1.4169400062500002'))
-    assert_almost_equal(ri.n_cargille(1,'AA',Quantity('0.700 um')),
-                        Quantity('1.3987172673469388'))
-    assert_almost_equal(ri.n_cargille(1,'A',Quantity('0.400 um')),
-                        Quantity('1.4755715625000001'))
-    assert_almost_equal(ri.n_cargille(1,'A',Quantity('0.700 um')),
-                        Quantity('1.458145836734694'))
-    assert_almost_equal(ri.n_cargille(1,'B',Quantity('0.400 um')),
-                        Quantity('1.6720350625'))
-    assert_almost_equal(ri.n_cargille(1,'B',Quantity('0.700 um')),
-                        Quantity('1.6283854489795917'))
-    assert_almost_equal(ri.n_cargille(1,'E',Quantity('0.400 um')),
-                        Quantity('1.5190772875'))
-    assert_almost_equal(ri.n_cargille(1,'E',Quantity('0.700 um')),
-                        Quantity('1.4945156653061225'))
-    assert_almost_equal(ri.n_cargille(0,'acrylic',Quantity('0.400 um')),
-                        Quantity('1.50736788125'))
-    assert_almost_equal(ri.n_cargille(0,'acrylic',Quantity('0.700 um')),
-                        Quantity('1.4878716959183673'))
+    assert_almost_equal(ri.n_cargille(1,'AAA',Quantity('0.400 um')).magnitude,
+                        Quantity('1.3101597437500001').magnitude)
+    assert_almost_equal(ri.n_cargille(1,'AAA',Quantity('0.700 um')).magnitude,
+                        Quantity('1.303526242857143').magnitude)
+    assert_almost_equal(ri.n_cargille(1,'AA',Quantity('0.400 um')).magnitude,
+                        Quantity('1.4169400062500002').magnitude)
+    assert_almost_equal(ri.n_cargille(1,'AA',Quantity('0.700 um')).magnitude,
+                        Quantity('1.3987172673469388').magnitude)
+    assert_almost_equal(ri.n_cargille(1,'A',Quantity('0.400 um')).magnitude,
+                        Quantity('1.4755715625000001').magnitude)
+    assert_almost_equal(ri.n_cargille(1,'A',Quantity('0.700 um')).magnitude,
+                        Quantity('1.458145836734694').magnitude)
+    assert_almost_equal(ri.n_cargille(1,'B',Quantity('0.400 um')).magnitude,
+                        Quantity('1.6720350625').magnitude)
+    assert_almost_equal(ri.n_cargille(1,'B',Quantity('0.700 um')).magnitude,
+                        Quantity('1.6283854489795917').magnitude)
+    assert_almost_equal(ri.n_cargille(1,'E',Quantity('0.400 um')).magnitude,
+                        Quantity('1.5190772875').magnitude)
+    assert_almost_equal(ri.n_cargille(1,'E',Quantity('0.700 um')).magnitude,
+                        Quantity('1.4945156653061225').magnitude)
+    assert_almost_equal(ri.n_cargille(0,'acrylic',Quantity('0.400 um')).magnitude,
+                        Quantity('1.50736788125').magnitude)
+    assert_almost_equal(ri.n_cargille(0,'acrylic',Quantity('0.700 um')).magnitude,
+                        Quantity('1.4878716959183673').magnitude)
     
 def test_neff():
     # test that at low volume fractions, Maxwell-Garnett and Bruggeman roughly
@@ -124,7 +125,7 @@ def test_neff():
     neff_mg = ri.n_eff(n_particle, n_matrix, vf, maxwell_garnett=True)
     neff_bg = ri.n_eff(n_particle, n_matrix, vf, maxwell_garnett=False)
 
-    assert_almost_equal(neff_mg, neff_bg)
+    assert_almost_equal(neff_mg.magnitude, neff_bg.magnitude)
     
     # test that the non-core-shell particle with Maxwell-Garnett matches with 
     # the core-shell of shell index of air with Bruggeman at low volume fractions
@@ -132,8 +133,8 @@ def test_neff():
     vf2 = Quantity(np.array([0.001, 0.1]), '')
     neff_bg2 = ri.n_eff(n_particle2, n_matrix, vf2, maxwell_garnett=False)
     
-    assert_almost_equal(neff_mg, neff_bg2)
-    assert_almost_equal(neff_bg, neff_bg2)
+    assert_almost_equal(neff_mg.magnitude, neff_bg2.magnitude)
+    assert_almost_equal(neff_bg.magnitude, neff_bg2.magnitude)
     
     # test that the effective indices for a non-core-shell and a core-shell of
     # shell index of air match using Bruggeman at intermediate volume fractions
@@ -143,7 +144,7 @@ def test_neff():
     vf3_cs = Quantity(np.array([0.5, 0.1]), '')
     neff_bg3_cs = ri.n_eff(n_particle2, n_matrix, vf3_cs, maxwell_garnett=False)
     
-    assert_almost_equal(neff_bg3, neff_bg3_cs)
+    assert_almost_equal(neff_bg3.magnitude, neff_bg3_cs.magnitude)
     
     # repeat the tests using complex indices    
     n_particle_complex = Quantity(2.7+0.001j, '')
@@ -152,15 +153,15 @@ def test_neff():
     neff_mg_complex = ri.n_eff(n_particle_complex, n_matrix_complex, vf, maxwell_garnett=True)
     neff_bg_complex = ri.n_eff(n_particle_complex, n_matrix_complex, vf, maxwell_garnett=False)
 
-    assert_almost_equal(neff_mg_complex, neff_bg_complex)
+    assert_almost_equal(neff_mg_complex.magnitude, neff_bg_complex.magnitude)
     
     # test that the non-core-shell particle with Maxwell-Garnett matches with 
     # the core-shell of shell index of air with Bruggeman at low volume fractions
     n_particle2_complex = Quantity(np.array([2.7+0.001j, 2.2+0.001j]), '')
     neff_bg2_complex = ri.n_eff(n_particle2_complex, n_matrix_complex, vf2, maxwell_garnett=False)
     
-    assert_almost_equal(neff_mg_complex, neff_bg2_complex)
-    assert_almost_equal(neff_bg_complex, neff_bg2_complex)
+    assert_almost_equal(neff_mg_complex.magnitude, neff_bg2_complex.magnitude)
+    assert_almost_equal(neff_bg_complex.magnitude, neff_bg2_complex.magnitude)
     
     # test that the effective indices for a non-core-shell and a core-shell of
     # shell index of air match using Bruggeman at intermediate volume fractions
@@ -168,7 +169,7 @@ def test_neff():
     
     neff_bg3_cs_complex = ri.n_eff(n_particle2_complex, n_matrix_complex, vf3_cs, maxwell_garnett=False)
     
-    assert_almost_equal(neff_bg3_complex, neff_bg3_cs_complex)
+    assert_almost_equal(neff_bg3_complex.magnitude, neff_bg3_cs_complex.magnitude)
     
 def test_data():
     # Test that we can input data for refractive index

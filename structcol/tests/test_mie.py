@@ -53,7 +53,7 @@ def test_cross_sections():
     assert_almost_equal(cscat.to('m^2').magnitude, cscat2.to('m^2').magnitude)
     assert_almost_equal(cext.to('m^2').magnitude, cext2.to('m^2').magnitude)
     assert_almost_equal(cback.to('m^2').magnitude, cback2.to('m^2').magnitude)
-    assert_almost_equal(g, g2)
+    assert_almost_equal(g, g2.magnitude)
 
     # test that calc_cross_sections throws an exception when given an argument
     # with the wrong dimensions

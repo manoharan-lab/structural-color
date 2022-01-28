@@ -279,14 +279,16 @@ def test_reflection_absorbing_particle():
     g_mg1_before = -0.18774057969370997
     g_mg2_before = -0.18774057969370903
     lstar_mg1_before = 10810.069633192961
-    lstar_mg2_before = 10810.069633193001
+    # lstar_mg2_before = 10810.069633193001
+    # lstar_mg2 and lstar_mg1 are now equal, so we don't need to compare to 
+    # lstar_mg2_before
     
     assert_array_almost_equal(refl_mg1_before, refl_mg1, decimal=14)
     assert_array_almost_equal(refl_mg2_before, refl_mg2, decimal=14)
     assert_array_almost_equal(g_mg1_before, g_mg1, decimal=14)
     assert_array_almost_equal(g_mg2_before, g_mg2, decimal=14)
     assert_array_almost_equal(lstar_mg1_before, lstar_mg1.magnitude, decimal=14)
-    assert_array_almost_equal(lstar_mg2_before, lstar_mg2.magnitude, decimal=14)
+    assert_array_almost_equal(lstar_mg1.magnitude, lstar_mg2.magnitude, decimal=14)
     
     # With Bruggeman
     refl_bg1, _, _, g_bg1, lstar_bg1 = model.reflection(n_particle_real, n_matrix, 
@@ -352,7 +354,8 @@ def test_calc_g():
 
     # calculate g using calc_g in pymie
     vf_array = np.empty(len(np.atleast_1d(radius)))
-    r_array = np.array([0] + np.atleast_1d(radius).tolist()) 
+    #r_array = np.array([0] + np.atleast_1d(radius).tolist())
+    r_array = np.array([0] + np.atleast_1d(radius.magnitude).tolist()) 
     for r in np.arange(len(r_array)-1):
         vf_array[r] = ((r_array[r+1]**3-r_array[r]**3) / (r_array[-1:]**3) * 
                        volume_fraction.magnitude)
@@ -480,7 +483,6 @@ def test_reflection_polydispersity():
                                                   concentration = concentration, 
                                                   pdi = pdi, structure_type=None,
                                                   form_type='polydisperse')
-    
     assert_array_almost_equal(refl, refl2)
     assert_array_almost_equal(g, g2)
     assert_array_almost_equal(lstar.to('mm'), lstar2.to('mm'), decimal=4)
@@ -503,10 +505,12 @@ def test_reflection_polydispersity():
     # test that the reflectance using only the structure factor is the same 
     # using the polydisperse formula vs using Percus-Yevick in the limit of 
     # monodispersity
+    
     refl3, _, _, g3, lstar3 = model.reflection(n_particle, n_matrix, n_medium, 
                                                wavelength, radius, volume_fraction,
                                                structure_type='glass',
                                                form_type=None)
+                                               
     refl4, _, _, g4, lstar4 = model.reflection(n_particle, n_matrix, 
                                                n_medium, wavelength, radius, 
                                                volume_fraction, 
@@ -515,7 +519,7 @@ def test_reflection_polydispersity():
                                                pdi = pdi, 
                                                structure_type='polydisperse',
                                                form_type=None)
-    
+                                               
     assert_array_almost_equal(refl3, refl4)
     assert_array_almost_equal(g3, g4)
     assert_array_almost_equal(lstar3.to('mm'), lstar4.to('mm'), decimal=4)
@@ -700,8 +704,8 @@ def test_reflection_polydispersity_with_absorption():
     lstar3_before = 5.7241468935761515e-05 #Before updating absorption in single scat: 8.8037552221780592e-09 #A/V:1.4399291088853016e-08
     lstar4_before = 5.72414689861482e-05 #Before updating absorption in single scat: 8.8037552299275471e-09 #A/V:1.4399291096668534e-08
   
-    assert_array_almost_equal(refl3_before, refl3.magnitude, decimal=15)
-    assert_array_almost_equal(refl4_before, refl4.magnitude, decimal=15)
+    assert_array_almost_equal(refl3_before, refl3, decimal=15)
+    assert_array_almost_equal(refl4_before, refl4, decimal=15)
     assert_array_almost_equal(g3_before, g3.magnitude, decimal=15)
     assert_array_almost_equal(g4_before, g4.magnitude, decimal=15)
     assert_array_almost_equal(lstar3_before, lstar3.to('mm').magnitude, decimal=15)
@@ -737,8 +741,8 @@ def test_reflection_polydispersity_with_absorption():
     lstar5_before = 0.01163694691 #Before updating absorption in single scat: A/V:0.013809880819376879 #A/V:0.013405648948885825
     lstar6_before = 0.011668837507 #Before updating absorption in single scat: A/V:0.013847726256293521 #A/V:0.013442386605693767
     
-    assert_array_almost_equal(refl5_before, refl5.magnitude, decimal=1)
-    assert_array_almost_equal(refl6_before, refl6.magnitude, decimal=1)
+    assert_array_almost_equal(refl5_before, refl5, decimal=1)
+    assert_array_almost_equal(refl6_before, refl6, decimal=1)
     assert_array_almost_equal(g5_before, g5.magnitude, decimal=12)
     assert_array_almost_equal(g6_before, g6.magnitude, decimal=12)
     assert_array_almost_equal(lstar5_before, lstar5.to('mm').magnitude, decimal=4)
