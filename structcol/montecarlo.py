@@ -1120,6 +1120,7 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
         cross_sections = mie.calc_cross_sections(m, x, wavelen/n_sample)  
         cabs_part = cross_sections[2]                                               
         mu_abs = cabs_part * number_density
+      
     
     # define angles at which phase function will be calculated, based on 
     # whether light is polarized or unpolarized
@@ -1163,7 +1164,7 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
     # simplify the units to 1/um 
     mu_scat = mu_scat.to('1/um')
     mu_abs = mu_abs.to('1/um')
-    
+  
     # if there is fine surface roughness, also calculate and return the scatt 
     # coeff from Mie theory. We assume that fine roughness particles are in the 
     # matrix and not in the effective sample medium. 
@@ -1190,7 +1191,7 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
         mu_scat_mie = mu_scat_mie.to('1/um')        
         mu_scat = sc.Quantity(np.array([mu_scat.magnitude, 
                                         mu_scat_mie.magnitude]), '1/um')
-    
+ 
     return p, mu_scat, mu_abs
     
 

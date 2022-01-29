@@ -704,7 +704,7 @@ def calc_montecarlo(nevents, ntrajectories, radius, n_particle, n_sample,
                                       fine_roughness=fine_roughness, n_matrix=n_matrix)
     print('p[0]: ' + str(p[0]))
     print('mu_scat: ' + str(mu_scat))
-    print('mu_abs: ' + str(mu_scat))
+    print('mu_abs: ' + str(mu_abs))
     if coarse_roughness > 0.:
         r0, k0, W0, kz0_rotated, kz0_reflected = mc.initialize(nevents, 
                                                                ntrajectories, 
@@ -724,21 +724,30 @@ def calc_montecarlo(nevents, ntrajectories, radius, n_particle, n_sample,
         kz0_reflected = None
     print('r0[0,0,0]: ' + str(r0[0,0,0]))
     print('k0[0,0,0]: ' + str(k0[0,0,0]))
-    print('W0[0,0,0]: ' + str(k0[0,0,0]))
+    print('W0[0,0]: ' + str(W0[0,0]))
     r0 = sc.Quantity(r0, 'um')
     k0 = sc.Quantity(k0, '')
     W0 = sc.Quantity(W0, '')
     
     sintheta, costheta, sinphi, cosphi, _, _= mc.sample_angles(nevents, 
                                                                ntrajectories,p)
-
+    print('sintheta[0,0]: ' + str(sintheta[0,0]))
+    print('costheta[0,0]: ' + str(costheta[0,0]))
+    print('sinphi[0,0]: ' + str(sinphi[0,0]))
+    print('cosphi[0,0]: ' + str(cosphi[0,0]))
     step = mc.sample_step(nevents, ntrajectories, mu_scat, 
                           fine_roughness=fine_roughness)
-                    
+        
+    print('step[0,0]: ' + str(step[0,0]))
     trajectories = mc.Trajectory(r0, k0, W0)
     trajectories.absorb(mu_abs, step)                         
     trajectories.scatter(sintheta, costheta, sinphi, cosphi)         
     trajectories.move(step)
+    
+    print('traj_dir: ' + str(trajectories.direction[0,20,20]))
+    print('traj_weight: ' + str(trajectories.weight[20,20]))
+    print('traj_pos: ' + str(trajectories.position[0,20,20]))
+    
     cutoff = sc.Quantity('50 um')
 
     # calculate R, T
