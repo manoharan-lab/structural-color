@@ -1349,12 +1349,13 @@ def phase_function(m, x, angles, volume_fraction, k, number_density,
     
     # if there is no absorption in the system, Integrate with function in model
     else:
+              
         cscat_total_par = model._integrate_cross_section(diff_cscat_par,
                                                       1.0/ksquared, angles)
         cscat_total_perp = model._integrate_cross_section(diff_cscat_perp,
                                                       1.0/ksquared, angles)
         cscat_total = (cscat_total_par + cscat_total_perp)/2.0
-    
+
     # calculate the phase function
     if return_diff_cscat:
         p = (diff_cscat_par + diff_cscat_perp)/(np.sum(diff_cscat_par + diff_cscat_perp))

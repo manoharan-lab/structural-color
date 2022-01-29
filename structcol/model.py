@@ -977,7 +977,7 @@ def _integrate_cross_section(cross_section, factor, angles,
     # for newer versions of pint,
     # np.trapz does preserve units, and add the units of the angles. We therefore
     # changed to angles.magnitude and removed the extra integrand.units term
-    integral = np.trapz(integrand, x=angles.magnitude)* integrand.units # comment this
+    integral = np.trapz(integrand, x=angles.magnitude)#* integrand.units # comment this
     
     # multiply by 2*pi to account for integral over phi
     sigma = azi_angle_range * integral

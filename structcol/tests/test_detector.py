@@ -702,7 +702,9 @@ def calc_montecarlo(nevents, ntrajectories, radius, n_particle, n_sample,
                                       concentration=concentration, pdi=pdi, 
                                       polydisperse=polydisperse,
                                       fine_roughness=fine_roughness, n_matrix=n_matrix)
-
+    print('p[0]: ' + str(p[0]))
+    print('mu_scat: ' + str(mu_scat))
+    print('mu_abs: ' + str(mu_scat))
     if coarse_roughness > 0.:
         r0, k0, W0, kz0_rotated, kz0_reflected = mc.initialize(nevents, 
                                                                ntrajectories, 
@@ -720,7 +722,9 @@ def calc_montecarlo(nevents, ntrajectories, radius, n_particle, n_sample,
                                    incidence_theta_max=incidence_theta_max)
         kz0_rotated = None
         kz0_reflected = None
-        
+    print('r0[0,0,0]: ' + str(r0[0,0,0]))
+    print('k0[0,0,0]: ' + str(k0[0,0,0]))
+    print('W0[0,0,0]: ' + str(k0[0,0,0]))
     r0 = sc.Quantity(r0, 'um')
     k0 = sc.Quantity(k0, '')
     W0 = sc.Quantity(W0, '')
