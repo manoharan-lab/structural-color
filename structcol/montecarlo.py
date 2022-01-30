@@ -627,7 +627,6 @@ class Trajectory:
                 ax3D.scatter(self.position[0,:,n], self.position[1,:,n],
                              self.position[2,:,n], color=next(colors))
 
-#rng_legacy = np.random.RandomState() # remove
 
 def initialize(nevents, ntraj, n_medium, n_sample, boundary, seed=None,
                incidence_theta_min=sc.Quantity(0.,'rad'), 
@@ -781,11 +780,9 @@ def initialize(nevents, ntraj, n_medium, n_sample, boundary, seed=None,
     definition of rsm slope of the surface).
     
     """
-    #rng_legacy = np.random.RandomState(seed=1)
     
     if seed is not None:
         np.random.seed([seed]) # uncomment
-        #rng_legacy.seed([seed]) # remove
         
     # get the spot size magnitude to multiply by initial x and y positions
     spot_size_magnitude = spot_size.to('um').magnitude
@@ -812,12 +809,10 @@ def initialize(nevents, ntraj, n_medium, n_sample, boundary, seed=None,
             raise ValueError('for film geometry, sample_diameter must be set\
                              to None')
         # randomly choose x positions on interval [0,1]
-        r0[0,0,:] = random((1,ntraj))*spot_size_magnitude # uncomment
-        #r0[0,0,:] = rng_legacy.random_sample((1,ntraj))*spot_size_magnitude # remove line
+        r0[0,0,:] = random((1,ntraj))*spot_size_magnitude 
         
         # randomly choose y positions on interval [0,1]
         r0[1,0,:] = random((1,ntraj))*spot_size_magnitude
-        #r0[1,0,:] = rng_legacy.random_sample((1,ntraj))*spot_size_magnitude
         
         # initialize the incident angles theta and phi. The user can input 
         # data or sample randomly from a uniform distribution between a min and 
@@ -963,8 +958,7 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
               mie_theory = False, polarization = False, fine_roughness=0, 
               min_angle = 0.01, num_angles = 200, num_phis = 300,
               structure_type = 'glass', form_type = 'sphere', 
-              structure_s_data=None, structure_qd_data=None, n_matrix=None,
-              return_diff_cscat=False):
+              structure_s_data=None, structure_qd_data=None, n_matrix=None):
     """
     Calculates the phase function and scattering coefficient from either the
     single scattering model or Mie theory. Calculates the absorption coefficient
@@ -1154,10 +1148,8 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
                                     coordinate_system=coordinate_system,
                                     phis = phis,
                                     structure_s_data=structure_s_data,
-                                    structure_qd_data=structure_qd_data,
-                                    return_diff_cscat=return_diff_cscat)
+                                    structure_qd_data=structure_qd_data)
 
-    #p = p*cscat_total
     mu_scat = number_density * cscat_total
     
     # Here, the resulting units of mu_scat and mu_abs are nm^2/um^3. Thus, we 
@@ -1185,8 +1177,7 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
                                             structure_type=structure_type,
                                             mie_theory=True,
                                             coordinate_system=coordinate_system,
-                                            phis=phis,
-                                            return_diff_cscat=return_diff_cscat)
+                                            phis=phis)
         mu_scat_mie = number_density * cscat_total_mie
         mu_scat_mie = mu_scat_mie.to('1/um')        
         mu_scat = sc.Quantity(np.array([mu_scat.magnitude, 
@@ -1199,8 +1190,7 @@ def phase_function(m, x, angles, volume_fraction, k, number_density,
                    wavelen=None, diameters=None, concentration=None, pdi=None, 
                    n_sample=None, form_type='sphere', structure_type='glass', 
                    mie_theory=False, coordinate_system = 'scattering plane', 
-                   phis=None, structure_s_data=None, structure_qd_data=None,
-                   return_diff_cscat=False):
+                   phis=None, structure_s_data=None, structure_qd_data=None):
     """
     Calculates the phase function (the phase function is the same for absorbing 
     and non-absorbing systems).
@@ -1358,10 +1348,7 @@ def phase_function(m, x, angles, volume_fraction, k, number_density,
         cscat_total = (cscat_total_par + cscat_total_perp)/2.0
 
     # calculate the phase function
-    if return_diff_cscat:
-        p = (diff_cscat_par + diff_cscat_perp)/(np.sum(diff_cscat_par + diff_cscat_perp))
-    else:
-        p = (diff_cscat_par + diff_cscat_perp)/(np.sum(diff_cscat_par + diff_cscat_perp))
+    p = (diff_cscat_par + diff_cscat_perp)/(np.sum(diff_cscat_par + diff_cscat_perp))
 
     return(p, cscat_total)
 
@@ -1392,15 +1379,18 @@ def sample_angles(nevents, ntraj, p, min_angle=0.01):
     sintheta, costheta, sinphi, cosphi, theta, phi : ndarray
         Sampled azimuthal and scattering angles, and their sines and cosines.
     
-    """
-    #rng_legacy = np.random.RandomState(seed=1)   
+    """   
    
     if isinstance(p,sc.Quantity):
         p = p.magnitude
     num_theta = len(p)
     
-    # the direction for the first event is defined upon initialization
-    # so we only need to sample nevents-1
+    # The direction for the first event is defined upon initialization
+    # so we only need to sample nevents-1.
+    # In previous versions of the code, we sampled nevents, which gave us an 
+    # extra sampled angle that was never used. While this did not lead to incorrect
+    # results, it led to inconsistencies in indexing which had the potential
+    # to create future bugs. Sampling one less angle fixes this issue.
     nevents = nevents-1 
     
     # Scattering angles for the phase function calculation (typically from 0 to 
@@ -1413,8 +1403,7 @@ def sample_angles(nevents, ntraj, p, min_angle=0.01):
  
         # Random sampling of azimuthal angle phi from uniform distribution [0 -
         # 2pi]
-        rand = np.random.random((nevents,ntraj)) #uncomment
-        #rand = rng_legacy.random_sample((nevents,ntraj)) # remove
+        rand = np.random.random((nevents,ntraj))
         phi = 2*np.pi*rand
     
         # make sure probability is normalized
@@ -1424,8 +1413,6 @@ def sample_angles(nevents, ntraj, p, min_angle=0.01):
         # Randomly sample scattering angle theta
         theta = np.array([np.random.choice(thetas, ntraj, p = prob_norm)
                           for i in range(nevents)])
-        #theta = np.array([rng_legacy.choice(thetas, ntraj, p = prob_norm)
-        #                  for i in range(nevents)])
         
     if len(p.shape)==2: # if p depends on theta and phi
         
@@ -1490,7 +1477,6 @@ def sample_step(nevents, ntraj, mu_scat, fine_roughness=0.):
         Sampled step sizes for all trajectories and scattering events.
     
     """
-    #rng_legacy = np.random.RandomState(seed=1) 
      
     if fine_roughness > 1. or fine_roughness < 0.:
         raise ValueError('fine roughness fraction must be between 0 and 1')
@@ -1503,7 +1489,6 @@ def sample_step(nevents, ntraj, mu_scat, fine_roughness=0.):
 
     # Generate array of random numbers from 0 to 1
     rand = np.random.random((nevents,ntraj)) #uncomment
-    #rand = rng_legacy.random_sample((nevents,ntraj)) # remove
 
     # sample step sizes
     step = -np.log(1.0-rand) / mu_scat

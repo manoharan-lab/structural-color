@@ -19,6 +19,7 @@ from . import model
 from . import select_events
 from . import structure
 from scipy.special import factorial
+import warnings
 
 def get_exit_pos(norm_refl, norm_trans, radius):
     '''
@@ -51,26 +52,23 @@ def get_exit_pos(norm_refl, norm_trans, radius):
     
     # get the x-coordinate
     x_inter = norm[0,:]
-    #x_inter = x_inter[x_inter!=0]*radius
     x_inter = x_inter*radius
     
     # get the y-coordinate
     y_inter = norm[1,:]
-    #y_inter = y_inter[y_inter!=0]*radius
     y_inter = y_inter*radius
     
     # get the z-coordinate
     z_inter = norm[2,:]
-    #z_inter = z_inter[z_inter!=0]*radius
     z_inter = z_inter*radius
-    
+
     return x_inter, y_inter, z_inter
     
 def conv_circ( signal, ker ):
     '''
-        signal: real 1D array
-        ker: real 1D array
-        signal and ker must have same shape
+    signal: real 1D array
+    ker: real 1D array
+    signal and ker must have same shape
     '''
     return np.real(np.fft.ifft( np.fft.fft(signal)*np.fft.fft(ker) ))
 
@@ -176,11 +174,9 @@ def calc_pdf(x, y, z, radius,
         
         # multiply z's by 0 if there is no exit
         z = z*(refl_weights_z+trans_weights_z)
-        print('z1: ' + str(z))
-        
+       
         # get rid of the z's that don't exit
         z = z[z!=0]
-        print('z2: ' + str(z))
         theta = np.arccos(z/radius)
 
     # since we don't care about event number, change all non-zero values to 1
@@ -208,20 +204,24 @@ def calc_pdf(x, y, z, radius,
     
     if not phi_dependent:
         # calculate the pdf kernel density estimate
-        pdf = gaussian_kde(nu_edge_correct, bw_method=kernel_bin_width, weights = weights_edge_correct)
         
-        # calculate the pdf for specific nu values
-        theta = np.linspace(0.01, np.pi, 200)# 0.01
-        nu = (np.cos(theta)+1)/2
-        pdf_array = pdf(nu)
-        pdf_array = pdf_array/np.sum(pdf_array)
-        #pdf_conv = pdf_array #+ p_mie
-        #pdf_conv = conv_circ(pdf_array, p_mie)
-        #p_mie_long = np.hstack((p_mie[::-1],p_mie, p_mie[::-1]))
-        #pdf_array_long = np.hstack((pdf_array[::-1], pdf_array, pdf_array[::-1]))
-        #pdf_conv = np.convolve(p_mie_long, pdf_array_long)
-        #pdf_conv = np.convolve(p_mie, pdf_array)
-        #pdf_conv = pdf_conv[400:600]
+        # need to add an if statement for if nu_edge_correct is empty
+        # then the scattering pdf should be nan? and there should be a warning
+        # warning that no trajectories exited sphere so can't calculate the 
+        # pdf?
+        if nu_edge_correct.size==0:
+            no_scat_warn = "No trajectories reflected or transmitted. Check sample parameters"
+            warnings.warn(no_scat_warn)
+            pdf_array = np.nan
+        
+        else:
+            pdf = gaussian_kde(nu_edge_correct, bw_method=kernel_bin_width, weights = weights_edge_correct)
+        
+            # calculate the pdf for specific nu values
+            theta = np.linspace(0.01, np.pi, 200)# 0.01
+            nu = (np.cos(theta)+1)/2
+            pdf_array = pdf(nu)
+            pdf_array = pdf_array/np.sum(pdf_array)
         
         if plot == True:
             # plot the distribution from data, with edge correction, and kde
@@ -668,7 +668,6 @@ def calc_scat_bulk(refl_per_traj,
     # find the points on the sphere where trajectories exit
     x_inter, y_inter, z_inter = get_exit_pos(norm_refl, norm_trans, radius)
     
-    print('z: ' + str(z_inter))
     # calculate the probability density function as a function of nu, which depends on the scattering angle   
     p = calc_pdf(x_inter, y_inter, z_inter, radius, 
                  refl_per_traj,
@@ -960,17 +959,4 @@ def sample_angles_step_poly(nevents_bulk, ntrajectories_bulk, p_sphere,
     step = lscat_rad_samp*np.ones((nevents_bulk, ntrajectories_bulk))*lscat.units
     
     return sintheta, costheta, sinphi, cosphi, step, theta, phi
-    
-
-
-
-
-
-
-
-
-
-
-
-    
     
