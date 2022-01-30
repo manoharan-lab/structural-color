@@ -48,17 +48,6 @@ wavelen = sc.Quantity('400 nm')
 # photons
 refl_index = np.array([2,0,2])
 
-def test_sampling():
-    # Test that 'calc_scat' runs
-    p, mu_scat, mu_abs = mc.calc_scat(radius, n_particle, n_sample, 
-                                      volume_fraction, wavelen)
-    
-    # Test that 'sample_angles' runs
-    mc.sample_angles(nevents, ntrajectories, p)
-    
-    # Test that 'sample_step' runs
-    mc.sample_step(nevents, ntrajectories, mu_scat)
-
 def test_calc_refl_trans():
     small_n = sc.Quantity(1,'')
     large_n = sc.Quantity(2,'')
@@ -104,21 +93,7 @@ def test_calc_refl_trans():
                                      p=p, mu_abs=mu_abs, mu_scat=mu_scat, run_fresnel_traj=True)
     # since the tir=True reruns the stuck trajectory, we don't know whether it will end up reflected or transmitted
     # all we can know is that the end refl + trans > 0.99
-    assert_almost_equal(refl + trans, 1.) 
-
-
-def test_trajectories():
-    # Initialize runs
-    nevents = 2
-    ntrajectories = 3
-    r0, k0, W0 = mc.initialize(nevents, ntrajectories, n_matrix, n_sample, 'sphere', seed=1, sample_diameter=sc.Quantity('1 um'))
-    r0 = sc.Quantity(r0, 'um')
-    k0 = sc.Quantity(k0, '')
-    W0 = sc.Quantity(W0, '')
-
-    # Create a Trajectory object
-    trajectories = mc.Trajectory(r0, k0, W0)
-    
+    assert_almost_equal(refl + trans, 1.)   
     
 def test_get_angles_sphere():
     z_pos = np.array([[0,0,0,0],[1,1,1,1],[-1,11,2,11],[-2,12,4,12]])

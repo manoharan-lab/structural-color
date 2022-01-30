@@ -23,7 +23,6 @@ Tests for the montecarlo model (in structcol/montecarlo.py)
 .. moduleauthor:: Solomon Barkley <barkley@g.harvard.edu>
 .. moduleauthor:: Annie Stephenson <stephenson@g.harvard.edu>
 
-TODO: either delete this file or delete tests repeated in montecarlo.py
 """
 
 import structcol as sc
@@ -50,18 +49,6 @@ wavelen = sc.Quantity('400 nm')
 # Index of the scattering event and trajectory corresponding to the reflected
 # photons
 refl_index = np.array([2,0,2])
-'''
-def test_sampling():
-    # Test that 'calc_scat' runs
-    p, mu_scat, mu_abs = mc.calc_scat(radius, n_particle, n_sample,  
-                                      volume_fraction, wavelen)
-    
-    # Test that 'sample_angles' runs
-    mc.sample_angles(nevents, ntrajectories, p)
-    
-    # Test that 'sample_step' runs
-    mc.sample_step(nevents, ntrajectories, mu_scat)
-'''
 
 def test_calc_refl_trans():
     high_thresh = 10
@@ -118,49 +105,6 @@ def test_calc_refl_trans():
     expected_refl_array = np.array([.1675485, .1675485, .1675485, .94356261, .94356261, .94356261, .1675485])/ntrajectories #calculated manually
     assert_almost_equal(refl, np.sum(expected_refl_array))
     assert_almost_equal(trans, np.sum(expected_trans_array))
-
-'''
-def test_trajectories():
-    # Initialize runs
-    nevents = 2
-    ntrajectories = 3
-    r0, k0, W0 = mc.initialize(nevents, ntrajectories, n_medium, n_sample, 'film', seed=1)
-    r0 = sc.Quantity(r0, 'um')
-    k0 = sc.Quantity(k0, '')
-    W0 = sc.Quantity(W0, '')
-
-    # Create a Trajectory object
-    trajectories = mc.Trajectory(r0, k0, W0)
-    
-    # Test the absorb function
-    mu_abs = 1/sc.Quantity(10, 'um')    
-    step = sc.Quantity(np.array([[1,1,1],[1,1,1]]), 'um')    
-    trajectories.absorb(mu_abs, step)     
-    assert_almost_equal(trajectories.weight.magnitude, 
-                 np.array([[ 0.90483742,  0.90483742,  0.90483742],
-                           [ 0.81873075,  0.81873075,  0.81873075]]))
-    
-    # Make up some test theta and phi
-    sintheta = np.array([[0.,0.,0.],[0.,0.,0.]])  
-    costheta = np.array([[-1.,-1.,-1.],[1.,1.,1.]])  
-    sinphi = np.array([[0.,0.,0.],[0.,0.,0.]])
-    cosphi = np.array([[0.,0.,0.],[0.,0.,0.]])
-    trajectories.scatter(sintheta, costheta, sinphi, cosphi)       
-    
-    # Expected propagation directions
-    kx = sc.Quantity(np.array([[0.,0.,0.],[0.,0.,0.]]), '')
-    ky = sc.Quantity(np.array([[0.,0.,0.],[0.,0.,0.]]), '')
-    kz = sc.Quantity(np.array([[1.,1.,1.],[-1.,-1.,-1.]]), '')
-    
-    # Test the scatter function
-    assert_almost_equal(trajectories.direction[0].magnitude, kx.magnitude)
-    assert_almost_equal(trajectories.direction[1].magnitude, ky.magnitude)
-    assert_almost_equal(trajectories.direction[2].magnitude, kz.magnitude)
-    
-    # Test the move function    
-    trajectories.move(step)
-    assert_equal(trajectories.position[2].magnitude, np.array([[0,0,0],[1,1,1],[0,0,0]]))
-'''
 
 def test_reflection_core_shell():
     # test that the reflection of a non-core-shell system is the same as that
@@ -579,113 +523,6 @@ def test_surface_roughness():
     assert_almost_equal(T, T_coarse, decimal=16) 
     assert_almost_equal(R, R_both, decimal=20)                                    
     assert_almost_equal(T, T_both, decimal=16)
-    
-'''
-def test_phase_function_absorbing_medium():
-    # test that the phase function using the far-field Mie solutions 
-    # (mie.calc_ang_dist()) in an absorbing medium is the same as the phase 
-    # function using the Mie solutions with the asymptotic form of the spherical 
-    # Hankel functions but using a complex k (mie.diff_scat_intensity_complex_medium()
-    # with near_fields=False)
-    wavelen = sc.Quantity('550 nm')
-    radius = sc.Quantity('105 nm')
-    n_matrix = sc.Quantity(1.47 + 0.001j, '')
-    n_particle = sc.Quantity(1.5 + 1e-1 * 1.0j, '')
-    m = index_ratio(n_particle, n_matrix)
-    x = size_parameter(wavelen, n_matrix, radius)
-    k = 2 * np.pi * n_matrix / wavelen     
-    ksquared = np.abs(k)**2  
-
-    ## Integrating at the surface of the particle
-    # with mie.calc_ang_dist() (this is how it's currently implemented in 
-    # monte carlo)
-    diff_cscat_par_ff, diff_cscat_perp_ff = \
-        model.differential_cross_section(m, x, angles, volume_fraction,
-                                         structure_type='glass',
-                                         form_type='sphere',
-                                         diameters=radius, wavelen=wavelen, 
-                                         n_matrix=n_sample, k=None, distance=radius)
-    cscat_total_par_ff = model._integrate_cross_section(diff_cscat_par_ff,
-                                                      1.0/ksquared, angles)
-    cscat_total_perp_ff = model._integrate_cross_section(diff_cscat_perp_ff,
-                                                      1.0/ksquared, angles)
-    cscat_total_ff = (cscat_total_par_ff + cscat_total_perp_ff)/2.0                                     
-        
-    p_ff = (diff_cscat_par_ff + diff_cscat_perp_ff)/(ksquared * 2 * cscat_total_ff)
-    p_par_ff = diff_cscat_par_ff/(ksquared * 2 * cscat_total_par_ff)
-    p_perp_ff = diff_cscat_perp_ff/(ksquared * 2 * cscat_total_perp_ff)
-                      
-    # with mie.diff_scat_intensity_complex_medium()
-    diff_cscat_par, diff_cscat_perp = \
-        model.differential_cross_section(m, x, angles, volume_fraction,
-                                         structure_type='glass',
-                                         form_type='sphere',
-                                         diameters=radius, wavelen=wavelen, 
-                                         n_matrix=n_sample, k=k, distance=radius)
-    cscat_total_par = model._integrate_cross_section(diff_cscat_par,
-                                                      1.0/ksquared, angles)
-    cscat_total_perp = model._integrate_cross_section(diff_cscat_perp,
-                                                      1.0/ksquared, angles)
-    cscat_total = (cscat_total_par + cscat_total_perp)/2.0                                     
-        
-    p = (diff_cscat_par + diff_cscat_perp)/(ksquared * 2 * cscat_total)
-    p_par = diff_cscat_par/(ksquared * 2 * cscat_total_par)
-    p_perp = diff_cscat_perp/(ksquared * 2 * cscat_total_perp)
-     
-    # test random values of the phase functions
-    assert_almost_equal(p_ff[3].magnitude, p[3].magnitude, decimal=15)    
-    assert_almost_equal(p_par_ff[50].magnitude, p_par[50].magnitude, decimal=15)    
-    assert_almost_equal(p_perp[83].magnitude, p_perp_ff[83].magnitude , decimal=15)   
-    
-    ### Same thing but with a binary and polydisperse mixture
-    ## Integrating at the surface of the particle
-    # with mie.calc_ang_dist() (this is how it's currently implemented in 
-    # monte carlo)
-    radius2 = sc.Quantity('150 nm')
-    concentration = sc.Quantity(np.array([0.2, 0.7]), '')
-    pdi = sc.Quantity(np.array([0.1, 0.1]), '')
-    diameters = sc.Quantity(np.array([radius.magnitude, radius2.magnitude])*2, radius.units)
-    
-    diff_cscat_par_ff, diff_cscat_perp_ff = \
-        model.differential_cross_section(m, x, angles, volume_fraction,
-                                         structure_type='polydisperse',
-                                         form_type='polydisperse',
-                                         diameters=diameters, pdi=pdi, 
-                                         concentration=concentration, wavelen=wavelen, 
-                                         n_matrix=n_sample, k=None, distance=diameters/2)
-    cscat_total_par_ff = model._integrate_cross_section(diff_cscat_par_ff,
-                                                      1.0/ksquared, angles)
-    cscat_total_perp_ff = model._integrate_cross_section(diff_cscat_perp_ff,
-                                                      1.0/ksquared, angles)
-    cscat_total_ff = (cscat_total_par_ff + cscat_total_perp_ff)/2.0                                     
-        
-    p_ff2 = (diff_cscat_par_ff + diff_cscat_perp_ff)/(ksquared * 2 * cscat_total_ff)
-    p_par_ff2 = diff_cscat_par_ff/(ksquared * 2 * cscat_total_par_ff)
-    p_perp_ff2 = diff_cscat_perp_ff/(ksquared * 2 * cscat_total_perp_ff)
-                      
-    # with mie.diff_scat_intensity_complex_medium()
-    diff_cscat_par, diff_cscat_perp = \
-        model.differential_cross_section(m, x, angles, volume_fraction,
-                                         structure_type='polydisperse',
-                                         form_type='polydisperse',
-                                         diameters=diameters, pdi=pdi, 
-                                         concentration=concentration, wavelen=wavelen, 
-                                         n_matrix=n_sample, k=k, distance=diameters/2)
-    cscat_total_par = model._integrate_cross_section(diff_cscat_par,
-                                                      1.0/ksquared, angles)
-    cscat_total_perp = model._integrate_cross_section(diff_cscat_perp,
-                                                      1.0/ksquared, angles)
-    cscat_total = (cscat_total_par + cscat_total_perp)/2.0                                     
-        
-    p2 = (diff_cscat_par + diff_cscat_perp)/(ksquared * 2 * cscat_total)
-    p_par2 = diff_cscat_par/(ksquared * 2 * cscat_total_par)
-    p_perp2 = diff_cscat_perp/(ksquared * 2 * cscat_total_perp)
-     
-    # test random values of the phase functions
-    assert_almost_equal(p_ff2[3].magnitude, p2[3].magnitude, decimal=15)    
-    assert_almost_equal(p_par_ff2[50].magnitude, p_par2[50].magnitude, decimal=15)    
-    assert_almost_equal(p_perp2[83].magnitude, p_perp_ff2[83].magnitude, decimal=15) 
-'''
 
 def calc_montecarlo(nevents, ntrajectories, radius, n_particle, n_sample, 
                     n_medium, volume_fraction, wavelen, seed, radius2=None, 
@@ -702,9 +539,7 @@ def calc_montecarlo(nevents, ntrajectories, radius, n_particle, n_sample,
                                       concentration=concentration, pdi=pdi, 
                                       polydisperse=polydisperse,
                                       fine_roughness=fine_roughness, n_matrix=n_matrix)
-    print('p[0]: ' + str(p[0]))
-    print('mu_scat: ' + str(mu_scat))
-    print('mu_abs: ' + str(mu_abs))
+
     if coarse_roughness > 0.:
         r0, k0, W0, kz0_rotated, kz0_reflected = mc.initialize(nevents, 
                                                                ntrajectories, 
@@ -722,31 +557,20 @@ def calc_montecarlo(nevents, ntrajectories, radius, n_particle, n_sample,
                                    incidence_theta_max=incidence_theta_max)
         kz0_rotated = None
         kz0_reflected = None
-    print('r0[0,0,0]: ' + str(r0[0,0,0]))
-    print('k0[0,0,0]: ' + str(k0[0,0,0]))
-    print('W0[0,0]: ' + str(W0[0,0]))
+    
     r0 = sc.Quantity(r0, 'um')
     k0 = sc.Quantity(k0, '')
     W0 = sc.Quantity(W0, '')
     
     sintheta, costheta, sinphi, cosphi, _, _= mc.sample_angles(nevents, 
                                                                ntrajectories,p)
-    print('sintheta[0,0]: ' + str(sintheta[0,0]))
-    print('costheta[0,0]: ' + str(costheta[0,0]))
-    print('sinphi[0,0]: ' + str(sinphi[0,0]))
-    print('cosphi[0,0]: ' + str(cosphi[0,0]))
     step = mc.sample_step(nevents, ntrajectories, mu_scat, 
                           fine_roughness=fine_roughness)
         
-    print('step[0,0]: ' + str(step[0,0]))
     trajectories = mc.Trajectory(r0, k0, W0)
     trajectories.absorb(mu_abs, step)                         
     trajectories.scatter(sintheta, costheta, sinphi, cosphi)         
     trajectories.move(step)
-    
-    print('traj_dir: ' + str(trajectories.direction[0,20,20]))
-    print('traj_weight: ' + str(trajectories.weight[20,20]))
-    print('traj_pos: ' + str(trajectories.position[0,20,20]))
     
     cutoff = sc.Quantity('50 um')
 

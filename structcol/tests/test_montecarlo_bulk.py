@@ -138,7 +138,7 @@ def test_mu_scat_abs_bulk():
                                            wavelength)
     
     assert_almost_equal(mu_abs_bulk.magnitude, 0)
-    print('here')
+
     
     # make sure mu_abs reaches limit when there is no scattering
     _, mu_scat_bulk, mu_abs_bulk = pfs.calc_scat_bulk(np.zeros((ntrajectories)), 
@@ -153,17 +153,26 @@ def test_mu_scat_abs_bulk():
 
     number_density = volume_fraction_bulk.magnitude/(4/3*np.pi*
                                         (sphere_boundary_diameter.magnitude/2)**3)
-    mu_abs_max = number_density*2*np.pi*(sphere_boundary_diameter.magnitude/2)**2
+    mu_abs_max = number_density*np.pi*(sphere_boundary_diameter.magnitude/2)**2
     
     assert_almost_equal(mu_abs_bulk.magnitude, mu_abs_max)
     
     # check that mu_scat_bulk is 0 when no scattering
     assert_almost_equal(mu_scat_bulk.magnitude, 0)
     
+    
     # check the mu_scat_bulk reaches limit when there is only scattering
-    _, mu_scat_bulk, _ = pfs.calc_scat_bulk(0.5/ntrajectories*np.ones((ntrajectories)), 
-                                            0.5/ntrajectories*np.ones((ntrajectories)), 
-                                            np.ones(ntrajectories)+3, 
+    norm_refl[2,:]= 1/np.sqrt(3)
+    norm_refl[1,:]= 1/np.sqrt(3)
+    norm_refl[0,:]= 1/np.sqrt(3)
+    norm_trans[2,:]= 0
+    norm_trans[1,:]= 0
+    norm_trans[0,:]= 0
+
+    _, mu_scat_bulk, _ = pfs.calc_scat_bulk(1/ntrajectories*np.ones((ntrajectories)), # refl_per_traj
+                                            np.zeros((ntrajectories)), # trans_per_traj
+                                            np.ones(ntrajectories)+3, # refl_indices
+                                            np.zeros(ntrajectories), # trans_indices
                                             norm_refl, norm_trans, 
                                             volume_fraction_bulk, 
                                             sphere_boundary_diameter,
