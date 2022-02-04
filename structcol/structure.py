@@ -300,31 +300,137 @@ def factor_data(qd, s_data, qd_data):
     
     return s_func(qd)
 
-def phase_factor_py(qd, n=10000):
-    g_file = os.path.join(os.getcwd(),'g_4.csv')
-    df=pd.read_csv(g_file, sep=',',header=None)
-    r_d = np.array(df[0])
-    g = np.array(df[1])
+    
+def field_phase_py(qd, phi, n=10000, r_d=np.arange(1,5,0.005)):
+    '''
+    Calcualte the phase shift contribution based on the radial distribution
+    function calculated using the Percus-Yevick approximation
+    
+    Parameters:
+    ----------
+    qd: 1D numpy array
+        dimensionless quantity q times diameter        
+    phi: structcol.Quantity [dimensionless]
+        volume fraction of particles or voids in matrix  
+    n: float  
+        number of samples of g(r)
+    r_d: 1D numpy array 
+        range of radial positions normalized by particle diameter. 
+    
+    Returns:
+    --------
+    field_s: 1D numpy array
+        phase shift contributions based on the structure
+    '''
+    # calculate radial distribution function up to r/R= 5
+    #g_file = os.path.join(os.getcwd(),'g_4.csv')
+    #df=pd.read_csv(g_file, sep=',',header=None)
+    #r_d = np.array(df[0])
+    #g = np.array(df[1])
+    g = radial_dist_py(phi, x = r_d)
+    
+    # sample the g of r probability distribution
     r_samp = np.random.choice(r_d, n, p = g/np.sum(g))
     
-    field_s = np.zeros(qd.shape, dtype='complex')
-    for i in range(qd.shape[0]):
-        for j in range(qd.shape[1]):
-            field_s[i,j] = np.sum(np.exp(1j*qd[i,j]*r_samp))
-            
-    phase_factor = np.angle(field_s)
-    return phase_factor
-    
-def field_phase_py(qd, n=10000):
-    g_file = os.path.join(os.getcwd(),'g_4.csv')
-    df=pd.read_csv(g_file, sep=',',header=None)
-    r_d = np.array(df[0])
-    g = np.array(df[1])
-    r_samp = np.random.choice(r_d, n, p = g/np.sum(g))
-    
+    # calculate the field term
     field_s = np.zeros(qd.shape, dtype='complex')
     for i in range(qd.shape[0]):
         for j in range(qd.shape[1]):
             field_s[i,j] = np.sum(np.exp(1j*qd[i,j]*r_samp))
             
     return field_s
+    
+def radial_dist_py(phi, x=np.arange(1,5,0.005)):
+    '''
+    Calcualte the radial distribution function for hard spheres using the Percus-Yevick approximation.
+    
+    This function and its helper functions is based on the code found here:
+    https://github.com/FTurci/hard-spheres-utilities/blob/master/Percus-Yevick.py
+    This method for calculating g(r) is described in the SI of: 
+    J. W. E. Drewitt, F. Turci, B. J. Heinen, S. G. Macleod, F. Qin, A. K. Kleppe, and O. T. Lord. Phys. Rev. Lett. 124
+    
+    Parameters:
+    -----------
+    phi: structcol.Quantity [dimensionless]
+        volume fraction of particles or voids in matrix   
+    x: 1D numpy array
+       dimensionless value defined as position over particle diameter (r/d)
+    
+    Returns:
+    --------
+    g_fcn(x): 1D numpy array
+            The radial distribution function calculated at the specified x values.
+    '''
+    # number density
+    if isinstance(phi,Quantity):
+        phi = phi.magnitude
+    rho=6./np.pi*phi
+    
+    # get the direct correlation function c(r) from the analytic Percus-Yevick solution
+    # vectorizing the function
+    c=np.vectorize(cc)
+    
+    # space discretization
+    dr=0.005
+    r=np.arange(1,1024*2+1,1 )*dr
+    
+    # reciprocal space discretization (highest available frequency)
+    dk=1/r[-1]
+    k=np.arange(1,1024*2+1,1 )*dk
+    
+    # direct correlation function c(r)
+    c_direct=c(r,phi)
+    
+    # calculate the Fourier transform
+    ft_c_direct=spherical_FT(c_direct, k,r,dr)
+    
+    # using the Ornstein-Zernike equation, calculate the structure factor
+    ft_h=ft_c_direct/(1.-rho*ft_c_direct)
+    
+    # inverse Fourier transform
+    h=inverse_spherical_FT(ft_h, k,r,dk)
+    
+    # radial distribution function
+    gg=h+1
+    
+    # clean the r<1 region
+    g=np.zeros(len(gg))
+    g[r>=1]=gg[r>=1]
+    
+    # make g function from interpolation
+    g_fcn=sp.interpolate.InterpolatedUnivariateSpline(r, g)
+    
+    return g_fcn(x)
+
+def spherical_FT(f,k,r,dr):
+    '''
+    Spherical Fourier Transform (using the liquid isotropicity)
+    '''
+    ft=np.zeros(len(k))
+    for i in range(len(k)):
+        ft[i]=4.*np.pi*np.sum(r*np.sin(k[i]*r)*f*dr)/k[i]
+    return ft
+
+def inverse_spherical_FT(ff,k,r,dk):
+    '''
+    Inverse spherical Fourier Transform (using the liquid isotropicity)
+    '''
+    ift=np.zeros(len(r))
+    for i in range(len(r)):
+        ift[i]=np.sum(k*np.sin(k*r[i])*ff*dk)/r[i]/(2*np.pi**2)
+    return ift
+
+# functions to calcualte direct correlation function
+# from Percus-Yevick. See D. Henderson "Condensed Matter Physics" 2009, Vol. 12, No. 2, pp. 127-135
+# or M. S Wertheim "Exact Solutions of the Percus-Yevick Integral for Hard Spheres" PRL. Vol. 10, No. 8, 1963
+def c0(eta):
+    return -(1.+2.*eta)**2/(1.-eta)**4
+def c1(eta):
+    return 6.*eta*(1.+eta*0.5)**2/(1.-eta)**4
+def c3(eta):
+    return eta*0.5*c0(eta)
+def cc(r,eta):
+    if r>1:
+        return 0
+    else:
+        return c0(eta)+c1(eta)*r +c3(eta)*r**3
