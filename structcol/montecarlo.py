@@ -225,6 +225,12 @@ class Trajectory:
         """
         kn = self.direction.magnitude
 
+        # the 0th event is the inital direction which does not change when the
+        # photon first enters the sample. It only changes after the first scattering
+        # event. The trajectory steps first, then scatters. The reason that we don't
+        # extend the arange to nevents + 1 is that we still count this original 
+        # initialized direction as an event, since the step size must be sampled
+        # once it enters the material. 
         for n in np.arange(1,self.nevents):
             # update directions
             # Calculate the new x, y, z coordinates of the propagation direction
@@ -318,25 +324,51 @@ class Trajectory:
             self.polarization = sc.Quantity(pn, self.polarization.units)
             
     def calc_fields(self, theta, phi, sintheta, costheta, sinphi, cosphi,
-                 n_particle, n_sample, radius, wavelen, step):
-        '''
-        '''
+                 n_particle, n_sample, radius, wavelen, step, volume_fraction, 
+                 fine_roughness=0):
+        """
+        Calculates local x and y polarization rotated in reference frame where 
+        initial polarization is x-polarized.
+        
+        Parameters
+        ----------
+        theta: 2d array
+            Theta angles.
+        phi: 2d array
+            Phi angles.
+        sintheta, costheta, sinphi, cosphi : array_like
+            Sines and cosines of scattering (theta) and azimuthal (phi) angles
+            sampled from the phase function. Theta and phi are angles that are
+            defined with respect to the previous corresponding direction of
+            propagation. Thus, they are defined in a local spherical coordinate
+            system. All have dimensions of (nevents, ntrajectories).
+        n_particle: float
+            Index of refraction of particle.
+        n_sample: float
+            Index of refraction of sample.
+        radius: float
+            Radius of particle.
+        wavelen: float
+            Wavelength.
+        step: ndarray (structcol.Quantity [length])
+            Step sizes of packets (sampled from scattering lengths).
+        
+        Calculates:
+        ----------
+        En: ndarray, shape: (3, nevents, ntrajectories)
+            Electric field vector for each trajectory and event 
+            in global coordinates
+        """
         m = index_ratio(n_particle, n_sample)
         x = size_parameter(wavelen, n_sample, radius)
         k = 2*np.pi*n_sample.magnitude/wavelen.magnitude
         step = step.magnitude
         ntraj = theta.shape[1]
-        
-        # calculate the mie field contribution for all phis and thetas
-        # in the local coordinate system, we always assume x-polarized light
-        # for simplicity, and then we rotate into the correct global state later
-        # shape of E_mie_loc_x and y are (nevents, ntraj)
-        #E_mie_loc_x, E_mie_loc_y = mie.vector_scattering_amplitude(m, x, theta, 
-        #                                        coordinate_system = 'cartesian',
-        #                                        incident_vector = (1,0),
-        #                                        phis = phi)  
            
         # calculate the mie amplitude scattering matrix
+        # we need to calculate the full matrix, rather than just the vector
+        # scattering amplitude, because each matrix element contributes to 
+        # the changes in E field
         S1, S2, S3, S4 = mie.amplitude_scattering_matrix(m, x, theta, 
                                                      coordinate_system = 'cartesian', 
                                                      phis = phi)
@@ -344,72 +376,62 @@ class Trajectory:
         # mutliply the scat amp mats
         En = self.fields       
         Ex = En[0,0,:]
-        Ey = En[1,0,:]                                           
+        Ey = En[1,0,:]       
+
+        # Ex and Ey are the initialized as the incident field vectors. 
+        # To get the Ex and Ey at each event, we have to multiply by the scattering
+        # amplitude matrix, cumulatively for each event. 
+        # this gives us the local Ex and Ey vectors
         for n in np.arange(0, self.nevents-1): 
             Ex = S2[n,:]*Ex + S3[n,:]*Ey
             Ey = S4[n,:]*Ex + S1[n,:]*Ey
             if n+2 > self.nevents-1:
                 break
             else:
-                En[0,n+2,:] = Ex # 0th event is before sample, the 1st event has no rotation
+                # 0th event is before sample, the 1st event has no rotation
+                En[0,n+2,:] = Ex 
                 En[1,n+2,:] = Ey
                 
-        # rotate to global coords
-        for n in np.arange(2,self.nevents):
+        # Rotate to global coords
+        # Start with event 2 because the 0th event contains the initialized
+        # values from before the field enters the sample. The 1st event contains
+        # the values for the field after entering the sample, but before scattering
+        for n in np.arange(2,self.nevents+1):
             # update fields
             # Calculate the new x, y, z coordinates of the propagation direction
             # using the following equations, which can be derived by using matrix
             # operations to perform a rotation about the y-axis by angle theta
             # followed by a rotation about the z-axis by angle phi
-            Ex = ((En[0,n:,:]*costheta[n-1,:] + En[2,n:,:]*sintheta[n-1,:])*
-                    cosphi[n-1,:]) - En[1,n:,:]*sinphi[n-1,:]
-            Ey = ((En[0,n:,:]*costheta[n-1,:] + En[2,n:,:]*sintheta[n-1,:])*
-                  sinphi[n-1,:]) + En[1,n:,:]*cosphi[n-1,:]
-            Ez = -En[0,n:,:]*sintheta[n-1,:] + En[2,n:,:]*costheta[n-1,:]  
+            Ex = ((En[0,n:,:]*costheta[n-2,:] + En[2,n:,:]*sintheta[n-2,:])*
+                    cosphi[n-2,:]) - En[1,n:,:]*sinphi[n-2,:]
+            Ey = ((En[0,n:,:]*costheta[n-2,:] + En[2,n:,:]*sintheta[n-2,:])*
+                  sinphi[n-2,:]) + En[1,n:,:]*cosphi[n-2,:]
+            Ez = -En[0,n:,:]*sintheta[n-2,:] + En[2,n:,:]*costheta[n-2,:]  
             En[:,n:,:] = Ex, Ey, Ez
                   
         # calculate the structure factor field contribution
-        theta2 = np.insert(theta,0,np.zeros(ntraj),axis=0) # insert a 0  np.zeros(ntraj)
-        qd = 4*np.array(np.abs(x)).max()*np.sin(theta2/2)        
-        field_phase_struct = structure.field_phase_py(qd)[0:-1]
+        # insert a row of zeros since first event does not change direction
+        # note that this will only work for normal incidence
+        theta2 = np.insert(theta,0,np.zeros(ntraj),axis=0) 
+        qd = 4*np.array(np.abs(x)).max()*np.sin(theta2/2)  
+        field_phase_struct = structure.field_phase_py(qd, volume_fraction)
         
         # calculate the step propagation factor
-        step_phase_factor = np.exp(1j*np.abs(k)*step)[0:-1]
+        step_phase_factor = np.exp(1j*np.abs(k)*step)
         
         # multiply the local fields by the phase propagation due to structure factor
-        # if we include fine roughness, we will have to only add this to a fraction
         # of the initial trajectories
+        # should multiply by 1 for trajectories do not have fine rough
+        ntraj_fine = int(np.round(ntraj*fine_roughness))
+        field_phase_struct[0,:] = np.concatenate((field_phase_struct[0,0:ntraj_fine],
+                                                 np.ones(ntraj-ntraj_fine)))
         En[0,1:,:] = En[0,1:,:]*step_phase_factor*field_phase_struct
         En[1,1:,:] = En[1,1:,:]*step_phase_factor*field_phase_struct
                                                                                               
         # normalize
         En[0,:,:], En[1,:,:], En[2,:,:] = normalize(En[0,:,:], En[1,:,:], En[2,:,:])
        
-        # set the local fields in the trajectories object
-        #En = self.fields#.magnitude
-        
-        # the 0th fields are before entering the sample
-        #En[0,1:,:] = E_loc_x
-        #En[1,1:,:] = E_loc_y
-        
-
-            
-        #for n in np.arange(1,self.nevents):
-            # update fields
-            # Calculate the new x, y, z coordinates of the propagation direction
-            # using the following equations, which can be derived by using matrix
-            # operations to perform a rotation about the y-axis by angle theta
-            # followed by a rotation about the z-axis by angle phi
-            # TODO: integrate this with scatter() to avoid repeated code
-        #    Ex = ((En[0,n:,:]*costheta[n-1,:] + En[2,n:,:]*sintheta[n-1,:])*
-        #            cosphi[n-1,:]) - En[1,n:,:]*sinphi[n-1,:]
-        #    Ey = ((En[0,n:,:]*costheta[n-1,:] + En[2,n:,:]*sintheta[n-1,:])*
-        #          sinphi[n-1,:]) + En[1,n:,:]*cosphi[n-1,:]
-        #    Ez = -En[0,n:,:]*sintheta[n-1,:] + En[2,n:,:]*costheta[n-1,:]  
-        #    En[:,n:,:] = Ex, Ey, Ez
-            
-        # Update all the pol of the trajectories
-        self.fields = En# sc.Quantity(En, self.fields.units)
+        self.fields = En
             
     def shift_phase(self, step, theta, phi, sintheta, costheta, sinphi, cosphi,
                  n_particle, n_sample, radius, wavelen, volume_fraction):
@@ -929,9 +951,21 @@ def initialize(nevents, ntraj, n_medium, n_sample, boundary, seed=None,
             phas0 = np.zeros((3, nevents, ntraj), dtype = 'complex')
             init_traj_props.append(phas0)
         if fields:
-            fields0 = np.zeros((3, nevents, ntraj), dtype = 'complex')
-            fields0[0,0,:] = 1#np.random.random(ntraj)*2-1 # or try sampling uniform dist from -1 to 1?
-            fields0[0,1,:] = fields0[0,0,:]
+            # The field is initialized with nevents+1 because we want to save
+            # the value of the field from before the photon enters the sample
+            fields0 = np.zeros((3, nevents+1, ntraj), dtype = 'complex')
+            
+            if polarization:
+                # initialized for x-polarized light
+                fields0[0,0,:]=1
+            else:                    
+                # initialize for unpolarized light
+                fields0[0,0,:] = np.random.random(ntraj)*2-1 
+                fields0[0,1,:] = np.random.random(ntraj)*2-1
+                fields0x, fields0y, _ = normalize(fields0[0,0,:], fields0[0,1,:], 0)
+                fields0[0,0,:] = fields0x
+                fields0[0,1,:] = fields0y
+            
             init_traj_props.append(fields0)
         return init_traj_props
     
@@ -1295,7 +1329,7 @@ def phase_function(m, x, angles, volume_fraction, k, number_density,
                                              distance=distance,
                                              structure_s_data=structure_s_data,
                                              structure_qd_data=structure_qd_data)
-         
+    
     # If in cartesian coordinate system, integrate the differential cross
     # section using integration functions in mie.py that can handle cartesian
     # coordinates. Also includes absorption.
@@ -1336,7 +1370,8 @@ def phase_function(m, x, angles, volume_fraction, k, number_density,
             cscat_total = mie.integrate_intensity_complex_medium(diff_cscat_par, 
                                                                  diff_cscat_perp, 
                                                                  distance,
-                                                                 angles,k)[0]     
+                                                                 angles,k,
+                                                                 coordinate_system=coordinate_system)[0]     
     
     # if there is no absorption in the system, Integrate with function in model
     else:
@@ -1405,6 +1440,7 @@ def sample_angles(nevents, ntraj, p, min_angle=0.01):
         # 2pi]
         rand = np.random.random((nevents,ntraj))
         phi = 2*np.pi*rand
+        
     
         # make sure probability is normalized
         prob = p * np.sin(thetas)*2*np.pi    # prob is integral of p in solid angle
