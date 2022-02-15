@@ -46,6 +46,7 @@ import itertools
 import scipy
 import seaborn as sns
 from . import structure
+import copy
 
 eps = 1.e-9
 
@@ -290,6 +291,10 @@ class Trajectory:
         x = size_parameter(wavelen, n_sample, radius)
         
         # calculate as_vec for all phis and thetas
+        # TODO: note that calculating based on as_vec with generic
+        # incident vector is inconsistent with method in calc_fields()
+        # need to decide which one makes sense. This function will likely be
+        # deleted in the future. 
         as_vec_x, as_vec_y = mie.vector_scattering_amplitude(m, x, theta, 
                                                 coordinate_system = 'cartesian',
                                                 phis = phi)   
@@ -364,7 +369,24 @@ class Trajectory:
         k = 2*np.pi*n_sample.magnitude/wavelen.magnitude
         step = step.magnitude
         ntraj = theta.shape[1]
-           
+        
+        #######################################################################
+#        as_vec_x, as_vec_y = mie.vector_scattering_amplitude(m, x, theta, 
+#                                                coordinate_system = 'cartesian',
+#                                                phis = phi)   
+#        # normalize as_vecs
+#        local_pol_x = as_vec_x
+#        local_pol_y = as_vec_y
+#        local_pol_z = 0
+#        local_pol_x, local_pol_y, local_pol_z = normalize(local_pol_x, 
+#                                                          local_pol_y, 
+#                                                          local_pol_z)
+#       
+#        # set the local polarizations in the trajectories object
+#        En = self.fields.magnitude
+#        En[0,2:,:] = local_pol_x
+#        En[1,2:,:] = local_pol_y
+        #######################################################################   
         # calculate the mie amplitude scattering matrix
         # we need to calculate the full matrix, rather than just the vector
         # scattering amplitude, because each matrix element contributes to 
@@ -374,28 +396,38 @@ class Trajectory:
                                                      phis = phi)
         
         # mutliply the scat amp mats
-        En = self.fields       
+        En = self.fields
+        if isinstance(En, sc.Quantity):
+            En = En.magnitude
+
         Ex = En[0,0,:]
-        Ey = En[1,0,:]       
+        Ey = En[1,0,:]
 
         # Ex and Ey are the initialized as the incident field vectors. 
         # To get the Ex and Ey at each event, we have to multiply by the scattering
         # amplitude matrix, cumulatively for each event. 
         # this gives us the local Ex and Ey vectors
+        # Reminder: there is one less sampled angle than event number, because
+        # the first event propogates straight into the sample. 
+        # 
+        # Note that this basis assumes that 
+        # the direction of propagation is the +z direction. 
         for n in np.arange(0, self.nevents-1): 
             Ex = S2[n,:]*Ex + S3[n,:]*Ey
             Ey = S4[n,:]*Ex + S1[n,:]*Ey
-            if n+2 > self.nevents-1:
+            if n+2 > self.nevents:
                 break
             else:
                 # 0th event is before sample, the 1st event has no rotation
                 En[0,n+2,:] = Ex 
                 En[1,n+2,:] = Ey
-                
+        #######################################################################
+
         # Rotate to global coords
         # Start with event 2 because the 0th event contains the initialized
         # values from before the field enters the sample. The 1st event contains
         # the values for the field after entering the sample, but before scattering
+        
         for n in np.arange(2,self.nevents+1):
             # update fields
             # Calculate the new x, y, z coordinates of the propagation direction
@@ -406,7 +438,7 @@ class Trajectory:
                     cosphi[n-2,:]) - En[1,n:,:]*sinphi[n-2,:]
             Ey = ((En[0,n:,:]*costheta[n-2,:] + En[2,n:,:]*sintheta[n-2,:])*
                   sinphi[n-2,:]) + En[1,n:,:]*cosphi[n-2,:]
-            Ez = -En[0,n:,:]*sintheta[n-2,:] + En[2,n:,:]*costheta[n-2,:]  
+            Ez =  -En[0,n:,:]*sintheta[n-2,:] + En[2,n:,:]*costheta[n-2,:]  
             En[:,n:,:] = Ex, Ey, Ez
                   
         # calculate the structure factor field contribution
@@ -419,7 +451,7 @@ class Trajectory:
         # calculate the step propagation factor
         step_phase_factor = np.exp(1j*np.abs(k)*step)
         
-        # multiply the local fields by the phase propagation due to structure factor
+        # multiply the fields by the phase propagation due to structure factor
         # of the initial trajectories
         # should multiply by 1 for trajectories do not have fine rough
         ntraj_fine = int(np.round(ntraj*fine_roughness))
@@ -427,11 +459,12 @@ class Trajectory:
                                                  np.ones(ntraj-ntraj_fine)))
         En[0,1:,:] = En[0,1:,:]*step_phase_factor*field_phase_struct
         En[1,1:,:] = En[1,1:,:]*step_phase_factor*field_phase_struct
+        En[2,1:,:] = En[2,1:,:]*step_phase_factor*field_phase_struct
                                                                                               
         # normalize
         En[0,:,:], En[1,:,:], En[2,:,:] = normalize(En[0,:,:], En[1,:,:], En[2,:,:])
        
-        self.fields = En
+        self.fields = sc.Quantity(En,self.fields.units)
             
     def shift_phase(self, step, theta, phi, sintheta, costheta, sinphi, cosphi,
                  n_particle, n_sample, radius, wavelen, volume_fraction):
@@ -957,14 +990,18 @@ def initialize(nevents, ntraj, n_medium, n_sample, boundary, seed=None,
             
             if polarization:
                 # initialized for x-polarized light
-                fields0[0,0,:]=1
+                fields0[0,:,:]=1
             else:                    
                 # initialize for unpolarized light
                 fields0[0,0,:] = np.random.random(ntraj)*2-1 
-                fields0[0,1,:] = np.random.random(ntraj)*2-1
-                fields0x, fields0y, _ = normalize(fields0[0,0,:], fields0[0,1,:], 0)
+                fields0[1,0,:] = np.random.random(ntraj)*2-1
+                fields0x, fields0y, _ = normalize(fields0[0,0,:], fields0[1,0,:], 0)
                 fields0[0,0,:] = fields0x
-                fields0[0,1,:] = fields0y
+                fields0[1,0,:] = fields0y
+                
+                # first step into the sample is same 
+                fields0[0,1,:] = fields0x
+                fields0[1,1,:] = fields0y
             
             init_traj_props.append(fields0)
         return init_traj_props

@@ -923,22 +923,30 @@ def calc_refl_phase_fields(trajectories, refl_indices, refl_per_traj,
     ntraj = len(trajectories.direction[0,0,:]) 
     nevents = len(trajectories.direction[0,:,0]) 
     
-    no_refl_warn = "No trajectories were reflected. Check sample parameters or increase number of trajectories."
+    if np.any(refl_indices!=0):
+        no_refl_warn = "No trajectories were reflected. Check sample parameters or increase number of trajectories."
+        warnings.warn(no_refl_warn)
+    if isinstance(trajectories.weight, sc.Quantity):
+        weights = trajectories.weight.magnitude
+    else:
+        weights = trajectories.weight
 
     # write expression for field 
-
-    # what if we didn't use polarization?
-    # but instead used direction??
-    # polarization is orthogonal to direction
+    # 0th event is before entering sample, so we start from 1, for later use with 
+    # select_events
     w = np.sqrt(refl_per_traj*ntraj) #0 for not reflected traj, but that's fine since we only care about refl
-    traj_field_x =  w*trajectories.fields[0,:,:] 
-    traj_field_y =  w*trajectories.fields[1,:,:] 
-    traj_field_z =  w*trajectories.fields[2,:,:] 
+    traj_field_x =  w*trajectories.fields[0,1:,:] 
+    traj_field_y =  w*trajectories.fields[1,1:,:] 
+    traj_field_z =  w*trajectories.fields[2,1:,:]
+    #print(w.shape)
+    #print(traj_field_x)
 
     # select traj_field values only for the reflected indices
+    # TODO: may need to fix indexing here since fields have an extra event index
     refl_field_x = select_events(traj_field_x, refl_indices)
     refl_field_y = select_events(traj_field_y, refl_indices)
     refl_field_z = select_events(traj_field_z, refl_indices)
+    #print(refl_field_x)
     
     # add reflected fields
     tot_field_x = np.sum(refl_field_x)
@@ -951,7 +959,6 @@ def calc_refl_phase_fields(trajectories, refl_indices, refl_per_traj,
     non_phase_int_z = np.conj(refl_field_z)*refl_field_z
     refl_non_phase = np.sum(non_phase_int_x + non_phase_int_y + non_phase_int_z)
 
-
     # calculate intensity as E*E
     intensity_x = np.conj(tot_field_x)*tot_field_x
     intensity_y = np.conj(tot_field_y)*tot_field_y
@@ -961,20 +968,17 @@ def calc_refl_phase_fields(trajectories, refl_indices, refl_per_traj,
     refl_intensity = np.sum(intensity_x + intensity_y + intensity_z)
     
     # normalize
-    intensity_incident = np.sum(trajectories.weight[0,:]).magnitude # assumes normalized light is incoherent
-    #refl_intensity = refl_intensity.magnitude
-    refl = np.real(refl_intensity/intensity_incident)
-    #print('refl_phase:' + str(refl))
-    #print('refl_non_phase: ' + str(refl_non_phase/intensity_incident))
+    intensity_incident = np.sum(weights[0,:]) # assumes normalized light is incoherent
+    refl_fields = np.real(refl_intensity/intensity_incident)
     
     refl_x = np.sum(intensity_x)/intensity_incident
     refl_y = np.sum(intensity_y)/intensity_incident
     refl_z = np.sum(intensity_z)/intensity_incident
 
     if components ==True:
-        return refl_x, refl_y, refl_z
+        return refl_x, refl_y, refl_z, refl_fields, refl_non_phase/intensity_incident
     else:
-        return refl, refl_non_phase/intensity_incident        
+        return refl_fields, refl_non_phase/intensity_incident        
         
 def calc_refl_co_cross_fields(trajectories, refl_indices, refl_per_traj, det_theta):
     '''
@@ -992,7 +996,9 @@ def calc_refl_co_cross_fields(trajectories, refl_indices, refl_per_traj, det_the
     
     (refl_x, 
      refl_y, 
-     refl_z) = calc_refl_phase_fields(trajectories, refl_indices, refl_per_traj,
+     refl_z,
+     refl_field,
+     refl_intensity) = calc_refl_phase_fields(trajectories, refl_indices, refl_per_traj,
                          components=True)
                          
     # incorporate geometry of the goniometer setup
@@ -1001,7 +1007,7 @@ def calc_refl_co_cross_fields(trajectories, refl_indices, refl_per_traj, det_the
     refl_perp = -refl_z*np.cos(det_theta) + refl_x*np.sin(det_theta)
     
     
-    return (refl_co, refl_cr, refl_perp)
+    return (refl_co, refl_cr, refl_perp, refl_field, refl_intensity)
 
     
     
