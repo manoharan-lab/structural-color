@@ -29,6 +29,7 @@ import numpy as np
 from . import ureg, Quantity  # unit registry and Quantity constructor from pint
 import scipy as sp
 import pandas as pd
+import scipy
 import os
 
 @ureg.check('[]','[]')    # inputs should be dimensionless
@@ -296,9 +297,36 @@ def factor_data(qd, s_data, qd_data):
     1D numpy array:
         The structure factor as a function of qd.
     """
-    s_func = sp.interpolate.interp1d(qd_data, s_data, kind = 'linear')
+    s_func = sp.interpolate.interp1d(qd_data, s_data, kind = 'linear',
+                                     bounds_error=False, fill_value=s_data[0])
     
     return s_func(qd)
+    
+def field_phase_data(qd, filename='spf.dat'):
+    s_file = os.path.join(os.getcwd(),filename)
+    s_phase_data=np.loadtxt(s_file)
+    qd_data = s_phase_data[:,0]
+    s_phase = s_phase_data[:,1]
+    s_phase_func = sp.interpolate.interp1d(qd_data, s_phase, kind = 'linear',
+                                           bounds_error=False, fill_value=s_phase_data[0,1])
+    return s_phase_func(qd)
+    
+def phase_factor(qd, phi, n=1000):
+    # define r/d
+    r_d = np.linspace(0,10, n)
+    
+    # calculate g
+    g = radial_dist_py(phi, x = r_d)
+    integral = np.zeros(qd.shape)
+    rho = 3.0 * phi / (4.0 * np.pi) # dimensionless rho*sigma**3
+    
+    # calculate the integral for each qd
+    for i in range(qd.shape[0]):
+        for j in range(qd.shape[1]):
+            bessel = rho*4*np.pi*r_d**2*np.pi*scipy.special.jv(0, qd[i,j]*r_d)
+            integral[i,j] = np.trapz(bessel*g, x=r_d)
+        
+    return integral
 
     
 def field_phase_py(qd, phi, n=10000, r_d=np.arange(1,5,0.005)):
@@ -336,7 +364,7 @@ def field_phase_py(qd, phi, n=10000, r_d=np.arange(1,5,0.005)):
     field_s = np.zeros(qd.shape, dtype='complex')
     for i in range(qd.shape[0]):
         for j in range(qd.shape[1]):
-            field_s[i,j] = np.sum(np.exp(1j*qd[i,j]*r_samp))
+            field_s[i,j] = 1/n*np.sum(np.exp(1j*qd[i,j]*r_samp))
             
     return field_s
     

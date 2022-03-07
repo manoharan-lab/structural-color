@@ -65,7 +65,7 @@ def refraction(angles, n_before, n_after):
     snell[abs(snell) > 1] = np.nan # this avoids a warning
     return np.arcsin(snell)
 
-def normalize(x,y,z):
+def normalize(x,y,z, return_nan=True):
     '''
     normalize a vector
     
@@ -82,11 +82,13 @@ def normalize(x,y,z):
     -------
     array of normalized vector(s) components
     '''
-    magnitude = np.sqrt(np.abs(x)**2 + np.abs(y)**2 + np.abs(z)**2)
+    magnitude = np.sqrt(np.abs(x)**2 + np.abs(y)**2 + np.abs(z)**2)    
 
     # we ignore divide by zero error here because we do not want an error
     # in the case where we try to normalize a null vector <0,0,0>
     with np.errstate(divide='ignore',invalid='ignore'):
+        if ~return_nan and magnitude.all()==0:
+            magnitude[magnitude==0]=1
         return np.array([x/magnitude, y/magnitude, z/magnitude])
         
 def select_events(inarray, events):

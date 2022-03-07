@@ -250,9 +250,9 @@ def calc_tir(tir_refl_bool, refl_indices, trans_indices, inc_refl_per_traj,
     -------
     tir_all_events: 1d array (length: nevents)
         summed weights of trajectories that are totally internally reflected at 
-        any event, regardeless of whether they are reflected, transmitted, or stuck.
-        The event index of the array corresponds to the event at which they are 
-        totally internally reflected. 
+        any event, regardeless of whether they are eventually reflected, 
+        transmitted, or stuck. The event index of the array corresponds to the 
+        event at which they are totally internally reflected. 
     tir_all_refl_events: 1d array (length: nevents)
         summed weights of trajectories that are totally internally reflected at any 
         event, but only those which eventually contribute to reflectance. The

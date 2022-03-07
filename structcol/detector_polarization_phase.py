@@ -1002,9 +1002,9 @@ def calc_refl_co_cross_fields(trajectories, refl_indices, refl_per_traj, det_the
                          components=True)
                          
     # incorporate geometry of the goniometer setup
-    refl_co = refl_z*np.sin(det_theta) + refl_x*np.cos(det_theta)
+    refl_co = refl_z*np.sin(det_theta) + refl_x*np.cos(det_theta) # refl_x
     refl_cr = refl_y
-    refl_perp = -refl_z*np.cos(det_theta) + refl_x*np.sin(det_theta)
+    refl_perp = -refl_z*np.cos(det_theta) + refl_x*np.sin(det_theta) # refl_z
     
     
     return (refl_co, refl_cr, refl_perp, refl_field, refl_intensity)

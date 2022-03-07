@@ -36,6 +36,7 @@ from pymie import multilayer_sphere_lib as msl
 from . import model
 from . import refraction
 from . import normalize
+from . import select_events
 from . import event_distribution as ed
 import numpy as np
 from numpy.random import random as random
@@ -330,7 +331,7 @@ class Trajectory:
             
     def calc_fields(self, theta, phi, sintheta, costheta, sinphi, cosphi,
                  n_particle, n_sample, radius, wavelen, step, volume_fraction, 
-                 fine_roughness=0):
+                 fine_roughness=0, tir_refl_bool=None):
         """
         Calculates local x and y polarization rotated in reference frame where 
         initial polarization is x-polarized.
@@ -422,6 +423,32 @@ class Trajectory:
                 En[0,n+2,:] = Ex 
                 En[1,n+2,:] = Ey
         #######################################################################
+        #deal with tir
+        if tir_refl_bool is not None:
+            # get indices for the first TIR event for each trajectory
+            tir_indices = np.argmax(np.vstack([np.zeros(ntraj),tir_refl_bool]), axis=0)
+            
+            # select the tir event for each trajectory
+            theta_1 = select_events(theta, tir_indices-2)
+            kz_tir = select_events(self.direction[2], tir_indices)
+            theta_r = np.arccos(kz_tir)
+            theta_tir = 2*(np.pi/2 - theta_r)
+            costheta_tir = np.cos(theta_1 + theta_tir)
+            sintheta_tir = np.sin(theta_1 + theta_tir)
+            #print(costheta_tir.shape)
+            #print(sintheta.shape)
+            #print(tir_indices)
+            tir_ind_theta = tir_indices-2
+            #print(tir_ind_theta)
+            tir_ind_theta[tir_ind_theta<0] = 0
+            #print(tir_ind_theta)
+            #print(sintheta[tir_ind_theta,:].shape)
+            costheta[tir_ind_theta,:] = costheta_tir
+            sintheta[tir_ind_theta,:] = sintheta_tir
+
+
+        
+        #######################################################################
 
         # Rotate to global coords
         # Start with event 2 because the 0th event contains the initialized
@@ -440,30 +467,35 @@ class Trajectory:
                   sinphi[n-2,:]) + En[1,n:,:]*cosphi[n-2,:]
             Ez =  -En[0,n:,:]*sintheta[n-2,:] + En[2,n:,:]*costheta[n-2,:]  
             En[:,n:,:] = Ex, Ey, Ez
-                  
+        
         # calculate the structure factor field contribution
         # insert a row of zeros since first event does not change direction
         # note that this will only work for normal incidence
         theta2 = np.insert(theta,0,np.zeros(ntraj),axis=0) 
         qd = 4*np.array(np.abs(x)).max()*np.sin(theta2/2)  
-        field_phase_struct = structure.field_phase_py(qd, volume_fraction)
+        #print('qd: ' + str(qd))
+        field_phase_struct = structure.phase_factor(qd, volume_fraction)
+        #field_phase_struct = structure.field_phase_data(qd)#structure.field_phase_py(qd, volume_fraction)#np.ones((self.nevents,ntraj))#
+        #print('field_phase_struct: ' + str(field_phase_struct))
+        cumul_phase_struct = np.cumprod(field_phase_struct, axis=0) #field_phase_struct 
+        #print('cumul phase struct: ' + str(cumul_phase_struct))
         
         # calculate the step propagation factor
-        step_phase_factor = np.exp(1j*np.abs(k)*step)
+        step_cumul = np.abs(k)*np.cumsum(step, axis=0)#step #
+        step_phase_factor = np.exp(1j*np.abs(k)*step_cumul)
         
         # multiply the fields by the phase propagation due to structure factor
         # of the initial trajectories
         # should multiply by 1 for trajectories do not have fine rough
         ntraj_fine = int(np.round(ntraj*fine_roughness))
-        field_phase_struct[0,:] = np.concatenate((field_phase_struct[0,0:ntraj_fine],
+        cumul_phase_struct[0,:] = np.concatenate((cumul_phase_struct[0,0:ntraj_fine],
                                                  np.ones(ntraj-ntraj_fine)))
-        En[0,1:,:] = En[0,1:,:]*step_phase_factor*field_phase_struct
-        En[1,1:,:] = En[1,1:,:]*step_phase_factor*field_phase_struct
-        En[2,1:,:] = En[2,1:,:]*step_phase_factor*field_phase_struct
-                                                                                              
+        En[0,1:,:] = En[0,1:,:]*step_phase_factor*cumul_phase_struct
+        En[1,1:,:] = En[1,1:,:]*step_phase_factor*cumul_phase_struct
+        En[2,1:,:] = En[2,1:,:]*step_phase_factor*cumul_phase_struct
         # normalize
-        En[0,:,:], En[1,:,:], En[2,:,:] = normalize(En[0,:,:], En[1,:,:], En[2,:,:])
-       
+        En[0,:,:], En[1,:,:], En[2,:,:] = normalize(En[0,:,:], En[1,:,:], En[2,:,:], return_nan=False)
+        
         self.fields = sc.Quantity(En,self.fields.units)
             
     def shift_phase(self, step, theta, phi, sintheta, costheta, sinphi, cosphi,
@@ -990,11 +1022,14 @@ def initialize(nevents, ntraj, n_medium, n_sample, boundary, seed=None,
             
             if polarization:
                 # initialized for x-polarized light
-                fields0[0,:,:]=1
+                rand_phase = np.random.random(ntraj)*2*np.pi
+                fields0[0,:,:]= np.exp(1j*rand_phase)
             else:                    
                 # initialize for unpolarized light
-                fields0[0,0,:] = np.random.random(ntraj)*2-1 
-                fields0[1,0,:] = np.random.random(ntraj)*2-1
+                theta_x = np.random.random(ntraj)*2*np.pi
+                theta_y = np.random.random(ntraj)*2*np.pi
+                fields0[0,0,:] = np.exp(-theta_x*1j)#np.random.random(ntraj)*2-1 
+                fields0[1,0,:] = np.exp(-theta_y*1j)#np.random.random(ntraj)*2-1
                 fields0x, fields0y, _ = normalize(fields0[0,0,:], fields0[1,0,:], 0)
                 fields0[0,0,:] = fields0x
                 fields0[1,0,:] = fields0y
