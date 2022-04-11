@@ -331,7 +331,7 @@ class Trajectory:
             
     def calc_fields(self, theta, phi, sintheta, costheta, sinphi, cosphi,
                  n_particle, n_sample, radius, wavelen, step, volume_fraction, 
-                 fine_roughness=0, tir_refl_bool=None):
+                 fine_roughness=0, tir_refl_bool=None, structure_phase=True):
         """
         Calculates local x and y polarization rotated in reference frame where 
         initial polarization is x-polarized.
@@ -403,6 +403,8 @@ class Trajectory:
 
         Ex = En[0,0,:]
         Ey = En[1,0,:]
+        #print('Ex: ' + str(Ex))
+        #print('Ey: ' + str(Ey))
 
         # Ex and Ey are the initialized as the incident field vectors. 
         # To get the Ex and Ey at each event, we have to multiply by the scattering
@@ -422,6 +424,9 @@ class Trajectory:
                 # 0th event is before sample, the 1st event has no rotation
                 En[0,n+2,:] = Ex 
                 En[1,n+2,:] = Ey
+                
+        #print('Ex: ' + str(Ex))
+        #print('Ey: ' + str(Ey))
         #######################################################################
         #deal with tir
         if tir_refl_bool is not None:
@@ -474,7 +479,10 @@ class Trajectory:
         theta2 = np.insert(theta,0,np.zeros(ntraj),axis=0) 
         qd = 4*np.array(np.abs(x)).max()*np.sin(theta2/2)  
         #print('qd: ' + str(qd))
-        field_phase_struct = structure.phase_factor(qd, volume_fraction)
+        if structure_phase == False:
+            field_phase_struct = np.ones(qd.shape)
+        else:
+            field_phase_struct = structure.phase_factor(qd, volume_fraction)
         #field_phase_struct = structure.field_phase_data(qd)#structure.field_phase_py(qd, volume_fraction)#np.ones((self.nevents,ntraj))#
         #print('field_phase_struct: ' + str(field_phase_struct))
         cumul_phase_struct = np.cumprod(field_phase_struct, axis=0) #field_phase_struct 
@@ -723,7 +731,9 @@ def initialize(nevents, ntraj, n_medium, n_sample, boundary, seed=None,
                incidence_phi_max=sc.Quantity(2*np.pi,'rad'), 
                incidence_phi_data=None,
                plot_initial=False, spot_size=sc.Quantity('1 um'), 
-               sample_diameter=None, polarization=False, phase=False,
+               sample_diameter=None, polarization=False, 
+               phase=False,
+               coherence=False,
                fields=False,
                coarse_roughness=0.):
     """
@@ -1004,42 +1014,17 @@ def initialize(nevents, ntraj, n_medium, n_sample, boundary, seed=None,
             
             
         init_traj_props = [r0, k0, weight0]
-        if polarization:
+        #if polarization:
             # initial polarization, we always assume x-polarized because
             # python-mie assumes x-polarized when including polarization
-            pol0 = np.zeros((3, nevents, ntraj), dtype = 'complex')
-            pol0[0,:,:] = 1
-            pol0[1,:,:] = 0
-            pol0[2,:,:] = 0
-            init_traj_props.append(pol0)
+       #     pol0 = np.zeros((3, nevents, ntraj), dtype = 'complex')
+       #     pol0[0,:,:] = 1
+       #     pol0[1,:,:] = 0
+       #     pol0[2,:,:] = 0
+       #     init_traj_props.append(pol0)
         if phase:
             phas0 = np.zeros((3, nevents, ntraj), dtype = 'complex')
             init_traj_props.append(phas0)
-        if fields:
-            # The field is initialized with nevents+1 because we want to save
-            # the value of the field from before the photon enters the sample
-            fields0 = np.zeros((3, nevents+1, ntraj), dtype = 'complex')
-            
-            if polarization:
-                # initialized for x-polarized light
-                rand_phase = np.random.random(ntraj)*2*np.pi
-                fields0[0,:,:]= np.exp(1j*rand_phase)
-            else:                    
-                # initialize for unpolarized light
-                theta_x = np.random.random(ntraj)*2*np.pi
-                theta_y = np.random.random(ntraj)*2*np.pi
-                fields0[0,0,:] = np.exp(-theta_x*1j)#np.random.random(ntraj)*2-1 
-                fields0[1,0,:] = np.exp(-theta_y*1j)#np.random.random(ntraj)*2-1
-                fields0x, fields0y, _ = normalize(fields0[0,0,:], fields0[1,0,:], 0)
-                fields0[0,0,:] = fields0x
-                fields0[1,0,:] = fields0y
-                
-                # first step into the sample is same 
-                fields0[0,1,:] = fields0x
-                fields0[1,1,:] = fields0y
-            
-            init_traj_props.append(fields0)
-        return init_traj_props
     
     # if the surface has coarse roughness
     else:
@@ -1056,7 +1041,36 @@ def initialize(nevents, ntraj, n_medium, n_sample, boundary, seed=None,
                                                  n_sample,
                                                  coarse_roughness,
                                                  boundary)
-        return r0, k0, weight0, kz0_rot, kz0_refl
+        init_traj_props = [r0, k0, weight0, kz0_rot, kz0_refl]
+                                                 
+    if fields:
+        # The field is initialized with nevents+1 because we want to save
+        # the value of the field from before the photon enters the sample
+        fields0 = np.zeros((3, nevents+1, ntraj), dtype = 'complex')
+        if coherence:
+            phase = 0
+        else:
+            phase = np.random.random(ntraj)*2*np.pi              
+            
+        if polarization:
+            fields0[0,:,:]= np.exp(1j*phase)
+        else:                    
+            # initialize for unpolarized, incoherent light
+            phase_x = np.random.random(ntraj)*2*np.pi
+            phase_y = np.random.random(ntraj)*2*np.pi
+            fields0[0,0,:] = np.exp(phase_x*1j)#np.random.random(ntraj)*2-1 
+            fields0[1,0,:] = np.exp(phase_y*1j)#np.random.random(ntraj)*2-1
+            fields0x, fields0y, _ = normalize(fields0[0,0,:], fields0[1,0,:], 0)
+            fields0[0,0,:] = fields0x
+            fields0[1,0,:] = fields0y
+            
+            # first step into the sample is same 
+            fields0[0,1,:] = fields0x
+            fields0[1,1,:] = fields0y
+        
+        init_traj_props.append(fields0)
+    return init_traj_props
+    
 
 
 def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,

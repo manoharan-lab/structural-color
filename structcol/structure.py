@@ -220,6 +220,9 @@ def factor_poly(q, phi, diameters, c, pdi):
     c = np.reshape(c, (len(np.atleast_1d(c)),1))
     diameters = np.reshape(diameters, (len(np.atleast_1d(diameters)),1))
     
+    q_shape = q.shape
+    if len(q_shape)==2:
+        q = Quantity(np.ndarray.flatten(q.magnitude), q.units) # added
     s = 1j*q
     x = s*diameters
     F0 = rho 
@@ -276,6 +279,8 @@ def factor_poly(q, phi, diameters, c, pdi):
     
     SM = 1 - 2*h2
     SM[SM<0] = 0
+    if len(q_shape)==2:
+        SM = np.reshape(SM,q_shape)
     return(SM)
     
 def factor_data(qd, s_data, qd_data):

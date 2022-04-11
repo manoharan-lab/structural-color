@@ -664,7 +664,7 @@ def differential_cross_section(m, x, angles, volume_fraction,
 
 def polydisperse_form_factor(m, angles, diameters, concentration, pdi, wavelen, 
                              n_matrix, k=None, distance=None, 
-                             coordinate_system=None,
+                             coordinate_system='scattering_plane',
                              incident_vector=None, phis=None):
     """   
     Calculate the form factor for polydisperse systems. 
@@ -725,8 +725,12 @@ def polydisperse_form_factor(m, angles, diameters, concentration, pdi, wavelen,
     min_diameter[min_diameter.magnitude < 0] = Quantity(0.000001, diameters.units)
     max_diameter = diameters + three_std_dev
 
-    F_par = np.empty([len(np.atleast_1d(diameters)), len(angles)])
-    F_perp = np.empty([len(np.atleast_1d(diameters)), len(angles)])
+    if coordinate_system=='cartesian':
+        F_par = np.empty([len(np.atleast_1d(diameters)), angles.shape[0], angles.shape[1]])
+        F_perp = np.empty([len(np.atleast_1d(diameters)), angles.shape[0], angles.shape[1]])
+    else:
+        F_par = np.empty([len(np.atleast_1d(diameters)), len(angles)])
+        F_perp = np.empty([len(np.atleast_1d(diameters)), len(angles)])
     
     # for each mean diameter, calculate the Schulz distribution and 
     # the size parameter x_poly
@@ -735,15 +739,24 @@ def polydisperse_form_factor(m, angles, diameters, concentration, pdi, wavelen,
         # the max diameter of the Schulz distribution      
         diameter_range = np.linspace(np.atleast_1d(min_diameter)[d], np.atleast_1d(max_diameter)[d], 50)
         distr = size_distribution(diameter_range, np.atleast_1d(diameters)[d], np.atleast_1d(t)[d])
-        distr_array = np.tile(distr, [len(angles),1])
+        if coordinate_system=='cartesian':
+            distr_array = np.tile(distr, [angles.shape[0], angles.shape[1],1])
+        else:
+            distr_array = np.tile(distr, [len(angles),1])
         angles_array = np.tile(angles, [len(diameter_range),1])
         
         x_poly = size_parameter(wavelen, n_matrix, diameter_range/2) 
            
-        form_factor_par = np.empty([len(angles), len(diameter_range)])
-        form_factor_perp = np.empty([len(angles), len(diameter_range)])
-        integrand_par = np.empty([len(angles), len(diameter_range)])
-        integrand_perp = np.empty([len(angles), len(diameter_range)])
+        if coordinate_system=='cartesian':
+            form_factor_par = np.empty([angles.shape[0], angles.shape[1], len(diameter_range)])
+            form_factor_perp = np.empty([angles.shape[0], angles.shape[1], len(diameter_range)])
+            integrand_par = np.empty([angles.shape[0], angles.shape[1], len(diameter_range)])
+            integrand_perp = np.empty([angles.shape[0], angles.shape[1], len(diameter_range)])
+        else:
+            form_factor_par = np.empty([len(angles), len(diameter_range)])
+            form_factor_perp = np.empty([len(angles), len(diameter_range)])
+            integrand_par = np.empty([len(angles), len(diameter_range)])
+            integrand_perp = np.empty([len(angles), len(diameter_range)])
             
         # for each diameter in the distribution, calculate the detected 
         # and the total form factors for absorbing systems
@@ -768,8 +781,12 @@ def polydisperse_form_factor(m, angles, diameters, concentration, pdi, wavelen,
                 # we use the mean radii. 
             else:
                 form_factor = mie.calc_ang_dist(m, x_poly[s], angles_array[s]) 
-            form_factor_par[:,s] = form_factor[0]
-            form_factor_perp[:,s] = form_factor[1]
+            if coordinate_system=='cartesian':
+                form_factor_par[:,:,s] = form_factor[0]
+                form_factor_perp[:,:,s] = form_factor[1]
+            else:
+                form_factor_par[:,s] = form_factor[0]
+                form_factor_perp[:,s] = form_factor[1]                
             
         # multiply the form factors by the Schulz distribution 
         integrand_par = form_factor_par * distr_array
@@ -777,8 +794,14 @@ def polydisperse_form_factor(m, angles, diameters, concentration, pdi, wavelen,
             
         # integrate and multiply by the concentration of the mean 
         # diameter to get the polydisperse form factor
-        F_par[d,:] = np.trapz(integrand_par, x=diameter_range, axis=1) * np.atleast_1d(concentration)[d]
-        F_perp[d,:] = np.trapz(integrand_perp, x=diameter_range, axis=1) * np.atleast_1d(concentration)[d]
+        if coordinate_system=='cartesian':
+            axis_int = 2
+            F_par[d,:,:] = np.trapz(integrand_par, x=diameter_range, axis = axis_int) * np.atleast_1d(concentration)[d]
+            F_perp[d,:,:] = np.trapz(integrand_perp, x=diameter_range, axis = axis_int) * np.atleast_1d(concentration)[d]
+        else:
+            axis_int = 1
+            F_par[d,:] = np.trapz(integrand_par, x=diameter_range, axis = axis_int) * np.atleast_1d(concentration)[d]
+            F_perp[d,:] = np.trapz(integrand_perp, x=diameter_range, axis = axis_int) * np.atleast_1d(concentration)[d]
         
     # the final polydisperse form factor as a function of angle is 
     # calculated as the average of each mean diameter's form factor

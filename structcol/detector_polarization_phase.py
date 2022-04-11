@@ -958,6 +958,8 @@ def calc_refl_phase_fields(trajectories, refl_indices, refl_per_traj,
     non_phase_int_y = np.conj(refl_field_y)*refl_field_y
     non_phase_int_z = np.conj(refl_field_z)*refl_field_z
     refl_non_phase = np.sum(non_phase_int_x + non_phase_int_y + non_phase_int_z)
+    #refl_non_phase = np.sum(refl_per_traj) # remove this line
+    #print('refl_per_traj 2: ' + str(np.sum(refl_per_traj)))
 
     # calculate intensity as E*E
     intensity_x = np.conj(tot_field_x)*tot_field_x
@@ -968,7 +970,8 @@ def calc_refl_phase_fields(trajectories, refl_indices, refl_per_traj,
     refl_intensity = np.sum(intensity_x + intensity_y + intensity_z)
     
     # normalize
-    intensity_incident = np.sum(weights[0,:]) # assumes normalized light is incoherent
+    intensity_incident = ntraj#np.sum(weights[0,:]) # assumes normalized light is incoherent. This line was causing the silica sample issue
+    #print('intensity_incident: ' + str(intensity_incident))
     refl_fields = np.real(refl_intensity/intensity_incident)
     
     refl_x = np.sum(intensity_x)/intensity_incident
@@ -976,7 +979,7 @@ def calc_refl_phase_fields(trajectories, refl_indices, refl_per_traj,
     refl_z = np.sum(intensity_z)/intensity_incident
 
     if components ==True:
-        return refl_x, refl_y, refl_z, refl_fields, refl_non_phase/intensity_incident
+        return tot_field_x, tot_field_y, tot_field_z, refl_fields, refl_non_phase/intensity_incident
     else:
         return refl_fields, refl_non_phase/intensity_incident        
         
@@ -994,18 +997,24 @@ def calc_refl_co_cross_fields(trajectories, refl_indices, refl_per_traj, det_the
     
     '''
     
-    (refl_x, 
-     refl_y, 
-     refl_z,
+    (tot_field_x, 
+     tot_field_y, 
+     tot_field_z,
      refl_field,
      refl_intensity) = calc_refl_phase_fields(trajectories, refl_indices, refl_per_traj,
                          components=True)
-                         
-    # incorporate geometry of the goniometer setup
-    refl_co = refl_z*np.sin(det_theta) + refl_x*np.cos(det_theta) # refl_x
-    refl_cr = refl_y
-    refl_perp = -refl_z*np.cos(det_theta) + refl_x*np.sin(det_theta) # refl_z
     
+    # incorporate geometry of the goniometer setup                 
+    # rotate the total x, y, z fields to the par/perp detector basis
+    # this is based on a clockwise rotation about the y-axis of angle det_theta                     
+    tot_field_co = tot_field_x*np.cos(det_theta) + tot_field_z*np.sin(det_theta)# E field polarization is co-polarized (mostly x)
+    tot_field_cr = tot_field_y# E field polarization is cross-polarized  (mostly y)
+    tot_field_perp = -tot_field_x*np.sin(det_theta) + tot_field_z*np.cos(det_theta)# E field polarization is perp to detector plane
+                         
+    # take the modulus to get intensity
+    refl_co = np.conj(tot_field_co)*tot_field_co#refl_z*np.sin(det_theta) + refl_x*np.cos(det_theta) # refl_x
+    refl_cr = np.conj(tot_field_cr)*tot_field_cr
+    refl_perp = np.conj(tot_field_perp)*tot_field_perp# refl_z*np.cos(det_theta) - refl_x*np.sin(det_theta) # refl_z
     
     return (refl_co, refl_cr, refl_perp, refl_field, refl_intensity)
 

@@ -722,6 +722,7 @@ def find_valid_exits(n_sample, n_medium, thickness, z_low, boundary,
         potential_exits = ~(np.diff(z_floors, axis = 0)==0)
 
         # find all kz with magnitude large enough to exit
+        # todo-get particle in here?
         no_tir = abs(kz) > np.cos(np.arcsin(n_medium / n_sample))
         #no_tir = np.ones((trajectories.nevents, ntraj))>0#abs(kz) > np.cos(np.arcsin(n_medium / n_sample))
 
@@ -1542,12 +1543,145 @@ def calc_indices_detected(indices, trajectories, det_theta, det_len, det_dist,
         ax.set_ylim([-1.2*det_rad, 1.2*det_rad])
         ax.set_zlim([-1.2*det_rad, 1.2*det_rad])
         ax.scatter(x, y, z, s = 5) # plot last position in film before exit
-        ax.scatter(x_int, y_int, z_int, s = 3, c = 'b', label = 'exit traj')        
+        ax.scatter(x_int.magnitude, y_int.magnitude, z_int.magnitude, s = 3, c = 'b', label = 'exit traj')        
         ax.scatter(x_int_detected, y_int_detected, z_int_detected, s = 20, label = 'detected traj')
         ax.view_init(elev=-148., azim=-112)
         plt.legend()
             
     return indices_detected
+    
+def select_tir_traj(inarray, events):
+    ntraj = events.size    
+    nevents = inarray.shape[0]
+    
+    valid_events = (events > 0)
+    ev = events[valid_events].astype(int) - 1
+    tr = np.where(valid_events)[0]
+    outarray = np.zeros((nevents, ntraj))
+    outarray[ev,tr] = inarray[ev,tr]
+    outarray[0,:] = inarray[0,:]
+    for i in range(1, nevents):
+        nonzero = outarray[i-1,:]!=0
+        nonzero = nonzero.astype(int)
+        ind = np.where(nonzero==1)[0]
+        outarray[i, ind] = -inarray[i,ind]
+        
+        # now find where still zereos
+        # then replace those with 
+        ind_zeros = np.where(outarray[i,:]==0)[0]
+        outarray[i,ind_zeros] = inarray[i,ind_zeros]
+    return outarray
+    
+def shift_traj_tir(trajectories, tir_indices):
+    
+    # select all events at TIR events and after
+    # and all trajectories 
+    # this gives a matrix of shape (nev, ntraj)
+    # with zeros before the first tir event
+    #kx_1 = select_tir_traj(trajectories.direction[0,:,:], tir_indices)
+    #ky_1 = select_tir_traj(trajectories.direction[1,:,:], tir_indices)
+    kz_tir_refl = select_tir_traj(trajectories.direction[2,:,:], tir_indices)
+    
+    #x0 = select_tir_traj(trajectories.position[0,1:,:], tir_indices)
+    #y0 = select_tir_traj(trajectories.position[1,1:,:], tir_indices)
+    z0_tir_refl = select_tir_traj(trajectories.position[2,:,:], tir_indices)   
+    
+    # loop through events one more time
+    # 
+    trajectories.position[2,:,:] = z0_tir_refl
+    trajectories.direction[2,:,:] = kz_tir_refl
+    
+    #x0_tir = select_events(trajectories.position[0,1:,:], tir_indices)
+    #y0_tir = select_events(trajectories.position[1,1:,:], tir_indices)
+    #z0_tir = select_events(trajectories.position[2,1:,:], tir_indices)
+    #kx_1_tir = select_events(trajectories.direction[0,:,:], tir_indices)
+    #ky_1_tir = select_events(trajectories.direction[1,:,:], tir_indices)
+    #kz_1_tir = select_events(trajectories.direction[2,:,:], tir_indices)
+    # find intersection with plane
+    
+    # values of 0,0,0 are for trajectories before they've been TIR'd
+    # TODO: fix this 
+    #p0 = np.array([0,0,0])
+    #l0 = np.array([x0_tir, y0_tir, z0_tir])
+    #k= np.array([kx_1_tir, ky_1_tir, kz_1_tir])
+  
+    #n = np.array([0,0,-1])
+    #d = np.dot(p0-np.transpose(l0), n)/np.dot(np.transpose(k),n)
+
+    # can be zero if there is NO tir event
+    # so if x_inter is nan, 
+    #print(np.dot(np.transpose(k),n))
+    #x_inter, y_inter, z_inter  = l0 + k*np.transpose(d)
+ 
+    # perform reflection
+    # rotate the direction vectors at the tir event by the appropriate angle
+    # as well as all subsequent direction vectors. 
+    # rotate by alpha = pi/2-2*gamma, where gamma is angle wrt normal
+    # how do we pick the appropriate sign for alpha? it must always be the one
+    # that ends up with the kz and ky with the same sign
+
+    # Calculate the angle of reflection for the tir indices
+    # need alpha of 0 for all events befor tir, and nonzero after
+    # kz_1 = 0 => gamma = pi/2 => alpha = -pi/2 
+    #gamma = np.arccos(-kz_1)
+    #alpha = np.pi/2-2*gamma
+    #alpha[np.isnan(alpha)] = 0
+        
+    #rotates vector <k1> by angle alpha about the unit vector <uvw>. where (a,b,c)
+    #is a point on the vector we are rotating about
+    #kx, ky, kz = trajectories.direction        
+    
+    # vector about which we are rotating is cross product of kin and kout
+    #ki_x = select_events(trajectories.direction[0,:,:], tir_indices)
+    #ki_y = select_events(trajectories.direction[1,:,:], tir_indices)
+    #ki_z = select_events(trajectories.direction[2,:,:], tir_indices)
+    #ko_x = ki_x
+    #ko_y = ki_y
+    #ko_z = -ki_z
+    #u = ki_x*ko_z - ki_z*ko_y
+    #v = ki_z*ko_x - ki_x*ko_z
+    #w = ki_x*ko_y - ki_y*ko_x
+    
+    # instead of x_inter, y_inter, z_inter,
+    # TODO: try position from select_events?
+    # since there are nans, we are messing 
+        
+    
+    #kx_2, ky_2, kz_2 = rotate_refract(x0, y0, z0, 
+    #                                  u, v, w, kx, ky, kz, alpha)
+    
+    # reset trajectories.direction based on this
+    #print(kx_2[np.isnan(kx_2)])
+    #trajectories.direction = kx_2, ky_2, kz_2
+        
+    # perform transformation 
+    # TODO: need to make this reduce to just being position in the case where x_inter
+    # is nan or zero or whatever
+    # need to do select_tir_traj 
+    # then do the transform
+    # then add to all particle positions
+    #x_inter[np.isnan(x_inter)] = 0
+    #y_inter[np.isnan(y_inter)] = 0
+    #z_inter[np.isnan(z_inter)] = 0
+
+    # we only need to translate based on 
+    # ok so turn x0 to boolean int
+    # then multiply by x_inter
+    # and then add?
+    #x_shift = x_inter - x0_tir
+    #x_shift[np.isnan(x_shift)] = 0
+    
+    #y_shift = y_inter - y0_tir
+    #y_shift[np.isnan(y_shift)] = 0
+    
+    #z_shift = z_inter - z0_tir
+    #z_shift[np.isnan(z_shift)] = 0
+    
+    #trajectories.position[0,1:,:] = trajectories.position[0,1:,:] + x_shift
+    #trajectories.position[1,1:,:] = trajectories.position[0,1:,:] + y_shift
+    #trajectories.position[2,1:,:] = trajectories.position[0,1:,:] + z_shift
+
+
 
 def calc_refl_trans(trajectories, thickness, n_medium, n_sample, boundary, 
                     z_low = 0, detection_angle = np.pi/2, n_front = None, 
@@ -1558,7 +1692,9 @@ def calc_refl_trans(trajectories, thickness, n_medium, n_sample, boundary,
                     detector=False, det_theta=None, det_len=None, det_dist=None,
                     plot_detector=False, kz0_rot=None ,kz0_refl=None,
                     include_trans_indices_1=True,
-                    save_stuck_weights=False):
+                    save_stuck_weights=False,
+                    fine_roughness=0,
+                    n_particle=None):
     """
     Calculates the weight fraction of reflected and transmitted trajectories
     (reflectance and transmittance).Identifies which trajectories are reflected
@@ -1708,7 +1844,12 @@ def calc_refl_trans(trajectories, thickness, n_medium, n_sample, boundary,
                                                               z_low, thickness)
     
     # construct booleans for positive and negative exits
-    exits_pos_dir, exits_neg_dir, tir_refl_bool = find_valid_exits(n_sample, 
+    # TODO: confirm this
+    if n_particle is not None:
+        n_tir = fine_roughness*n_particle + (1-fine_roughness)*n_sample
+    else:
+        n_tir = n_sample
+    exits_pos_dir, exits_neg_dir, tir_refl_bool = find_valid_exits(n_tir, 
                                                               n_medium, 
                                                               thickness, z_low, 
                                                               boundary, 
@@ -1723,13 +1864,18 @@ def calc_refl_trans(trajectories, thickness, n_medium, n_sample, boundary,
     # correct indices to account for detector
     # TODO make this work for trans_indices as well
     if detector == True:
+        #print(trajectories.position[2,:,:])
+        shift_traj_tir(trajectories, tir_indices)
+        #print(trajectories.position[2,:,:])
+        #trajectories.position[2,:,:] = 0
         refl_indices = calc_indices_detected(refl_indices, trajectories, 
                                                   det_theta, det_len, det_dist, 
                                                   n_sample, n_medium, 
                                                   plot_detector)
     
-    # find fraction and direction of light that enters sample  
-    init_dir, inc_pass_frac = fresnel_correct_enter(n_medium, n_front, n_sample, 
+    # find fraction and direction of light that enters sample 
+    
+    init_dir, inc_pass_frac = fresnel_correct_enter(n_medium, n_front, n_tir, 
                                                     boundary, thickness,
                                                     trajectories, fresnel_traj,
                                                     kz0_rot)      
@@ -1752,7 +1898,7 @@ def calc_refl_trans(trajectories, thickness, n_medium, n_sample, boundary,
      refl_weights_pass, 
      trans_weights_pass, 
      refl_fresnel, trans_fresnel,
-     norm_vec_refl, norm_vec_trans) = fresnel_correct_exit(n_sample, n_medium,
+     norm_vec_refl, norm_vec_trans) = fresnel_correct_exit(n_tir, n_medium,
                                                 n_front, n_back, refl_indices, 
                                                 trans_indices, refl_weights, 
                                                 trans_weights, absorb_weights,
