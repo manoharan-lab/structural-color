@@ -42,7 +42,7 @@ from scipy.special import factorial
 
 @ureg.check('[]', '[]', '[]', '[length]', '[length]', '[]', None, None, None, 
             None, None, None, None, None, None, None, None, None, None, None,
-            None, None)
+            None, None, None, None)
 def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
                radius2=None, 
                concentration=None,
@@ -59,7 +59,9 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
                form_type='sphere',
                maxwell_garnett=False,
                structure_s_data=None,
-               structure_qd_data=None):
+               structure_qd_data=None,
+               effective_medium_struct=True,
+               effective_medium_form=True):
                    
     """
     Calculate fraction of light reflected from an amorphous colloidal
@@ -226,15 +228,37 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
 
     # use Bruggeman formula to calculate effective index of
     # particle-matrix composite
-    n_sample = ri.n_eff(n_particle, n_matrix, vf_array, 
-                        maxwell_garnett=maxwell_garnett)
+    n_sample_eff=None
+
+    if effective_medium_form and effective_medium_struct:
+        n_sample = ri.n_eff(n_particle, n_matrix, vf_array, 
+                            maxwell_garnett=maxwell_garnett)
+        print('S and F')
+    if effective_medium_struct and not effective_medium_form:
+    	n_sample_eff = ri.n_eff(n_particle, n_matrix, vf_array, 
+                            maxwell_garnett=maxwell_garnett)
+    	n_sample = n_matrix
+    	print('S only')
+    if not effective_medium_form and not effective_medium_struct:
+        n_sample = n_matrix
+        print('no S or F')
+
+    print(n_sample)
 
     if len(np.atleast_1d(radius)) > 1:
         m = index_ratio(n_particle, n_sample).flatten()  
         x = size_parameter(wavelen, n_sample, radius).flatten()
+        if effective_medium_struct and not effective_medium_form:
+        	x_eff = size_parameter(wavelen, n_sample_eff, radius).flatten()
+        else:
+        	x_eff=None
     else:
         m = index_ratio(n_particle, n_sample)
         x = size_parameter(wavelen, n_sample, radius)
+        if effective_medium_struct and not effective_medium_form:
+        	x_eff = size_parameter(wavelen, n_sample_eff, radius)
+        else:
+        	x_eff=None
   
     k = 2*np.pi*n_sample/wavelen  
 
@@ -315,7 +339,8 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
                                                   pdi=pdi, wavelen=wavelen, 
                                                   n_matrix=n_sample, k=k, distance=distance,
                                                   structure_s_data=structure_s_data,
-                                                  structure_qd_data=structure_qd_data)
+                                                  structure_qd_data=structure_qd_data,
+                                                  x_eff=x_eff)
     
     diff_cs_total = differential_cross_section(m, x, angles_tot, volume_fraction,
                                                structure_type=structure_type, 
@@ -325,7 +350,8 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
                                                pdi=pdi, wavelen=wavelen, 
                                                n_matrix=n_sample, k=k, distance=distance,
                                                structure_s_data=structure_s_data,
-                                               structure_qd_data=structure_qd_data) 
+                                               structure_qd_data=structure_qd_data,
+                                               x_eff=x_eff) 
 
     # integrate the differential cross sections to get the total cross section    
     if np.abs(n_sample.imag.magnitude) > 0.: 
@@ -477,7 +503,7 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
     
 
 @ureg.check('[]', '[]', '[]', '[]', None, None, None, None, None,None, None, 
-            None, None, None, None, None, None, None)
+            None, None, None, None, None, None, None, None)
 def differential_cross_section(m, x, angles, volume_fraction,
                                structure_type = 'glass', form_type = 'sphere', 
                                diameters=None, concentration=None, pdi=None, 
@@ -486,7 +512,8 @@ def differential_cross_section(m, x, angles, volume_fraction,
                                coordinate_system='scattering plane',
                                incident_vector=None,
                                phis=None, 
-                               structure_s_data=None, structure_qd_data=None):
+                               structure_s_data=None, structure_qd_data=None,
+                               x_eff=None):
     """
     Calculate dimensionless differential scattering cross-section for a sphere,
     including contributions from the structure factor. Need to multiply by 1/k**2
@@ -596,8 +623,8 @@ def differential_cross_section(m, x, angles, volume_fraction,
             #    form_factor = form_factor/k**2
 
         f_par = form_factor[0]  
-        f_perp = form_factor[1] 
-    
+        f_perp = form_factor[1]
+       
     elif form_type == 'polydisperse':
         if diameters is None or concentration is None or pdi is None or wavelen is None or n_matrix is None:
             raise ValueError('must specify diameters, concentration, pdi, wavelength, and n_matrix for polydisperse systems')
@@ -618,7 +645,10 @@ def differential_cross_section(m, x, angles, volume_fraction,
         raise ValueError('form factor type not recognized!')
 
     # calculate structure factor
-    qd = 4*np.array(np.abs(x)).max()*np.sin(angles/2)  #TODO: should it be x.real or x.abs?
+    if x_eff is not None:
+        qd = 4*np.array(np.abs(x_eff)).max()*np.sin(angles/2)    
+    else:
+    	qd = 4*np.array(np.abs(x)).max()*np.sin(angles/2)  #TODO: should it be x.real or x.abs?
 
     if isinstance(structure_type, dict):
         if structure_type['name'] == 'paracrystal':
@@ -658,6 +688,42 @@ def differential_cross_section(m, x, angles, volume_fraction,
 
     scat_par = s * f_par      
     scat_perp = s * f_perp
+
+    '''
+    from matplotlib import pyplot as plt
+    plt.figure()
+    plt.subplot(1, 1, 1, projection='polar')
+    thetas = np.linspace(0, np.pi, 200)
+    for ph in range(299):
+        plt.plot(thetas, scat_par[:,ph], color = [0.2, 0.4, 0.8], alpha = 0.1)
+        plt.plot(-thetas, scat_par[:,ph], color = [0.2, 0.4, 0.8], alpha = 0.1)
+        plt.plot(thetas, scat_perp[:,ph], color = [0.8, 0.4, 0.2], alpha = 0.1)
+        plt.plot(-thetas, scat_perp[:,ph], color = [0.8, 0.4, 0.2], alpha = 0.1)
+
+    plt.figure()
+    plt.subplot(1, 1, 1, projection='polar')
+    thetas = np.linspace(0, np.pi, 200)
+    plt.plot(thetas, np.sum(scat_par, axis=1), color = [0.2, 0.4, 0.8], alpha = 1)
+    plt.plot(-thetas, np.sum(scat_par, axis=1), color = [0.2, 0.4, 0.8], alpha = 1)
+    plt.plot(thetas, np.sum(scat_perp, axis=1), color = [0.8, 0.4, 0.2], alpha = 1)
+    plt.plot(-thetas, np.sum(scat_perp, axis=1), color = [0.8, 0.4, 0.2], alpha = 1)
+
+    plt.figure()
+    plt.subplot(1, 1, 1, projection='polar')
+    phis = np.linspace(0, 2*np.pi,300)
+    for th in range(199):
+        plt.plot(phis, scat_par[th,:],color = [0.2, 0.4, 0.8],  alpha=0.15)
+        plt.plot(phis, scat_perp[th,:],color = [0.8, 0.4, 0.2],  alpha=0.15)
+    #a = np.sum(scat_par, axis=1)
+    #b = np.sum(scat_perp, axis=1)
+    #np.savetxt('scat_par.txt', str(a[199].magnitude))
+
+    #with open('scat_par.txt','a+') as f:
+    #    f.write(str(a[199].magnitude) + ' ')
+    #
+    #with open('scat_perp.txt','a+') as f:
+    #    f.write(str(b[199].magnitude) + ' ')
+    '''
 
     return scat_par, scat_perp
 
@@ -1035,6 +1101,10 @@ def fresnel_reflection(n1, n2, incident_angle):
     theta = np.atleast_1d(incident_angle.to('rad').magnitude)
     if isinstance(theta, Quantity):
         theta = theta.magnitude  
+    if isinstance(n1, Quantity):
+        n1 = n1.magnitude
+    if isinstance(n2, Quantity):
+        n2 = n2.magnitude
     
     if np.any(theta > np.pi/2.0):
         raise ValueError('Unphysical angle of incidence.  Angle must be \n'+

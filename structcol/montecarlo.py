@@ -1078,7 +1078,9 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
               mie_theory = False, polarization = False, fine_roughness=0, 
               min_angle = 0.01, num_angles = 200, num_phis = 300,
               structure_type = 'glass', form_type = 'sphere', 
-              structure_s_data=None, structure_qd_data=None, n_matrix=None):
+              structure_s_data=None, structure_qd_data=None, n_matrix=None,
+              effective_medium_struct=True, 
+              effective_medium_form=True):
     """
     Calculates the phase function and scattering coefficient from either the
     single scattering model or Mie theory. Calculates the absorption coefficient
@@ -1186,6 +1188,23 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
     """
 
     # calculate parameters for scattering calculations
+    x_eff=None
+    if effective_medium_form and effective_medium_struct:
+        n_sample = n_sample
+        print('S and F')
+    if effective_medium_struct and not effective_medium_form:
+        n_sample_eff = n_sample
+        x_eff = size_parameter(wavelen, n_sample_eff, radius)
+        n_sample = n_matrix
+        print('S only')
+        print(n_sample_eff)
+    if not effective_medium_form and not effective_medium_struct:
+        n_sample = n_matrix
+        print('no S or F')
+        
+    print(n_sample)
+    print(n_matrix)
+
     k = 2 * np.pi * n_sample / wavelen     
     m = index_ratio(n_particle, n_sample)
     x = size_parameter(wavelen, n_sample, radius)
@@ -1223,14 +1242,14 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
                                  radius.units)
                          
     # calculate the absorption coefficient
-    if np.abs(n_sample.imag.magnitude) > 0.0:
-            
-       # The absorption coefficient can be calculated from the imaginary 
+    if np.abs(n_sample.imag.magnitude) > 0.0: 
+        # The absorption coefficient can be calculated from the imaginary 
         # component of the samples's refractive index
         mu_abs = 4*np.pi*n_sample.imag/wavelen
 
     else:
         # TODO check that cabs still valid for polarized light
+        # this else statement is basically pointless. The cabs is zero if there is no imaginary part.
         cross_sections = mie.calc_cross_sections(m, x, wavelen/n_sample)  
         cabs_part = cross_sections[2]                                               
         mu_abs = cabs_part * number_density
@@ -1268,7 +1287,8 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
                                     coordinate_system=coordinate_system,
                                     phis = phis,
                                     structure_s_data=structure_s_data,
-                                    structure_qd_data=structure_qd_data)
+                                    structure_qd_data=structure_qd_data,
+                                    x_eff=x_eff)
 
     mu_scat = number_density * cscat_total
     
@@ -1310,7 +1330,8 @@ def phase_function(m, x, angles, volume_fraction, k, number_density,
                    wavelen=None, diameters=None, concentration=None, pdi=None, 
                    n_sample=None, form_type='sphere', structure_type='glass', 
                    mie_theory=False, coordinate_system = 'scattering plane', 
-                   phis=None, structure_s_data=None, structure_qd_data=None):
+                   phis=None, structure_s_data=None, structure_qd_data=None,
+                   x_eff=None):
     """
     Calculates the phase function (the phase function is the same for absorbing 
     and non-absorbing systems).
@@ -1414,7 +1435,8 @@ def phase_function(m, x, angles, volume_fraction, k, number_density,
                                              n_matrix=n_sample, k=k, 
                                              distance=distance,
                                              structure_s_data=structure_s_data,
-                                             structure_qd_data=structure_qd_data)
+                                             structure_qd_data=structure_qd_data, 
+                                             x_eff=x_eff)
     
     # If in cartesian coordinate system, integrate the differential cross
     # section using integration functions in mie.py that can handle cartesian
