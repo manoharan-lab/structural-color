@@ -1694,7 +1694,8 @@ def calc_refl_trans(trajectories, thickness, n_medium, n_sample, boundary,
                     include_trans_indices_1=True,
                     save_stuck_weights=False,
                     fine_roughness=0,
-                    n_particle=None):
+                    n_particle=None,
+                    n_matrix=None):
     """
     Calculates the weight fraction of reflected and transmitted trajectories
     (reflectance and transmittance).Identifies which trajectories are reflected
@@ -1846,7 +1847,11 @@ def calc_refl_trans(trajectories, thickness, n_medium, n_sample, boundary,
     # construct booleans for positive and negative exits
     # TODO: confirm this
     if n_particle is not None:
-        n_tir = fine_roughness*n_particle + (1-fine_roughness)*n_sample
+        if n_matrix is not None:
+            if n_particle < n_matrix:
+                n_tir = fine_roughness*n_matrix + (1-fine_roughness)*n_sample
+        else:
+            n_tir = fine_roughness*n_particle + (1-fine_roughness)*n_sample
     else:
         n_tir = n_sample
     exits_pos_dir, exits_neg_dir, tir_refl_bool = find_valid_exits(n_tir, 
