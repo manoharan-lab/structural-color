@@ -39,6 +39,7 @@ from . import montecarlo as mc
 from . import phase_func_sphere as pfs
 from . import refraction
 from . import normalize
+from . import select_events
 #from . import event_distribution as ed
 import numpy as np
 from numpy.random import random as random
@@ -51,56 +52,7 @@ from scipy.optimize import fsolve
 import seaborn as sns
 
 eps = 1.e-9
-
-def select_events(inarray, events):
-    '''
-    Selects the items of inarray according to event coordinates
-    
-    Parameters
-    ----------
-    inarray: 2D or 3D array
-        Should have axes corresponding to events, trajectories
-        or coordinates, events, trajectories
-    events: 1D array
-        Should have length corresponding to ntrajectories.
-        Non-zero entries correspond to the event of interest
-    
-    Returns
-    -------
-    1D array: contains only the elements of inarray corresponding to non-zero events values.
-    
-    '''
-    # make inarray a numpy array if not already
-    if isinstance(inarray, sc.Quantity):
-        inarray = inarray.magnitude
-    inarray = np.array(inarray)
-    
-    # there is no 0th event, so disregard a 0 (or less) in the events array
-    valid_events = (events > 0)
-    
-    # The 0th element in arrays such as direction refer to the 1st event
-    # so subtract 1 from all the valid events to correct for array indexing
-    ev = events[valid_events].astype(int) - 1
-    
-    # find the trajectories where there are valid events
-    tr = np.where(valid_events)[0]
-
-    # want output of the same form as events, so create variable for object type
-    dtype = type(np.ndarray.flatten(inarray)[0])
-    
-    # get an output array with elements corresponding to the input events  
-    if len(inarray.shape) == 2:
-        outarray = np.zeros(len(events), dtype=dtype)
-        outarray[valid_events] = inarray[ev, tr]
-        
-    if len(inarray.shape) == 3:
-        outarray = np.zeros((inarray.shape[0], len(events)), dtype=dtype)
-        outarray[:,valid_events] = inarray[:, ev, tr]
-        
-    if isinstance(inarray, sc.Quantity):
-        outarray = sc.Quantity(outarray, inarray.units)
-    return outarray
-    
+   
 def inf_to_large(x0, y0, z0, x1, y1, z1, radius):
     '''
     convert two sets of trajectory coordinates from infinite values to a large 
@@ -183,9 +135,10 @@ def find_vec_sphere_intersect(x0, y0, z0, x1, y1, z1, radius):
     a = kx**2 + ky**2 + kz**2
     b = 2*(kx*x0 + ky*y0 + kz*z0)
     c = x0**2 + y0**2 + z0**2-radius**2
-    t_p = (-b + np.sqrt(b**2-4*a*c))/(2*a)
-    t_m = (-b - np.sqrt(b**2-4*a*c))/(2*a)
-    
+    with np.errstate(divide='ignore', invalid='ignore'):
+        t_p = (-b + np.sqrt(b**2-4*a*c))/(2*a)
+        t_m = (-b - np.sqrt(b**2-4*a*c))/(2*a)
+    np.seterr(divide='warn', invalid='warn')
     x_int_p = x0 + t_p*kx
     y_int_p = y0 + t_p*ky
     z_int_p = z0 + t_p*kz
@@ -196,17 +149,21 @@ def find_vec_sphere_intersect(x0, y0, z0, x1, y1, z1, radius):
     
     # find the distances between the each solution point and the trajectory
     # point outside the sphere
+    # casts nans to zero
     dist_p = np.nan_to_num((x_int_p - x1)**2 + (y_int_p - y1)**2 + (z_int_p - z1)**2)
     dist_m = np.nan_to_num((x_int_m - x1)**2 + (y_int_m - y1)**2 + (z_int_m - z1)**2)
 
-    # find the indices of the smaller distances of the two
+    # Find the indices of the smaller distances of the two
     # because the intersection point corresponding to the exiting trajectory
     # must be the intersection point closest to the trajectory's position 
-    # outside the sphere
+    # outside the sphere.
+    # In the case of nans for the x_int_p/m, y_int_p/m, z_int_p/m values,
+    # both will be cast to 0s by nan_to_num, and neither will be greather than the other
     ind_p = np.where(dist_p<dist_m)[0]
     ind_m = np.where(dist_m<dist_p)[0]
     
     # keep only the intercept closest to the exit point of the trajectory
+    # pos_int will be zero when there was no exit_traj
     pos_int = np.zeros((3,len(x0)))
     pos_int[:,ind_p] = x_int_p[ind_p], y_int_p[ind_p], z_int_p[ind_p]
     pos_int[:,ind_m] = x_int_m[ind_m], y_int_m[ind_m], z_int_m[ind_m]
@@ -2169,6 +2126,7 @@ def run_sphere_fresnel_traj(refl_per_traj_nf, trans_per_traj_nf,
     # set the initial positions at the sphere boundary
     positions = np.zeros((3,nevents+1,ntraj))
     positions[:,0,:] = x_inter, y_inter, z_inter
+
 
     # TODO: get rid of trajectories whose initial weights are 0
     # find indices where initial weights are 0

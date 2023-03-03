@@ -189,10 +189,12 @@ def n(material, wavelen, index_data=None, wavelength_data=None, kind='linear'):
     if material == 'data':
         if index_data is None or wavelength_data is None:
             raise KeyError("'data' material requires input of index and corresponding wavelength data.")
-                            
-        fit = interp1d(wavelength_data, index_data, kind=kind) 
+
+        if isinstance(index_data, Quantity):
+            index_data = index_data.magnitude     
+        fit = interp1d(wavelength_data.magnitude, index_data, kind=kind) 
         wavelen = np.round(wavelen.to(wavelength_data.units), 2)
-        return Quantity(fit(wavelen), '')
+        return Quantity(fit(wavelen.magnitude), '')
         
     else:
         if index_data is not None or wavelength_data is not None:

@@ -110,6 +110,8 @@ def select_events(inarray, events):
     
     '''
     # make inarray a numpy array if not already
+    if isinstance(inarray, Quantity):
+        inarray = inarray.magnitude
     inarray = np.array(inarray)
     
     # there is no 0th event, so disregard a 0 (or less) in the events array

@@ -215,7 +215,7 @@ def calc_pdf(x, y, z, radius,
             pdf_array = np.nan
         
         else:
-            pdf = gaussian_kde(nu_edge_correct, bw_method=kernel_bin_width, weights = weights_edge_correct)
+            pdf = gaussian_kde(nu_edge_correct.magnitude, bw_method=kernel_bin_width, weights = weights_edge_correct)
         
             # calculate the pdf for specific nu values
             theta = np.linspace(0.01, np.pi, 200)# 0.01

@@ -163,6 +163,7 @@ class Trajectory:
                  phase = None,
                  fields = None):
         """
+        # TODO: remove phase and polarization as they have been replaced by fields
         Constructor for Trajectory object.
         
         Attributes
@@ -175,8 +176,9 @@ class Trajectory:
             Dimensions of (nevents, number of trajectories)
         
         """
-
+      
         self.position = position
+        #print('position[0,0,0]' + str(self.position[0,0,0]))
         self.direction = direction
         self.weight = weight
         self.polarization = polarization
@@ -253,6 +255,7 @@ class Trajectory:
     def polarize(self, theta, phi, sintheta, costheta, sinphi, cosphi,
                  n_particle, n_sample, radius, wavelen, volume_fraction):
         """
+        TODO: remove this function. it is deprecated
         Calculates local x and y polarization rotated in reference frame where 
         initial polarization is x-polarized.
         
@@ -667,7 +670,12 @@ class Trajectory:
         """
 
         displacement = self.position
-        displacement[:, 1:, :] = step * self.direction
+        if not isinstance(displacement, sc.Quantity):
+            step = step.to('um').magnitude
+            direction = self.direction.magnitude
+        else:
+            direction = self.direction
+        displacement[:, 1:, :] = step * direction
 
         # The array of positions is a cumulative sum of all of the
         # displacements
@@ -737,6 +745,8 @@ def initialize(nevents, ntraj, n_medium, n_sample, boundary, seed=None,
                fields=False,
                coarse_roughness=0.):
     """
+    TODO: get rid of phase and polarization arguments as they have been replaced by fields
+
     Sets the trajectories' initial conditions (position, direction, weight,
     and polarization if set to True).
     The initial positions are determined randomly in the x-y plane.
@@ -1082,6 +1092,7 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
               effective_medium_struct=True, 
               effective_medium_form=True):
     """
+    TODO: change keyword polarization to fields
     Calculates the phase function and scattering coefficient from either the
     single scattering model or Mie theory. Calculates the absorption coefficient
     from Mie theory.
@@ -1191,21 +1202,14 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
     x_eff=None
     if effective_medium_form and effective_medium_struct:
         n_sample = n_sample
-        print('S and F')
     if effective_medium_struct and not effective_medium_form:
         n_sample_eff = n_sample
         x_eff = size_parameter(wavelen, n_sample_eff, radius)
         n_sample = n_matrix
-        print('S only')
-        print(n_sample_eff)
     if not effective_medium_form and not effective_medium_struct:
         n_sample = n_matrix
-        print('no S or F')
-        
-    print(n_sample)
-    print(n_matrix)
 
-    k = 2 * np.pi * n_sample / wavelen     
+    k = 2 * np.pi * n_sample / wavelen    
     m = index_ratio(n_particle, n_sample)
     x = size_parameter(wavelen, n_sample, radius)
 
@@ -1221,10 +1225,11 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
     # general formula.
     if concentration is None:
         concentration = sc.Quantity(np.array([1,0]), '')
-    term1 = 1/(radius.max()**3 + radius2.max()**3 * concentration[1]/concentration[0])
-    term2 = 1/(radius2.max()**3 + radius.max()**3 * concentration[0]/concentration[1])
+    with np.errstate(divide='ignore', invalid='ignore'):
+        term1 = 1/(radius.max()**3 + radius2.max()**3 * concentration[1]/concentration[0])
+        term2 = 1/(radius2.max()**3 + radius.max()**3 * concentration[0]/concentration[1])
+    np.seterr(divide='warn', invalid='warn')
     number_density = 3.0 * volume_fraction / (4.0 * np.pi) * (term1 + term2)
-    
     # if the system is polydisperse, use the polydisperse form and structure 
     # factors
     if polydisperse == True:
@@ -1236,7 +1241,7 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
         
         form_type = 'polydisperse'
         structure_type = 'polydisperse'
-        
+    
     # define the mean diameters in case the system is polydisperse    
     mean_diameters = sc.Quantity(np.array([2*radius.magnitude, 2*radius2.magnitude]),
                                  radius.units)
@@ -1246,14 +1251,12 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
         # The absorption coefficient can be calculated from the imaginary 
         # component of the samples's refractive index
         mu_abs = 4*np.pi*n_sample.imag/wavelen
-
     else:
         # TODO check that cabs still valid for polarized light
         # this else statement is basically pointless. The cabs is zero if there is no imaginary part.
         cross_sections = mie.calc_cross_sections(m, x, wavelen/n_sample)  
         cabs_part = cross_sections[2]                                               
         mu_abs = cabs_part * number_density
-      
     
     # define angles at which phase function will be calculated, based on 
     # whether light is polarized or unpolarized
@@ -1289,7 +1292,6 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
                                     structure_s_data=structure_s_data,
                                     structure_qd_data=structure_qd_data,
                                     x_eff=x_eff)
-
     mu_scat = number_density * cscat_total
     
     # Here, the resulting units of mu_scat and mu_abs are nm^2/um^3. Thus, we 

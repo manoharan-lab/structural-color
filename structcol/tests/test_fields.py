@@ -48,12 +48,12 @@ def test_2pi_shift():
     n_sample = ri.n_eff(n_particle,         # refractive index of sample, calculated using Bruggeman approximation
                         n_matrix, 
                         volume_fraction)
-    thickness = sc.Quantity('800 um')
+    thickness = sc.Quantity('50 um')
     boundary = 'film'
     
     # Monte Carlo parameters
     ntrajectories = 10                # number of trajectories
-    nevents = 10                         # number of scattering events in each trajectory
+    nevents = 30                      # number of scattering events in each trajectory
     
     # Calculate scattering quantities
     p, mu_scat, mu_abs = mc.calc_scat(radius, n_particle, n_sample, 
@@ -146,7 +146,7 @@ def test_pi_shift_zero():
     directions = np.array([kz,kz,kz])
     weights = np.array([[1, 1],[1, 1],[1, 1]])
     trajectories = mc.Trajectory([x_pos, np.nan, z_pos],directions, weights)
-    trajectories.fields = np.zeros((3, nevents, ntrajectories))
+    trajectories.fields = np.zeros((3, nevents, ntrajectories), dtype=np.complex)
     trajectories.fields[:,2,0] = 1
     trajectories.fields[:,2,1] = np.exp(np.pi*1j)
 
@@ -217,65 +217,6 @@ def test_field_normalized():
                        np.conj(trajectories.fields[2,:,:])*trajectories.fields[2,:,:])
                               
     assert_almost_equal(np.sum(field_mag)/(ntrajectories*(nevents+1)), 1, decimal=15)
-   
-def test_pol_perp_direction():
-    # calculate fields and directions
-    # incident light wavelength
-    wavelength = sc.Quantity('600 nm')
-    
-    # sample parameters
-    radius = sc.Quantity('0.140 um')
-    volume_fraction = sc.Quantity(0.55, '')
-    n_imag = 2.1e-4
-    n_particle = ri.n('polystyrene', wavelength) + n_imag*1j    # refractive indices can be specified as pint quantities or
-    n_matrix = ri.n('vacuum', wavelength)      # called from the refractive_index module. n_matrix is the 
-    n_medium = ri.n('vacuum', wavelength)      # space within sample. n_medium is outside the sample
-    n_sample = ri.n_eff(n_particle,         # refractive index of sample, calculated using Bruggeman approximation
-                        n_matrix, 
-                        volume_fraction)
-    boundary = 'film'
-    
-    # Monte Carlo parameters
-    ntrajectories = 10                # number of trajectories
-    nevents = 10                         # number of scattering events in each trajectory
-    
-    # Calculate scattering quantities
-    p, mu_scat, mu_abs = mc.calc_scat(radius, n_particle, n_sample, 
-                                      volume_fraction, wavelength, polarization=False)
-    
-    # Initialize trajectories
-    r0, k0, W0, p0 = mc.initialize(nevents, ntrajectories, n_medium, n_sample, boundary, 
-                                   polarization=True)
-    r0 = sc.Quantity(r0, 'um')
-    k0 = sc.Quantity(k0, '')
-    W0 = sc.Quantity(W0, '')
-    p0 = sc.Quantity(p0,'')
-
-    trajectories = mc.Trajectory(r0, k0, W0, polarization = p0)
-
-    
-    # Sample trajectory angles
-    sintheta, costheta, sinphi, cosphi, theta, phi= mc.sample_angles(nevents, 
-                                                               ntrajectories,p)
-    # Sample step sizes
-    step = mc.sample_step(nevents, ntrajectories, mu_scat)
-    
-    # Update trajectories based on sampled values
-    trajectories.scatter(sintheta, costheta, sinphi, cosphi)
-    trajectories.move(step)
-    trajectories.polarize(theta, phi, sintheta, costheta, sinphi,cosphi,
-                          n_particle, n_sample, radius, wavelength, volume_fraction)
-    trajectories.absorb(mu_abs, step) 
-
-    # take the dot product
-    trajectories.direction = trajectories.direction.magnitude
-    trajectories.polarization = trajectories.polarization.magnitude
-
-    dot_prod = (trajectories.direction[0,:,:]*trajectories.polarization[0,:,:] +
-               trajectories.direction[1,:,:]*trajectories.polarization[1,:,:] +
-               trajectories.direction[2,:,:]*trajectories.polarization[2,:,:])
-    
-    assert_almost_equal(np.sum(dot_prod), 0., decimal=14) 
     
 def test_field_perp_direction():
     # calculate fields and directions

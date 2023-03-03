@@ -30,7 +30,7 @@ from .. import montecarlo as mc
 from .. import detector as det
 from .. import refractive_index as ri
 import numpy as np
-from numpy.testing import assert_almost_equal
+from numpy.testing import assert_almost_equal, assert_warns
 
 # Define a system to be used for the tests
 nevents = 3
@@ -89,7 +89,8 @@ def test_calc_refl_trans():
     z_pos = np.array([[0,0,0,0],[1,1,1,1],[-1,11,2,11],[-2,12,4,12]])
     weights = np.ones((3,4))
     trajectories = mc.Trajectory([x_pos, y_pos, z_pos],[kx, ky, kz], weights) 
-    refl, trans = det.calc_refl_trans(trajectories, assembly_radius, small_n, small_n, 'sphere',
+    with assert_warns(UserWarning):
+        refl, trans = det.calc_refl_trans(trajectories, assembly_radius, small_n, small_n, 'sphere',
                                      p=p, mu_abs=mu_abs, mu_scat=mu_scat, run_fresnel_traj=True)
     # since the tir=True reruns the stuck trajectory, we don't know whether it will end up reflected or transmitted
     # all we can know is that the end refl + trans > 0.99

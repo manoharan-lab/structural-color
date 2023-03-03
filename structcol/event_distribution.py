@@ -8,7 +8,7 @@ Created on Wed Jan 31 17:38:47 2018
 import numpy as np
 import matplotlib.pyplot as plt
 import structcol as sc
-from structcol.detector import select_events
+from . import select_events
 from structcol.detector import fresnel_pass_frac
 from structcol import detector as det
     

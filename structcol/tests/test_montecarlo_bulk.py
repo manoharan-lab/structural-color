@@ -27,7 +27,7 @@ import structcol.refractive_index as ri
 from structcol import montecarlo as mc
 from structcol import detector as det
 from structcol import phase_func_sphere as pfs
-from numpy.testing import assert_equal, assert_almost_equal
+from numpy.testing import assert_equal, assert_almost_equal, assert_warns
 
 ### Set parameters ###
 
@@ -141,15 +141,16 @@ def test_mu_scat_abs_bulk():
 
     
     # make sure mu_abs reaches limit when there is no scattering
-    _, mu_scat_bulk, mu_abs_bulk = pfs.calc_scat_bulk(np.zeros((ntrajectories)), 
-                                                      np.zeros((ntrajectories)),
-                                                      refl_indices,
-                                                      trans_indices, 
-                                                      norm_refl, norm_trans, 
-                                                      volume_fraction_bulk, 
-                                                      sphere_boundary_diameter,
-                                                      n_matrix_bulk,
-                                                      wavelength)
+    with assert_warns(UserWarning):
+        _, mu_scat_bulk, mu_abs_bulk = pfs.calc_scat_bulk(np.zeros((ntrajectories)), 
+                                                        np.zeros((ntrajectories)),
+                                                        refl_indices,
+                                                        trans_indices, 
+                                                        norm_refl, norm_trans, 
+                                                        volume_fraction_bulk, 
+                                                        sphere_boundary_diameter,
+                                                        n_matrix_bulk,
+                                                        wavelength)
 
     number_density = volume_fraction_bulk.magnitude/(4/3*np.pi*
                                         (sphere_boundary_diameter.magnitude/2)**3)

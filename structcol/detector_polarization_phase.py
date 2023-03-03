@@ -923,7 +923,7 @@ def calc_refl_phase_fields(trajectories, refl_indices, refl_per_traj,
     ntraj = len(trajectories.direction[0,0,:]) 
     nevents = len(trajectories.direction[0,:,0]) 
     
-    if np.any(refl_indices!=0):
+    if np.all(refl_indices==0):
         no_refl_warn = "No trajectories were reflected. Check sample parameters or increase number of trajectories."
         warnings.warn(no_refl_warn)
     if isinstance(trajectories.weight, sc.Quantity):

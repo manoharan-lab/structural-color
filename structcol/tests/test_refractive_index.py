@@ -175,7 +175,7 @@ def test_data():
     # Test that we can input data for refractive index
     wavelength = Quantity(np.array([400,500,600]), 'nm')
     data = Quantity(np.array([1.5,1.55,1.6]), '')
-    assert_equal(ri.n('data', wavelength, index_data=data, wavelength_data=wavelength).magnitude.all(), data.all())
+    assert_equal(ri.n('data', wavelength, index_data=data, wavelength_data=wavelength).magnitude.all(), data.magnitude.all())
     
     # Test that it also works for complex values
     data_complex = np.array([1.5+0.01j,1.55+0.02j,1.6+0.03j])
