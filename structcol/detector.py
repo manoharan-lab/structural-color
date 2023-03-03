@@ -71,6 +71,8 @@ def select_events(inarray, events):
     
     '''
     # make inarray a numpy array if not already
+    if isinstance(inarray, sc.Quantity):
+        inarray = inarray.magnitude
     inarray = np.array(inarray)
     
     # there is no 0th event, so disregard a 0 (or less) in the events array
@@ -2346,7 +2348,7 @@ def calc_haze(trajectories, trans_per_traj, transmittance, trans_indices,
     
     
 #------------------------------------------------------------------------------
-#    # For implementing coarse roughness when the trajectories exit the sample
+#    # TODO For implementing coarse roughness when the trajectories exit the sample
 #    nev = z.shape[0]    
 #    # sample the surface roughness angles theta_a
 #    if coarse_roughness == 0.:
