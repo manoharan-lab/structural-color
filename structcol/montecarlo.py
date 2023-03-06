@@ -1115,11 +1115,6 @@ def phase_function(m, x, angles, volume_fraction, k, number_density,
     structure_type: str or None
         structure factor desired for calculation. Can be 'glass', 'paracrystal', 
         'polydisperse', 'data', or None. 
-    mie_theory: bool
-        If TRUE, phase function is calculated according to Mie theory 
-        (assuming no contribution from structure factor). If FALSE, phase
-        function is calculated according to single scattering theory 
-        (which uses Mie and structure factor contributions)
     coordinate_system: string
         default value 'scattering plane' means scattering calculations will be 
         carried out in the basis defined by basis vectors parallel and 
@@ -1153,12 +1148,6 @@ def phase_function(m, x, angles, volume_fraction, k, number_density,
         distance = diameters/2
     else:
         distance = diameters.max()/2 
-  
-    # If mie_theory = True, calculate the phase function for 1 particle 
-    # using Mie theory (excluding the structure factor)
-    # TODO: get rid of keyword mie_theory
-    if mie_theory == True:
-        structure_type = None
     
     # Note that we ignore near fields throughout structcol since we assume 
     # that the scattering length is larger than the distance at which near
@@ -1176,8 +1165,10 @@ def phase_function(m, x, angles, volume_fraction, k, number_density,
                                              coordinate_system=coordinate_system,
                                              phis=phis,
                                              concentration=concentration,
-                                             pdi=pdi, wavelen=wavelen, 
-                                             n_matrix=n_sample, k=k, 
+                                             pdi=pdi, 
+                                             wavelen=wavelen, 
+                                             n_matrix=n_sample, 
+                                             k=k, 
                                              distance=distance,
                                              structure_s_data=structure_s_data,
                                              structure_qd_data=structure_qd_data, 

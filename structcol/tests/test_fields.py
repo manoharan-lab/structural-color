@@ -57,7 +57,7 @@ def test_2pi_shift():
     
     # Calculate scattering quantities
     p, mu_scat, mu_abs = mc.calc_scat(radius, n_particle, n_sample, 
-                                      volume_fraction, wavelength, polarization= True)
+                                      volume_fraction, wavelength, fields=True)
     
     # Initialize trajectories
     r0, k0, W0, E0 = mc.initialize(nevents, ntrajectories, n_medium, n_sample, boundary, 
@@ -182,7 +182,7 @@ def test_field_normalized():
     
     # Calculate scattering quantities
     p, mu_scat, mu_abs = mc.calc_scat(radius, n_particle, n_sample, 
-                                      volume_fraction, wavelength, polarization=False)
+                                      volume_fraction, wavelength, fields=True)
     
     # Initialize trajectories
     r0, k0, W0, E0 = mc.initialize(nevents, ntrajectories, n_medium, n_sample, boundary, 
@@ -241,7 +241,7 @@ def test_field_perp_direction():
     
     # Calculate scattering quantities
     p, mu_scat, mu_abs = mc.calc_scat(radius, n_particle, n_sample, 
-                                      volume_fraction, wavelength, polarization=False)
+                                      volume_fraction, wavelength, fields=True)
     
     # Initialize trajectories
     r0, k0, W0, E0 = mc.initialize(nevents, ntrajectories, n_medium, n_sample, boundary, 
