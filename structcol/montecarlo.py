@@ -996,9 +996,8 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
     # calculate the absorption coefficient
     mu_abs = 4*np.pi*n_sample.imag/wavelen
     
-    # define angles at which phase function will be calculated, based on 
+    # Define angles at which phase function will be calculated, based on 
     # whether light is polarized or unpolarized
-    
     # Scattering angles (typically from a small angle to pi). A non-zero small 
     # angle is needed because in the single scattering model, if the analytic 
     # formula is used, S(q=0) returns nan. To prevent any errors or warnings, 
@@ -1024,7 +1023,6 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
                                     pdi=pdi, n_sample=n_sample,
                                     form_type=form_type,
                                     structure_type=structure_type,
-                                    mie_theory=mie_theory,
                                     coordinate_system=coordinate_system,
                                     phis = phis,
                                     structure_s_data=structure_s_data,
@@ -1054,8 +1052,7 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
                                             concentration=concentration, 
                                             pdi=pdi, n_sample=n_matrix,
                                             form_type=form_type,
-                                            structure_type=structure_type,
-                                            mie_theory=True,
+                                            structure_type=None,
                                             coordinate_system=coordinate_system,
                                             phis=phis)
         mu_scat_mie = number_density * cscat_total_mie
@@ -1067,10 +1064,17 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
     
 
 def phase_function(m, x, angles, volume_fraction, k, number_density,
-                   wavelen=None, diameters=None, concentration=None, pdi=None, 
-                   n_sample=None, form_type='sphere', structure_type='glass', 
-                   mie_theory=False, coordinate_system = 'scattering plane', 
-                   phis=None, structure_s_data=None, structure_qd_data=None,
+                   wavelen=None, 
+                   diameters=None, 
+                   concentration=None, 
+                   pdi=None, 
+                   n_sample=None, 
+                   form_type='sphere', 
+                   structure_type='glass', 
+                   coordinate_system = 'scattering plane', 
+                   phis=None, 
+                   structure_s_data=None, 
+                   structure_qd_data=None,
                    x_eff=None):
     """
     Calculates the phase function (the phase function is the same for absorbing 
