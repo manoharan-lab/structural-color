@@ -946,7 +946,7 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
     """
 
     # calculate parameters for scattering calculations
-    x_eff=None
+    x_eff = None
     if effective_medium_form and effective_medium_struct:
         n_sample = n_sample
     if effective_medium_struct and not effective_medium_form:
@@ -994,16 +994,7 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
                                  radius.units)
                          
     # calculate the absorption coefficient
-    if np.abs(n_sample.imag.magnitude) > 0.0: 
-        # The absorption coefficient can be calculated from the imaginary 
-        # component of the samples's refractive index
-        mu_abs = 4*np.pi*n_sample.imag/wavelen
-    else:
-        # TODO check that cabs still valid for polarized light
-        # this else statement is basically pointless. The cabs is zero if there is no imaginary part.
-        cross_sections = mie.calc_cross_sections(m, x, wavelen/n_sample)  
-        cabs_part = cross_sections[2]                                               
-        mu_abs = cabs_part * number_density
+    mu_abs = 4*np.pi*n_sample.imag/wavelen
     
     # define angles at which phase function will be calculated, based on 
     # whether light is polarized or unpolarized
