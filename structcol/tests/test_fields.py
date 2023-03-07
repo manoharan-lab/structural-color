@@ -70,8 +70,8 @@ def test_2pi_shift():
     trajectories = mc.Trajectory(r0, k0, W0, fields=E0)
     
     # Sample trajectory angles
-    sintheta, costheta, sinphi, cosphi, theta, phi= mc.sample_angles(nevents, 
-                                                               ntrajectories,p)
+    sintheta, costheta, sinphi, cosphi, theta, phi = mc.sample_angles(nevents, 
+                                                                      ntrajectories, p)
     # Sample step sizes
     step = mc.sample_step(nevents, ntrajectories, mu_scat)
     
@@ -80,26 +80,33 @@ def test_2pi_shift():
     trajectories.move(step)
     trajectories.absorb(mu_abs, step)  
     trajectories.calc_fields(theta, phi, sintheta, costheta, sinphi, cosphi,
-                                 n_particle, n_sample, radius, wavelength, 
-                                 step, volume_fraction)
+                             n_particle, n_sample, radius, wavelength, 
+                             step, volume_fraction)
     
     # calculate reflectance
-    refl_trans_result = det.calc_refl_trans(trajectories, thickness, n_medium, n_sample, boundary, 
-                                                 return_extra=True)
+    refl_trans_result = det.calc_refl_trans(trajectories, thickness, n_medium, 
+                                            n_sample, boundary, 
+                                            return_extra=True)
 
     refl_indices = refl_trans_result[0]
     refl_per_traj = refl_trans_result[3]
-    reflectance_fields, _ = detp.calc_refl_phase_fields(trajectories, refl_indices, refl_per_traj)
+    reflectance_fields, _ = detp.calc_refl_phase_fields(trajectories, 
+                                                        refl_indices, 
+                                                        refl_per_traj)
     
     # now do mod 2pi
     trajectories.fields = trajectories.fields*np.exp(2*np.pi*1j)
-    reflectance_fields_shift, _ = detp.calc_refl_phase_fields(trajectories, refl_indices, refl_per_traj)
+    reflectance_fields_shift, _ = detp.calc_refl_phase_fields(trajectories, 
+                                                              refl_indices, 
+                                                              refl_per_traj)
     
-    assert_almost_equal(reflectance_fields, reflectance_fields_shift, decimal=15)
+    assert_almost_equal(reflectance_fields, reflectance_fields_shift,
+                        decimal=15)
     
+
 def test_intensity_coherent():
-# tests that the intensity of the summed fields correspond to the equation for
-# coherent light: Ix = E_x1^2 + E_x2^2 + 2E_x1*E_x2
+#  tests that the intensity of the summed fields correspond to the equation for
+#  coherent light: Ix = E_x1^2 + E_x2^2 + 2E_x1*E_x2
 
     # construct 2 identical trajectories that exit at same event
     ntrajectories = 2

@@ -40,10 +40,12 @@ from pymie import multilayer_sphere_lib as msl
 import scipy
 from scipy.special import factorial
 
-@ureg.check('[]', '[]', '[]', '[length]', '[length]', '[]', None, None, None, 
+
+@ureg.check('[]', '[]', '[]', '[length]', '[length]', '[]', None, None, None,
             None, None, None, None, None, None, None, None, None, None, None,
             None, None, None, None)
-def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
+def reflection(n_particle, n_matrix, n_medium, wavelen, radius,
+               volume_fraction,
                radius2=None, 
                concentration=None,
                pdi=None,
@@ -145,12 +147,12 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
         reasonable for all calculations.
     structure_type: string, dictionary, or None (optional)
         Can be string specifying structure type. Current options are "glass",
-        "paracrystal", "polydisperse", "data", or None. Can also be dictionary specifying 
-        structure type and parameters for structures that require them. Expects 
-        keys of 'name': 'paracrystal', and 'sigma': int or float. Can also set 
-        to None in order to only visualize effect of form factor on reflectance 
-        spectrum. If set to 'data', you must also provide structure_s_data 
-        and structure_qd_data.
+        "paracrystal", "polydisperse", "data", or None. Can also be dictionary 
+        specifying structure type and parameters for structures that require 
+        them. Expects keys of 'name': 'paracrystal', and 'sigma': int or float. 
+        Can also set to None in order to only visualize effect of form factor 
+        on reflectance spectrum. If set to 'data', you must also provide 
+        structure_s_data and structure_qd_data.
     form_type: string or None (optional)
         String specifying form factor type. Currently, 'sphere' or 
         'polydisperse' are the options. Can also set to None in order to only 
@@ -200,7 +202,8 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
         radius2 = radius
     
     # define the mean diameters in case the system is polydisperse
-    mean_diameters = Quantity(np.array([2*radius.magnitude, 2*radius2.magnitude]),
+    mean_diameters = Quantity(np.array([2*radius.magnitude, 
+                                        2*radius2.magnitude]),
                               radius.units)
     
     # General number density formula for binary systems, converges to monospecies 
@@ -209,8 +212,8 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
     # general formula.
     if concentration is None:
         concentration = Quantity(np.array([1,0]), '')
-    term1 = 1/(radius.max()**3 + radius2.max()**3 * concentration[1]/concentration[0])
-    term2 = 1/(radius2.max()**3 + radius.max()**3 * concentration[0]/concentration[1])
+    term1 = 1 / (radius.max() ** 3 + radius2.max() ** 3 * concentration[1]/concentration[0])
+    term2 = 1 / (radius2.max() ** 3 + radius.max() ** 3 * concentration[0]/concentration[1])
     rho = 3.0 * volume_fraction / (4.0 * np.pi) * (term1 + term2)
     
     # check that the number of indices and radii is the same
@@ -220,7 +223,7 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
     # calculate array of volume fractions of each layer in the particle. If 
     # particle is not core-shell, volume fraction remains the same
     vf_array = np.empty(len(np.atleast_1d(radius)))
-    r_array = np.array([0] + np.atleast_1d(radius.magnitude).tolist()) 
+    r_array = np.array([0] + np.atleast_1d(radius.magnitude).tolist())
     for r in np.arange(len(r_array)-1):
         vf_array[r] = (r_array[r+1]**3-r_array[r]**3) / (r_array[-1:]**3) * volume_fraction.magnitude
     if len(vf_array) == 1:
@@ -228,39 +231,34 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
 
     # use Bruggeman formula to calculate effective index of
     # particle-matrix composite
-    n_sample_eff=None
+    n_sample_eff = None
 
     if effective_medium_form and effective_medium_struct:
         n_sample = ri.n_eff(n_particle, n_matrix, vf_array, 
                             maxwell_garnett=maxwell_garnett)
-        print('S and F')
     if effective_medium_struct and not effective_medium_form:
-    	n_sample_eff = ri.n_eff(n_particle, n_matrix, vf_array, 
-                            maxwell_garnett=maxwell_garnett)
-    	n_sample = n_matrix
-    	print('S only')
+        n_sample_eff = ri.n_eff(n_particle, n_matrix, vf_array, 
+                                maxwell_garnett=maxwell_garnett)
+        n_sample = n_matrix
     if not effective_medium_form and not effective_medium_struct:
         n_sample = n_matrix
-        print('no S or F')
-
-    print(n_sample)
 
     if len(np.atleast_1d(radius)) > 1:
-        m = index_ratio(n_particle, n_sample).flatten()  
+        m = index_ratio(n_particle, n_sample).flatten()
         x = size_parameter(wavelen, n_sample, radius).flatten()
         if effective_medium_struct and not effective_medium_form:
-        	x_eff = size_parameter(wavelen, n_sample_eff, radius).flatten()
+            x_eff = size_parameter(wavelen, n_sample_eff, radius).flatten()
         else:
-        	x_eff=None
+            x_eff = None
     else:
         m = index_ratio(n_particle, n_sample)
         x = size_parameter(wavelen, n_sample, radius)
         if effective_medium_struct and not effective_medium_form:
-        	x_eff = size_parameter(wavelen, n_sample_eff, radius)
+            x_eff = size_parameter(wavelen, n_sample_eff, radius)
         else:
-        	x_eff=None
-  
-    k = 2*np.pi*n_sample/wavelen  
+            x_eff = None
+
+    k = 2 * np.pi * n_sample / wavelen
 
     # calculate transmission and reflection coefficients at first interface
     # between medium and sample
@@ -279,8 +277,8 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
     # light exits into the medium at (180-theta_min) degrees from the normal.
     # (Snell's law: n_medium sin(alpha_medium) = n_sample sin(alpha_sample)
     # where alpha = pi - theta)
-    sin_alpha_sample_theta_min = np.sin(np.pi-theta_min) * n_medium/np.abs(n_sample)   # TODO: use n_sample.real or abs(n_sample)?
-    sin_alpha_sample_theta_max = np.sin(np.pi-theta_max) * n_medium/np.abs(n_sample)
+    sin_alpha_sample_theta_min = np.sin(np.pi-theta_min) * n_medium / np.abs(n_sample)   # TODO: use n_sample.real or abs(n_sample)?
+    sin_alpha_sample_theta_max = np.sin(np.pi-theta_max) * n_medium / np.abs(n_sample)
 
     if sin_alpha_sample_theta_min >= 1:
         # in this case, theta_min and the ratio of n_medium/n_sample are
@@ -304,20 +302,20 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
     # coefficient*sin(theta) over angles to get sigma_detected (eq 5)
     angles = Quantity(np.linspace(theta_min_refracted, theta_max_refracted, 
                                   num_angles), 'rad')                          
-    angles_tot = Quantity(np.linspace(0.0+small_angle, np.pi, num_angles), 'rad')
-    azi_angle_range = Quantity(phi_max-phi_min,'rad')
-    azi_angle_range_tot = Quantity(2*np.pi,'rad')
+    angles_tot = Quantity(np.linspace(0.0 + small_angle, np.pi, num_angles), 'rad')
+    azi_angle_range = Quantity(phi_max - phi_min,'rad')
+    azi_angle_range_tot = Quantity(2 * np.pi, 'rad')
     
     transmission = fresnel_transmission(n_sample, n_medium, np.pi-angles)
     
     # calculate the absorption cross section
     if np.abs(n_sample.imag.magnitude) > 0.0:
-       # The absorption coefficient can be calculated from the imaginary 
+        # The absorption coefficient can be calculated from the imaginary 
         # component of the samples's refractive index
-        mu_abs = 4*np.pi*n_sample.imag/wavelen
+        mu_abs = 4 * np.pi * n_sample.imag / wavelen
         cabs_total = mu_abs / rho
     else:
-        cross_sections = mie.calc_cross_sections(m, x, wavelen/n_sample)  
+        cross_sections = mie.calc_cross_sections(m, x, wavelen/n_sample)
         cabs_total = cross_sections[2]   
 
     # calculate the differential cross section in the detected range of angles  
@@ -327,9 +325,9 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
     # when the calculation is done not over all angles but only a subset. 
     # When there isn't absorption, the distance does not enter the calculation. 
     if form_type=='polydisperse':
-        distance = mean_diameters/2
+        distance = mean_diameters / 2
     else:
-        distance = mean_diameters.max()/2
+        distance = mean_diameters.max() / 2
         
     diff_cs_detected = differential_cross_section(m, x, angles, volume_fraction,
                                                   structure_type=structure_type, 
@@ -354,19 +352,19 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
                                                x_eff=x_eff) 
 
     # integrate the differential cross sections to get the total cross section    
-    if np.abs(n_sample.imag.magnitude) > 0.: 
-        if form_type=='polydisperse' and len(concentration)>1:
+    if np.abs(n_sample.imag.magnitude) > 0.:
+        if form_type == 'polydisperse' and len(concentration) > 1:
             # When the system is binary and absorbing, we integrate the 
             # polydisperse differential cross section at the surface of each
             # component (meaning at a distance of each mean radius). Then we
             # do a number average the total cross sections. 
-            cscat1 = mie.integrate_intensity_complex_medium(diff_cs_detected[0]*transmission[0], 
-                                                       diff_cs_detected[1]*transmission[1], 
+            cscat1 = mie.integrate_intensity_complex_medium(diff_cs_detected[0] * transmission[0], 
+                                                       diff_cs_detected[1] * transmission[1], 
                                                        distance[0], angles, k,
                                                        phi_min=Quantity(phi_min, 'rad'), 
                                                        phi_max=Quantity(phi_max, 'rad'))      
-            cscat2 = mie.integrate_intensity_complex_medium(diff_cs_detected[0]*transmission[0], 
-                                                       diff_cs_detected[1]*transmission[1], 
+            cscat2 = mie.integrate_intensity_complex_medium(diff_cs_detected[0] * transmission[0], 
+                                                       diff_cs_detected[1] * transmission[1], 
                                                        distance[1], angles, k,
                                                        phi_min=Quantity(phi_min, 'rad'), 
                                                        phi_max=Quantity(phi_max, 'rad'))              
@@ -393,12 +391,12 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius, volume_fraction,
             # the surface of each mean component of the binary mixture and
             # then average 
             factor = np.cos(angles_tot)
-            asymmetry_unpolarized1 = mie.integrate_intensity_complex_medium(diff_cs_total[0]*factor, 
-                                                                       diff_cs_total[1]*factor, 
+            asymmetry_unpolarized1 = mie.integrate_intensity_complex_medium(diff_cs_total[0] * factor, 
+                                                                       diff_cs_total[1] * factor, 
                                                                        distance[0],
                                                                        angles_tot, k)[0]  
-            asymmetry_unpolarized2 = mie.integrate_intensity_complex_medium(diff_cs_total[0]*factor, 
-                                                                       diff_cs_total[1]*factor, 
+            asymmetry_unpolarized2 = mie.integrate_intensity_complex_medium(diff_cs_total[0] * factor, 
+                                                                       diff_cs_total[1] * factor, 
                                                                        distance[1], 
                                                                        angles_tot, k)[0]  
             asymmetry_unpolarized = asymmetry_unpolarized1 * concentration[0] + asymmetry_unpolarized2 * concentration[1]  
@@ -788,7 +786,7 @@ def polydisperse_form_factor(m, angles, diameters, concentration, pdi, wavelen,
     
     # t is a measure of the width of the Schulz distribution, and
     # pdi is the polydispersity index
-    pdi = pdi.magnitude.magnitude # added for testing remove later. 
+    pdi = pdi.magnitude
     t = np.abs(1/(pdi**2)) - 1
         
     # define the range of diameters of the size distribution
@@ -866,14 +864,17 @@ def polydisperse_form_factor(m, angles, diameters, concentration, pdi, wavelen,
             
         # integrate and multiply by the concentration of the mean 
         # diameter to get the polydisperse form factor
-        if coordinate_system=='cartesian':
+        if isinstance(concentration, Quantity):
+            concentration = concentration.magnitude
+        diameter_range = diameter_range.magnitude
+        if coordinate_system == 'cartesian':
             axis_int = 2
-            F_par[d,:,:] = np.trapz(integrand_par, x=diameter_range, axis = axis_int) * np.atleast_1d(concentration)[d]
-            F_perp[d,:,:] = np.trapz(integrand_perp, x=diameter_range, axis = axis_int) * np.atleast_1d(concentration)[d]
+            F_par[d,:,:] = np.trapz(integrand_par, x=diameter_range, axis=axis_int) * np.atleast_1d(concentration)[d]
+            F_perp[d,:,:] = np.trapz(integrand_perp, x=diameter_range, axis=axis_int) * np.atleast_1d(concentration)[d]
         else:
             axis_int = 1
-            F_par[d,:] = np.trapz(integrand_par, x=diameter_range, axis = axis_int) * np.atleast_1d(concentration)[d]
-            F_perp[d,:] = np.trapz(integrand_perp, x=diameter_range, axis = axis_int) * np.atleast_1d(concentration)[d]
+            F_par[d,:] = np.trapz(integrand_par, x=diameter_range, axis=axis_int) * np.atleast_1d(concentration)[d]
+            F_perp[d,:] = np.trapz(integrand_perp, x=diameter_range, axis=axis_int) * np.atleast_1d(concentration)[d]
         
     # the final polydisperse form factor as a function of angle is 
     # calculated as the average of each mean diameter's form factor

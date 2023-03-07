@@ -50,6 +50,7 @@ from pymie import Quantity, ureg, q, index_ratio, size_parameter, np, mie
 # Global variable speed of light
 LIGHT_SPEED_VACUUM = Quantity(2.99792e8, 'm/s')
 
+
 def refraction(angles, n_before, n_after):
     '''
     Returns angles after refracting through an interface
@@ -62,13 +63,14 @@ def refraction(angles, n_before, n_after):
         Refractive index of the medium light is coming from
     n_after: float
         Refractive index of the medium light is going to
-    
+
     '''
     snell = n_before / n_after * np.sin(angles)
-    snell[abs(snell) > 1] = np.nan # this avoids a warning
+    snell[abs(snell) > 1] = np.nan  # this avoids a warning
     return np.arcsin(snell)
 
-def normalize(x,y,z, return_nan=True):
+
+def normalize(x, y, z, return_nan=True):
     '''
     normalize a vector
     
@@ -85,15 +87,16 @@ def normalize(x,y,z, return_nan=True):
     -------
     array of normalized vector(s) components
     '''
-    magnitude = np.sqrt(np.abs(x)**2 + np.abs(y)**2 + np.abs(z)**2)    
+    magnitude = np.sqrt(np.abs(x) ** 2 + np.abs(y) ** 2 + np.abs(z) ** 2)
 
     # we ignore divide by zero error here because we do not want an error
     # in the case where we try to normalize a null vector <0,0,0>
-    with np.errstate(divide='ignore',invalid='ignore'):
-        if ~return_nan and magnitude.all()==0:
-            magnitude[magnitude==0]=1
-        return np.array([x/magnitude, y/magnitude, z/magnitude])
+    with np.errstate(divide='ignore', invalid='ignore'):
+        if ~return_nan and magnitude.all() == 0:
+            magnitude[magnitude == 0] = 1
+        return np.array([x / magnitude, y / magnitude, z / magnitude])
         
+
 def select_events(inarray, events):
     '''
     Selects the items of inarray according to event coordinates
@@ -127,7 +130,8 @@ def select_events(inarray, events):
     # find the trajectories where there are valid events
     tr = np.where(valid_events)[0]
 
-    # want output of the same form as events, so create variable for object type
+    # want output of the same form as events, so create variable 
+    # for object type
     dtype = type(np.ndarray.flatten(inarray)[0])
     
     # get an output array with elements corresponding to the input events
@@ -137,7 +141,7 @@ def select_events(inarray, events):
         
     if len(inarray.shape) == 3:
         outarray = np.zeros((inarray.shape[0], len(events)), dtype=dtype)
-        outarray[:,valid_events] = inarray[:, ev, tr]
+        outarray[:, valid_events] = inarray[:, ev, tr]
         
     if isinstance(inarray, Quantity):
         outarray = Quantity(outarray, inarray.units)

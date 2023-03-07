@@ -86,7 +86,8 @@ def factor_py(qd, phi):
     # Structure factor at qd (eq X.34 of [2]_)
     return 1.0/(1-c)
 
-def factor_para(qd, phi, sigma = .15):
+
+def factor_para(qd, phi, sigma=.15):
     """
     Calculate structure factor of a structure characterized by disorder of the 
     second kind as defined in Guinier [1]. This type of structure is referred to as
@@ -130,6 +131,7 @@ def factor_para(qd, phi, sigma = .15):
     """
     r = np.exp(-(qd*phi**(-1/3)*sigma)**2/2)
     return (1-r**2)/(1+r**2-2*r*np.cos(qd*phi**(-1/3)))
+
 
 def factor_poly(q, phi, diameters, c, pdi):
     """
@@ -186,7 +188,7 @@ def factor_poly(q, phi, diameters, c, pdi):
 
     # if the pdi is zero, assume it's very small (we get the same results)
     # because otherwise we get a divide by zero error
-    #pdi = Quantity(np.atleast_1d(pdi).astype(float), pdi.units)
+    # pdi = Quantity(np.atleast_1d(pdi).astype(float), pdi.units)
     pdi = np.atleast_1d(pdi).astype(float).magnitude
     np.atleast_1d(pdi)[np.atleast_1d(pdi) < 1e-5] = 1e-5  
 
@@ -216,13 +218,13 @@ def factor_poly(q, phi, diameters, c, pdi):
    
     #q = qd / sigma0
 
-    t2 = np.reshape(t2, (len(np.atleast_1d(t2)),1))
-    c = np.reshape(c, (len(np.atleast_1d(c)),1))
-    diameters = np.reshape(diameters, (len(np.atleast_1d(diameters)),1))
+    t2 = np.reshape(t2, (len(np.atleast_1d(t2)), 1))
+    c = np.reshape(c, (len(np.atleast_1d(c)), 1))
+    diameters = np.reshape(diameters, (len(np.atleast_1d(diameters)), 1))
     
     q_shape = q.shape
     if len(q_shape)==2:
-        q = Quantity(np.ndarray.flatten(q.magnitude), q.units) # added
+        q = Quantity(np.ndarray.flatten(q.magnitude), q.units)  # added
     s = 1j*q
     x = s*diameters
     F0 = rho 
@@ -249,7 +251,7 @@ def factor_poly(q, phi, diameters, c, pdi):
            np.pi**2*zeta2*rho/(2*Delta**2*s**2) * Ialpha2)
 
     F11 = np.sum(c*2*np.pi*rho*diameters**3/Delta * fa, axis=0)  
-    F12 = np.sum(c/diameters * ((np.pi/Delta)**2 *rho*zeta2*diameters**4*fa + 
+    F12 = np.sum(c/diameters * ((np.pi/Delta)**2 * rho * zeta2 * diameters**4*fa + 
                  np.pi*rho*diameters**3/Delta * fc), axis=0)
     F21 = np.sum(c * diameters * 2*np.pi*rho*diameters**3/Delta * fb, axis=0)
     F22 = np.sum(c * ((np.pi/Delta)**2 *rho*zeta2*diameters**4*fb + 

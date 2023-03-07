@@ -117,12 +117,13 @@ def calc_refl_phase_fields(trajectories, refl_indices, refl_per_traj,
     refl_x = np.sum(intensity_x) / intensity_incident
     refl_y = np.sum(intensity_y) / intensity_incident
     refl_z = np.sum(intensity_z) / intensity_incident
+    refl_intensity_tot = np.real(refl_non_phase / intensity_incident)
 
     if components:
         return (tot_field_x, tot_field_y, tot_field_z, refl_fields,
-                refl_non_phase / intensity_incident)
+                refl_intensity_tot)
     else:
-        return refl_fields, refl_non_phase / intensity_incident
+        return refl_fields, refl_intensity_tot
 
 
 def calc_refl_co_cross_fields(trajectories, refl_indices, refl_per_traj,
@@ -147,6 +148,12 @@ def calc_refl_co_cross_fields(trajectories, refl_indices, refl_per_traj,
      refl_intensity) = calc_refl_phase_fields(trajectories, refl_indices,
                                               refl_per_traj,
                                               components=True)
+    if isinstance(tot_field_x, sc.Quantity):
+        tot_field_x = tot_field_x.magnitude
+        tot_field_y = tot_field_y.magnitude
+        tot_field_z = tot_field_z.magnitude
+    if isinstance(det_theta, sc.Quantity):
+        det_theta = det_theta.to('radians').magnitude
 
     # Incorporate geometry of the goniometer setup.
     # Rotate the total x, y, z fields to the par/perp detector basis,
@@ -161,9 +168,9 @@ def calc_refl_co_cross_fields(trajectories, refl_indices, refl_per_traj,
                       * np.cos(det_theta))
 
     # Take the modulus to get intensity.
-    refl_co = np.conj(tot_field_co) * tot_field_co
-    refl_cr = np.conj(tot_field_cr) * tot_field_cr
-    refl_perp = np.conj(tot_field_perp) * tot_field_perp
+    refl_co = np.real(np.conj(tot_field_co) * tot_field_co)
+    refl_cr = np.real(np.conj(tot_field_cr) * tot_field_cr)
+    refl_perp = np.real(np.conj(tot_field_perp) * tot_field_perp)
 
     return (refl_co, refl_cr, refl_perp, refl_field, refl_intensity)
 

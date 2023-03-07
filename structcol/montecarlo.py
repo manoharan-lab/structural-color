@@ -125,12 +125,8 @@ class Trajectory:
     weight: ndarray (structcol.Quantity [dimensionless])
         array of photon packet weights for absorption modeling of n
         trajectories
-    polarization: ndarray (structcol.Quantity [dimensionless])
-        array of direction of polarization vectors in cartesian coordinates
-        or n trajectories after every scattering event
-    phase: ndarray (structcol.Quantity [dimensionless])
-        array of phase vectors in cartesian coordinates
-        or n trajectories after every scattering event
+    field: ndarray (structcol.Quantity [dimensionless])
+        electric fields of photon packets in cartesian coordinates
     nevents: int
         number of scattering events
     
@@ -146,22 +142,15 @@ class Trajectory:
         calculate new positions of the trajectory with given scattering 
         coefficient, obtained from either Mie theory or the single scattering 
         model.
-    polarize(theta, phi, sintheta, costheta, sinphi, cosphi, 
-             n_particle, n_sample, radius, wavelen, volume_fraction)
-        Calculates local x and y polarization rotated in reference frame where 
-        initial polarization is x-polarized.
-    shift_phase()
-        Calculates the phase shift for each trajectory
+    calc_fields()
     plot_coord(ntraj, three_dim=False)
         plot positions of trajectories as a function of number scattering
         events.
     
     """
 
-    def __init__(self, position, direction, weight, 
-                 polarization = None, 
-                 phase = None,
-                 fields = None):
+    def __init__(self, position, direction, weight,
+                 fields=None):
         """
         # TODO: remove phase and polarization as they have been replaced by fields
         Constructor for Trajectory object.
@@ -178,11 +167,8 @@ class Trajectory:
         """
       
         self.position = position
-        #print('position[0,0,0]' + str(self.position[0,0,0]))
         self.direction = direction
         self.weight = weight
-        self.polarization = polarization
-        self.phase = phase
         self.fields = fields
 
     @property
@@ -234,26 +220,28 @@ class Trajectory:
         # event. The trajectory steps first, then scatters. The reason that we don't
         # extend the arange to nevents + 1 is that we still count this original 
         # initialized direction as an event, since the step size must be sampled
-        # once it enters the material. 
-        for n in np.arange(1,self.nevents):
+        # once it enters the material.
+        for n in np.arange(1, self.nevents):
             # Calculate the new x, y, z coordinates of the propagation direction
             # using the following equations, which can be derived by using matrix
             # operations to perform a rotation about the y-axis by angle theta
             # followed by a rotation about the z-axis by angle phi
             # see pg 105 in A.B. Stephenson lab notebook 1 for derivation and
             # notes
-            kn[0,n,:] = ((kn[0,n-1,:]*costheta[n-1,:] + kn[2,n-1,:]*sintheta[n-1,:])*
-                  cosphi[n-1,:]) - kn[1,n-1,:]*sinphi[n-1,:]
-            kn[1,n,:] = ((kn[0,n-1,:]*costheta[n-1,:] + kn[2,n-1,:]*sintheta[n-1,:])*
-                  sinphi[n-1,:]) + kn[1,n-1,:]*cosphi[n-1,:]
-            kn[2,n,:] = -kn[0,n-1,:]*sintheta[n-1,:] + kn[2,n-1,:]*costheta[n-1,:]
-        
+            kn[0, n, :] = ((kn[0, n - 1, :] * costheta[n - 1, :]
+                            + kn[2, n - 1, :] * sintheta[n - 1, :]) *
+                           cosphi[n - 1, :]) - kn[1, n - 1, :] * sinphi[n - 1, :]
+            kn[1, n, :] = ((kn[0, n - 1, :] * costheta[n - 1, :]
+                            + kn[2, n - 1, :] * sintheta[n - 1, :]) *
+                           sinphi[n - 1, :]) + kn[1, n - 1, :] * cosphi[n - 1, :]
+            kn[2, n, :] = -kn[0, n - 1, :] * sintheta[n - 1, :] + kn[2, n - 1, :] * costheta[n - 1, :]
+
         # Update all the directions of the trajectories
         self.direction = sc.Quantity(kn, self.direction.units)
-            
+
     def calc_fields(self, theta, phi, sintheta, costheta, sinphi, cosphi,
-                 n_particle, n_sample, radius, wavelen, step, volume_fraction, 
-                 fine_roughness=0, tir_refl_bool=None):
+                    n_particle, n_sample, radius, wavelen, step, volume_fraction, 
+                    fine_roughness=0, tir_refl_bool=None):
         """
         Calculates local x and y polarization rotated in reference frame where 
         initial polarization is x-polarized. Assumes the incident light is in 
@@ -323,7 +311,7 @@ class Trajectory:
         """
         m = index_ratio(n_particle, n_sample)
         x = size_parameter(wavelen, n_sample, radius)
-        k = 2*np.pi*n_sample.magnitude/wavelen.magnitude
+        k = 2 * np.pi * n_sample.magnitude / wavelen.magnitude
         step = step.magnitude
         ntraj = theta.shape[1]
          
@@ -331,17 +319,17 @@ class Trajectory:
         # we need to calculate the full matrix, rather than just the vector
         # scattering amplitude, because each matrix element contributes to 
         # the changes in E field
-        S1, S2, S3, S4 = mie.amplitude_scattering_matrix(m, x, theta, 
-                                                     coordinate_system = 'cartesian', 
-                                                     phis = phi)
+        S1, S2, S3, S4 = mie.amplitude_scattering_matrix(m, x, theta,
+                                                         coordinate_system='cartesian', 
+                                                         phis=phi)
         
         # mutliply the scat amp mats
         En = self.fields
         if isinstance(En, sc.Quantity):
             En = En.magnitude
 
-        Ex = En[0,0,:]
-        Ey = En[1,0,:]
+        Ex = En[0, 0, :]
+        Ey = En[1, 0, :]
 
         # Ex and Ey are the initialized as the incident field vectors. 
         # To get the Ex and Ey at each event, we have to multiply by the scattering
@@ -351,38 +339,38 @@ class Trajectory:
         # the first event propogates straight into the sample. 
         # Note: this basis assumes that 
         # the direction of propagation is the +z direction. 
-        for n in np.arange(0, self.nevents-1): 
-            Ex = S2[n,:]*Ex + S3[n,:]*Ey
-            Ey = S4[n,:]*Ex + S1[n,:]*Ey
-            if n+2 > self.nevents:
+        for n in np.arange(0, self.nevents - 1): 
+            Ex = S2[n, :] * Ex + S3[n, :] * Ey
+            Ey = S4[n, :] * Ex + S1[n, :] * Ey
+            if n + 2 > self.nevents:
                 break
             else:
                 # 0th event is before sample, the 1st event has no rotation
-                En[0,n+2,:] = Ex 
-                En[1,n+2,:] = Ey
+                En[0, n + 2, :] = Ex 
+                En[1, n + 2, :] = Ey
                 
         # Deal with tir
         if tir_refl_bool is not None:
             # get indices for the first TIR event for each trajectory
-            tir_indices = np.argmax(np.vstack([np.zeros(ntraj),tir_refl_bool]), axis=0)
+            tir_indices = np.argmax(np.vstack([np.zeros(ntraj), tir_refl_bool]), axis=0)
             
             # select the tir event for each trajectory
-            theta_1 = select_events(theta, tir_indices-2)
+            theta_1 = select_events(theta, tir_indices - 2)
             kz_tir = select_events(self.direction[2], tir_indices)
             theta_r = np.arccos(kz_tir)
-            theta_tir = 2*(np.pi/2 - theta_r)
+            theta_tir = 2 * (np.pi / 2 - theta_r)
             costheta_tir = np.cos(theta_1 + theta_tir)
             sintheta_tir = np.sin(theta_1 + theta_tir)
-            tir_ind_theta = tir_indices-2
-            tir_ind_theta[tir_ind_theta<0] = 0
-            costheta[tir_ind_theta,:] = costheta_tir
-            sintheta[tir_ind_theta,:] = sintheta_tir
+            tir_ind_theta = tir_indices - 2
+            tir_ind_theta[tir_ind_theta < 0] = 0
+            costheta[tir_ind_theta, :] = costheta_tir
+            sintheta[tir_ind_theta, :] = sintheta_tir
 
         # Rotate to global coords
         # Start with event 2 because the 0th event contains the initialized
         # values from before the field enters the sample. The 1st event contains
         # the values for the field after entering the sample, but before scattering
-        for n in np.arange(2,self.nevents+1):
+        for n in np.arange(2, self.nevents + 1):
             # Calculate the new x, y, z coordinates of the propagation direction 
             # using the following equations, which can be derived by using matrix
             # operations to perform a rotation about the y-axis by angle theta
@@ -407,13 +395,13 @@ class Trajectory:
         # multiply the fields by the phase propagation due to structure factor
         # of the initial trajectories
         # should multiply by 1 for trajectories do not have fine roughness
-        ntraj_fine = int(np.round(ntraj*fine_roughness))
-        En[0,1:,:] = En[0,1:,:]*step_phase_factor
-        En[1,1:,:] = En[1,1:,:]*step_phase_factor
-        En[2,1:,:] = En[2,1:,:]*step_phase_factor
+        ntraj_fine = int(np.round(ntraj * fine_roughness))
+        En[0, 1:, :] = En[0, 1:, :] * step_phase_factor
+        En[1, 1:, :] = En[1, 1:, :] * step_phase_factor
+        En[2, 1:, :] = En[2, 1:, :] * step_phase_factor
 
         # Normalize
-        En[0,:,:], En[1,:,:], En[2,:,:] = normalize(En[0,:,:], En[1,:,:], En[2,:,:], return_nan=False)
+        En[0, :, :], En[1, :, :], En[2, :, :] = normalize(En[0, :, :], En[1, :, :], En[2, :, :], return_nan=False)
         
         self.fields = sc.Quantity(En,self.fields.units)
 
@@ -465,22 +453,22 @@ class Trajectory:
 
         f, ax = plt.subplots(3, figsize=(8,17), sharex=True)
 
-        ax[0].plot(np.arange(len(self.position[0,:,0])),
-                   self.position[0,:,:], '-')
+        ax[0].plot(np.arange(len(self.position[0,:,0].magnitude)),
+                   self.position[0,:,:].magnitude, '-')
         ax[0].set_title('Positions during trajectories')
         ax[0].set_ylabel('x (' + str(self.position.units) + ')')
 
-        ax[1].plot(np.arange(len(self.position[1,:,0])),
-                   self.position[1,:,:], '-')
+        ax[1].plot(np.arange(len(self.position[1,:,0].magnitude)),
+                   self.position[1,:,:].magnitude, '-')
         ax[1].set_ylabel('y (' + str(self.position.units) + ')')
 
-        ax[2].plot(np.arange(len(self.position[2,:,0])),
-                   self.position[2,:,:], '-')
+        ax[2].plot(np.arange(len(self.position[2,:,0].magnitude)),
+                   self.position[2,:,:].magnitude, '-')
         ax[2].set_ylabel('z (' + str(self.position.units) + ')')
         ax[2].set_xlabel('scattering event')
 
         if three_dim == True:
-            fig = plt.figure(figsize = (8,6))
+            fig = plt.figure(figsize=(8,6))
             ax3D = fig.add_subplot(111, projection='3d')
             ax3D.set_xlabel('x (' + str(self.position.units) + ')')
             ax3D.set_ylabel('y (' + str(self.position.units) + ')')
@@ -488,8 +476,10 @@ class Trajectory:
             ax3D.set_title('Positions during trajectories')
 
             for n in np.arange(ntraj):
-                ax3D.scatter(self.position[0,:,n], self.position[1,:,n],
-                             self.position[2,:,n], color=next(colors))
+                ax3D.scatter(self.position[0,:,n].magnitude, 
+                             self.position[1,:,n].magnitude,
+                             self.position[2,:,n].magnitude,
+                             color=next(colors))
 
 
 def initialize(nevents, ntraj, n_medium, n_sample, boundary, seed=None,
@@ -1429,7 +1419,7 @@ def coarse_roughness_enter(k0, n_medium, n_sample,
         coarse_roughness is set to > 0. 
     
     '''
-    if boundary=='sphere':
+    if boundary == 'sphere':
         raise ValueError('course roughness not yet implemented for sphere\
                          boundary')
     nevents = k0.shape[1]
@@ -1441,13 +1431,13 @@ def coarse_roughness_enter(k0, n_medium, n_sample,
     kz0 = k0[2,0,:]
     
     # sample the surface roughness angles theta_a
-    theta_a_full = np.linspace(0.,np.pi/2, 500)
-    with np.errstate(divide='ignore',invalid='ignore'):
-        prob_a = P_theta_a(theta_a_full,coarse_roughness)/sum(P_theta_a(theta_a_full,coarse_roughness))
-    if np.isnan(prob_a).all(): 
+    theta_a_full = np.linspace(0., np.pi / 2, 500)
+    with np.errstate(divide='ignore', invalid='ignore'):
+        prob_a = P_theta_a(theta_a_full, coarse_roughness) / sum(P_theta_a(theta_a_full, coarse_roughness))
+    if np.isnan(prob_a.magnitude).all(): 
         theta_a = np.zeros(ntraj)
     else: 
-        theta_a = np.array([np.random.choice(theta_a_full, ntraj, p = prob_a) for i in range(1)]).flatten()
+        theta_a = np.array([np.random.choice(theta_a_full, ntraj, p=prob_a.magnitude) for i in range(1)]).flatten()
             
     # In case the surface is rough, then find new coordinates of initial 
     # directions after rotating the surface by an angle theta_a around y axis
@@ -1467,7 +1457,10 @@ def coarse_roughness_enter(k0, n_medium, n_sample,
     # TODO: only real part of n_sample should be used                             
     # for the calculation of angles of integration? Or abs(n_sample)? 
     theta_refr = refraction(theta_rot, n_medium, np.abs(n_sample))
-
+    if isinstance(theta_refr, sc.Quantity):
+        theta_refr = theta_refr.to('radians').magnitude
+    if isinstance(phi_rot, sc.Quantity):
+        phi_rot = phi_rot.to('radians').magnitude
     kx0_rot_refr = np.sin(theta_refr) * np.cos(phi_rot)
     ky0_rot_refr = np.sin(theta_refr) * np.sin(phi_rot)
     kz0_rot_refr = np.cos(theta_refr) 
