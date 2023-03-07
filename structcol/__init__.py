@@ -47,6 +47,9 @@ Physical Review E 90, no. 6 (2014): 62302. doi:10.1103/PhysRevE.90.062302
 # Also load commonly used functions from pymie package
 from pymie import Quantity, ureg, q, index_ratio, size_parameter, np, mie
 
+# Global variable speed of light
+LIGHT_SPEED_VACUUM = Quantity(2.99792e8, 'm/s')
+
 def refraction(angles, n_before, n_after):
     '''
     Returns angles after refracting through an interface
