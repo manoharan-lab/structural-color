@@ -30,6 +30,7 @@ from numpy.testing import assert_almost_equal, assert_array_almost_equal
 from pint.errors import DimensionalityError
 import scipy.interpolate
 
+
 def test_structure_factor_percus_yevick():
     # Test structure factor as calculated by solution of Ornstein-Zernike
     # integral equation and Percus-Yevick closure approximation
@@ -97,11 +98,12 @@ def test_structure_factor_percus_yevick_core_shell():
     s_cs = structure.factor_py(qd_cs, np.sum(volume_fraction_cs))
     
     assert_almost_equal(s.magnitude, s_cs.magnitude, decimal=5)
-    
+
+
 def test_structure_factor_polydisperse():
     # test that the analytical structure factor for polydisperse systems matches
     # Percus-Yevick in the monodisperse limit
-    
+
     # Percus-Yevick
     qd = Quantity(5, '')
     phi = Quantity(0.5, '')
@@ -112,17 +114,15 @@ def test_structure_factor_polydisperse():
     c = Quantity(1, '')
     pdi = Quantity(1e-5, '')
     q2 = qd / d
-    
-    S_poly = structure.factor_poly(q2, phi, d, c, pdi)    
-    
+
+    S_poly = structure.factor_poly(q2, phi, d, c, pdi)
+
     assert_almost_equal(S_py.magnitude, S_poly.magnitude)
 
+
 def test_structure_factor_data():
-    qd = np.array([1,2])
-    qd_data = np.array([0.5,2.5])
-    s_data = np.array([1,1])
+    qd = np.array([1, 2])
+    qd_data = np.array([0.5, 2.5])
+    s_data = np.array([1, 1])
     s = structure.factor_data(qd, s_data, qd_data)
-    assert_equal(s[0],1)
-    
-    
-    
+    assert_equal(s[0], 1)

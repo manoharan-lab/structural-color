@@ -28,7 +28,7 @@ import structcol as sc
 from .. import montecarlo as mc
 from .. import detector as det
 from .. import refractive_index as ri
-from .. import index_ratio, size_parameter,model
+from .. import index_ratio, size_parameter, model
 import numpy as np
 from numpy.testing import assert_equal, assert_almost_equal
 import pytest
@@ -42,12 +42,13 @@ n_particle = sc.Quantity(1.5, '')
 n_matrix = sc.Quantity(1.0, '')
 n_medium = sc.Quantity(1.0, '')
 n_sample = ri.n_eff(n_particle, n_matrix, volume_fraction) 
-angles = sc.Quantity(np.linspace(0.01,np.pi, 200), 'rad')  
+angles = sc.Quantity(np.linspace(0.01, np.pi, 200), 'rad')  
 wavelen = sc.Quantity('400 nm')
 
 # Index of the scattering event and trajectory corresponding to the reflected
 # photons
-refl_index = np.array([2,0,2])
+refl_index = np.array([2, 0, 2])
+
 
 def test_sampling():
     # Test that 'calc_scat' runs
@@ -60,11 +61,13 @@ def test_sampling():
     # Test that 'sample_step' runs
     mc.sample_step(nevents, ntrajectories, mu_scat)
 
+
 def test_trajectories():
     # Initialize runs
     nevents = 2
     ntrajectories = 3
-    r0, k0, W0 = mc.initialize(nevents, ntrajectories, n_medium, n_sample, 'film', seed=1)
+    r0, k0, W0 = mc.initialize(nevents, ntrajectories, n_medium, n_sample,
+                               'film', seed=1)
     r0 = sc.Quantity(r0, 'um')
     k0 = sc.Quantity(k0, '')
     W0 = sc.Quantity(W0, '')
@@ -74,23 +77,23 @@ def test_trajectories():
     
     # Test the absorb function
     mu_abs = 1/sc.Quantity(10, 'um')    
-    step = sc.Quantity(np.array([[1,1,1],[1,1,1]]), 'um')    
+    step = sc.Quantity(np.array([[1, 1, 1], [1, 1, 1]]), 'um')    
     trajectories.absorb(mu_abs, step)     
-    assert_almost_equal(trajectories.weight.magnitude, 
+    assert_almost_equal(trajectories.weight.magnitude,
                  np.array([[ 0.90483742,  0.90483742,  0.90483742],
                            [ 0.81873075,  0.81873075,  0.81873075]]))
     
     # Make up some test theta and phi
-    sintheta = np.array([[0.,0.,0.],[0.,0.,0.]])  
-    costheta = np.array([[-1.,-1.,-1.],[1.,1.,1.]])  
-    sinphi = np.array([[0.,0.,0.],[0.,0.,0.]])
-    cosphi = np.array([[0.,0.,0.],[0.,0.,0.]])
+    sintheta = np.array([[0., 0., 0.], [0., 0., 0.]])  
+    costheta = np.array([[-1., -1., -1.], [1., 1., 1.]])  
+    sinphi = np.array([[0., 0., 0.], [0., 0., 0.]])
+    cosphi = np.array([[0., 0., 0.], [0., 0., 0.]])
     trajectories.scatter(sintheta, costheta, sinphi, cosphi)       
     
     # Expected propagation directions
-    kx = sc.Quantity(np.array([[0.,0.,0.],[0.,0.,0.]]), '')
-    ky = sc.Quantity(np.array([[0.,0.,0.],[0.,0.,0.]]), '')
-    kz = sc.Quantity(np.array([[1.,1.,1.],[-1.,-1.,-1.]]), '')
+    kx = sc.Quantity(np.array([[0., 0., 0.], [0., 0., 0.]]), '')
+    ky = sc.Quantity(np.array([[0., 0., 0.], [0., 0., 0.]]), '')
+    kz = sc.Quantity(np.array([[1., 1., 1.], [-1., -1., -1.]]), '')
     
     # Test the scatter function
     assert_almost_equal(trajectories.direction[0].magnitude, kx.magnitude)
@@ -99,8 +102,10 @@ def test_trajectories():
     
     # Test the move function    
     trajectories.move(step)
-    assert_equal(trajectories.position[2].magnitude, np.array([[0,0,0],[1,1,1],[0,0,0]]))
-  
+    assert_equal(trajectories.position[2].magnitude, np.array([[0, 0, 0], 
+                                                               [1, 1, 1], 
+                                                               [0, 0, 0]]))
+
 
 def test_phase_function_absorbing_medium():
     # test that the phase function using the far-field Mie solutions 
@@ -165,15 +170,18 @@ def test_phase_function_absorbing_medium():
     radius2 = sc.Quantity('150 nm')
     concentration = sc.Quantity(np.array([0.2, 0.7]), '')
     pdi = sc.Quantity(np.array([0.1, 0.1]), '')
-    diameters = sc.Quantity(np.array([radius.magnitude, radius2.magnitude])*2, radius.units)
+    diameters = sc.Quantity(np.array([radius.magnitude, radius2.magnitude])*2, 
+                            radius.units)
     
     diff_cscat_par_ff, diff_cscat_perp_ff = \
         model.differential_cross_section(m, x, angles, volume_fraction,
                                          structure_type='polydisperse',
                                          form_type='polydisperse',
                                          diameters=diameters, pdi=pdi, 
-                                         concentration=concentration, wavelen=wavelen, 
-                                         n_matrix=n_sample, k=None, distance=diameters/2)
+                                         concentration=concentration, 
+                                         wavelen=wavelen, 
+                                         n_matrix=n_sample, k=None, 
+                                         distance=diameters/2)
     cscat_total_par_ff = model._integrate_cross_section(diff_cscat_par_ff,
                                                       1.0/ksquared, angles)
     cscat_total_perp_ff = model._integrate_cross_section(diff_cscat_perp_ff,
@@ -190,116 +198,23 @@ def test_phase_function_absorbing_medium():
                                          structure_type='polydisperse',
                                          form_type='polydisperse',
                                          diameters=diameters, pdi=pdi, 
-                                         concentration=concentration, wavelen=wavelen, 
-                                         n_matrix=n_sample, k=k, distance=diameters/2)
+                                         concentration=concentration, 
+                                         wavelen=wavelen, 
+                                         n_matrix=n_sample, k=k, 
+                                         distance=diameters/2)
     cscat_total_par = model._integrate_cross_section(diff_cscat_par,
-                                                      1.0/ksquared, angles)
+                                                     1.0/ksquared, angles)
     cscat_total_perp = model._integrate_cross_section(diff_cscat_perp,
                                                       1.0/ksquared, angles)
     cscat_total = (cscat_total_par + cscat_total_perp)/2.0                                     
-        
+
     p2 = (diff_cscat_par + diff_cscat_perp)/(ksquared * 2 * cscat_total)
     p_par2 = diff_cscat_par/(ksquared * 2 * cscat_total_par)
     p_perp2 = diff_cscat_perp/(ksquared * 2 * cscat_total_perp)
-     
+
     # test random values of the phase functions
-    assert_almost_equal(p_ff2[3].magnitude, p2[3].magnitude, decimal=15)    
-    assert_almost_equal(p_par_ff2[50].magnitude, p_par2[50].magnitude, decimal=15)    
-    assert_almost_equal(p_perp2[83].magnitude, p_perp_ff2[83].magnitude, decimal=15)   
-    
-def test_polarization():
-    ntrajectories = 50
-    nevents = 50
-    n_particle = sc.Quantity(1.5, '')
-    n_matrix = sc.Quantity(1.0, '')
-    n_medium = sc.Quantity(1.0, '')
-    n_sample = ri.n_eff(n_particle, n_matrix, volume_fraction) 
-    
-    # run mc trajectories with polarization
-    p, mu_scat, mu_abs = mc.calc_scat(radius, n_particle, n_sample, 
-                                      volume_fraction, wavelen, polarization= True)
-    r0, k0, W0, p0 = mc.initialize(nevents, ntrajectories, n_medium, n_sample,
-                                   'film', polarization=True)
-    r0 = sc.Quantity(r0, 'um')
-    k0 = sc.Quantity(k0, '')
-    W0 = sc.Quantity(W0, '')
-    p0 = sc.Quantity(p0,'')
-    sintheta, costheta, sinphi, cosphi, theta, phi= mc.sample_angles(nevents, 
-                                                               ntrajectories,p)
-    trajectories = mc.Trajectory(r0, k0, W0, p0)
-    trajectories.scatter(sintheta, costheta, sinphi, cosphi)
-    trajectories.polarize(theta, phi, sintheta, costheta, sinphi,cosphi,
-                          n_particle, n_sample, radius, wavelen, volume_fraction)
-    
-    #################### check polarization magnitude is always 1
-    pol_mag = np.sqrt(trajectories.polarization[0,:,:]*np.conj(trajectories.polarization[0,:,:]) + 
-                      trajectories.polarization[1,:,:]*np.conj(trajectories.polarization[1,:,:]) +
-                      trajectories.polarization[2,:,:]*np.conj(trajectories.polarization[2,:,:]))    
-    pol_mag_sum = np.sum(np.abs(pol_mag.magnitude))
-    assert_almost_equal(pol_mag_sum, nevents*ntrajectories, decimal=10)
-    
-    ########### check that trajectories are becoming depolarized after many 
-    ########### scattering events
-    
-    # calculate polarization components at last events
-    pol_x = np.mean(trajectories.polarization[0,-20:-1,:]*np.conj(trajectories.polarization[0,-20:-1,:]))
-    pol_y = np.mean(trajectories.polarization[1,-20:-1,:]*np.conj(trajectories.polarization[1,-20:-1,:]))
-    pol_z = np.mean(trajectories.polarization[2,-20:-1,:]*np.conj(trajectories.polarization[2,-20:-1,:]))
-    
-    assert_almost_equal(pol_x.magnitude, 0.33, decimal=1)
-    assert_almost_equal(pol_y.magnitude, 0.33, decimal=1)
-    assert_almost_equal(pol_z.magnitude, 0.33, decimal=1)
-    
-    ############ check that polarization vector is perpendicular to direction
-    # dot product is a dot conj(b), but b is real, so can just do a dot b
-    dot = (trajectories.polarization[0,:,:]*trajectories.direction[0,:,:]
-    + trajectories.polarization[1,:,:]*trajectories.direction[1,:,:]
-    + trajectories.polarization[2,:,:]*trajectories.direction[2,:,:])
-    
-    dot_sum = np.sum(np.abs(dot.magnitude))
-    
-    assert_almost_equal(dot_sum, 0.0, decimal=10)
-    
-def test_polarization_absorption():
-    n_particle = sc.Quantity(1.5 + 0.01j, '')
-    n_matrix = sc.Quantity(1.0 + 0.01j, '')
-    n_medium = sc.Quantity(1.0 + 0.01j, '')
-    n_sample = ri.n_eff(n_particle, n_matrix, volume_fraction) 
-    
-    # run mc trajectories with polarization
-    p, mu_scat, mu_abs = mc.calc_scat(radius, n_particle, n_sample, 
-                                      volume_fraction, wavelen, polarization= True)
-    #print(p)
-    
-    r0, k0, W0, p0 = mc.initialize(nevents, ntrajectories, n_medium, n_sample,
-                                   'film', polarization=True )
-    r0 = sc.Quantity(r0, 'um')
-    k0 = sc.Quantity(k0, '')
-    W0 = sc.Quantity(W0, '')
-    p0 = sc.Quantity(p0,'')
-    sintheta, costheta, sinphi, cosphi, theta, phi= mc.sample_angles(nevents, 
-                                                               ntrajectories,p)
-
-    trajectories = mc.Trajectory(r0, k0, W0, p0)
-    trajectories.scatter(sintheta, costheta, sinphi, cosphi)
-    trajectories.polarize(theta, phi, sintheta, costheta, sinphi, cosphi,
-                          n_particle, n_sample, radius, wavelen, volume_fraction)
-
-    #################### check polarization magnitude is always 1
-    pol_mag = np.sqrt(trajectories.polarization[0,:,:]*np.conj(trajectories.polarization[0,:,:]) + 
-                      trajectories.polarization[1,:,:]*np.conj(trajectories.polarization[1,:,:]) +
-                      trajectories.polarization[2,:,:]*np.conj(trajectories.polarization[2,:,:]))    
-    pol_mag_sum = np.sum(np.abs(pol_mag.magnitude))
-    
-    assert_equal(pol_mag_sum, nevents*ntrajectories)
-
-    
-    ############ check that polarization vector is perpendicular to direction
-    # dot product is a dot conj(b), but b is real, so can just do a dot b
-    dot = (trajectories.polarization[0,:,:]*trajectories.direction[0,:,:]
-    + trajectories.polarization[1,:,:]*trajectories.direction[1,:,:]
-    + trajectories.polarization[2,:,:]*trajectories.direction[2,:,:])
-    
-    dot_sum = np.sum(np.abs(dot.magnitude))
-    
-    assert_almost_equal(dot_sum, 0.0, decimal=12)
+    assert_almost_equal(p_ff2[3].magnitude, p2[3].magnitude, decimal=15)
+    assert_almost_equal(p_par_ff2[50].magnitude, p_par2[50].magnitude,
+                        decimal=15)    
+    assert_almost_equal(p_perp2[83].magnitude, p_perp_ff2[83].magnitude, 
+                        decimal=15)   

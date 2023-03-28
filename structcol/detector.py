@@ -1552,12 +1552,12 @@ def calc_indices_detected(indices, trajectories, det_theta, det_len, det_dist,
 def select_tir_traj(inarray, events):
     '''
     selects a given value (inarray) for all trajectories,
-    replacing that value with the previous one 
+    replacing that value with the previous one
     for TIR'd trajectories
     '''
-    ntraj = events.size    
+    ntraj = events.size
     nevents = inarray.shape[0]
-    
+
     valid_events = (events > 0)
     ev = events[valid_events].astype(int) - 1
     tr = np.where(valid_events)[0]
@@ -1569,19 +1569,19 @@ def select_tir_traj(inarray, events):
         nonzero = nonzero.astype(int)
         ind = np.where(nonzero == 1)[0]
         outarray[i, ind] = -inarray[i, ind]
-        
+
         # Find where still zeros and replace those with inarray.
         ind_zeros = np.where(outarray[i, :] == 0)[0]
         outarray[i, ind_zeros] = inarray[i, ind_zeros]
     return outarray
-    
+
 
 def shift_traj_tir(trajectories, tir_indices):
     '''
     Change the z-position and z-direction for all TIR trajectories to be
     the TIR direction, and keep same for all other trajectories
     '''
-    # Select kz and z0 for all trajectories, 
+    # Select kz and z0 for all trajectories,
     # changing them for TIR events to be the negative of the previous event
     kz_incl_tir_refl = select_tir_traj(trajectories.direction[2, :, :],
                                        tir_indices)

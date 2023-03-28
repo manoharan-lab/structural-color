@@ -28,6 +28,7 @@ from numpy.testing import assert_almost_equal, assert_array_almost_equal
 from pint.errors import DimensionalityError
 import pytest
 
+
 def test_fresnel():
     # test the fresnel reflection and transmission coefficients
     n1 = Quantity(1.00, '')
@@ -72,6 +73,7 @@ def test_fresnel():
     assert_array_almost_equal(tpar, tpar_std)
     assert_array_almost_equal(tperp, tperp_std)
 
+
 def test_theta_refraction():
     # test that the detection angles theta are refracted correctly at the 
     # medium-sample interface. When n_sample < n_medium, the scattered angles 
@@ -86,11 +88,11 @@ def test_theta_refraction():
     n_particle = Quantity(1.0, '')
     n_matrix = Quantity(1.0, '')
     n_medium = Quantity(2.0, '')
-    theta_min = Quantity(np.pi/2,'deg')
+    theta_min = Quantity(np.pi/2, 'deg')
     
     # set theta_max to be slightly smaller than the theta corresponding to 
     # total internal reflection (calculated manually to be 2.61799388)
-    theta_max = Quantity(2.617,'deg')  
+    theta_max = Quantity(2.617, 'deg')  
     refl1, _, _, _, _ = model.reflection(n_particle, n_matrix, n_medium, 
                                          wavelength, radius, volume_fraction,  
                                          theta_min=theta_min, 
@@ -98,21 +100,21 @@ def test_theta_refraction():
                                          structure_type=None)
     # try a different range of thetas (but keeping theta_max < total internal
     # reflection angle)
-    theta_max = Quantity(2.,'deg')  
+    theta_max = Quantity(2., 'deg')  
     refl2, _, _, _, _ = model.reflection(n_particle, n_matrix, n_medium, 
                                          wavelength, radius, volume_fraction,  
                                          theta_min=theta_min, 
                                          theta_max=theta_max, 
                                          structure_type=None)
-    
+
     # the reflection should be zero plus the fresnel reflection term    
     n_sample = ri.n_eff(n_particle, n_matrix, volume_fraction)
     r_fresnel = model.fresnel_reflection(n_medium, n_sample, incident_angle)
-    r_fresnel_avg = (r_fresnel[0] + r_fresnel[1])/2
-    
-    assert_almost_equal(refl1, r_fresnel_avg)
-    assert_almost_equal(refl2, r_fresnel_avg)
-    assert_almost_equal(refl1, refl2)
+    r_fresnel_avg = (r_fresnel[0] + r_fresnel[1]) / 2
+    assert_almost_equal(refl1.magnitude, r_fresnel_avg)
+    assert_almost_equal(refl2.magnitude, r_fresnel_avg)
+    assert_almost_equal(refl1.magnitude, refl2.magnitude)
+
 
 def test_differential_cross_section():
     # Test that the differential cross sections for non-core-shell particles 

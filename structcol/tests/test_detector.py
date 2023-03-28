@@ -613,11 +613,11 @@ def test_goniometer_detector():
     nevents = z_pos.shape[0]
     x_pos = np.zeros((nevents, ntrajectories))
     y_pos = np.zeros((nevents, ntrajectories))
-    ky = np.zeros((nevents, ntrajectories))
+    ky = np.zeros((nevents-1, ntrajectories))
     kx = np.array([[0,0,0,0],[0,0,0,0],[0,0,0,1/np.sqrt(2)]])
     kz = np.array([[1,1,1,1],[-1,-1,1,1],[-1,-1,1,-1/np.sqrt(2)]])
     weights = np.ones((nevents, ntrajectories))
-    trajectories = mc.Trajectory([x_pos, y_pos, z_pos],[kx, ky, kz], weights)
+    trajectories = mc.Trajectory(np.array([x_pos, y_pos, z_pos]),np.array([kx, ky, kz]), weights)
     thickness = 10
     n_medium = 1
     n_sample = 1
@@ -626,6 +626,6 @@ def test_goniometer_detector():
                                det_theta=sc.Quantity('45 degrees'), 
                                det_len=sc.Quantity('1 um'), 
                                det_dist=sc.Quantity('10 cm'),
-                               plot_detector=True)
+                               plot_detector=False)
     
     assert_almost_equal(R, 0.25)

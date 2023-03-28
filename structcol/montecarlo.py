@@ -1434,7 +1434,9 @@ def coarse_roughness_enter(k0, n_medium, n_sample,
     theta_a_full = np.linspace(0., np.pi / 2, 500)
     with np.errstate(divide='ignore', invalid='ignore'):
         prob_a = P_theta_a(theta_a_full, coarse_roughness) / sum(P_theta_a(theta_a_full, coarse_roughness))
-    if np.isnan(prob_a.magnitude).all(): 
+        if isinstance(prob_a, sc.Quantity):
+            prob_a = prob_a.magnitude
+    if np.isnan(prob_a).all(): 
         theta_a = np.zeros(ntraj)
     else: 
         theta_a = np.array([np.random.choice(theta_a_full, ntraj, p=prob_a.magnitude) for i in range(1)]).flatten()

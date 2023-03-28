@@ -32,7 +32,7 @@ import pandas as pd
 import scipy
 import os
 
-@ureg.check('[]','[]')    # inputs should be dimensionless
+@ureg.check('[]', '[]')    # inputs should be dimensionless
 def factor_py(qd, phi):
     """
     Calculate structure factor of hard spheres using the Ornstein-Zernike equation
@@ -75,7 +75,7 @@ def factor_py(qd, phi):
 
     # constants in the direct correlation function
     lambda1 = (1 + 2*phi)**2 / (1 - phi)**4
-    lambda2 = -(1 + phi/2.)**2 /  (1 - phi)**4
+    lambda2 = -(1 + phi/2.)**2 / (1 - phi)**4
     # Fourier transform of the direct correlation function (eq X.33 of [2]_)
     c = -24*phi*(lambda1 * (np.sin(qd) - qd*np.cos(qd)) / qd**3  -
                  6*phi*lambda2 * (qd**2 * np.cos(qd) - 2*qd*np.sin(qd) -
@@ -178,13 +178,13 @@ def factor_poly(q, phi, diameters, c, pdi):
             tm = tm.to('').magnitude
         t = np.reshape(t, (len(np.atleast_1d(t)),1))
         tm = np.reshape(tm, (len(tm),1))
-        return(tm * (1 + x/(t+1))**(-(t+1+m)))
+        return (tm * (1 + x/(t+1))**(-(t+1+m)))
     
     def tm(m, Dsigma, t):
         t = np.reshape(t, (len(np.atleast_1d(t)),1))
         num_array = np.arange(m, 0, -1) + t
         prod = np.prod(num_array, axis=1).reshape((len(t), 1))
-        return(prod / (t + 1)**m)      
+        return (prod / (t + 1)**m)      
 
     # if the pdi is zero, assume it's very small (we get the same results)
     # because otherwise we get a divide by zero error
@@ -221,9 +221,12 @@ def factor_poly(q, phi, diameters, c, pdi):
     t2 = np.reshape(t2, (len(np.atleast_1d(t2)), 1))
     c = np.reshape(c, (len(np.atleast_1d(c)), 1))
     diameters = np.reshape(diameters, (len(np.atleast_1d(diameters)), 1))
-    
-    q_shape = q.shape
-    if len(q_shape)==2:
+
+    if hasattr(q, 'shape'):
+        q_shape = q.shape
+    else:
+        q_shape = np.array([])
+    if len(q_shape) == 2:
         q = Quantity(np.ndarray.flatten(q.magnitude), q.units)  # added
     s = 1j*q
     x = s*diameters
