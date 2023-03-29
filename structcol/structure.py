@@ -199,13 +199,26 @@ def factor_poly(q, phi, diameters, c, pdi):
     t1 = tm(1, Dsigma, t)
     t2 = Dsigma + 1
     t3 = (Dsigma + 1) * (2*Dsigma + 1)
-    
-    # if monospecies, no need to calculate individual species parameters
-    if len(np.atleast_1d(c)) == 1:
-        rho = 6*phi/(t3*np.pi*diameters**3)
+
+    # If monospecies, no need to calculate individual species parameters.
+    # concentration c should always be a 2-element array because polydisperse 
+    # calculations assume the format of a bispecies particle mixture, 
+    # so if either element in c is 0, we assume the form factor is monospecies
+    # We include the second monospecies test in case the user enters a 1d 
+    # concentration, even though the docstring advises that concentration 
+    # should have two elements.
+    if np.any(c == 0) or (len(np.atleast_1d(c)) == 1):
+        if len(np.atleast_1d(c)) == 1:
+            t3_1d = t3
+            diam_1d = diameters
+        else:
+            ind0 = np.where(c != 0)[0]
+            t3_1d = t3[ind0]
+            diam_1d = diameters[ind0]
+        rho = 6*phi/(t3_1d*np.pi*diam_1d**3)
     else:
-        phi_ratio = 1 / (c[0]/c[1] * (diameters[0]/diameters[1])**3 * 
-                        t3[0]/t3[1] + 1)
+        phi_ratio = 1 / (c[0]/c[1] * (diameters[0] / diameters[1]) ** 3 * 
+                         t3[0] / t3[1] + 1)
         phi_tau1 = phi_ratio * phi
         phi_tau0 = phi - phi_tau1
 
