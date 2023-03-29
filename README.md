@@ -38,11 +38,11 @@ Harvard University, 2014): [Download](http://dash.harvard.edu/bitstream/handle/1
 
 Additional publications based on this code:
 
-Stephenson, A. B.; Xiao, M.; Hwang, V.; Qu, L.; Odorisio, P. A.; Burke, M.; Task, K.; Deisenroth, T.; Barkley, S.; Darji, R. H.; Manoharan, V. N. “Predicting the Structural Colors of Films of Disordered Photonic Balls.” *ACS Photonics* 10, no. 1 (2023): 58-70. [doi:10.1021/acsphotonics.2c00892](https://pubs.acs.org/doi/abs/10.1021/acsphotonics.2c00892).
+1. Stephenson, A. B.; Xiao, M.; Hwang, V.; Qu, L.; Odorisio, P. A.; Burke, M.; Task, K.; Deisenroth, T.; Barkley, S.; Darji, R. H.; Manoharan, V. N. “Predicting the Structural Colors of Films of Disordered Photonic Balls.” *ACS Photonics* 10, no. 1 (2023): 58-70. [doi:10.1021/acsphotonics.2c00892](https://pubs.acs.org/doi/abs/10.1021/acsphotonics.2c00892).
 
-Xiao, M.; Stephenson, A. B.; Neophytou, A.; Hwang, V.; Chakrabarti, D.; Manoharan, V. N. “Investigating the Trade-off between Color Saturation and Angle-Independence in Photonic Glasses.” *Optics Express* 29, no. 14 (2021): 21212–21224. [doi:10.1364/OE.425399](https://opg.optica.org/abstract.cfm?uri=oe-29-14-21212).
+2. Xiao, M.; Stephenson, A. B.; Neophytou, A.; Hwang, V.; Chakrabarti, D.; Manoharan, V. N. “Investigating the Trade-off between Color Saturation and Angle-Independence in Photonic Glasses.” *Optics Express* 29, no. 14 (2021): 21212–21224. [doi:10.1364/OE.425399](https://opg.optica.org/abstract.cfm?uri=oe-29-14-21212).
 
-Hwang, V.; Stephenson, A. B.; Barkley, S.; Brandt, S.; Xiao, M.; Aizenberg, J.; Manoharan, V. N. “Designing Angle-Independent Structural Colors Using Monte Carlo Simulations of Multiple Scattering.” *Proceedings of National Academy  Sciences* 118, no. 4 (2021): e2015551118. [doi:10.1073/pnas.2015551118](https://www.pnas.org/doi/abs/10.1073/pnas.2015551118).
+3. Hwang, V.; Stephenson, A. B.; Barkley, S.; Brandt, S.; Xiao, M.; Aizenberg, J.; Manoharan, V. N. “Designing Angle-Independent Structural Colors Using Monte Carlo Simulations of Multiple Scattering.” *Proceedings of National Academy  Sciences* 118, no. 4 (2021): e2015551118. [doi:10.1073/pnas.2015551118](https://www.pnas.org/doi/abs/10.1073/pnas.2015551118).
 
-Hwang, V.\*; Stephenson, A. B.\*; Magkiriadou, S.; Park, J.-G.; Manoharan, V. N. “Effects of Multiple Scattering on Angle-Independent Structural Color in Disordered Colloidal Materials.” *Physical Review E* 101, no. 1 (2020): 012614. \*equal contribution [doi:10.1103/PhysRevE.101.012614](https://journals.aps.org/pre/abstract/10.1103/PhysRevE.101.012614). 
+4. Hwang, V.\*; Stephenson, A. B.\*; Magkiriadou, S.; Park, J.-G.; Manoharan, V. N. “Effects of Multiple Scattering on Angle-Independent Structural Color in Disordered Colloidal Materials.” *Physical Review E* 101, no. 1 (2020): 012614. \*equal contribution [doi:10.1103/PhysRevE.101.012614](https://journals.aps.org/pre/abstract/10.1103/PhysRevE.101.012614). 
 
