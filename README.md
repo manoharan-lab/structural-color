@@ -34,7 +34,7 @@ Red Structural Color in Photonic Glasses, Bird Feathers, and Certain Beetles”
 *Physical Review E* 90, no. 6 (2014): 62302. [doi:10.1103/PhysRevE.90.062302](https://journals.aps.org/pre/abstract/10.1103/PhysRevE.90.062302)
 
 [2] Magkiriadou, S. “Structural Color from Colloidal Glasses” (PhD Thesis,
-Harvard University, 2014): Available [here](http://dash.harvard.edu/bitstream/handle/1/14226099/MAGKIRIADOU-DISSERTATION-2015.pdf?sequence=1).
+Harvard University, 2014): [Download](http://dash.harvard.edu/bitstream/handle/1/14226099/MAGKIRIADOU-DISSERTATION-2015.pdf?sequence=1).
 
 Additional publications based on this code:
 
