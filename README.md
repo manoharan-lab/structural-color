@@ -31,11 +31,10 @@ quantities with dimensions (using [pint](https://github.com/hgrecco/pint)).
 
 [1] Magkiriadou, S.; Park, J.-G.; Kim, Y.-S.; and Manoharan, V. N. “Absence of
 Red Structural Color in Photonic Glasses, Bird Feathers, and Certain Beetles”
-*Physical Review E* 90, no. 6 (2014): 62302. doi:10.1103/PhysRevE.90.062302
+*Physical Review E* 90, no. 6 (2014): 62302. [doi:10.1103/PhysRevE.90.062302](https://journals.aps.org/pre/abstract/10.1103/PhysRevE.90.062302)
 
 [2] Magkiriadou, S. “Structural Color from Colloidal Glasses” (PhD Thesis,
-Harvard University, 2014): Available at
-http://dash.harvard.edu/bitstream/handle/1/14226099/MAGKIRIADOU-DISSERTATION-2015.pdf?sequence=1
+Harvard University, 2014): Available [here](http://dash.harvard.edu/bitstream/handle/1/14226099/MAGKIRIADOU-DISSERTATION-2015.pdf?sequence=1).
 
 Additional publications based on this code:
 
@@ -45,5 +44,5 @@ Xiao, M.; Stephenson, A. B.; Neophytou, A.; Hwang, V.; Chakrabarti, D.; Manohara
 
 Hwang, V.; Stephenson, A. B.; Barkley, S.; Brandt, S.; Xiao, M.; Aizenberg, J.; Manoharan, V. N. “Designing Angle-Independent Structural Colors Using Monte Carlo Simulations of Multiple Scattering.” *Proceedings of National Academy  Sciences* 118, no. 4 (2021): e2015551118. [doi:10.1073/pnas.2015551118](https://www.pnas.org/doi/abs/10.1073/pnas.2015551118).
 
-Hwang, V.\*; Stephenson, A. B.\*; Magkiriadou, S.; Park, J.-G.; Manoharan, V. N. “Effects of Multiple Scattering on Angle-Independent Structural Color in Disordered Colloidal Materials.” *Physical Review E* 101, no. 1 (2020): 012614. [doi:10.1103/PhysRevE.101.012614](https://journals.aps.org/pre/abstract/10.1103/PhysRevE.101.012614). \*equal contribution
+Hwang, V.\*; Stephenson, A. B.\*; Magkiriadou, S.; Park, J.-G.; Manoharan, V. N. “Effects of Multiple Scattering on Angle-Independent Structural Color in Disordered Colloidal Materials.” *Physical Review E* 101, no. 1 (2020): 012614. \*equal contribution [doi:10.1103/PhysRevE.101.012614](https://journals.aps.org/pre/abstract/10.1103/PhysRevE.101.012614). 
 
