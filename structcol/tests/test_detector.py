@@ -298,20 +298,19 @@ def test_reflection_polydispersity():
                                      radius2 = radius2, 
                                      concentration = concentration, pdi = pdi,
                                      polydisperse=True)                               
-                                   
     assert_almost_equal(R_mono, R_poly)
     assert_almost_equal(T_mono, T_poly)
 
     # Outputs before refactoring structcol
-    #R_mono_before = 0.7862152377246211 #before correcting nevents in sample_angles: 0.81382378303119451
-    #R_poly_before = 0.7862152377246211 #before correcting nevents in sample_angles: 0.81382378303119451
-    #T_mono_before = 0.21378476227537888 #before correcting nevents in sample_angles: 0.1861762169688054
-    #T_poly_before = 0.21378476227537888 #before correcting nevents in sample_angles: 0.1861762169688054
+    R_mono_before = 0.7862152377246211 #before correcting nevents in sample_angles: 0.81382378303119451
+    R_poly_before = 0.7862152377246211 #before correcting nevents in sample_angles: 0.81382378303119451
+    T_mono_before = 0.21378476227537888 #before correcting nevents in sample_angles: 0.1861762169688054
+    T_poly_before = 0.21378476227537888 #before correcting nevents in sample_angles: 0.1861762169688054
 
-    #assert_almost_equal(R_mono_before, R_mono, decimal=15)
-    #assert_almost_equal(R_poly_before, R_poly, decimal=15)
-    #assert_almost_equal(T_mono_before, T_mono, decimal=15)
-    #assert_almost_equal(T_poly_before, T_poly, decimal=15)
+    assert_almost_equal(R_mono_before, R_mono, decimal=15)
+    assert_almost_equal(R_poly_before, R_poly, decimal=15)
+    assert_almost_equal(T_mono_before, T_mono, decimal=15)
+    assert_almost_equal(T_poly_before, T_poly, decimal=15)
     
     # With absorption: test that the reflectance using with very small 
     # polydispersity is the same as the monodisperse case  
@@ -334,15 +333,15 @@ def test_reflection_polydispersity():
     assert_almost_equal(T_mono_abs, T_poly_abs, decimal=6)
     
     # Outputs before refactoring structcol
-    #R_mono_abs_before = 0.5861304578863337  #before correcting nevents in sample_angles: 0.6480185516058052 
-    #R_poly_abs_before = 0.5861304624420246  #before correcting nevents in sample_angles: 0.6476683654364985 
-    #T_mono_abs_before = 0.11704096147886706 #before correcting nevents in sample_angles: 0.09473841417422774 
-    #T_poly_abs_before = 0.11704096346317548 #before correcting nevents in sample_angles: 0.09456832138047852 
+    R_mono_abs_before = 0.5861304578863337  #before correcting nevents in sample_angles: 0.6480185516058052 
+    R_poly_abs_before = 0.5861304624420246  #before correcting nevents in sample_angles: 0.6476683654364985 
+    T_mono_abs_before = 0.11704096147886706 #before correcting nevents in sample_angles: 0.09473841417422774 
+    T_poly_abs_before = 0.11704096346317548 #before correcting nevents in sample_angles: 0.09456832138047852 
     
-    #assert_almost_equal(R_mono_abs_before, R_mono_abs, decimal=15)
-    #assert_almost_equal(R_poly_abs_before, R_poly_abs, decimal=10)
-    #assert_almost_equal(T_mono_abs_before, T_mono_abs, decimal=15)
-    #assert_almost_equal(T_poly_abs_before, T_poly_abs, decimal=10)
+    assert_almost_equal(R_mono_abs_before, R_mono_abs, decimal=15)
+    assert_almost_equal(R_poly_abs_before, R_poly_abs, decimal=10)
+    assert_almost_equal(T_mono_abs_before, T_mono_abs, decimal=15)
+    assert_almost_equal(T_poly_abs_before, T_poly_abs, decimal=10)
     
     # test that the reflectance is the same for a polydisperse monospecies
     # and a bispecies with equal types of particles
