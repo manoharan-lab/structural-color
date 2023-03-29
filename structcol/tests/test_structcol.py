@@ -21,8 +21,8 @@ Tests various features of the structcol package not found in submodules
 """
 
 from .. import Quantity, ureg, q, np
-from nose.tools import assert_raises, assert_equal
-from numpy.testing import assert_almost_equal, assert_array_almost_equal
+from numpy.testing import assert_equal, assert_almost_equal, assert_array_almost_equal
+from pytest import raises
 from pint.errors import DimensionalityError
 
 def test_q():
@@ -30,8 +30,8 @@ def test_q():
     # with dimensions
 
     # test angle conversion
-    assert_equal(q(Quantity('450 nm'), Quantity('pi/2 rad')),
-                 q(Quantity('450 nm'), Quantity('90 degrees')))
+    assert_equal(q(Quantity('450 nm'), Quantity('pi/2 rad')).magnitude,
+                 q(Quantity('450 nm'), Quantity('90 degrees')).magnitude)
 
     # test to make sure function returns an array if given an array argument
     wavelen = Quantity(np.arange(500.0, 800.0, 10.0), 'nm')
@@ -49,5 +49,5 @@ def test_q():
     assert_equal(q_values.shape, (wavelen.shape[0], angle.shape[0]))
 
     # test dimension checking
-    assert_raises(DimensionalityError, q, Quantity('0.5 J'), Quantity('0.5 rad'))
-    assert_raises(DimensionalityError, q, Quantity('450 nm'), Quantity('0.5 m'))
+    raises(DimensionalityError, q, Quantity('0.5 J'), Quantity('0.5 rad'))
+    raises(DimensionalityError, q, Quantity('450 nm'), Quantity('0.5 m'))

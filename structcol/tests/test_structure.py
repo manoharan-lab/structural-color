@@ -25,8 +25,8 @@ Tests for the structure module
 from .. import Quantity, ureg, q, np, structure
 from .. import size_parameter
 from .. import refractive_index as ri
-from nose.tools import assert_raises, assert_equal
-from numpy.testing import assert_almost_equal, assert_array_almost_equal
+from numpy.testing import assert_equal, assert_almost_equal, assert_array_almost_equal
+from pytest import raises
 from pint.errors import DimensionalityError
 import scipy.interpolate
 
@@ -39,9 +39,9 @@ def test_structure_factor_percus_yevick():
     # dimensionless arguments
     structure.factor_py(Quantity('0.1'), Quantity('0.4'))
     structure.factor_py(0.1, 0.4)
-    assert_raises(DimensionalityError, structure.factor_py,
+    raises(DimensionalityError, structure.factor_py,
                   Quantity('0.1'), Quantity('0.1 m'))
-    assert_raises(DimensionalityError, structure.factor_py,
+    raises(DimensionalityError, structure.factor_py,
                   Quantity('0.1 m'), Quantity('0.1'))
 
     # test vectorization by doing calculation over range of qd and phi

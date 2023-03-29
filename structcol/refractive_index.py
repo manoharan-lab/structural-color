@@ -502,7 +502,7 @@ def n_eff(n_particle, n_matrix, volume_fraction, maxwell_garnett=False):
         def sum_bg(n_bg, vf, n_array):
             N = len(n_array.flatten())
             a, b = n_bg
-            S = np.sum((vf[n]*(n_array[n]**2 - (a+b*1j)**2)/(n_array[n]**2 + 2*(a+b*1j)**2)) for n in np.arange(0,N))
+            S = sum((vf[n]*(n_array[n]**2 - (a+b*1j)**2)/(n_array[n]**2 + 2*(a+b*1j)**2)) for n in np.arange(0, N))
             return (S.real, S.imag)
         
         # set an initial guess and solve for Bruggeman's refractive index of the composite

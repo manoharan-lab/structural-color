@@ -31,6 +31,7 @@ from .. import detector as det
 from .. import refractive_index as ri
 from .. import index_ratio, size_parameter, model
 import numpy as np
+import warnings
 from numpy.testing import assert_equal, assert_almost_equal
 import pytest
 
@@ -114,6 +115,7 @@ def test_reflection_core_shell():
     ntrajectories = 30
     
     # Reflection using a non-core-shell system
+    warnings.filterwarnings("ignore", category=UserWarning) # ignore the "not enough events" warning
     R, T = calc_montecarlo(nevents, ntrajectories, radius, n_particle, 
                            n_sample, n_medium, volume_fraction, wavelen, seed)
     
@@ -218,6 +220,7 @@ def test_reflection_absorbing_particle_or_matrix():
     ntrajectories = 30
     
     # Reflection using non-absorbing particle
+    warnings.filterwarnings("ignore", category=UserWarning) # ignore the "not enough events" warning
     R, T = calc_montecarlo(nevents, ntrajectories, radius, n_particle, 
                            n_sample, n_medium, volume_fraction, wavelen, seed)
 
@@ -284,6 +287,7 @@ def test_reflection_polydispersity():
 
     # Without absorption: test that the reflectance using very small 
     # polydispersity is the same as the monodisperse case
+    warnings.filterwarnings("ignore", category=UserWarning) # ignore the "not enough events" warning
     R_mono, T_mono = calc_montecarlo(nevents, ntrajectories, radius, 
                                      n_particle, n_sample, n_medium, 
                                      volume_fraction, wavelen, seed, 
@@ -420,7 +424,6 @@ def test_reflection_polydispersity():
     assert_almost_equal(T_noabs1, T_abs1, decimal=14)
 
     # When there are 2 mean diameters  
-    print(n_sample_abs.real)  
     R_noabs2, T_noabs2 = calc_montecarlo(nevents, ntrajectories, radius1, 
                                    n_particle, n_sample_abs.real, n_medium, 
                                    volume_fraction, wavelen, seed, 
@@ -428,7 +431,6 @@ def test_reflection_polydispersity():
                                    concentration = concentration2, 
                                    pdi = pdi4, polydisperse=True)
                                    
-    print(n_sample_abs)
     # something to do with the combination of absorber, 2 radii, and nevents-1
     R_abs2, T_abs2 = calc_montecarlo(nevents, ntrajectories, radius1, 
                                    n_particle, n_sample_abs, n_medium, 
@@ -505,7 +507,7 @@ def test_surface_roughness():
     # test that the reflectance with very small surface roughness is the same 
     # as without any roughness
     seed = 1
-    nevents = 60
+    nevents = 100
     ntrajectories = 30
 
     # Reflection with no surface roughness

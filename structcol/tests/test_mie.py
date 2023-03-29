@@ -21,7 +21,7 @@ Tests for the mie module
 """
 
 from .. import Quantity, ureg, q, index_ratio, size_parameter, np, mie
-from nose.tools import assert_raises, assert_equal
+from pytest import raises
 from numpy.testing import assert_almost_equal, assert_array_almost_equal
 from pint.errors import DimensionalityError
 
@@ -57,9 +57,9 @@ def test_cross_sections():
 
     # test that calc_cross_sections throws an exception when given an argument
     # with the wrong dimensions
-    assert_raises(DimensionalityError, mie.calc_cross_sections,
+    raises(DimensionalityError, mie.calc_cross_sections,
                   m, x, Quantity('0.25 J'))
-    assert_raises(DimensionalityError, mie.calc_cross_sections,
+    raises(DimensionalityError, mie.calc_cross_sections,
                   m, x, Quantity('0.25'))
 
 def test_form_factor():

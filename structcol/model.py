@@ -46,7 +46,7 @@ from scipy.special import factorial
             None, None, None, None)
 def reflection(n_particle, n_matrix, n_medium, wavelen, radius,
                volume_fraction,
-               radius2=None, 
+               radius2=None,
                concentration=None,
                pdi=None,
                thickness=None,
@@ -200,25 +200,27 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius,
         radius2 = radius2.to(radius.units)
     if radius2 is None:
         radius2 = radius
-    
-    # define the mean diameters in case the system is polydisperse
-    mean_diameters = Quantity(np.array([2*radius.magnitude, 
-                                        2*radius2.magnitude]),
-                              radius.units)
-    
-    # General number density formula for binary systems, converges to monospecies 
-    # formula when the concentration of either particle goes to zero. When the
-    # system is monospecies, define a concentration array to be able to use the
-    # general formula.
-    if concentration is None:
-        concentration = Quantity(np.array([1,0]), '')
-    term1 = 1 / (radius.max() ** 3 + radius2.max() ** 3 * concentration[1]/concentration[0])
-    term2 = 1 / (radius2.max() ** 3 + radius.max() ** 3 * concentration[0]/concentration[1])
-    rho = 3.0 * volume_fraction / (4.0 * np.pi) * (term1 + term2)
-    
+
     # check that the number of indices and radii is the same
     if len(np.atleast_1d(n_particle)) != len(np.atleast_1d(radius)):
-       raise ValueError('Arrays of indices and radii must be the same length')
+        raise ValueError('Arrays of indices and radii must be the same length')
+    
+    # define the mean diameters in case the system is polydisperse
+    mean_diameters = Quantity(np.hstack([2*radius.magnitude,
+                                        2*radius2.magnitude]),
+                                    radius.units)
+    
+    # General number density formula for binary systems, converges to monospecies 
+    # formula when the concentration of either particle is zero. When the
+    # system is monospecies, define a concentration array to be able to use the
+    # general formula.
+    if (concentration is None) or (np.any(np.atleast_1d(concentration) == 0)):
+        # concentration = Quantity(np.array([1, 0]), '')
+        rho = _number_density(volume_fraction, np.atleast_1d(radius).max())
+    else:
+        term1 = 1 / (radius.max() ** 3 + radius2.max() ** 3 * concentration[1]/concentration[0])
+        term2 = 1 / (radius2.max() ** 3 + radius.max() ** 3 * concentration[0]/concentration[1])
+        rho = 3.0 * volume_fraction / (4.0 * np.pi) * (term1 + term2)
         
     # calculate array of volume fractions of each layer in the particle. If 
     # particle is not core-shell, volume fraction remains the same
@@ -228,7 +230,7 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius,
         vf_array[r] = (r_array[r+1]**3-r_array[r]**3) / (r_array[-1:]**3) * volume_fraction.magnitude
     if len(vf_array) == 1:
         vf_array = float(vf_array)
-
+    
     # use Bruggeman formula to calculate effective index of
     # particle-matrix composite
     n_sample_eff = None
@@ -324,7 +326,7 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius,
     # (which is the default). Including near-fields leads to strange effects 
     # when the calculation is done not over all angles but only a subset. 
     # When there isn't absorption, the distance does not enter the calculation. 
-    if form_type=='polydisperse':
+    if form_type == 'polydisperse':
         distance = mean_diameters / 2
     else:
         distance = mean_diameters.max() / 2
@@ -485,6 +487,7 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius,
     # integrating. However, we do average the total cross section to normalize
     # the reflection cross-sections (that is, we use sigma_total rather than
     # sigma_total_par or sigma_total_perp).
+    
     reflected_par = t_medium_sample[0] * cscat_detected_par/cext_total * \
                         factor + r_medium_sample[0]  
     reflected_perp = t_medium_sample[1] * cscat_detected_perp/cext_total * \
@@ -492,10 +495,6 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius,
 
     reflectance = (reflected_par + reflected_perp)/2
     
-    if isinstance(reflectance.magnitude, Quantity):# to remove double dimensionless
-        reflectance = reflectance.magnitude
-        reflectance = reflectance.magnitude
- 
     return reflectance, reflected_par, reflected_perp, asymmetry_parameter, \
            transport_length
     
@@ -850,13 +849,17 @@ def polydisperse_form_factor(m, angles, diameters, concentration, pdi, wavelen,
                 # distances we use for the integrand and the integral. For now, 
                 # we use the mean radii. 
             else:
-                form_factor = mie.calc_ang_dist(m, x_poly[s], angles_array[s]) 
+                form_factor = mie.calc_ang_dist(m, x_poly[s], angles_array[s])
+            if isinstance(form_factor[0], Quantity):
+                form_factor = list(form_factor)
+                form_factor[0] = form_factor[0].magnitude
+                form_factor[1] = form_factor[1].magnitude
             if coordinate_system=='cartesian':
-                form_factor_par[:,:,s] = form_factor[0]
-                form_factor_perp[:,:,s] = form_factor[1]
+                form_factor_par[:, :, s] = form_factor[0]
+                form_factor_perp[:, :, s] = form_factor[1]
             else:
-                form_factor_par[:,s] = form_factor[0]
-                form_factor_perp[:,s] = form_factor[1]                
+                form_factor_par[:, s] = form_factor[0]
+                form_factor_perp[:, s] = form_factor[1]                
             
         # multiply the form factors by the Schulz distribution 
         integrand_par = form_factor_par * distr_array
@@ -869,19 +872,17 @@ def polydisperse_form_factor(m, angles, diameters, concentration, pdi, wavelen,
         diameter_range = diameter_range.magnitude
         if coordinate_system == 'cartesian':
             axis_int = 2
-            F_par[d,:,:] = np.trapz(integrand_par, x=diameter_range, axis=axis_int) * np.atleast_1d(concentration)[d]
-            F_perp[d,:,:] = np.trapz(integrand_perp, x=diameter_range, axis=axis_int) * np.atleast_1d(concentration)[d]
+            F_par[d, :, :] = np.trapz(integrand_par, x=diameter_range, axis=axis_int) * np.atleast_1d(concentration)[d]
+            F_perp[d, :, :] = np.trapz(integrand_perp, x=diameter_range, axis=axis_int) * np.atleast_1d(concentration)[d]
         else:
             axis_int = 1
-            F_par[d,:] = np.trapz(integrand_par, x=diameter_range, axis=axis_int) * np.atleast_1d(concentration)[d]
-            F_perp[d,:] = np.trapz(integrand_perp, x=diameter_range, axis=axis_int) * np.atleast_1d(concentration)[d]
+            F_par[d, :] = np.trapz(integrand_par, x=diameter_range, axis=axis_int) * np.atleast_1d(concentration)[d]
+            F_perp[d, :] = np.trapz(integrand_perp, x=diameter_range, axis=axis_int) * np.atleast_1d(concentration)[d]
         
     # the final polydisperse form factor as a function of angle is 
     # calculated as the average of each mean diameter's form factor
     f_par = np.sum(F_par, axis=0)
     f_perp = np.sum(F_perp, axis=0)
- 
-
     return(f_par, f_perp)
 
 

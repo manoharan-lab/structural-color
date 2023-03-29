@@ -23,20 +23,20 @@ Tests for the refractive_index module of structcol
 
 from .. import refractive_index as ri
 from .. import Quantity
-from nose.tools import assert_raises, assert_equal
-from numpy.testing import assert_almost_equal, assert_array_almost_equal, assert_warns
+from numpy.testing import assert_equal, assert_almost_equal, assert_array_almost_equal, assert_warns
+from pytest import raises
 from pint.errors import DimensionalityError
 import numpy as np
 
 def test_n():
     # make sure that a material not in the dictionary raises a KeyError
-    assert_raises(KeyError, ri.n, 'badkey', Quantity('0.5 um'))
+    raises(KeyError, ri.n, 'badkey', Quantity('0.5 um'))
 
     # make sure that specifying no units throws an exception
-    assert_raises(DimensionalityError, ri.n, 'polystyrene', 0.5)
+    raises(DimensionalityError, ri.n, 'polystyrene', 0.5)
     
     # and specifying the wrong units, too
-    assert_raises(DimensionalityError, ri.n, 'polystyrene', Quantity('0.5 J'))
+    raises(DimensionalityError, ri.n, 'polystyrene', Quantity('0.5 J'))
 
 # the next few tests make sure that the various dispersion formulas give values
 # of n close to those listed by refractiveindex.info (or other source) at the
@@ -182,7 +182,7 @@ def test_data():
     assert_equal(ri.n('data', wavelength, index_data=data, wavelength_data=wavelength).all(), data_complex.all())
     
     # Test that keyerror is raised when no index is specified for 'data'
-    assert_raises(KeyError, ri.n, 'data', Quantity('0.5 um'), index_data=None)
+    raises(KeyError, ri.n, 'data', Quantity('0.5 um'), index_data=None)
 
     # Test warning message when user specifies index for a material other than 'data'
     assert_warns(Warning, ri.n, 'water', Quantity('0.5 um'), index_data=data)

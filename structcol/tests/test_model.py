@@ -23,8 +23,8 @@ Tests for the single-scattering model (in structcol/model.py)
 
 from .. import Quantity, ureg, q, index_ratio, size_parameter, np, mie, model
 from .. import refractive_index as ri
-from nose.tools import assert_raises, assert_equal
-from numpy.testing import assert_almost_equal, assert_array_almost_equal
+from pytest import raises
+from numpy.testing import assert_equal, assert_almost_equal, assert_array_almost_equal
 from pint.errors import DimensionalityError
 import pytest
 
@@ -56,7 +56,7 @@ def test_fresnel():
     # test vectorized computation
     angles = Quantity(np.linspace(0, 180., 19), 'deg')
     # check for value error
-    assert_raises(ValueError, model.fresnel_reflection, n2, n1, angles)
+    raises(ValueError, model.fresnel_reflection, n2, n1, angles)
     angles = Quantity(np.linspace(0, 90., 10), 'deg')
     rpar, rperp = model.fresnel_reflection(n2, n1, angles)
     rpar_std = np.array([0.04, 0.0362780, 0.0243938, 0.00460754, 0.100064, 1.0,
@@ -151,8 +151,10 @@ def test_differential_cross_section():
     diff_cs = model.differential_cross_section(m_cs, x_cs, angles, 
                                                np.sum(volume_fraction_cs))
 
-    assert_array_almost_equal(diff, diff_cs, decimal=5)
-    
+    assert_array_almost_equal(diff[0].magnitude, diff_cs[0].magnitude, decimal=5)
+    assert_array_almost_equal(diff[1].magnitude, diff_cs[1].magnitude, decimal=5)
+
+
 def test_reflection_core_shell():
     # Test reflection, anisotropy factor, and transport length calculations to
     # make sure the values for refl, g, and lstar remain the same after adding
@@ -168,20 +170,22 @@ def test_reflection_core_shell():
     n_medium = n_matrix
 
     refl1, _, _, g1, lstar1 = model.reflection(n_particle, n_matrix, n_medium, 
-                                            wavelength, radius, volume_fraction, 
-                                            thickness = Quantity('15000.0 nm'), 
-                                            theta_min = Quantity('90 deg'), 
+                                            wavelength, radius, 
+                                            volume_fraction, 
+                                            thickness=Quantity('15000.0 nm'), 
+                                            theta_min=Quantity('90 deg'), 
                                             small_angle=Quantity('5 deg'),                    
                                             maxwell_garnett=True)
     
     # Non core-shell particles with Bruggeman effective index
     volume_fraction2 = Quantity(0.00001, '')
     refl2, _, _, g2, lstar2 = model.reflection(n_particle, n_matrix, n_medium, 
-                                            wavelength, radius, volume_fraction2, 
-                                            thickness = Quantity('15000.0 nm'), 
-                                            theta_min = Quantity('90 deg'), 
-                                            small_angle=Quantity('5 deg'), 
-                                            maxwell_garnett=False)
+                                               wavelength, radius, 
+                                               volume_fraction2, 
+                                               thickness=Quantity('15000.0 nm'), 
+                                               theta_min=Quantity('90 deg'), 
+                                               small_angle=Quantity('5 deg'), 
+                                               maxwell_garnett=False)
         
     # Core-shell particles of core diameter equal to non core shell particles, 
     # and shell index of air. With Bruggeman effective index
@@ -190,11 +194,12 @@ def test_reflection_core_shell():
     volume_fraction3 = volume_fraction2 * (radius3[1]**3 / radius3[0]**3)
 
     refl3, _, _, g3, lstar3 = model.reflection(n_particle3, n_matrix, n_medium, 
-                                            wavelength, radius3, volume_fraction3, 
-                                            thickness = Quantity('15000.0 nm'), 
-                                            small_angle=Quantity('5 deg'), 
-                                            theta_min = Quantity('90 deg'), 
-                                            maxwell_garnett=False)
+                                               wavelength, radius3, 
+                                               volume_fraction3, 
+                                               thickness=Quantity('15000.0 nm'),
+                                               small_angle=Quantity('5 deg'),
+                                               theta_min=Quantity('90 deg'),
+                                               maxwell_garnett=False)
     
     # Outputs for refl, g, and lstar before adding core-shell capability
     refl = Quantity(0.20772170840902376, '')
@@ -203,15 +208,15 @@ def test_reflection_core_shell():
     
     # Compare old outputs (before adding core-shell capability) and new outputs
     # for a non-core-shell using Maxwell-Garnett
-    assert_array_almost_equal(refl, refl1)
-    assert_array_almost_equal(g, g1) 
-    assert_array_almost_equal(lstar, lstar1)
+    assert_array_almost_equal(refl.magnitude, refl1.magnitude)
+    assert_array_almost_equal(g.magnitude, g1.magnitude) 
+    assert_array_almost_equal(lstar.magnitude, lstar1.magnitude)
 
     # Compare a non-core-shell and a core-shell with shell index of air using
     # Bruggeman
-    assert_array_almost_equal(refl2, refl3)
-    assert_array_almost_equal(g2, g3, decimal=5)
-    assert_array_almost_equal(lstar2.to('mm'), lstar3.to('mm'), decimal=4)
+    assert_array_almost_equal(refl2.magnitude, refl3.magnitude)
+    assert_array_almost_equal(g2.magnitude, g3.magnitude, decimal=5)
+    assert_array_almost_equal(lstar2.to('mm').magnitude, lstar3.to('mm').magnitude, decimal=4)
     
     
     # Test that the reflectance is the same for a core-shell that absorbs (with
@@ -230,7 +235,7 @@ def test_reflection_core_shell():
     refl5 = model.reflection(n_particle5, n_matrix, n_medium, wavelength, 
                              radius5, volume_fraction, thickness=thickness)[0]
     
-    assert_array_almost_equal(refl4, refl5, decimal=3)
+    assert_array_almost_equal(refl4.magnitude, refl5.magnitude, decimal=3)
     
     # Same as previous test but with absorbing matrix
     # Non-core-shell
@@ -247,7 +252,7 @@ def test_reflection_core_shell():
     refl7 = model.reflection(n_particle7, n_matrix7, n_medium, wavelength, 
                              radius7, volume_fraction, thickness=thickness)[0]
     
-    assert_array_almost_equal(refl6, refl7, decimal=3)
+    assert_array_almost_equal(refl6.magnitude, refl7.magnitude, decimal=3)
 
 
 def test_reflection_absorbing_particle():
@@ -271,9 +276,9 @@ def test_reflection_absorbing_particle():
                                                         radius, volume_fraction, 
                                                         maxwell_garnett=True)
     
-    assert_array_almost_equal(refl_mg1, refl_mg2)
-    assert_array_almost_equal(g_mg1, g_mg2)
-    assert_array_almost_equal(lstar_mg1, lstar_mg2)
+    assert_array_almost_equal(refl_mg1.magnitude, refl_mg2.magnitude)
+    assert_array_almost_equal(g_mg1.magnitude, g_mg2.magnitude)
+    assert_array_almost_equal(lstar_mg1.magnitude, lstar_mg2.magnitude)
     
     # Outputs before refactoring structcol
     refl_mg1_before = 0.2963964709617333
@@ -285,10 +290,10 @@ def test_reflection_absorbing_particle():
     # lstar_mg2 and lstar_mg1 are now equal, so we don't need to compare to 
     # lstar_mg2_before
     
-    assert_array_almost_equal(refl_mg1_before, refl_mg1, decimal=14)
-    assert_array_almost_equal(refl_mg2_before, refl_mg2, decimal=14)
-    assert_array_almost_equal(g_mg1_before, g_mg1, decimal=14)
-    assert_array_almost_equal(g_mg2_before, g_mg2, decimal=14)
+    assert_array_almost_equal(refl_mg1_before, refl_mg1.magnitude, decimal=14)
+    assert_array_almost_equal(refl_mg2_before, refl_mg2.magnitude, decimal=14)
+    assert_array_almost_equal(g_mg1_before, g_mg1.magnitude, decimal=14)
+    assert_array_almost_equal(g_mg2_before, g_mg2.magnitude, decimal=14)
     assert_array_almost_equal(lstar_mg1_before, lstar_mg1.magnitude, decimal=14)
     assert_array_almost_equal(lstar_mg1.magnitude, lstar_mg2.magnitude, decimal=14)
     
@@ -302,9 +307,9 @@ def test_reflection_absorbing_particle():
                                                         radius, volume_fraction, 
                                                         maxwell_garnett=False)
     
-    assert_array_almost_equal(refl_bg1, refl_bg2)
-    assert_array_almost_equal(g_bg1, g_bg2)
-    assert_array_almost_equal(lstar_bg1, lstar_bg2)
+    assert_array_almost_equal(refl_bg1.magnitude, refl_bg2.magnitude)
+    assert_array_almost_equal(g_bg1.magnitude, g_bg2.magnitude)
+    assert_array_almost_equal(lstar_bg1.magnitude, lstar_bg2.magnitude)
 
     # Outputs before refactoring structcol
     refl_bg1_before = 0.2685710414987676
@@ -314,10 +319,10 @@ def test_reflection_absorbing_particle():
     lstar_bg1_before = 11593.280877304634
     lstar_bg2_before = 11593.280877304634
 
-    assert_array_almost_equal(refl_bg1_before, refl_bg1, decimal=10)
-    assert_array_almost_equal(refl_bg2_before, refl_bg2, decimal=10)
-    assert_array_almost_equal(g_bg1_before, g_bg1, decimal=10)
-    assert_array_almost_equal(g_bg2_before, g_bg2, decimal=10)
+    assert_array_almost_equal(refl_bg1_before, refl_bg1.magnitude, decimal=10)
+    assert_array_almost_equal(refl_bg2_before, refl_bg2.magnitude, decimal=10)
+    assert_array_almost_equal(g_bg1_before, g_bg1.magnitude, decimal=10)
+    assert_array_almost_equal(g_bg2_before, g_bg2.magnitude, decimal=10)
     assert_array_almost_equal(lstar_bg1_before, lstar_bg1.magnitude, decimal=10)
     assert_array_almost_equal(lstar_bg2_before, lstar_bg2.magnitude, decimal=10)
     
@@ -332,9 +337,9 @@ def test_reflection_absorbing_particle():
                                                         radius, volume_fraction,
                                                         thickness=thickness, 
                                                         maxwell_garnett=False)
-    assert_array_almost_equal(refl_bg1, refl_bg3, decimal=3)
-    assert_array_almost_equal(g_bg1, g_bg3, decimal=3)
-    assert_array_almost_equal(lstar_bg1.to('mm'), lstar_bg3.to('mm'), decimal=4)
+    assert_array_almost_equal(refl_bg1.magnitude, refl_bg3.magnitude, decimal=3)
+    assert_array_almost_equal(g_bg1.magnitude, g_bg3.magnitude, decimal=3)
+    assert_array_almost_equal(lstar_bg1.to('mm').magnitude, lstar_bg3.to('mm').magnitude, decimal=4)
 
                                                     
 def test_calc_g():
@@ -368,14 +373,14 @@ def test_calc_g():
     qscat, qext, qback = mie.calc_efficiencies(m, x)
     g2 = mie.calc_g(m,x)   
     
-    assert_array_almost_equal(g1, g2)
+    assert_array_almost_equal(g1.magnitude, g2)
     
     # Outputs before refactoring structcol
     g1_before = 0.5064750277811477
     g2_before = 0.5064757158664487
-    
-    assert_equal(g1_before, g1)
-    assert_equal(g2_before, g2)
+
+    assert_almost_equal(g1_before, g1.magnitude)
+    assert_almost_equal(g2_before, g2)
     
 def test_transport_length_dilute():
     # test that the transport length for a dilute system matches the transport
@@ -403,7 +408,7 @@ def test_transport_length_dilute():
 
     lstar_mie = 1 / (number_density * cscat * (1-g))
      
-    assert_array_almost_equal(lstar_model.to('m'), lstar_mie.to('m'), decimal=4)
+    assert_array_almost_equal(lstar_model.to('m').magnitude, lstar_mie.to('m').magnitude, decimal=4)
     
 def test_reflection_absorbing_matrix():
     # test that the reflections with a real n_matrix and with a complex
@@ -426,9 +431,9 @@ def test_reflection_absorbing_matrix():
                                                         radius, volume_fraction, 
                                                         maxwell_garnett=True)
     
-    assert_array_almost_equal(refl_mg1, refl_mg2)
-    assert_array_almost_equal(g_mg1, g_mg2)
-    assert_array_almost_equal(lstar_mg1, lstar_mg2)
+    assert_array_almost_equal(refl_mg1.magnitude, refl_mg2.magnitude)
+    assert_array_almost_equal(g_mg1.magnitude, g_mg2.magnitude)
+    assert_array_almost_equal(lstar_mg1.magnitude, lstar_mg2.magnitude)
     
     # With Bruggeman
     refl_bg1, _, _, g_bg1, lstar_bg1 = model.reflection(n_particle, n_matrix_real, 
@@ -440,9 +445,9 @@ def test_reflection_absorbing_matrix():
                                                         radius, volume_fraction, 
                                                         maxwell_garnett=False)
     
-    assert_array_almost_equal(refl_bg1, refl_bg2)
-    assert_array_almost_equal(g_bg1, g_bg2)
-    assert_array_almost_equal(lstar_bg1, lstar_bg2)
+    assert_array_almost_equal(refl_bg1.magnitude, refl_bg2.magnitude)
+    assert_array_almost_equal(g_bg1.magnitude, g_bg2.magnitude)
+    assert_array_almost_equal(lstar_bg1.magnitude, lstar_bg2.magnitude)
     
     # test that the reflectance is (almost) the same when using an
     # almost-non-absorbing index vs a non-absorbing index
@@ -456,9 +461,9 @@ def test_reflection_absorbing_matrix():
                                                         thickness=thickness,
                                                         maxwell_garnett=False)
     
-    assert_array_almost_equal(refl_bg1, refl_bg3, decimal=3)
-    assert_array_almost_equal(g_bg1, g_bg3, decimal=3)
-    assert_array_almost_equal(lstar_bg1.to('mm'), lstar_bg3.to('mm'), decimal=4)
+    assert_array_almost_equal(refl_bg1.magnitude, refl_bg3.magnitude, decimal=3)
+    assert_array_almost_equal(g_bg1.magnitude, g_bg3.magnitude, decimal=3)
+    assert_array_almost_equal(lstar_bg1.to('mm').magnitude, lstar_bg3.to('mm').magnitude, decimal=4)
     
     
 def test_reflection_polydispersity():
@@ -485,9 +490,9 @@ def test_reflection_polydispersity():
                                                   concentration = concentration, 
                                                   pdi = pdi, structure_type=None,
                                                   form_type='polydisperse')
-    assert_array_almost_equal(refl, refl2)
-    assert_array_almost_equal(g, g2)
-    assert_array_almost_equal(lstar.to('mm'), lstar2.to('mm'), decimal=4)
+    assert_array_almost_equal(refl.magnitude, refl2.magnitude)
+    assert_array_almost_equal(g.magnitude, g2.magnitude)
+    assert_array_almost_equal(lstar.to('mm').magnitude, lstar2.to('mm').magnitude, decimal=4)
     
     # Outputs before refactoring structcol
     refl_before = 0.021202873774022364
@@ -497,10 +502,10 @@ def test_reflection_polydispersity():
     lstar_before = 0.0037795694345017063
     lstar2_before = 0.0037795694345017063 # V: 0.0037899271938978255, A: 0.0037899271967178523
   
-    assert_array_almost_equal(refl_before, refl, decimal=14)
-    assert_array_almost_equal(refl2_before, refl2, decimal=14)
-    assert_array_almost_equal(g_before, g, decimal=14)
-    assert_array_almost_equal(g2_before, g2, decimal=14)
+    assert_array_almost_equal(refl_before, refl.magnitude, decimal=14)
+    assert_array_almost_equal(refl2_before, refl2.magnitude, decimal=14)
+    assert_array_almost_equal(g_before, g.magnitude, decimal=14)
+    assert_array_almost_equal(g2_before, g2.magnitude, decimal=14)
     assert_array_almost_equal(lstar_before, lstar.to('mm').magnitude, decimal=14)
     assert_array_almost_equal(lstar2_before, lstar2.to('mm').magnitude, decimal=11)
     
@@ -522,9 +527,9 @@ def test_reflection_polydispersity():
                                                structure_type='polydisperse',
                                                form_type=None)
                                                
-    assert_array_almost_equal(refl3, refl4)
-    assert_array_almost_equal(g3, g4)
-    assert_array_almost_equal(lstar3.to('mm'), lstar4.to('mm'), decimal=4)
+    assert_array_almost_equal(refl3.magnitude, refl4.magnitude)
+    assert_array_almost_equal(g3.magnitude, g4.magnitude)
+    assert_array_almost_equal(lstar3.to('mm').magnitude, lstar4.to('mm').magnitude, decimal=4)
 
     # Outputs before refactoring structcol
     refl3_before= 0.6310965269823348
@@ -534,16 +539,17 @@ def test_reflection_polydispersity():
     lstar3_before = 0.0002005604473366244
     lstar4_before = 0.00020056044751316733
     
-    assert_array_almost_equal(refl3_before, refl3, decimal=15)
-    assert_array_almost_equal(refl4_before, refl4, decimal=14)
-    assert_array_almost_equal(g3_before, g3, decimal=15)
-    assert_array_almost_equal(g4_before, g4, decimal=14)
+    assert_array_almost_equal(refl3_before, refl3.magnitude, decimal=15)
+    assert_array_almost_equal(refl4_before, refl4.magnitude, decimal=14)
+    assert_array_almost_equal(g3_before, g3.magnitude, decimal=15)
+    assert_array_almost_equal(g4_before, g4.magnitude, decimal=14)
     assert_array_almost_equal(lstar3_before, lstar3.to('mm').magnitude, decimal=15)
     assert_array_almost_equal(lstar4_before, lstar4.to('mm').magnitude, decimal=15)
     
     # test that the reflectance using both the structure and form factors is 
     # the same using the polydisperse formula vs using Mie and Percus-Yevick in 
     # the limit of monodispersity
+    
     refl5, _, _, g5, lstar5 = model.reflection(n_particle, n_matrix, n_medium, 
                                                wavelength, radius, volume_fraction,
                                                structure_type='glass',
@@ -557,9 +563,9 @@ def test_reflection_polydispersity():
                                                structure_type='polydisperse',
                                                form_type='polydisperse')
     
-    assert_array_almost_equal(refl5, refl6)
-    assert_array_almost_equal(g5, g6)
-    assert_array_almost_equal(lstar5.to('mm'), lstar6.to('mm'), decimal=4)
+    assert_array_almost_equal(refl5.magnitude, refl6.magnitude)
+    assert_array_almost_equal(g5.magnitude, g6.magnitude)
+    assert_array_almost_equal(lstar5.to('mm').magnitude, lstar6.to('mm').magnitude, decimal=4)
     
     # Outputs before refactoring structcol
     refl5_before = 0.2685710414987676
@@ -569,10 +575,10 @@ def test_reflection_polydispersity():
     lstar5_before = 0.011593280877304636
     lstar6_before = 0.011593280876210265 # A/V: 0.011625051809100308
     
-    assert_array_almost_equal(refl5_before, refl5, decimal=15)
-    assert_array_almost_equal(refl6_before, refl6, decimal=15)
-    assert_array_almost_equal(g5_before, g5, decimal=15)
-    assert_array_almost_equal(g6_before, g6, decimal=15)
+    assert_array_almost_equal(refl5_before, refl5.magnitude, decimal=15)
+    assert_array_almost_equal(refl6_before, refl6.magnitude, decimal=15)
+    assert_array_almost_equal(g5_before, g5.magnitude, decimal=15)
+    assert_array_almost_equal(g6_before, g6.magnitude, decimal=15)
     assert_array_almost_equal(lstar5_before, lstar5.to('mm').magnitude, decimal=15)
     assert_array_almost_equal(lstar6_before, lstar6.to('mm').magnitude, decimal=14)
     
@@ -598,9 +604,9 @@ def test_reflection_polydispersity():
                                                structure_type='polydisperse',
                                                form_type='polydisperse')
     
-    assert_array_almost_equal(refl7, refl8, decimal=16)
-    assert_array_almost_equal(g7, g8, decimal=15)
-    assert_array_almost_equal(lstar7.to('mm'), lstar8.to('mm'), decimal=16)    
+    assert_array_almost_equal(refl7.magnitude, refl8.magnitude, decimal=16)
+    assert_array_almost_equal(g7.magnitude, g8.magnitude, decimal=15)
+    assert_array_almost_equal(lstar7.to('mm').magnitude, lstar8.to('mm').magnitude, decimal=16)    
     
     # test that the reflectance is the same regardless of the order in which
     # the radii are specified
@@ -623,9 +629,9 @@ def test_reflection_polydispersity():
                                                structure_type='polydisperse',
                                                form_type='polydisperse')
     
-    assert_array_almost_equal(refl9, refl10, decimal=14)
-    assert_array_almost_equal(g9, g10, decimal=14)
-    assert_array_almost_equal(lstar9.to('mm'), lstar10.to('mm'), decimal=16)   
+    assert_array_almost_equal(refl9.magnitude, refl10.magnitude, decimal=14)
+    assert_array_almost_equal(g9.magnitude, g10.magnitude, decimal=14)
+    assert_array_almost_equal(lstar9.to('mm').magnitude, lstar10.to('mm').magnitude, decimal=16)   
     
     
 def test_reflection_polydispersity_with_absorption():
@@ -655,9 +661,9 @@ def test_reflection_polydispersity_with_absorption():
                                                form_type='polydisperse',
                                                thickness=thickness)
     
-    assert_array_almost_equal(refl, refl2, decimal=9)
-    assert_array_almost_equal(g, g2, decimal=9)
-    assert_array_almost_equal(lstar.to('mm'), lstar2.to('mm'), decimal=9)
+    assert_array_almost_equal(refl.magnitude, refl2.magnitude, decimal=9)
+    assert_array_almost_equal(g.magnitude, g2.magnitude, decimal=9)
+    assert_array_almost_equal(lstar.to('mm').magnitude, lstar2.to('mm').magnitude, decimal=9)
 
     # Outputs before refactoring structcol
     refl_before = 0.020910087489548684 # A/V:0.020791487299024698
@@ -692,9 +698,9 @@ def test_reflection_polydispersity_with_absorption():
                                                form_type=None, 
                                                thickness=thickness)
     
-    assert_array_almost_equal(refl3, refl4)
-    assert_array_almost_equal(g3, g4, decimal=4)
-    assert_array_almost_equal(lstar3.to('mm'), lstar4.to('mm'), decimal=4)
+    assert_array_almost_equal(refl3.magnitude, refl4.magnitude)
+    assert_array_almost_equal(g3.magnitude, g4.magnitude, decimal=4)
+    assert_array_almost_equal(lstar3.to('mm').magnitude, lstar4.to('mm').magnitude, decimal=4)
 
     # Outputs before refactoring structcol. Changed a couple values after 
     # re-implementing absorption into model.reflection() (now uses n_sample.imag 
@@ -706,8 +712,8 @@ def test_reflection_polydispersity_with_absorption():
     lstar3_before = 5.7241468935761515e-05 #Before updating absorption in single scat: 8.8037552221780592e-09 #A/V:1.4399291088853016e-08
     lstar4_before = 5.72414689861482e-05 #Before updating absorption in single scat: 8.8037552299275471e-09 #A/V:1.4399291096668534e-08
   
-    assert_array_almost_equal(refl3_before, refl3, decimal=15)
-    assert_array_almost_equal(refl4_before, refl4, decimal=15)
+    assert_array_almost_equal(refl3_before, refl3.magnitude, decimal=15)
+    assert_array_almost_equal(refl4_before, refl4.magnitude, decimal=15)
     assert_array_almost_equal(g3_before, g3.magnitude, decimal=15)
     assert_array_almost_equal(g4_before, g4.magnitude, decimal=15)
     assert_array_almost_equal(lstar3_before, lstar3.to('mm').magnitude, decimal=15)
@@ -731,9 +737,9 @@ def test_reflection_polydispersity_with_absorption():
                                                form_type='polydisperse', 
                                                thickness=thickness)
     
-    assert_array_almost_equal(refl5, refl6, decimal=8)
-    assert_array_almost_equal(g5, g6, decimal=8)
-    assert_array_almost_equal(lstar5.to('mm'), lstar6.to('mm'), decimal=8)
+    assert_array_almost_equal(refl5.magnitude, refl6.magnitude, decimal=8)
+    assert_array_almost_equal(g5.magnitude, g6.magnitude, decimal=8)
+    assert_array_almost_equal(lstar5.to('mm').magnitude, lstar6.to('mm').magnitude, decimal=8)
     
     # Outputs before refactoring structcol
     refl5_before = 0.11395667616828457 # A/V:0.11277597784758357
@@ -743,8 +749,8 @@ def test_reflection_polydispersity_with_absorption():
     lstar5_before = 0.01163694691 #Before updating absorption in single scat: A/V:0.013809880819376879 #A/V:0.013405648948885825
     lstar6_before = 0.011668837507 #Before updating absorption in single scat: A/V:0.013847726256293521 #A/V:0.013442386605693767
     
-    assert_array_almost_equal(refl5_before, refl5, decimal=1)
-    assert_array_almost_equal(refl6_before, refl6, decimal=1)
+    assert_array_almost_equal(refl5_before, refl5.magnitude, decimal=1)
+    assert_array_almost_equal(refl6_before, refl6.magnitude, decimal=1)
     assert_array_almost_equal(g5_before, g5.magnitude, decimal=12)
     assert_array_almost_equal(g6_before, g6.magnitude, decimal=12)
     assert_array_almost_equal(lstar5_before, lstar5.to('mm').magnitude, decimal=4)
@@ -775,9 +781,9 @@ def test_reflection_polydispersity_with_absorption():
                                                structure_type='polydisperse',
                                                form_type='polydisperse', 
                                                thickness=thickness)
-    assert_array_almost_equal(refl7, refl8, decimal=15)
-    assert_array_almost_equal(g7, g8, decimal=15)
-    assert_array_almost_equal(lstar7.to('mm'), lstar8.to('mm'), decimal=15)
+    assert_array_almost_equal(refl7.magnitude, refl8.magnitude, decimal=15)
+    assert_array_almost_equal(g7.magnitude, g8.magnitude, decimal=15)
+    assert_array_almost_equal(lstar7.to('mm').magnitude, lstar8.to('mm').magnitude, decimal=15)
 
     ## When there are 2 mean diameters
     refl9, _, _, g9, lstar9 = model.reflection(n_particle2.real, n_matrix2.real, 
@@ -798,9 +804,9 @@ def test_reflection_polydispersity_with_absorption():
                                                structure_type='polydisperse',
                                                form_type='polydisperse', 
                                                thickness=thickness)
-    assert_array_almost_equal(refl9, refl10, decimal=3)
-    assert_array_almost_equal(g9, g10, decimal=2)
-    assert_array_almost_equal(lstar9.to('mm'), lstar10.to('mm'), decimal=4)
+    assert_array_almost_equal(refl9.magnitude, refl10.magnitude, decimal=3)
+    assert_array_almost_equal(g9.magnitude, g10.magnitude, decimal=2)
+    assert_array_almost_equal(lstar9.to('mm').magnitude, lstar10.to('mm').magnitude, decimal=4)
     # TODO: we should be careful with this last test. Interestingly, the values 
     # for refl9 and refl10 become incrasingly closer to each other when the pdi 
     # becomes large (~33%). No bugs were found after a careful examination, so 
@@ -834,9 +840,9 @@ def test_g_transport_length():
                                                wavelength, radius, 
                                                volume_fraction, 
                                                thickness=thickness2)
-    
-    assert_equal(g, g2)
-    assert_equal(lstar.to('mm'), lstar2.to('mm'))
+
+    assert_equal(g.magnitude, g2.magnitude)
+    assert_equal(lstar.to('mm').magnitude, lstar2.to('mm').magnitude)
     
 def test_reflection_throws_valueerror_for_polydisperse_core_shells(): 
     # test that a valueerror is raised when trying to run polydisperse core-shells                 

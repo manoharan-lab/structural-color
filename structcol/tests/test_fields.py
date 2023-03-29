@@ -153,7 +153,7 @@ def test_pi_shift_zero():
     directions = np.array([kz,kz,kz])
     weights = np.array([[1, 1],[1, 1],[1, 1]])
     trajectories = mc.Trajectory([x_pos, np.nan, z_pos],directions, weights)
-    trajectories.fields = np.zeros((3, nevents, ntrajectories), dtype=np.complex)
+    trajectories.fields = np.zeros((3, nevents, ntrajectories), dtype=complex)
     trajectories.fields[:,2,0] = 1
     trajectories.fields[:,2,1] = np.exp(np.pi*1j)
 
