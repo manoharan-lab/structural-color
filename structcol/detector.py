@@ -1270,7 +1270,7 @@ def distribute_ambig_traj_weights(refl_fresnel, trans_fresnel,
         # interface. This means reversed R/T ratios for fresnel reflection
         # at transmission interface.
         extra_refl = refl_fresnel * refl_frac + trans_fresnel * trans_frac + stuck_weights * 0.5
-        extra_trans = trans_fresnel * refl_frac + refl_fresnel * trans_frac + stuck_weights * 0.5 
+        extra_trans = trans_fresnel * refl_frac + refl_fresnel * trans_frac + stuck_weights * 0.5
 
     if boundary == 'sphere':
         # TODO these approximations work best if run_fresnel_traj = True
@@ -1292,7 +1292,7 @@ def distribute_ambig_traj_weights(refl_fresnel, trans_fresnel,
         
         # TODO check whether this makes sense for both film and sphere
         # TODO add a geometrical correction factor to deal with trans_fresnel
-        # and stuck based on size of detector compared to backscattering 
+        # and stuck based on size of detector compared to backscattering
         # hemisphere
         extra_refl = refl_fresnel * refl_frac
         
@@ -2250,37 +2250,3 @@ def calc_haze(trajectories, trans_per_traj, transmittance, trans_indices,
     haze = trans_diffuse / transmittance
     
     return haze
-    
-    
-#------------------------------------------------------------------------------
-#    # TODO For implementing coarse roughness when the trajectories exit the sample
-#    nev = z.shape[0]    
-#    # sample the surface roughness angles theta_a
-#    if coarse_roughness == 0.:
-#        theta_a = np.zeros(ntraj)
-#    else:
-#        theta_a_full = np.linspace(0.,np.pi/2, 500)
-#        prob_a = P_theta_a(theta_a_full,coarse_roughness)/sum(P_theta_a(theta_a_full,coarse_roughness))
-#        
-#        if np.isnan(prob_a).all(): 
-#            theta_a = np.zeros(ntraj)
-#        else: 
-#            theta_a = np.array([np.random.choice(theta_a_full, ntraj, p = prob_a) for i in range(1)]).flatten()
-#    
-#    # In case the surface is rough, then find new coordinates of initial 
-#    # directions after rotating the surface by an angle theta_a around y axis
-#    sintheta_a = np.tile(np.sin(theta_a), (nev, 1))
-#    costheta_a = np.tile(np.cos(theta_a), (nev, 1))
-#    
-#    kx_rot = costheta_a * kx - sintheta_a * kz
-#    ky_rot = ky.copy()
-#    kz_rot = sintheta_a * kx + costheta_a * kz
-#
-#    # correct for non-TIR fresnel reflection upon exiting
-#    reflected = refl_weights * fresnel_pass_frac(kz_rot, refl_indices, n_sample, n_front, n_medium)#<= uncomment
-#    transmitted = trans_weights * fresnel_pass_frac(kz_rot, trans_indices, n_sample, n_back, n_medium)
-#------------------------------------------------------------------------------
-#    # For implementing coarse roughness when the trajectories exit the sample
-    #trans_detected = detect_correct(kz_rot, transmitted, trans_indices, n_sample, n_medium, detection_angle)
-    #refl_detected = detect_correct(kz_rot, reflected, refl_indices, n_sample, n_medium, detection_angle)
-#------------------------------------------------------------------------------
