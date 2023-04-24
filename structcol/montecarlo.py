@@ -1439,7 +1439,7 @@ def coarse_roughness_enter(k0, n_medium, n_sample,
     if np.isnan(prob_a).all(): 
         theta_a = np.zeros(ntraj)
     else: 
-        theta_a = np.array([np.random.choice(theta_a_full, ntraj, p=prob_a.magnitude) for i in range(1)]).flatten()
+        theta_a = np.array([np.random.choice(theta_a_full, ntraj, p=prob_a) for i in range(1)]).flatten()
             
     # In case the surface is rough, then find new coordinates of initial 
     # directions after rotating the surface by an angle theta_a around y axis
