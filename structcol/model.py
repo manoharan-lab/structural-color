@@ -165,7 +165,7 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius,
     structure_s_data: None or 1d array
         if structure_type is 'data', the structure factor data must be provided
         here in the form of a one dimensional array 
-    structure_qd_data: None of 1d array
+    structure_qd_data: None or 1d array
         if structure_type is 'data', the qd data must be provided here in the 
         form of a one dimensional array 
         
@@ -227,9 +227,9 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius,
     vf_array = np.empty(len(np.atleast_1d(radius)))
     r_array = np.array([0] + np.atleast_1d(radius.magnitude).tolist())
     for r in np.arange(len(r_array)-1):
-        vf_array[r] = (r_array[r+1]**3-r_array[r]**3) / (r_array[-1:]**3) * volume_fraction.magnitude
+        vf_array[r] = (r_array[r+1]**3-r_array[r]**3) / (r_array[-1]**3) * volume_fraction.magnitude
     if len(vf_array) == 1:
-        vf_array = float(vf_array)
+        vf_array = float(vf_array[0])
     
     # use Bruggeman formula to calculate effective index of
     # particle-matrix composite

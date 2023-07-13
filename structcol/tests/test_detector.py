@@ -127,7 +127,7 @@ def test_reflection_core_shell():
     vf_array = np.empty(len(radius_cs))
     r_array = np.array([0] + radius_cs.magnitude.tolist()) 
     for r in np.arange(len(r_array)-1):
-        vf_array[r] = (r_array[r+1]**3-r_array[r]**3) / (r_array[-1:]**3) * volume_fraction
+        vf_array[r] = (r_array[r+1]**3-r_array[r]**3) / (r_array[-1]**3) * volume_fraction
 
     n_sample_cs = ri.n_eff(n_particle_cs, n_matrix, vf_array) 
     R_cs, T_cs = calc_montecarlo(nevents, ntrajectories, radius_cs, 
@@ -467,7 +467,7 @@ def test_throw_valueerror_for_polydisperse_core_shells():
         vf_array = np.empty(len(radius_cs))
         r_array = np.array([0] + radius_cs.magnitude.tolist()) 
         for r in np.arange(len(r_array)-1):
-            vf_array[r] = (r_array[r+1]**3-r_array[r]**3) / (r_array[-1:]**3) * volume_fraction
+            vf_array[r] = (r_array[r+1]**3-r_array[r]**3) / (r_array[-1]**3) * volume_fraction
     
         n_sample_cs = ri.n_eff(n_particle_cs, n_matrix, vf_array) 
         R_cs, T_cs = calc_montecarlo(nevents, ntrajectories, radius_cs, 
@@ -493,7 +493,7 @@ def test_throw_valueerror_for_polydisperse_unspecified_parameters():
         vf_array = np.empty(len(radius_cs))
         r_array = np.array([0] + radius_cs.magnitude.tolist()) 
         for r in np.arange(len(r_array)-1):
-            vf_array[r] = (r_array[r+1]**3-r_array[r]**3) / (r_array[-1:]**3) * volume_fraction
+            vf_array[r] = (r_array[r+1]**3-r_array[r]**3) / (r_array[-1]**3) * volume_fraction
             
         n_sample_cs = ri.n_eff(n_particle_cs, n_matrix, vf_array) 
         R_cs, T_cs = calc_montecarlo(nevents, ntrajectories, radius_cs, 
@@ -604,8 +604,6 @@ def test_goniometer_normalization():
     refl_renorm = det.normalize_refl_goniometer(refl, det_distance, det_len, det_theta)
     
     assert_almost_equal(refl_renorm, 0.368700804483) # calculated by hand
-    
-    return refl_renorm
     
 def test_goniometer_detector():
     # test

@@ -364,7 +364,7 @@ def test_calc_g():
     #r_array = np.array([0] + np.atleast_1d(radius).tolist())
     r_array = np.array([0] + np.atleast_1d(radius.magnitude).tolist()) 
     for r in np.arange(len(r_array)-1):
-        vf_array[r] = ((r_array[r+1]**3-r_array[r]**3) / (r_array[-1:]**3) * 
+        vf_array[r] = ((r_array[r+1]**3-r_array[r]**3) / (r_array[-1]**3) * 
                        volume_fraction.magnitude)
     
     n_sample = ri.n_eff(n_particle, n_matrix, vf_array)
