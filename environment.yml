@@ -1,7 +1,14 @@
-# To create an environment for the structural package, use
+# dependencies for structural color package
+#
+# To use:
 #   conda env create -f .\environment.yml
 # and then
 #   conda activate structcol
+#
+# To update dependencies after changing this environment file:
+#   conda env update --name structcol --file environment.yml --prune
+#
+# can also use mamba instead of conda in the above
 name: structcol
 channels:
   - conda-forge
@@ -12,8 +19,19 @@ dependencies:
   - scipy
   - pandas
   - pint
-  - pytest
   - matplotlib
   - seaborn
+
+  # include jupyterlab for convenience
   - jupyterlab
 
+  # for running tests
+  - pytest
+
+  # for development
+  - pylint
+  - flake8
+  - autoflake
+  - epc
+  - isort
+  - yapf
