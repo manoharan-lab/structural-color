@@ -19,6 +19,7 @@ dependencies:
   - scipy
   - pandas
   - pint
+  - ipython
   - matplotlib
   - seaborn
 
@@ -29,9 +30,16 @@ dependencies:
   - pytest
 
   # for development
+  - pyright
   - pylint
   - flake8
   - autoflake
   - epc
   - isort
   - yapf
+  - debugpy
+  - pip
+
+  - pip:
+      - importmagic
+
