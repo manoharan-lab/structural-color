@@ -1,0 +1,19 @@
+# To create an environment for the structural package, use
+#   conda env create -f .\environment.yml
+# and then
+#   conda activate structcol
+name: structcol
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python>=3.11
+  - numpy
+  - scipy
+  - pandas
+  - pint
+  - pytest
+  - matplotlib
+  - seaborn
+  - jupyterlab
+
