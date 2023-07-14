@@ -36,7 +36,7 @@ def test_2pi_shift():
 # test that phase mod 2Pi is the same as phase    
 
     # incident light wavelength
-    wavelength = sc.Quantity('600 nm')
+    wavelength = sc.Quantity('600.0 nm')
     
     # sample parameters
     radius = sc.Quantity('0.140 um')
@@ -48,7 +48,7 @@ def test_2pi_shift():
     n_sample = ri.n_eff(n_particle,         # refractive index of sample, calculated using Bruggeman approximation
                         n_matrix, 
                         volume_fraction)
-    thickness = sc.Quantity('50 um')
+    thickness = sc.Quantity('50.0 um')
     boundary = 'film'
     
     # Monte Carlo parameters
@@ -169,7 +169,7 @@ def test_pi_shift_zero():
 def test_field_normalized(): 
     # calculate fields and directions
     # incident light wavelength
-    wavelength = sc.Quantity('600 nm')
+    wavelength = sc.Quantity('600.0 nm')
     
     # sample parameters
     radius = sc.Quantity('0.140 um')
@@ -228,7 +228,7 @@ def test_field_normalized():
 def test_field_perp_direction():
     # calculate fields and directions
     # incident light wavelength
-    wavelength = sc.Quantity('600 nm')
+    wavelength = sc.Quantity('600.0 nm')
     
     # sample parameters
     radius = sc.Quantity('0.140 um')

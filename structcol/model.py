@@ -50,13 +50,13 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius,
                concentration=None,
                pdi=None,
                thickness=None,
-               theta_min=Quantity('90 deg'),
-               theta_max=Quantity('180 deg'),
-               phi_min=Quantity('0 deg'),
-               phi_max=Quantity('360 deg'),
-               incident_angle=Quantity('0 deg'),
+               theta_min=Quantity('90.0 deg'),
+               theta_max=Quantity('180.0 deg'),
+               phi_min=Quantity('0.0 deg'),
+               phi_max=Quantity('360.0 deg'),
+               incident_angle=Quantity('0.0 deg'),
                num_angles=200,
-               small_angle=Quantity('1 deg'),
+               small_angle=Quantity('1.0 deg'),
                structure_type='glass',
                form_type='sphere',
                maxwell_garnett=False,
@@ -217,7 +217,7 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius,
     # system is monospecies, define a concentration array to be able to use the
     # general formula.
     if (concentration is None) or (np.any(np.atleast_1d(concentration) == 0)):
-        # concentration = Quantity(np.array([1, 0]), '')
+        # concentration = Quantity(np.array([1.0, 0.0]), '')
         rho = _number_density(volume_fraction, np.atleast_1d(radius).max())
     else:
         term1 = 1 / (radius.max() ** 3 + radius2.max() ** 3 * concentration[1]/concentration[0])
@@ -918,7 +918,7 @@ def absorption_cross_section(form_type, m, diameters, n_matrix, x, wavelen,
         # define the range of diameters of the size distribution
         three_std_dev = 3*diameters/np.sqrt(t+1)
         min_diameter = diameters - three_std_dev
-        min_diameter[min_diameter.magnitude < 0] = Quantity(0, diameters.units)
+        min_diameter[min_diameter.magnitude < 0] = Quantity(0.0, diameters.units)
         max_diameter = diameters + three_std_dev
 
         cabs_poly = np.empty(len(np.atleast_1d(diameters)))

@@ -32,13 +32,13 @@ from numpy.testing import assert_equal, assert_almost_equal, assert_warns
 ### Set parameters ###
 
 # Properties of source
-wavelength = sc.Quantity('600 nm') # wavelengths at which to calculate reflectance
+wavelength = sc.Quantity('600.0 nm') # wavelengths at which to calculate reflectance
 
 # Geometric properties of sample
 particle_radius = sc.Quantity('0.130 um')        # radius of the sphere particles 
 volume_fraction_particles = sc.Quantity(0.6, '') # volume fraction of the particles in the sphere boundary
 volume_fraction_bulk = sc.Quantity(0.55,'')      # volume fraction of the spheres in the bulk film
-sphere_boundary_diameter = sc.Quantity(10,'um')  # diameter of the sphere boundary
+sphere_boundary_diameter = sc.Quantity(10.0,'um')  # diameter of the sphere boundary
 boundary = 'sphere'
 boundary_bulk = 'film'
 

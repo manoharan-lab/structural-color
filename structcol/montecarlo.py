@@ -490,7 +490,7 @@ def initialize(nevents, ntraj, n_medium, n_sample, boundary, seed=None,
                incidence_phi_max=sc.Quantity(2*np.pi,'rad'), 
                incidence_phi_data=None,
                plot_initial=False, 
-               spot_size=sc.Quantity('1 um'), 
+               spot_size=sc.Quantity('1.0 um'), 
                sample_diameter=None,
                coarse_roughness=0.,
                coherent=False,
@@ -961,7 +961,7 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
     # system is monospecies, define a concentration array to be able to use the
     # general formula.
     if concentration is None:
-        concentration = sc.Quantity(np.array([1,0]), '')
+        concentration = sc.Quantity(np.array([1.0, 0.0]), '')
     with np.errstate(divide='ignore', invalid='ignore'):
         term1 = 1/(radius.max()**3 + radius2.max()**3 * concentration[1]/concentration[0])
         term2 = 1/(radius2.max()**3 + radius.max()**3 * concentration[0]/concentration[1])

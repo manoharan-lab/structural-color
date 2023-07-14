@@ -30,7 +30,7 @@ def test_cross_sections():
     # calculated for testing fortran-based Mie code in holopy)
 
     # test case is PS sphere in water
-    wavelen = Quantity('658 nm')
+    wavelen = Quantity('658.0 nm')
     radius = Quantity('0.85 um')
     n_matrix = Quantity(1.33, '')
     n_particle = Quantity(1.59 + 1e-4 * 1.0j, '')
@@ -63,7 +63,7 @@ def test_cross_sections():
                   m, x, Quantity('0.25'))
 
 def test_form_factor():
-    wavelen = Quantity('658 nm')
+    wavelen = Quantity('658.0 nm')
     radius = Quantity('0.85 um')
     n_matrix = Quantity(1.00, '')
     n_particle = Quantity(1.59 + 1e-4 * 1.0j, '')
@@ -122,7 +122,7 @@ def test_efficiencies():
                             1.02022022710453, 0.51835427781473,
                             0.331000402174976])
 
-    wavelen = Quantity('658 nm')
+    wavelen = Quantity('658.0 nm')
     n_matrix = Quantity(1.00, '')
     n_particle = Quantity(1.59 + 1e-4 * 1.0j, '')
     m = index_ratio(n_particle, n_matrix)
@@ -149,7 +149,7 @@ def test_efficiencies():
 
 def test_absorbing_materials():
     # test calculations for gold, which has a high imaginary refractive index
-    wavelen = Quantity('658 nm')
+    wavelen = Quantity('658.0 nm')
     n_matrix = Quantity(1.00, '')
     n_particle = Quantity(0.1425812 + 3.6813284 * 1.0j, '')
     m = index_ratio(n_particle, n_matrix)
