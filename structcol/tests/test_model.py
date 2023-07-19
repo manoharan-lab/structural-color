@@ -36,15 +36,15 @@ def test_fresnel():
 
     # quantities calculated from
     # http://www.calctool.org/CALC/phys/optics/reflec_refrac
-    rpar, rperp = model.fresnel_reflection(n1, n2, Quantity('0 deg'))
+    rpar, rperp = model.fresnel_reflection(n1, n2, Quantity('0.0 deg'))
     assert_almost_equal(rpar, 0.04)
     assert_almost_equal(rperp, 0.04)
-    rpar, rperp = model.fresnel_reflection(n1, n2, Quantity('45 deg'))
+    rpar, rperp = model.fresnel_reflection(n1, n2, Quantity('45.0 deg'))
     assert_almost_equal(rpar, 0.00846646)
     assert_almost_equal(rperp, 0.0920134)
 
     # test total internal reflection
-    rpar, rperp = model.fresnel_reflection(n2, n1, Quantity('45 deg'))
+    rpar, rperp = model.fresnel_reflection(n2, n1, Quantity('45.0 deg'))
     assert_equal(rpar, 1.0)
     assert_equal(rperp, 1.0)
 
@@ -81,9 +81,9 @@ def test_theta_refraction():
     # into a smaller range of angles (>90-180 deg). This test checks that the 
     # the reflectance is close to 0 when the angles between theta_min and 
     # theta_max are outside the range of refracted scattered angles. 
-    incident_angle = Quantity('0 deg')   
-    wavelength = Quantity(500, 'nm')
-    radius = Quantity('100 nm')   
+    incident_angle = Quantity('0.0 deg')   
+    wavelength = Quantity(500.0, 'nm')
+    radius = Quantity('100.0 nm')   
     volume_fraction = Quantity(0.5, '')
     n_particle = Quantity(1.0, '')
     n_matrix = Quantity(1.0, '')
@@ -124,11 +124,11 @@ def test_differential_cross_section():
     
     #n_sample = Quantity(1.5, '')
     n_matrix = Quantity(1.0, '')
-    wavelen = Quantity('500 nm')
+    wavelen = Quantity('500.0 nm')
     angles = Quantity(np.linspace(np.pi/2, np.pi, 200), 'rad')
     
     # Differential cross section for non-core-shells
-    radius = Quantity('100 nm')    
+    radius = Quantity('100.0 nm')    
     n_particle = Quantity(1.5, '')
     volume_fraction = Quantity(0.0001, '')              # IS VF TOO LOW?
     n_sample = ri.n_eff(n_particle, n_matrix, volume_fraction)
@@ -138,7 +138,7 @@ def test_differential_cross_section():
     
     # Differential cross section for core-shells. Core is equal to 
     # non-core-shell particle, and shell is made of vacuum
-    radius_cs = Quantity(np.array([100, 110]), 'nm')  
+    radius_cs = Quantity(np.array([100.0, 110.0]), 'nm')  
     n_particle_cs = Quantity(np.array([1.5, 1.0]), '')
     
     volume_fraction_shell = volume_fraction * (radius_cs[1]**3 / radius_cs[0]**3-1)
@@ -159,12 +159,12 @@ def test_reflection_core_shell():
     # Test reflection, anisotropy factor, and transport length calculations to
     # make sure the values for refl, g, and lstar remain the same after adding
     # core-shell capability into the model
-    wavelength = Quantity(500, 'nm')
-    thickness = Quantity(15, 'um')
+    wavelength = Quantity(500.0, 'nm')
+    thickness = Quantity(15.0, 'um')
     
     # Non core-shell particles with Maxwell-Garnett effective index
     volume_fraction = Quantity(0.5, '')
-    radius = Quantity('120 nm')
+    radius = Quantity('120.0 nm')
     n_particle = Quantity(1.5, '')
     n_matrix = Quantity(1.0, '')
     n_medium = n_matrix
@@ -173,8 +173,8 @@ def test_reflection_core_shell():
                                             wavelength, radius, 
                                             volume_fraction, 
                                             thickness=Quantity('15000.0 nm'), 
-                                            theta_min=Quantity('90 deg'), 
-                                            small_angle=Quantity('5 deg'),                    
+                                            theta_min=Quantity('90.0 deg'), 
+                                            small_angle=Quantity('5.0 deg'),                    
                                             maxwell_garnett=True)
     
     # Non core-shell particles with Bruggeman effective index
@@ -183,22 +183,22 @@ def test_reflection_core_shell():
                                                wavelength, radius, 
                                                volume_fraction2, 
                                                thickness=Quantity('15000.0 nm'), 
-                                               theta_min=Quantity('90 deg'), 
-                                               small_angle=Quantity('5 deg'), 
+                                               theta_min=Quantity('90.0 deg'), 
+                                               small_angle=Quantity('5.0 deg'), 
                                                maxwell_garnett=False)
         
     # Core-shell particles of core diameter equal to non core shell particles, 
     # and shell index of air. With Bruggeman effective index
     n_particle3 = Quantity(np.array([1.5, 1.0]), '')
-    radius3 = Quantity(np.array([120, 130]), 'nm')
+    radius3 = Quantity(np.array([120.0, 130.0]), 'nm')
     volume_fraction3 = volume_fraction2 * (radius3[1]**3 / radius3[0]**3)
 
     refl3, _, _, g3, lstar3 = model.reflection(n_particle3, n_matrix, n_medium, 
                                                wavelength, radius3, 
                                                volume_fraction3, 
                                                thickness=Quantity('15000.0 nm'),
-                                               small_angle=Quantity('5 deg'),
-                                               theta_min=Quantity('90 deg'),
+                                               small_angle=Quantity('5.0 deg'),
+                                               theta_min=Quantity('90.0 deg'),
                                                maxwell_garnett=False)
     
     # Outputs for refl, g, and lstar before adding core-shell capability
@@ -224,14 +224,14 @@ def test_reflection_core_shell():
     # absorbs with the same index
     
     # Absorbing non-core-shell
-    radius4 = Quantity('120 nm')
+    radius4 = Quantity('120.0 nm')
     n_particle4 = Quantity(1.5+0.001j, '')
     refl4 = model.reflection(n_particle4, n_matrix, n_medium, wavelength, 
                              radius4, volume_fraction, thickness=thickness)[0]
     
     # Absorbing core-shell
     n_particle5 = Quantity(np.array([1.5+0.001j, 1.5+0.001j]), '')
-    radius5 = Quantity(np.array([110, 120]), 'nm')
+    radius5 = Quantity(np.array([110.0, 120.0]), 'nm')
     refl5 = model.reflection(n_particle5, n_matrix, n_medium, wavelength, 
                              radius5, volume_fraction, thickness=thickness)[0]
     
@@ -239,7 +239,7 @@ def test_reflection_core_shell():
     
     # Same as previous test but with absorbing matrix
     # Non-core-shell
-    radius6 = Quantity('120 nm')
+    radius6 = Quantity('120.0 nm')
     n_particle6 = Quantity(1.5+0.001j, '')
     n_matrix6 = Quantity(1.0+0.001j, '')
     refl6 = model.reflection(n_particle6, n_matrix6, n_medium, wavelength, 
@@ -247,7 +247,7 @@ def test_reflection_core_shell():
     
     # Core-shell
     n_particle7 = Quantity(np.array([1.5+0.001j, 1.5+0.001j]), '')
-    radius7 = Quantity(np.array([110, 120]), 'nm')
+    radius7 = Quantity(np.array([110.0, 120.0]), 'nm')
     n_matrix7 = Quantity(1.0+0.001j, '')    
     refl7 = model.reflection(n_particle7, n_matrix7, n_medium, wavelength, 
                              radius7, volume_fraction, thickness=thickness)[0]
@@ -258,9 +258,9 @@ def test_reflection_core_shell():
 def test_reflection_absorbing_particle():
     # test that the reflections with a real n_particle and with a complex
     # n_particle with a 0 imaginary component are the same 
-    wavelength = Quantity(500, 'nm')
+    wavelength = Quantity(500.0, 'nm')
     volume_fraction = Quantity(0.5, '')
-    radius = Quantity('120 nm')
+    radius = Quantity('120.0 nm')
     n_matrix = Quantity(1.0, '')
     n_medium = n_matrix
     n_particle_real = Quantity(1.5, '')
@@ -329,7 +329,7 @@ def test_reflection_absorbing_particle():
     # test that the reflectance is (almost) the same when using an
     # almost-non-absorbing index vs a non-absorbing index
     n_particle_imag2 = Quantity(1.5+1e-8j, '')
-    thickness = Quantity('100 um')
+    thickness = Quantity('100.0 um')
     
     # With Bruggeman
     refl_bg3, _, _, g_bg3, lstar_bg3 = model.reflection(n_particle_imag2, n_matrix, 
@@ -345,11 +345,11 @@ def test_reflection_absorbing_particle():
 def test_calc_g():
     # test that the anisotropy factor for multilayer spheres are the same when
     # using calc_g from mie.py in pymie and using the model
-    wavelength = Quantity(500, 'nm')
+    wavelength = Quantity(500.0, 'nm')
     
     # calculate g using the model
     n_particle = Quantity(np.array([1.5, 1.0]), '')
-    radius = Quantity(np.array([120, 130]), 'nm')
+    radius = Quantity(np.array([120.0, 130.0]), 'nm')
     volume_fraction = Quantity(0.01, '')
     n_matrix = Quantity(1.0, '')
     n_medium = n_matrix
@@ -364,7 +364,7 @@ def test_calc_g():
     #r_array = np.array([0] + np.atleast_1d(radius).tolist())
     r_array = np.array([0] + np.atleast_1d(radius.magnitude).tolist()) 
     for r in np.arange(len(r_array)-1):
-        vf_array[r] = ((r_array[r+1]**3-r_array[r]**3) / (r_array[-1:]**3) * 
+        vf_array[r] = ((r_array[r+1]**3-r_array[r]**3) / (r_array[-1]**3) * 
                        volume_fraction.magnitude)
     
     n_sample = ri.n_eff(n_particle, n_matrix, vf_array)
@@ -387,9 +387,9 @@ def test_transport_length_dilute():
     # length calculated from Mie theory    
    
     # transport length from single scattering model for a dilute system
-    wavelength = Quantity(500, 'nm')
+    wavelength = Quantity(500.0, 'nm')
     volume_fraction = Quantity(0.0000001, '')
-    radius = Quantity('120 nm')
+    radius = Quantity('120.0 nm')
     n_matrix = Quantity(1.0, '')
     n_medium = n_matrix
     n_particle = Quantity(1.5, '')
@@ -413,9 +413,9 @@ def test_transport_length_dilute():
 def test_reflection_absorbing_matrix():
     # test that the reflections with a real n_matrix and with a complex
     # n_matrix with a 0 imaginary component are the same 
-    wavelength = Quantity(500, 'nm')
+    wavelength = Quantity(500.0, 'nm')
     volume_fraction = Quantity(0.5, '')
-    radius = Quantity('120 nm')
+    radius = Quantity('120.0 nm')
     n_matrix_real = Quantity(1.0, '')
     n_matrix_imag = Quantity(1.0 + 0j, '')
     n_medium = Quantity(1.0, '')
@@ -451,7 +451,7 @@ def test_reflection_absorbing_matrix():
     
     # test that the reflectance is (almost) the same when using an
     # almost-non-absorbing index vs a non-absorbing index
-    thickness = Quantity('100 um')
+    thickness = Quantity('100.0 um')
     n_matrix_imag2 = Quantity(1.0 + 1e-8j, '')
     
     # With Bruggeman
@@ -467,13 +467,13 @@ def test_reflection_absorbing_matrix():
     
     
 def test_reflection_polydispersity():
-    wavelength = Quantity(500, 'nm')
+    wavelength = Quantity(500.0, 'nm')
     volume_fraction = Quantity(0.5, '')
-    radius = Quantity('120 nm')
+    radius = Quantity('120.0 nm')
     n_matrix = Quantity(1.0, '')
     n_medium = Quantity(1.0, '')
     n_particle = Quantity(1.5, '')
-    radius2 = Quantity('120 nm')
+    radius2 = Quantity('120.0 nm')
     concentration = Quantity(np.array([0.9,0.1]), '')
     pdi = Quantity(np.array([1e-7, 1e-7]), '')  # monodisperse limit
 
@@ -610,7 +610,7 @@ def test_reflection_polydispersity():
     
     # test that the reflectance is the same regardless of the order in which
     # the radii are specified
-    radius3 = Quantity('90 nm')
+    radius3 = Quantity('90.0 nm')
     concentration3 = Quantity(np.array([0.5,0.5]), '')
     
     refl9, _, _, g9, lstar9 = model.reflection(n_particle, n_matrix, n_medium, 
@@ -635,16 +635,16 @@ def test_reflection_polydispersity():
     
     
 def test_reflection_polydispersity_with_absorption():
-    wavelength = Quantity(500, 'nm')
+    wavelength = Quantity(500.0, 'nm')
     volume_fraction = Quantity(0.5, '')
-    radius = Quantity('120 nm')
+    radius = Quantity('120.0 nm')
     n_matrix = Quantity(1.0+0.0003j, '')
     n_medium = Quantity(1.0, '')
     n_particle = Quantity(1.5+0.0005j, '')
-    radius2 = Quantity('120 nm')
+    radius2 = Quantity('120.0 nm')
     concentration = Quantity(np.array([0.9,0.1]), '')
     pdi = Quantity(np.array([1e-7, 1e-7]), '')  # monodisperse limit
-    thickness = Quantity('10 um')
+    thickness = Quantity('10.0 um')
     
     # test that the reflectance using only the form factor is the same using
     # the polydisperse formula vs using Mie in the limit of monodispersity
@@ -761,7 +761,7 @@ def test_reflection_polydispersity_with_absorption():
     ## When there is 1 mean diameter
     n_matrix2 = Quantity(1.0+1e-20j, '')
     n_particle2 = Quantity(1.5+1e-20j, '')
-    radius2 = Quantity('150 nm')
+    radius2 = Quantity('150.0 nm')
     pdi2 = Quantity(np.array([0.33, 0.33]), '')
     refl7, _, _, g7, lstar7 = model.reflection(n_particle2.real, n_matrix2.real, 
                                                n_medium, wavelength, radius, 
@@ -822,14 +822,14 @@ def test_reflection_polydispersity_with_absorption():
 def test_g_transport_length():
     # test that the g and transport length do not depend on the thickness in the 
     # presence of absorption
-    wavelength = Quantity(600, 'nm')
+    wavelength = Quantity(600.0, 'nm')
     volume_fraction = Quantity(0.55, '')
-    radius = Quantity('100 nm')
+    radius = Quantity('100.0 nm')
     n_matrix = Quantity(1.0+0.0004j, '')
     n_medium = Quantity(1.0, '')
     n_particle = Quantity(1.5+0.0006j, '')
-    thickness1 = Quantity('10 um')
-    thickness2 = Quantity('100 um')
+    thickness1 = Quantity('10.0 um')
+    thickness2 = Quantity('100.0 um')
     
     # test that the reflectance using only the form factor is the same using
     # the polydisperse formula vs using Mie in the limit of monodispersity
@@ -847,16 +847,16 @@ def test_g_transport_length():
 def test_reflection_throws_valueerror_for_polydisperse_core_shells(): 
     # test that a valueerror is raised when trying to run polydisperse core-shells                 
     with pytest.raises(ValueError):
-        wavelength = Quantity(500, 'nm')
+        wavelength = Quantity(500.0, 'nm')
         volume_fraction = Quantity(0.5, '')
-        radius = Quantity(np.array([110, 120]), 'nm')
+        radius = Quantity(np.array([110.0, 120.0]), 'nm')
         n_matrix = Quantity(1.0, '')
         n_medium = Quantity(1.0, '')
         n_particle = Quantity(np.array([1.5,1.5]), '')
         volume_fraction2 = Quantity(volume_fraction * (radius[1]**3 / radius[0]**3), '')
-        thickness = Quantity('10 um')
+        thickness = Quantity('10.0 um')
         
-        radius2 = Quantity('120 nm')
+        radius2 = Quantity('120.0 nm')
         concentration = Quantity(np.array([0.9,0.1]), '')
         pdi = Quantity(np.array([1e-7, 1e-7]), '') 
 
@@ -930,9 +930,9 @@ def test_reflection_throws_valueerror_for_polydisperse_core_shells():
 def test_reflection_throws_valueerror_for_polydisperse_unspecified_parameters(): 
     # test that a valueerror is raised when trying to run polydisperse core-shells                 
     with pytest.raises(ValueError):
-        wavelength = Quantity(500, 'nm')
+        wavelength = Quantity(500.0, 'nm')
         volume_fraction = Quantity(0.5, '')
-        radius = Quantity(np.array([110, 120]), 'nm')
+        radius = Quantity(np.array([110.0, 120.0]), 'nm')
         n_matrix = Quantity(1.0, '')
         n_medium = Quantity(1.0, '')
         n_particle = Quantity(np.array([1.5,1.5]), '')

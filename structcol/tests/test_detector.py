@@ -38,14 +38,14 @@ import pytest
 # Define a system to be used for the tests
 nevents = 3
 ntrajectories = 4
-radius = sc.Quantity('150 nm')
+radius = sc.Quantity('150.0 nm')
 volume_fraction = 0.5
 n_particle = sc.Quantity(1.5, '')
 n_matrix = sc.Quantity(1.0, '')
 n_medium = sc.Quantity(1.0, '')
 n_sample = ri.n_eff(n_particle, n_matrix, volume_fraction) 
 angles = sc.Quantity(np.linspace(0.01,np.pi, 200), 'rad')  
-wavelen = sc.Quantity('400 nm')
+wavelen = sc.Quantity('400.0 nm')
 
 # Index of the scattering event and trajectory corresponding to the reflected
 # photons
@@ -120,14 +120,14 @@ def test_reflection_core_shell():
                            n_sample, n_medium, volume_fraction, wavelen, seed)
     
     # Reflection using core-shells with the shell index-matched to the core
-    radius_cs = sc.Quantity(np.array([100, 150]), 'nm')  # specify the radii from innermost to outermost layer
+    radius_cs = sc.Quantity(np.array([100.0, 150.0]), 'nm')  # specify the radii from innermost to outermost layer
     n_particle_cs = sc.Quantity(np.array([1.5,1.5]), '')  # specify the index from innermost to outermost layer           
     
     # calculate the volume fractions of each layer
     vf_array = np.empty(len(radius_cs))
     r_array = np.array([0] + radius_cs.magnitude.tolist()) 
     for r in np.arange(len(r_array)-1):
-        vf_array[r] = (r_array[r+1]**3-r_array[r]**3) / (r_array[-1:]**3) * volume_fraction
+        vf_array[r] = (r_array[r+1]**3-r_array[r]**3) / (r_array[-1]**3) * volume_fraction
 
     n_sample_cs = ri.n_eff(n_particle_cs, n_matrix, vf_array) 
     R_cs, T_cs = calc_montecarlo(nevents, ntrajectories, radius_cs, 
@@ -367,7 +367,7 @@ def test_reflection_polydispersity():
     
     # test that the reflectance is the same regardless of the order in which
     # the radii are specified
-    radius2 = sc.Quantity('70 nm')
+    radius2 = sc.Quantity('70.0 nm')
     concentration2 = sc.Quantity(np.array([0.5,0.5]), '')
     
     R, T = calc_montecarlo(nevents, ntrajectories, radius, n_particle, 
@@ -383,8 +383,8 @@ def test_reflection_polydispersity():
     assert_almost_equal(T, T2)
     
     # test that the second size is ignored when its concentration is set to 0
-    radius1 = sc.Quantity('150 nm')
-    radius2 = sc.Quantity('100 nm')
+    radius1 = sc.Quantity('150.0 nm')
+    radius2 = sc.Quantity('100.0 nm')
     concentration3 = sc.Quantity(np.array([1,0]), '')
     pdi3 = sc.Quantity(np.array([0., 0.]), '')  
     
@@ -399,8 +399,8 @@ def test_reflection_polydispersity():
     # test that the reflection is essentially the same when the imaginary
     # index is 0 or very close to 0 in a polydisperse system
     ## When there's only 1 mean diameter
-    radius1 = sc.Quantity('100 nm')
-    radius2 = sc.Quantity('150 nm')
+    radius1 = sc.Quantity('100.0 nm')
+    radius2 = sc.Quantity('150.0 nm')
     n_matrix_abs = sc.Quantity(1. + 1e-40*1j, '')
     n_sample_abs = ri.n_eff(n_particle, n_matrix_abs, volume_fraction)
     pdi4 = sc.Quantity(np.array([0.2, 0.2]), '')
@@ -457,7 +457,7 @@ def test_throw_valueerror_for_polydisperse_core_shells():
         nevents = 10
         ntrajectories = 5
         
-        radius_cs = sc.Quantity(np.array([100, 150]), 'nm')  # specify the radii from innermost to outermost layer
+        radius_cs = sc.Quantity(np.array([100.0, 150.0]), 'nm')  # specify the radii from innermost to outermost layer
         n_particle_cs = sc.Quantity(np.array([1.5,1.5]), '')  # specify the index from innermost to outermost layer           
         radius2 = radius
         concentration = sc.Quantity(np.array([0.9,0.1]), '')
@@ -467,7 +467,7 @@ def test_throw_valueerror_for_polydisperse_core_shells():
         vf_array = np.empty(len(radius_cs))
         r_array = np.array([0] + radius_cs.magnitude.tolist()) 
         for r in np.arange(len(r_array)-1):
-            vf_array[r] = (r_array[r+1]**3-r_array[r]**3) / (r_array[-1:]**3) * volume_fraction
+            vf_array[r] = (r_array[r+1]**3-r_array[r]**3) / (r_array[-1]**3) * volume_fraction
     
         n_sample_cs = ri.n_eff(n_particle_cs, n_matrix, vf_array) 
         R_cs, T_cs = calc_montecarlo(nevents, ntrajectories, radius_cs, 
@@ -484,7 +484,7 @@ def test_throw_valueerror_for_polydisperse_unspecified_parameters():
         nevents = 10
         ntrajectories = 5
         
-        radius_cs = sc.Quantity(np.array([100, 150]), 'nm')  # specify the radii from innermost to outermost layer
+        radius_cs = sc.Quantity(np.array([100.0, 150.0]), 'nm')  # specify the radii from innermost to outermost layer
         n_particle_cs = sc.Quantity(np.array([1.5,1.5]), '')  # specify the index from innermost to outermost layer           
         concentration = sc.Quantity(np.array([0.9,0.1]), '')
         pdi = sc.Quantity(np.array([1e-7, 1e-7]), '')  # monodisperse limit
@@ -493,7 +493,7 @@ def test_throw_valueerror_for_polydisperse_unspecified_parameters():
         vf_array = np.empty(len(radius_cs))
         r_array = np.array([0] + radius_cs.magnitude.tolist()) 
         for r in np.arange(len(r_array)-1):
-            vf_array[r] = (r_array[r+1]**3-r_array[r]**3) / (r_array[-1:]**3) * volume_fraction
+            vf_array[r] = (r_array[r+1]**3-r_array[r]**3) / (r_array[-1]**3) * volume_fraction
             
         n_sample_cs = ri.n_eff(n_particle_cs, n_matrix, vf_array) 
         R_cs, T_cs = calc_montecarlo(nevents, ntrajectories, radius_cs, 
@@ -586,7 +586,7 @@ def calc_montecarlo(nevents, ntrajectories, radius, n_particle, n_sample,
     trajectories.scatter(sintheta, costheta, sinphi, cosphi)         
     trajectories.move(step)
     
-    cutoff = sc.Quantity('50 um')
+    cutoff = sc.Quantity('50.0 um')
 
     # calculate R, T
     R, T = det.calc_refl_trans(trajectories, cutoff, n_medium, n_sample, 'film',
@@ -605,8 +605,6 @@ def test_goniometer_normalization():
     
     assert_almost_equal(refl_renorm, 0.368700804483) # calculated by hand
     
-    return refl_renorm
-    
 def test_goniometer_detector():
     # test
     z_pos = np.array([[0,0,0,0],[1,1,1,1],[-1,-1,2,2],[-2,-2,20,-0.0000001]])
@@ -624,9 +622,9 @@ def test_goniometer_detector():
     n_sample = 1
     R, T = det.calc_refl_trans(trajectories, thickness, n_medium, n_sample, 'film',
                                detector=True, 
-                               det_theta=sc.Quantity('45 degrees'), 
-                               det_len=sc.Quantity('1 um'), 
-                               det_dist=sc.Quantity('10 cm'),
+                               det_theta=sc.Quantity('45.0 degrees'), 
+                               det_len=sc.Quantity('1.0 um'), 
+                               det_dist=sc.Quantity('10.0 cm'),
                                plot_detector=False)
     
     assert_almost_equal(R, 0.25)

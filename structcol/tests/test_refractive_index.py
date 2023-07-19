@@ -173,7 +173,7 @@ def test_neff():
     
 def test_data():
     # Test that we can input data for refractive index
-    wavelength = Quantity(np.array([400,500,600]), 'nm')
+    wavelength = Quantity(np.array([400.0, 500.0, 600.0]), 'nm')
     data = Quantity(np.array([1.5,1.55,1.6]), '')
     assert_equal(ri.n('data', wavelength, index_data=data, wavelength_data=wavelength).magnitude.all(), data.magnitude.all())
     
