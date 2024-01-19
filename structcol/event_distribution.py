@@ -8,8 +8,9 @@ Created on Wed Jan 31 17:38:47 2018
 import numpy as np
 import matplotlib.pyplot as plt
 import structcol as sc
-from structcol.detector import select_events
+from . import select_events
 from structcol.detector import fresnel_pass_frac
+from structcol import detector as det
     
 def calc_refl_trans_event(refl_per_traj, inc_refl_per_traj, trans_per_traj, 
                           refl_indices, trans_indices, nevents):
@@ -203,8 +204,11 @@ def calc_thetas_event_traj(theta, refl_indices, nevents, ntraj = 100):
     return theta_event_traj
 
 def calc_tir(tir_refl_bool, refl_indices, trans_indices, inc_refl_per_traj, 
-             n_sample, n_medium, boundary, trajectories, thickness):
+             n_sample, n_medium, boundary, trajectories, thickness,
+             phase=False):
     '''
+    Note: phase=True argument in this function is DEPRECATED    
+    
     Returns weights of various types of totally internally reflected trajectories
     as a function of event number
     
@@ -235,14 +239,20 @@ def calc_tir(tir_refl_bool, refl_indices, trans_indices, inc_refl_per_traj,
         Trajectory object used in Monte Carlo simulation
     thickness: float
         thickness of film or diameter of sphere
+    phase: boolean
+        determines whether the tir trajectory components must be calculated 
+        taking into accout their phase. If True, calc_tir only returns results 
+        for tir_all_refl_events, and returns zeros for the other return values. 
+        This is because the phase calculations have not been implemented for 
+        the other values. 
     
     Returns
     -------
     tir_all_events: 1d array (length: nevents)
         summed weights of trajectories that are totally internally reflected at 
-        any event, regardeless of whether they are reflected, transmitted, or stuck.
-        The event index of the array corresponds to the event at which they are 
-        totally internally reflected. 
+        any event, regardeless of whether they are eventually reflected, 
+        transmitted, or stuck. The event index of the array corresponds to the 
+        event at which they are totally internally reflected. 
     tir_all_refl_events: 1d array (length: nevents)
         summed weights of trajectories that are totally internally reflected at any 
         event, but only those which eventually contribute to reflectance. The
@@ -296,7 +306,6 @@ def calc_tir(tir_refl_bool, refl_indices, trans_indices, inc_refl_per_traj,
     tir_ev_ind = np.where(tir_indices!=0)
     tir_indices_refl = np.zeros(ntraj)
     tir_indices_refl[tir_ev_ind] = refl_indices[tir_ev_ind]
-    
     # find the tir reflectance at each event
     tir_all_refl = ((1-inc_refl_per_traj) * select_events(weights, tir_indices_refl)*
                    fresnel_pass_frac(tir_indices_refl, n_sample, None, n_medium,
@@ -308,7 +317,6 @@ def calc_tir(tir_refl_bool, refl_indices, trans_indices, inc_refl_per_traj,
     tir_indices_single = np.copy(tir_indices)
     tir_indices_single[np.where(tir_indices!=2)] = 0
     tir_single = (1-inc_refl_per_traj) * select_events(weights, tir_indices_single)/ntraj
-    
     ### tir for only single scat event that gets reflected eventually ###
     
     # find event indices where single scat tir'd trajectories are reflected
@@ -326,27 +334,128 @@ def calc_tir(tir_refl_bool, refl_indices, trans_indices, inc_refl_per_traj,
     tir_all_refl_events = np.zeros(2*nevents + 1)
     tir_single_events = np.zeros(2*nevents + 1)
     tir_single_refl_events = np.zeros(2*nevents + 1)
-    for ev in range(1, nevents + 1):
+    
+    # if phase, we need to calculate as fields
+    if phase:
+        traj_field_x =  trajectories.polarization[0,:,:]*np.exp(trajectories.phase[0,:,:]*1j) 
+        traj_field_y =  trajectories.polarization[1,:,:]*np.exp(trajectories.phase[1,:,:]*1j) 
+        traj_field_z =  trajectories.polarization[2,:,:]*np.exp(trajectories.phase[2,:,:]*1j)  
+        tot_field_x_ev = np.zeros(2*nevents + 1, dtype=complex)
+        tot_field_y_ev = np.zeros(2*nevents + 1, dtype=complex)
+        tot_field_z_ev = np.zeros(2*nevents + 1, dtype=complex)
+        
+    for ev in range(1, nevents):
         # find trajectories that were reflected/transmitted at this event
         traj_ind_tir_ev = np.where(tir_indices == ev)[0]
         traj_ind_tir_refl_ev = np.where(tir_indices_refl == ev)[0]
         traj_ind_tir_sing_ev = np.where(tir_indices_single == ev)[0]
         traj_ind_tir_sing_refl_ev = np.where(tir_indices_single_refl == ev)[0]
         
-        # add reflectance/transmittance due to trajectories 
-        # reflected/transmitted at this event
-        tir_all_events[ev] += np.sum(tir_all[traj_ind_tir_ev])
-        tir_all_refl_events[ev] += np.sum(tir_all_refl[traj_ind_tir_refl_ev])
-        tir_single_events[ev] += np.sum(tir_single[traj_ind_tir_sing_ev])
-        tir_single_refl_events[ev] += np.sum(tir_single_refl[traj_ind_tir_sing_refl_ev])
+        if phase:
+            # write expression for field including weight 
+            # since the trajectory weights are in units of intensity, we take the
+            # square root to find the amplitude for the field
+            w = np.sqrt(tir_all_refl)
+            
+            # add reflectance/transmittance due to trajectories 
+            # reflected/transmitted at this event
+            tot_field_x_ev[ev] += np.sum(w[traj_ind_tir_refl_ev]*traj_field_x[ev,traj_ind_tir_refl_ev])
+            tot_field_y_ev[ev] += np.sum(w[traj_ind_tir_refl_ev]*traj_field_y[ev,traj_ind_tir_refl_ev])
+            tot_field_z_ev[ev] += np.sum(w[traj_ind_tir_refl_ev]*traj_field_z[ev,traj_ind_tir_refl_ev])
+            
+        else:
+            # add reflectance/transmittance due to trajectories 
+            # reflected/transmitted at this event
+            tir_all_events[ev] += np.sum(tir_all[traj_ind_tir_ev])
+            tir_all_refl_events[ev] += np.sum(tir_all_refl[traj_ind_tir_refl_ev])
+            tir_single_events[ev] += np.sum(tir_single[traj_ind_tir_sing_ev])
+            tir_single_refl_events[ev] += np.sum(tir_single_refl[traj_ind_tir_sing_refl_ev])
+    
+    if phase:
+            # calculate intensity as E*E
+            intensity_x_ev = np.conj(tot_field_x_ev)*tot_field_x_ev
+            intensity_y_ev = np.conj(tot_field_y_ev)*tot_field_y_ev
+            intensity_z_ev = np.conj(tot_field_z_ev)*tot_field_z_ev
+            # add the x,y, and z intensity
+            tir_all_refl_events = intensity_x_ev + intensity_y_ev + intensity_z_ev
      
     return (tir_all_events, 
             tir_all_refl_events, 
             tir_single_events, 
             tir_single_refl_events, 
             tir_indices_single)
+            
+
+def calc_tir_phase_event_input(tir_refl_bool,step, refl_indices, radius, 
+                              volume_fraction, n_particle, n_sample, wavelength,
+                              trajectories, refl_per_traj,
+                              bin_width=sc.Quantity(40,'fs')):                      
+    '''
+    Calculates the parameters needed to input into calc_refl_trans_event 
+    in order to calculate the total internal reflected weights as a function
+    of events number, including phase calculations (coherence effects)    
+    
+    Parameters
+    ----------
+    tir_refl_bool: 2d array of booleans (shape: nevents, ntraj)
+        describe whether a trajectory gets totally internally reflected at any 
+        event and also exits in the negative direction to contribute to reflectance
+    step: 2d array (structcol.Quantity [length])
+        Step sizes between scattering events in each of the trajectories.
+    refl_indices: 1d array (length: ntraj)
+        array of event indices for reflected trajectories
+    radius: float (structcol.Quantity [length])
+        Radius of particle.
+    volume_fraction: float
+        Volume fraction of particles.
+    n_particle: float
+        Index of refraction of particle.
+    n_sample: float
+        Index of refraction of sample.
+    wavelength: float (structcol.Quantity [length])
+        Wavelength.
+    trajectories: Trajectory object
+        Trajectory object used in Monte Carlo simulation
+    refl_per_traj: 1d array (length: ntraj)
+        reflectance distributed to each trajectory, including fresnel 
+        contributions
+    bin_width: float (structcol.Quantity [time])
+        size of time bins for creating field versus time. Should be set equal to
+        coherence time of source
+        
+    Returns
+    -------
+    tir_per_traj_phase: 1d array (length:ntraj)
+        totally internnaly reflected weights for each trajectory
+    tir_indices_refl: 1d array (length:ntraj)
+        event indices at which trajectories are totally internally reflected
+    
+    '''
+                                  
+    nevents = trajectories.nevents
+    ntraj = len(refl_indices)
+    
+    traj_times_tir,_,_ = det.calc_traj_time(step, refl_indices, radius, volume_fraction,
+                                    n_particle, n_sample, wavelength)
+    _, tir_per_traj_phase = det.calc_refl_phase_time(traj_times_tir, trajectories, 
+                                                 refl_indices, refl_per_traj,
+                                                 bin_width=bin_width)
     
     
+    # calculate tir_indices_refl
+    tir_indices = np.argmax(np.vstack([np.zeros(ntraj),tir_refl_bool]), axis=0)
+        # make event indices of zero larger than possible nevents
+    # so that refl_events of 0 never have a smaller number than any other events
+    refl_ind_inf = np.copy(refl_indices)
+    refl_ind_inf[refl_ind_inf == 0] = nevents*10
+    # find  tir indices where trajectories are tir'd before getting reflected
+    tir_indices[np.where(tir_indices>refl_ind_inf)[0]] = 0
+    tir_ev_ind = np.where(tir_indices!=0)
+    tir_indices_refl = np.zeros(ntraj)
+    tir_indices_refl[tir_ev_ind] = refl_indices[tir_ev_ind]    
+    
+    return tir_per_traj_phase, tir_indices_refl
+        
     
 def calc_pdf_scat(refl_events, trans_events, nevents):
     '''

@@ -28,9 +28,11 @@ structure factors
 import numpy as np
 from . import ureg, Quantity  # unit registry and Quantity constructor from pint
 import scipy as sp
+import pandas as pd
+import scipy
 import os
 
-@ureg.check('[]','[]')    # inputs should be dimensionless
+@ureg.check('[]', '[]')    # inputs should be dimensionless
 def factor_py(qd, phi):
     """
     Calculate structure factor of hard spheres using the Ornstein-Zernike equation
@@ -73,7 +75,7 @@ def factor_py(qd, phi):
 
     # constants in the direct correlation function
     lambda1 = (1 + 2*phi)**2 / (1 - phi)**4
-    lambda2 = -(1 + phi/2.)**2 /  (1 - phi)**4
+    lambda2 = -(1 + phi/2.)**2 / (1 - phi)**4
     # Fourier transform of the direct correlation function (eq X.33 of [2]_)
     c = -24*phi*(lambda1 * (np.sin(qd) - qd*np.cos(qd)) / qd**3  -
                  6*phi*lambda2 * (qd**2 * np.cos(qd) - 2*qd*np.sin(qd) -
@@ -84,7 +86,8 @@ def factor_py(qd, phi):
     # Structure factor at qd (eq X.34 of [2]_)
     return 1.0/(1-c)
 
-def factor_para(qd, phi, sigma = .15):
+
+def factor_para(qd, phi, sigma=.15):
     """
     Calculate structure factor of a structure characterized by disorder of the 
     second kind as defined in Guinier [1]. This type of structure is referred to as
@@ -129,6 +132,7 @@ def factor_para(qd, phi, sigma = .15):
     r = np.exp(-(qd*phi**(-1/3)*sigma)**2/2)
     return (1-r**2)/(1+r**2-2*r*np.cos(qd*phi**(-1/3)))
 
+
 def factor_poly(q, phi, diameters, c, pdi):
     """
     Calculate polydisperse structure factor for a monospecies (one mean 
@@ -166,38 +170,58 @@ def factor_poly(q, phi, diameters, c, pdi):
     """
     
     def fm(x, t, tm, m):
-        x = x.to('').magnitude
-        t = t.to('').magnitude
-        tm = tm.to('').magnitude
+        if isinstance(x, Quantity):
+            x = x.to('').magnitude
+        if isinstance(t, Quantity):
+            t = t.to('').magnitude
+        if isinstance(tm, Quantity):
+            tm = tm.to('').magnitude
         t = np.reshape(t, (len(np.atleast_1d(t)),1))
         tm = np.reshape(tm, (len(tm),1))
-        return(tm * (1 + x/(t+1))**(-(t+1+m)))
+        return (tm * (1 + x/(t+1))**(-(t+1+m)))
     
-    def tm(m, Dsigma, t):
+    def tm(m, t):
         t = np.reshape(t, (len(np.atleast_1d(t)),1))
         num_array = np.arange(m, 0, -1) + t
         prod = np.prod(num_array, axis=1).reshape((len(t), 1))
-        return(prod / (t + 1)**m)      
+        return (prod / (t + 1)**m)      
 
     # if the pdi is zero, assume it's very small (we get the same results)
     # because otherwise we get a divide by zero error
-    pdi = Quantity(np.atleast_1d(pdi).astype(float), pdi.units)
-    np.atleast_1d(pdi)[np.atleast_1d(pdi) < 1e-5] = 1e-5  
-
-    Dsigma = pdi**2    
+    # pdi = Quantity(np.atleast_1d(pdi).astype(float), pdi.units)
+    pdi = np.atleast_1d(pdi).astype(float).magnitude
+    pdi[pdi < 1e-5] = 1e-5
+    
+    Dsigma = pdi**2
     Delta = 1 - phi
-    t = np.abs(1/Dsigma) - 1
-    t0 = tm(0, Dsigma, t)
-    t1 = tm(1, Dsigma, t)
+    t = 1/Dsigma - 1
+    
+    t0 = tm(0, t)
+    t1 = tm(1, t)
+    # from eq. 24 of reference and simplifying
     t2 = Dsigma + 1
+    # from eq. 24 and also on page 2295
     t3 = (Dsigma + 1) * (2*Dsigma + 1)
     
-    # if monospecies, no need to calculate individual species parameters
-    if len(np.atleast_1d(c)) == 1:
-        rho = 6*phi/(t3*np.pi*diameters**3)
+    # If monospecies, no need to calculate individual species parameters.
+    # concentration c should always be a 2-element array because polydisperse 
+    # calculations assume the format of a bispecies particle mixture, 
+    # so if either element in c is 0, we assume the form factor is monospecies
+    # We include the second monospecies test in case the user enters a 1d 
+    # concentration, even though the docstring advises that concentration 
+    # should have two elements.
+    if np.any(c == 0) or (len(np.atleast_1d(c)) == 1):
+        if len(np.atleast_1d(c)) == 1:
+            t3_1d = t3
+            diam_1d = diameters
+        else:
+            ind0 = np.where(c != 0)[0]
+            t3_1d = t3[ind0]
+            diam_1d = diameters[ind0]
+        rho = 6*phi/(t3_1d*np.pi*diam_1d**3)
     else:
-        phi_ratio = 1 / (c[0]/c[1] * (diameters[0]/diameters[1])**3 * 
-                        t3[0]/t3[1] + 1)
+        phi_ratio = 1 / (c[0]/c[1] * (diameters[0] / diameters[1]) ** 3 * 
+                         t3[0] / t3[1] + 1)
         phi_tau1 = phi_ratio * phi
         phi_tau0 = phi - phi_tau1
 
@@ -210,14 +234,20 @@ def factor_poly(q, phi, diameters, c, pdi):
    
     #q = qd / sigma0
 
-    t2 = np.reshape(t2, (len(np.atleast_1d(t2)),1))
-    c = np.reshape(c, (len(np.atleast_1d(c)),1))
-    diameters = np.reshape(diameters, (len(np.atleast_1d(diameters)),1))
-    
+    t2 = np.reshape(t2, (len(np.atleast_1d(t2)), 1))
+    c = np.reshape(c, (len(np.atleast_1d(c)), 1))
+    diameters = np.reshape(diameters, (len(np.atleast_1d(diameters)), 1))
+
+    if hasattr(q, 'shape'):
+        q_shape = q.shape
+    else:
+        q_shape = np.array([])
+    if len(q_shape) == 2:
+        q = Quantity(np.ndarray.flatten(q.magnitude), q.units)  # added
     s = 1j*q
     x = s*diameters
     F0 = rho 
-    zeta2 = rho * sigma0**2 
+    zeta2 = rho * sigma0**2
     
     f0 = fm(x,t,t0,0)
     f1 = fm(x,t,t1,1)
@@ -225,7 +255,8 @@ def factor_poly(q, phi, diameters, c, pdi):
     f0_inv = fm(-x,t,t0,0)
     f1_inv = fm(-x,t,t1,1)
     f2_inv = fm(-x,t,t2,2)
-  
+
+    # from eqs 29a-29d
     fa = 1/x**3 * (1 - x/2 - f0 - x/2 * f1)
     fb = 1/x**3 * (1 - x/2 * t2 - f1 - x/2 * f2)
     fc = 1/x**2 * (1 - x - f0)
@@ -240,12 +271,12 @@ def factor_poly(q, phi, diameters, c, pdi):
            np.pi**2*zeta2*rho/(2*Delta**2*s**2) * Ialpha2)
 
     F11 = np.sum(c*2*np.pi*rho*diameters**3/Delta * fa, axis=0)  
-    F12 = np.sum(c/diameters * ((np.pi/Delta)**2 *rho*zeta2*diameters**4*fa + 
+    F12 = np.sum(c/diameters * ((np.pi/Delta)**2 * rho * zeta2 * diameters**4*fa + 
                  np.pi*rho*diameters**3/Delta * fc), axis=0)
     F21 = np.sum(c * diameters * 2*np.pi*rho*diameters**3/Delta * fb, axis=0)
     F22 = np.sum(c * ((np.pi/Delta)**2 *rho*zeta2*diameters**4*fb + 
                  np.pi*rho*diameters**3/Delta * fd), axis=0)
-                
+
     FF11 = 1 - F11
     FF12 = -F12
     FF21 = -F21
@@ -270,6 +301,8 @@ def factor_poly(q, phi, diameters, c, pdi):
     
     SM = 1 - 2*h2
     SM[SM<0] = 0
+    if len(q_shape)==2:
+        SM = np.reshape(SM,q_shape)
     return(SM)
     
 def factor_data(qd, s_data, qd_data):
@@ -291,6 +324,168 @@ def factor_data(qd, s_data, qd_data):
     1D numpy array:
         The structure factor as a function of qd.
     """
-    s_func = sp.interpolate.interp1d(qd_data, s_data, kind = 'linear')
+    s_func = sp.interpolate.interp1d(qd_data, s_data, kind = 'linear',
+                                     bounds_error=False, fill_value=s_data[0])
     
     return s_func(qd)
+    
+def field_phase_data(qd, filename='spf.dat'):
+    s_file = os.path.join(os.getcwd(),filename)
+    s_phase_data=np.loadtxt(s_file)
+    qd_data = s_phase_data[:,0]
+    s_phase = s_phase_data[:,1]
+    s_phase_func = sp.interpolate.interp1d(qd_data, s_phase, kind = 'linear',
+                                           bounds_error=False, fill_value=s_phase_data[0,1])
+    return s_phase_func(qd)
+    
+def phase_factor(qd, phi, n=1000):
+    # define r/d
+    r_d = np.linspace(0,10, n)
+    
+    # calculate g
+    g = radial_dist_py(phi, x = r_d)
+    integral = np.zeros(qd.shape)
+    rho = 3.0 * phi / (4.0 * np.pi) # dimensionless rho*sigma**3
+    
+    # calculate the integral for each qd
+    for i in range(qd.shape[0]):
+        for j in range(qd.shape[1]):
+            bessel = rho*4*np.pi*r_d**2*np.pi*scipy.special.jv(0, qd[i,j]*r_d)
+            integral[i,j] = np.trapz(bessel*g, x=r_d)
+        
+    return integral
+
+    
+def field_phase_py(qd, phi, n=10000, r_d=np.arange(1,5,0.005)):
+    '''
+    Calcualte the phase shift contribution based on the radial distribution
+    function calculated using the Percus-Yevick approximation
+    
+    Parameters:
+    ----------
+    qd: 1D numpy array
+        dimensionless quantity q times diameter        
+    phi: structcol.Quantity [dimensionless]
+        volume fraction of particles or voids in matrix  
+    n: float  
+        number of samples of g(r)
+    r_d: 1D numpy array 
+        range of radial positions normalized by particle diameter. 
+    
+    Returns:
+    --------
+    field_s: 1D numpy array
+        phase shift contributions based on the structure
+    '''
+    # calculate radial distribution function up to r/R= 5
+    #g_file = os.path.join(os.getcwd(),'g_4.csv')
+    #df=pd.read_csv(g_file, sep=',',header=None)
+    #r_d = np.array(df[0])
+    #g = np.array(df[1])
+    g = radial_dist_py(phi, x = r_d)
+    
+    # sample the g of r probability distribution
+    r_samp = np.random.choice(r_d, n, p = g/np.sum(g))
+    
+    # calculate the field term
+    field_s = np.zeros(qd.shape, dtype='complex')
+    for i in range(qd.shape[0]):
+        for j in range(qd.shape[1]):
+            field_s[i,j] = 1/n*np.sum(np.exp(1j*qd[i,j]*r_samp))
+            
+    return field_s
+    
+def radial_dist_py(phi, x=np.arange(1,5,0.005)):
+    '''
+    Calcualte the radial distribution function for hard spheres using the Percus-Yevick approximation.
+    
+    This function and its helper functions is based on the code found here:
+    https://github.com/FTurci/hard-spheres-utilities/blob/master/Percus-Yevick.py
+    This method for calculating g(r) is described in the SI of: 
+    J. W. E. Drewitt, F. Turci, B. J. Heinen, S. G. Macleod, F. Qin, A. K. Kleppe, and O. T. Lord. Phys. Rev. Lett. 124
+    
+    Parameters:
+    -----------
+    phi: structcol.Quantity [dimensionless]
+        volume fraction of particles or voids in matrix   
+    x: 1D numpy array
+       dimensionless value defined as position over particle diameter (r/d)
+    
+    Returns:
+    --------
+    g_fcn(x): 1D numpy array
+            The radial distribution function calculated at the specified x values.
+    '''
+    # number density
+    if isinstance(phi,Quantity):
+        phi = phi.magnitude
+    rho=6./np.pi*phi
+    
+    # get the direct correlation function c(r) from the analytic Percus-Yevick solution
+    # vectorizing the function
+    c=np.vectorize(cc)
+    
+    # space discretization
+    dr=0.005
+    r=np.arange(1,1024*2+1,1 )*dr
+    
+    # reciprocal space discretization (highest available frequency)
+    dk=1/r[-1]
+    k=np.arange(1,1024*2+1,1 )*dk
+    
+    # direct correlation function c(r)
+    c_direct=c(r,phi)
+    
+    # calculate the Fourier transform
+    ft_c_direct=spherical_FT(c_direct, k,r,dr)
+    
+    # using the Ornstein-Zernike equation, calculate the structure factor
+    ft_h=ft_c_direct/(1.-rho*ft_c_direct)
+    
+    # inverse Fourier transform
+    h=inverse_spherical_FT(ft_h, k,r,dk)
+    
+    # radial distribution function
+    gg=h+1
+    
+    # clean the r<1 region
+    g=np.zeros(len(gg))
+    g[r>=1]=gg[r>=1]
+    
+    # make g function from interpolation
+    g_fcn=sp.interpolate.InterpolatedUnivariateSpline(r, g)
+    
+    return g_fcn(x)
+
+def spherical_FT(f,k,r,dr):
+    '''
+    Spherical Fourier Transform (using the liquid isotropicity)
+    '''
+    ft=np.zeros(len(k))
+    for i in range(len(k)):
+        ft[i]=4.*np.pi*np.sum(r*np.sin(k[i]*r)*f*dr)/k[i]
+    return ft
+
+def inverse_spherical_FT(ff,k,r,dk):
+    '''
+    Inverse spherical Fourier Transform (using the liquid isotropicity)
+    '''
+    ift=np.zeros(len(r))
+    for i in range(len(r)):
+        ift[i]=np.sum(k*np.sin(k*r[i])*ff*dk)/r[i]/(2*np.pi**2)
+    return ift
+
+# functions to calcualte direct correlation function
+# from Percus-Yevick. See D. Henderson "Condensed Matter Physics" 2009, Vol. 12, No. 2, pp. 127-135
+# or M. S Wertheim "Exact Solutions of the Percus-Yevick Integral for Hard Spheres" PRL. Vol. 10, No. 8, 1963
+def c0(eta):
+    return -(1.+2.*eta)**2/(1.-eta)**4
+def c1(eta):
+    return 6.*eta*(1.+eta*0.5)**2/(1.-eta)**4
+def c3(eta):
+    return eta*0.5*c0(eta)
+def cc(r,eta):
+    if r>1:
+        return 0
+    else:
+        return c0(eta)+c1(eta)*r +c3(eta)*r**3

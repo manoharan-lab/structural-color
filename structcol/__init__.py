@@ -47,10 +47,14 @@ Physical Review E 90, no. 6 (2014): 62302. doi:10.1103/PhysRevE.90.062302
 # Also load commonly used functions from pymie package
 from pymie import Quantity, ureg, q, index_ratio, size_parameter, np, mie
 
+# Global variable speed of light
+# get this from Pint in a somewhat indirect way:
+LIGHT_SPEED_VACUUM = Quantity(1.0, 'speed_of_light').to('m/s')
+
 def refraction(angles, n_before, n_after):
     '''
     Returns angles after refracting through an interface
-    
+
     Parameters
     ----------
     angles: float or array of floats
@@ -59,16 +63,17 @@ def refraction(angles, n_before, n_after):
         Refractive index of the medium light is coming from
     n_after: float
         Refractive index of the medium light is going to
-    
+
     '''
     snell = n_before / n_after * np.sin(angles)
-    snell[abs(snell) > 1] = np.nan # this avoids a warning
+    snell[abs(snell) > 1] = np.nan  # this avoids a warning
     return np.arcsin(snell)
 
-def normalize(x,y,z):
+
+def normalize(x, y, z, return_nan=True):
     '''
     normalize a vector
-    
+
     Parameters
     ----------
     x: float or array
@@ -77,14 +82,67 @@ def normalize(x,y,z):
         2nd component of vector
     z: float or array
         3rd component of vector
-    
+
     Returns
     -------
     array of normalized vector(s) components
     '''
-    magnitude = np.sqrt(np.abs(x)**2 + np.abs(y)**2 + np.abs(z)**2)
+    magnitude = np.sqrt(np.abs(x) ** 2 + np.abs(y) ** 2 + np.abs(z) ** 2)
 
     # we ignore divide by zero error here because we do not want an error
     # in the case where we try to normalize a null vector <0,0,0>
-    with np.errstate(divide='ignore',invalid='ignore'):
-        return np.array([x/magnitude, y/magnitude, z/magnitude])
+    with np.errstate(divide='ignore', invalid='ignore'):
+        if ~return_nan and magnitude.all() == 0:
+            magnitude[magnitude == 0] = 1
+        return np.array([x / magnitude, y / magnitude, z / magnitude])
+
+
+def select_events(inarray, events):
+    '''
+    Selects the items of inarray according to event coordinates
+
+    Parameters
+    ----------
+    inarray: 2D or 3D array
+        Should have axes corresponding to events, trajectories
+        or coordinates, events, trajectories
+    events: 1D array
+        Should have length corresponding to ntrajectories.
+        Non-zero entries correspond to the event of interest
+
+    Returns
+    -------
+    1D array: contains only the elements of inarray corresponding to non-zero events values.
+
+    '''
+    # make inarray a numpy array if not already
+    if isinstance(inarray, Quantity):
+        inarray = inarray.magnitude
+    inarray = np.array(inarray)
+
+    # there is no 0th event, so disregard a 0 (or less) in the events array
+    valid_events = (events > 0)
+
+    # The 0th element in arrays such as direction refer to the 1st event
+    # so subtract 1 from all the valid events to correct for array indexing
+    ev = events[valid_events].astype(int) - 1
+
+    # find the trajectories where there are valid events
+    tr = np.where(valid_events)[0]
+
+    # want output of the same form as events, so create variable
+    # for object type
+    dtype = type(np.ndarray.flatten(inarray)[0])
+
+    # get an output array with elements corresponding to the input events
+    if len(inarray.shape) == 2:
+        outarray = np.zeros(len(events), dtype=dtype)
+        outarray[valid_events] = inarray[ev, tr]
+
+    if len(inarray.shape) == 3:
+        outarray = np.zeros((inarray.shape[0], len(events)), dtype=dtype)
+        outarray[:, valid_events] = inarray[:, ev, tr]
+
+    if isinstance(inarray, Quantity):
+        outarray = Quantity(outarray, inarray.units)
+    return outarray

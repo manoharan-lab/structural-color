@@ -25,10 +25,11 @@ Tests for the structure module
 from .. import Quantity, ureg, q, np, structure
 from .. import size_parameter
 from .. import refractive_index as ri
-from nose.tools import assert_raises, assert_equal
-from numpy.testing import assert_almost_equal, assert_array_almost_equal
+from numpy.testing import assert_equal, assert_almost_equal, assert_array_almost_equal
+from pytest import raises
 from pint.errors import DimensionalityError
 import scipy.interpolate
+
 
 def test_structure_factor_percus_yevick():
     # Test structure factor as calculated by solution of Ornstein-Zernike
@@ -38,9 +39,9 @@ def test_structure_factor_percus_yevick():
     # dimensionless arguments
     structure.factor_py(Quantity('0.1'), Quantity('0.4'))
     structure.factor_py(0.1, 0.4)
-    assert_raises(DimensionalityError, structure.factor_py,
+    raises(DimensionalityError, structure.factor_py,
                   Quantity('0.1'), Quantity('0.1 m'))
-    assert_raises(DimensionalityError, structure.factor_py,
+    raises(DimensionalityError, structure.factor_py,
                   Quantity('0.1 m'), Quantity('0.1'))
 
     # test vectorization by doing calculation over range of qd and phi
@@ -71,12 +72,12 @@ def test_structure_factor_percus_yevick_core_shell():
     # non-core-shell particles at low volume fraction (assuming the core diameter 
     # is the same as the particle diameter for the non-core-shell case)
     
-    wavelen = Quantity('400 nm')
+    wavelen = Quantity('400.0 nm')
     angles = Quantity(np.pi, 'rad')
     n_matrix = Quantity(1.0, '')
     
     # Structure factor for non-core-shell particles       
-    radius = Quantity('100 nm')    
+    radius = Quantity('100.0 nm')    
     n_particle = Quantity(1.5, '')
     volume_fraction = Quantity(0.0001, '')         # IS VF TOO LOW?
     n_sample = ri.n_eff(n_particle, n_matrix, volume_fraction)
@@ -86,7 +87,7 @@ def test_structure_factor_percus_yevick_core_shell():
     
     # Structure factor for core-shell particles with core size equal to radius
     # of non-core-shell particle   
-    radius_cs = Quantity(np.array([100, 105]), 'nm')    
+    radius_cs = Quantity(np.array([100.0, 105.0]), 'nm')    
     n_particle_cs = Quantity(np.array([1.5, 1.0]), '')
     volume_fraction_shell = volume_fraction * (radius_cs[1]**3 / radius_cs[0]**3 -1)
     volume_fraction_cs = Quantity(np.array([volume_fraction.magnitude, volume_fraction_shell.magnitude]), '')
@@ -97,32 +98,31 @@ def test_structure_factor_percus_yevick_core_shell():
     s_cs = structure.factor_py(qd_cs, np.sum(volume_fraction_cs))
     
     assert_almost_equal(s.magnitude, s_cs.magnitude, decimal=5)
-    
+
+
 def test_structure_factor_polydisperse():
     # test that the analytical structure factor for polydisperse systems matches
     # Percus-Yevick in the monodisperse limit
-    
+
     # Percus-Yevick
-    qd = Quantity(5, '')
+    qd = Quantity(5.0, '')
     phi = Quantity(0.5, '')
     S_py = structure.factor_py(qd, phi)
 
     # Polydisperse S
-    d = Quantity('100 nm')
-    c = Quantity(1, '')
+    d = Quantity('100.0 nm')
+    c = Quantity(1.0, '')
     pdi = Quantity(1e-5, '')
     q2 = qd / d
-    
-    S_poly = structure.factor_poly(q2, phi, d, c, pdi)    
-    
+
+    S_poly = structure.factor_poly(q2, phi, d, c, pdi)
+
     assert_almost_equal(S_py.magnitude, S_poly.magnitude)
 
+
 def test_structure_factor_data():
-    qd = np.array([1,2])
-    qd_data = np.array([0.5,2.5])
-    s_data = np.array([1,1])
+    qd = np.array([1, 2])
+    qd_data = np.array([0.5, 2.5])
+    s_data = np.array([1, 1])
     s = structure.factor_data(qd, s_data, qd_data)
-    assert_equal(s[0],1)
-    
-    
-    
+    assert_equal(s[0], 1)

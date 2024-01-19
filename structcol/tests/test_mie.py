@@ -21,7 +21,7 @@ Tests for the mie module
 """
 
 from .. import Quantity, ureg, q, index_ratio, size_parameter, np, mie
-from nose.tools import assert_raises, assert_equal
+from pytest import raises
 from numpy.testing import assert_almost_equal, assert_array_almost_equal
 from pint.errors import DimensionalityError
 
@@ -30,7 +30,7 @@ def test_cross_sections():
     # calculated for testing fortran-based Mie code in holopy)
 
     # test case is PS sphere in water
-    wavelen = Quantity('658 nm')
+    wavelen = Quantity('658.0 nm')
     radius = Quantity('0.85 um')
     n_matrix = Quantity(1.33, '')
     n_particle = Quantity(1.59 + 1e-4 * 1.0j, '')
@@ -53,17 +53,17 @@ def test_cross_sections():
     assert_almost_equal(cscat.to('m^2').magnitude, cscat2.to('m^2').magnitude)
     assert_almost_equal(cext.to('m^2').magnitude, cext2.to('m^2').magnitude)
     assert_almost_equal(cback.to('m^2').magnitude, cback2.to('m^2').magnitude)
-    assert_almost_equal(g, g2)
+    assert_almost_equal(g, g2.magnitude)
 
     # test that calc_cross_sections throws an exception when given an argument
     # with the wrong dimensions
-    assert_raises(DimensionalityError, mie.calc_cross_sections,
+    raises(DimensionalityError, mie.calc_cross_sections,
                   m, x, Quantity('0.25 J'))
-    assert_raises(DimensionalityError, mie.calc_cross_sections,
+    raises(DimensionalityError, mie.calc_cross_sections,
                   m, x, Quantity('0.25'))
 
 def test_form_factor():
-    wavelen = Quantity('658 nm')
+    wavelen = Quantity('658.0 nm')
     radius = Quantity('0.85 um')
     n_matrix = Quantity(1.00, '')
     n_particle = Quantity(1.59 + 1e-4 * 1.0j, '')
@@ -122,7 +122,7 @@ def test_efficiencies():
                             1.02022022710453, 0.51835427781473,
                             0.331000402174976])
 
-    wavelen = Quantity('658 nm')
+    wavelen = Quantity('658.0 nm')
     n_matrix = Quantity(1.00, '')
     n_particle = Quantity(1.59 + 1e-4 * 1.0j, '')
     m = index_ratio(n_particle, n_matrix)
@@ -149,7 +149,7 @@ def test_efficiencies():
 
 def test_absorbing_materials():
     # test calculations for gold, which has a high imaginary refractive index
-    wavelen = Quantity('658 nm')
+    wavelen = Quantity('658.0 nm')
     n_matrix = Quantity(1.00, '')
     n_particle = Quantity(0.1425812 + 3.6813284 * 1.0j, '')
     m = index_ratio(n_particle, n_matrix)

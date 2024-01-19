@@ -34,12 +34,12 @@ ntrajectories = 30 # number of trajectories
 nevents = 300 # number of scattering events in each trajectory
 
 # source/detector properties
-wavelength = sc.Quantity(np.array(550),'nm') # wavelength at which to run simulation 
+wavelength = sc.Quantity(np.array(550.0),'nm') # wavelength at which to run simulation 
 
 # sample properties
-particle_radius = sc.Quantity('140 nm') # radius of the particles
+particle_radius = sc.Quantity('140.0 nm') # radius of the particles
 volume_fraction = sc.Quantity(0.56, '') # volume fraction of particles
-thickness = sc.Quantity('10 um')
+thickness = sc.Quantity('10.0 um')
 particle = 'ps'
 matrix = 'air'
 boundary = 'film'

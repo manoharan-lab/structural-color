@@ -30,38 +30,27 @@ from .. import montecarlo as mc
 from .. import detector as det
 from .. import refractive_index as ri
 import numpy as np
-from numpy.testing import assert_almost_equal
+from numpy.testing import assert_almost_equal, assert_warns
 
 # Define a system to be used for the tests
 nevents = 3
 ntrajectories = 4
-radius = sc.Quantity('150 nm')
+radius = sc.Quantity('150.0 nm')
 assembly_radius = 5
 volume_fraction = 0.5
 n_particle = sc.Quantity(1.5, '')
 n_matrix = sc.Quantity(1.0, '')
 n_sample = ri.n_eff(n_particle, n_matrix, volume_fraction) 
 angles = sc.Quantity(np.linspace(0.01,np.pi, 200), 'rad')  
-wavelen = sc.Quantity('400 nm')
+wavelen = sc.Quantity('400.0 nm')
 
 # Index of the scattering event and trajectory corresponding to the reflected
 # photons
 refl_index = np.array([2,0,2])
 
-def test_sampling():
-    # Test that 'calc_scat' runs
-    p, mu_scat, mu_abs = mc.calc_scat(radius, n_particle, n_sample, 
-                                      volume_fraction, wavelen)
-    
-    # Test that 'sample_angles' runs
-    mc.sample_angles(nevents, ntrajectories, p)
-    
-    # Test that 'sample_step' runs
-    mc.sample_step(nevents, ntrajectories, mu_scat)
-
 def test_calc_refl_trans():
-    small_n = sc.Quantity(1,'')
-    large_n = sc.Quantity(2,'')
+    small_n = sc.Quantity(1.0,'')
+    large_n = sc.Quantity(2.0,'')
 
     # test absoprtion and stuck without fresnel
     z_pos = np.array([[0,0,0,0],[1,1,1,1],[-1,11,2,11],[-2,12,4,12]])
@@ -100,25 +89,12 @@ def test_calc_refl_trans():
     z_pos = np.array([[0,0,0,0],[1,1,1,1],[-1,11,2,11],[-2,12,4,12]])
     weights = np.ones((3,4))
     trajectories = mc.Trajectory([x_pos, y_pos, z_pos],[kx, ky, kz], weights) 
-    refl, trans = det.calc_refl_trans(trajectories, assembly_radius, small_n, small_n, 'sphere',
+    with assert_warns(UserWarning):
+        refl, trans = det.calc_refl_trans(trajectories, assembly_radius, small_n, small_n, 'sphere',
                                      p=p, mu_abs=mu_abs, mu_scat=mu_scat, run_fresnel_traj=True)
     # since the tir=True reruns the stuck trajectory, we don't know whether it will end up reflected or transmitted
     # all we can know is that the end refl + trans > 0.99
-    assert_almost_equal(refl + trans, 1.) 
-
-
-def test_trajectories():
-    # Initialize runs
-    nevents = 2
-    ntrajectories = 3
-    r0, k0, W0 = mc.initialize(nevents, ntrajectories, n_matrix, n_sample, 'sphere', seed=1, sample_diameter=sc.Quantity('1 um'))
-    r0 = sc.Quantity(r0, 'um')
-    k0 = sc.Quantity(k0, '')
-    W0 = sc.Quantity(W0, '')
-
-    # Create a Trajectory object
-    trajectories = mc.Trajectory(r0, k0, W0)
-    
+    assert_almost_equal(refl + trans, 1.)   
     
 def test_get_angles_sphere():
     z_pos = np.array([[0,0,0,0],[1,1,1,1],[-1,11,2,11],[-2,12,4,12]])
@@ -131,19 +107,19 @@ def test_get_angles_sphere():
     
     indices = np.array([1,1,1,1])
     thetas, _ = det.get_angles(indices, 'sphere', trajectories, assembly_radius, init_dir = 1)
-    assert_almost_equal(np.sum(thetas), 0.) 
+    assert_almost_equal(np.sum(thetas.magnitude), 0.) 
 
 def test_index_match():
     ntrajectories = 2
     nevents = 3
-    wavelen = sc.Quantity('600 nm')
+    wavelen = sc.Quantity('600.0 nm')
     radius = sc.Quantity('0.140 um')
-    microsphere_radius = sc.Quantity('10 um')
+    microsphere_radius = sc.Quantity('10.0 um')
     volume_fraction = sc.Quantity(0.55,'')
     n_particle = sc.Quantity(1.6,'')
     n_matrix = sc.Quantity(1.6,'')
     n_sample = n_matrix
-    n_medium = sc.Quantity(1,'')
+    n_medium = sc.Quantity(1.0,'')
     
     p, mu_scat, mu_abs = mc.calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen)
     
