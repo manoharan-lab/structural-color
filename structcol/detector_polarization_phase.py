@@ -238,7 +238,7 @@ def calc_traj_time(step, exit_indices, radius,
     traj_time = travel_time + dwell_time
 
     # set traj_time = 0 for stuck trajectories
-    traj_time[stuck_traj_ind] = sc.Quantity(0, 'fs')
+    traj_time[stuck_traj_ind] = sc.Quantity(0.0, 'fs')
 
     # change units to femtoseconds and discard imaginary part
     traj_time = traj_time.to('fs')

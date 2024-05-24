@@ -36,14 +36,14 @@ import pytest
 # Define a system to be used for the tests
 nevents = 3
 ntrajectories = 4
-radius = sc.Quantity('150 nm')
+radius = sc.Quantity('150.0 nm')
 volume_fraction = 0.5
 n_particle = sc.Quantity(1.5, '')
 n_matrix = sc.Quantity(1.0, '')
 n_medium = sc.Quantity(1.0, '')
 n_sample = ri.n_eff(n_particle, n_matrix, volume_fraction) 
 angles = sc.Quantity(np.linspace(0.01, np.pi, 200), 'rad')  
-wavelen = sc.Quantity('400 nm')
+wavelen = sc.Quantity('400.0 nm')
 
 # Index of the scattering event and trajectory corresponding to the reflected
 # photons
@@ -76,7 +76,7 @@ def test_trajectories():
     trajectories = mc.Trajectory(r0, k0, W0)
     
     # Test the absorb function
-    mu_abs = 1/sc.Quantity(10, 'um')    
+    mu_abs = 1/sc.Quantity(10.0, 'um')    
     step = sc.Quantity(np.array([[1, 1, 1], [1, 1, 1]]), 'um')    
     trajectories.absorb(mu_abs, step)     
     assert_almost_equal(trajectories.weight.magnitude,
@@ -113,8 +113,8 @@ def test_phase_function_absorbing_medium():
     # function using the Mie solutions with the asymptotic form of the spherical 
     # Hankel functions but using a complex k (mie.diff_scat_intensity_complex_medium()
     # with near_fields=False)
-    wavelen = sc.Quantity('550 nm')
-    radius = sc.Quantity('105 nm')
+    wavelen = sc.Quantity('550.0 nm')
+    radius = sc.Quantity('105.0 nm')
     n_matrix = sc.Quantity(1.47 + 0.001j, '')
     n_particle = sc.Quantity(1.5 + 1e-1 * 1.0j, '')
     m = index_ratio(n_particle, n_matrix)
@@ -167,7 +167,7 @@ def test_phase_function_absorbing_medium():
     ## Integrating at the surface of the particle
     # with mie.calc_ang_dist() (this is how it's currently implemented in 
     # monte carlo)
-    radius2 = sc.Quantity('150 nm')
+    radius2 = sc.Quantity('150.0 nm')
     concentration = sc.Quantity(np.array([0.2, 0.7]), '')
     pdi = sc.Quantity(np.array([0.1, 0.1]), '')
     diameters = sc.Quantity(np.array([radius.magnitude, radius2.magnitude])*2, 

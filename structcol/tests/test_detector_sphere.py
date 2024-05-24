@@ -35,22 +35,22 @@ from numpy.testing import assert_almost_equal, assert_warns
 # Define a system to be used for the tests
 nevents = 3
 ntrajectories = 4
-radius = sc.Quantity('150 nm')
+radius = sc.Quantity('150.0 nm')
 assembly_radius = 5
 volume_fraction = 0.5
 n_particle = sc.Quantity(1.5, '')
 n_matrix = sc.Quantity(1.0, '')
 n_sample = ri.n_eff(n_particle, n_matrix, volume_fraction) 
 angles = sc.Quantity(np.linspace(0.01,np.pi, 200), 'rad')  
-wavelen = sc.Quantity('400 nm')
+wavelen = sc.Quantity('400.0 nm')
 
 # Index of the scattering event and trajectory corresponding to the reflected
 # photons
 refl_index = np.array([2,0,2])
 
 def test_calc_refl_trans():
-    small_n = sc.Quantity(1,'')
-    large_n = sc.Quantity(2,'')
+    small_n = sc.Quantity(1.0,'')
+    large_n = sc.Quantity(2.0,'')
 
     # test absoprtion and stuck without fresnel
     z_pos = np.array([[0,0,0,0],[1,1,1,1],[-1,11,2,11],[-2,12,4,12]])
@@ -112,14 +112,14 @@ def test_get_angles_sphere():
 def test_index_match():
     ntrajectories = 2
     nevents = 3
-    wavelen = sc.Quantity('600 nm')
+    wavelen = sc.Quantity('600.0 nm')
     radius = sc.Quantity('0.140 um')
-    microsphere_radius = sc.Quantity('10 um')
+    microsphere_radius = sc.Quantity('10.0 um')
     volume_fraction = sc.Quantity(0.55,'')
     n_particle = sc.Quantity(1.6,'')
     n_matrix = sc.Quantity(1.6,'')
     n_sample = n_matrix
-    n_medium = sc.Quantity(1,'')
+    n_medium = sc.Quantity(1.0,'')
     
     p, mu_scat, mu_abs = mc.calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen)
     
