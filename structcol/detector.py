@@ -1766,8 +1766,8 @@ def calc_refl_trans(trajectories, thickness, n_medium, n_sample, boundary,
         if n_matrix is not None:
             if n_particle < n_matrix:
                 n_tir = fine_roughness * n_matrix + (1 - fine_roughness) * n_sample
-        else:
-            n_tir = fine_roughness * n_particle + (1 - fine_roughness) * n_sample
+            else:
+                n_tir = fine_roughness * n_particle + (1 - fine_roughness) * n_sample
     else:
         n_tir = n_sample
     exits_pos_dir, exits_neg_dir, tir_refl_bool = find_valid_exits(n_tir, 
