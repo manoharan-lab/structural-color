@@ -180,7 +180,7 @@ def factor_poly(q, phi, diameters, c, pdi):
         tm = np.reshape(tm, (len(tm),1))
         return (tm * (1 + x/(t+1))**(-(t+1+m)))
     
-    def tm(m, Dsigma, t):
+    def tm(m, t):
         t = np.reshape(t, (len(np.atleast_1d(t)),1))
         num_array = np.arange(m, 0, -1) + t
         prod = np.prod(num_array, axis=1).reshape((len(t), 1))
@@ -190,16 +190,19 @@ def factor_poly(q, phi, diameters, c, pdi):
     # because otherwise we get a divide by zero error
     # pdi = Quantity(np.atleast_1d(pdi).astype(float), pdi.units)
     pdi = np.atleast_1d(pdi).astype(float).magnitude
-    np.atleast_1d(pdi)[np.atleast_1d(pdi) < 1e-5] = 1e-5  
-
-    Dsigma = pdi**2    
+    pdi[pdi < 1e-5] = 1e-5
+    
+    Dsigma = pdi**2
     Delta = 1 - phi
-    t = np.abs(1/Dsigma) - 1
-    t0 = tm(0, Dsigma, t)
-    t1 = tm(1, Dsigma, t)
+    t = 1/Dsigma - 1
+    
+    t0 = tm(0, t)
+    t1 = tm(1, t)
+    # from eq. 24 of reference and simplifying
     t2 = Dsigma + 1
+    # from eq. 24 and also on page 2295
     t3 = (Dsigma + 1) * (2*Dsigma + 1)
-
+    
     # If monospecies, no need to calculate individual species parameters.
     # concentration c should always be a 2-element array because polydisperse 
     # calculations assume the format of a bispecies particle mixture, 
@@ -244,7 +247,7 @@ def factor_poly(q, phi, diameters, c, pdi):
     s = 1j*q
     x = s*diameters
     F0 = rho 
-    zeta2 = rho * sigma0**2 
+    zeta2 = rho * sigma0**2
     
     f0 = fm(x,t,t0,0)
     f1 = fm(x,t,t1,1)
@@ -252,7 +255,8 @@ def factor_poly(q, phi, diameters, c, pdi):
     f0_inv = fm(-x,t,t0,0)
     f1_inv = fm(-x,t,t1,1)
     f2_inv = fm(-x,t,t2,2)
-  
+
+    # from eqs 29a-29d
     fa = 1/x**3 * (1 - x/2 - f0 - x/2 * f1)
     fb = 1/x**3 * (1 - x/2 * t2 - f1 - x/2 * f2)
     fc = 1/x**2 * (1 - x - f0)
@@ -272,7 +276,7 @@ def factor_poly(q, phi, diameters, c, pdi):
     F21 = np.sum(c * diameters * 2*np.pi*rho*diameters**3/Delta * fb, axis=0)
     F22 = np.sum(c * ((np.pi/Delta)**2 *rho*zeta2*diameters**4*fb + 
                  np.pi*rho*diameters**3/Delta * fd), axis=0)
-                
+
     FF11 = 1 - F11
     FF12 = -F12
     FF21 = -F21

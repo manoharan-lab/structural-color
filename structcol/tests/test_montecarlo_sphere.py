@@ -33,14 +33,14 @@ from numpy.testing import assert_almost_equal
 # Define a system to be used for the tests
 nevents = 3
 ntrajectories = 4
-radius = sc.Quantity('150 nm')
+radius = sc.Quantity('150.0 nm')
 assembly_radius = 5
 volume_fraction = 0.5
 n_particle = sc.Quantity(1.5, '')
 n_matrix = sc.Quantity(1.0, '')
 n_sample = ri.n_eff(n_particle, n_matrix, volume_fraction) 
 angles = sc.Quantity(np.linspace(0.01,np.pi, 200), 'rad')  
-wavelen = sc.Quantity('400 nm')
+wavelen = sc.Quantity('400.0 nm')
 
 # Index of the scattering event and trajectory corresponding to the reflected
 # photons
@@ -50,7 +50,7 @@ def test_trajectories():
     # Initialize runs
     nevents = 2
     ntrajectories = 3
-    r0, k0, W0 = mc.initialize(nevents, ntrajectories, n_matrix, n_sample, 'sphere', seed=1, sample_diameter=sc.Quantity('1 um'))
+    r0, k0, W0 = mc.initialize(nevents, ntrajectories, n_matrix, n_sample, 'sphere', seed=1, sample_diameter=sc.Quantity('1.0 um'))
     r0 = sc.Quantity(r0, 'um')
     k0 = sc.Quantity(k0, '')
     W0 = sc.Quantity(W0, '')

@@ -72,12 +72,12 @@ def test_structure_factor_percus_yevick_core_shell():
     # non-core-shell particles at low volume fraction (assuming the core diameter 
     # is the same as the particle diameter for the non-core-shell case)
     
-    wavelen = Quantity('400 nm')
+    wavelen = Quantity('400.0 nm')
     angles = Quantity(np.pi, 'rad')
     n_matrix = Quantity(1.0, '')
     
     # Structure factor for non-core-shell particles       
-    radius = Quantity('100 nm')    
+    radius = Quantity('100.0 nm')    
     n_particle = Quantity(1.5, '')
     volume_fraction = Quantity(0.0001, '')         # IS VF TOO LOW?
     n_sample = ri.n_eff(n_particle, n_matrix, volume_fraction)
@@ -87,7 +87,7 @@ def test_structure_factor_percus_yevick_core_shell():
     
     # Structure factor for core-shell particles with core size equal to radius
     # of non-core-shell particle   
-    radius_cs = Quantity(np.array([100, 105]), 'nm')    
+    radius_cs = Quantity(np.array([100.0, 105.0]), 'nm')    
     n_particle_cs = Quantity(np.array([1.5, 1.0]), '')
     volume_fraction_shell = volume_fraction * (radius_cs[1]**3 / radius_cs[0]**3 -1)
     volume_fraction_cs = Quantity(np.array([volume_fraction.magnitude, volume_fraction_shell.magnitude]), '')
@@ -105,13 +105,13 @@ def test_structure_factor_polydisperse():
     # Percus-Yevick in the monodisperse limit
 
     # Percus-Yevick
-    qd = Quantity(5, '')
+    qd = Quantity(5.0, '')
     phi = Quantity(0.5, '')
     S_py = structure.factor_py(qd, phi)
 
     # Polydisperse S
-    d = Quantity('100 nm')
-    c = Quantity(1, '')
+    d = Quantity('100.0 nm')
+    c = Quantity(1.0, '')
     pdi = Quantity(1e-5, '')
     q2 = qd / d
 
