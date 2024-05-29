@@ -1766,10 +1766,9 @@ def calc_refl_trans(trajectories, thickness, n_medium, n_sample, boundary,
 
     # construct booleans for positive and negative exits
     # TODO: confirm this
-    if n_particle is not None:
-        if n_matrix is not None:
-            if n_particle < n_matrix:
-                n_tir = fine_roughness * n_matrix + (1 - fine_roughness) * n_sample
+    if (n_particle is not None) and (n_matrix is not None):
+        if n_particle < n_matrix:
+            n_tir = fine_roughness * n_matrix + (1 - fine_roughness) * n_sample
         else:
             n_tir = fine_roughness * n_particle + (1 - fine_roughness) * n_sample
     else:
