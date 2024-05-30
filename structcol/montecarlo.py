@@ -395,7 +395,7 @@ class Trajectory:
         # multiply the fields by the phase propagation due to structure factor
         # of the initial trajectories
         # should multiply by 1 for trajectories do not have fine roughness
-        ntraj_fine = int(np.round(ntraj * fine_roughness))
+        ntraj_fine = int(round(ntraj * fine_roughness))
         En[0, 1:, :] = En[0, 1:, :] * step_phase_factor
         En[1, 1:, :] = En[1, 1:, :] * step_phase_factor
         En[2, 1:, :] = En[2, 1:, :] * step_phase_factor
