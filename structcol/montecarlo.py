@@ -395,7 +395,7 @@ class Trajectory:
         # multiply the fields by the phase propagation due to structure factor
         # of the initial trajectories
         # should multiply by 1 for trajectories do not have fine roughness
-        ntraj_fine = int(np.round(ntraj * fine_roughness))
+        ntraj_fine = int(round(ntraj * fine_roughness))
         En[0, 1:, :] = En[0, 1:, :] * step_phase_factor
         En[1, 1:, :] = En[1, 1:, :] * step_phase_factor
         En[2, 1:, :] = En[2, 1:, :] * step_phase_factor
@@ -1439,7 +1439,7 @@ def coarse_roughness_enter(k0, n_medium, n_sample,
     if np.isnan(prob_a).all(): 
         theta_a = np.zeros(ntraj)
     else: 
-        theta_a = np.array([np.random.choice(theta_a_full, ntraj, p=prob_a.magnitude) for i in range(1)]).flatten()
+        theta_a = np.array([np.random.choice(theta_a_full, ntraj, p=prob_a) for i in range(1)]).flatten()
             
     # In case the surface is rough, then find new coordinates of initial 
     # directions after rotating the surface by an angle theta_a around y axis
