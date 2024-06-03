@@ -494,6 +494,7 @@ def initialize(nevents, ntraj, n_medium, n_sample, boundary, seed=None,
                sample_diameter=None,
                coarse_roughness=0.,
                coherent=False,
+               polarized=True,
                fields=False):
     """
     Sets the trajectories' initial conditions (position, direction, weight,
@@ -798,13 +799,16 @@ def initialize(nevents, ntraj, n_medium, n_sample, boundary, seed=None,
         fields0 = np.zeros((3, nevents+1, ntraj), dtype = 'complex')                  
         # initialize for unpolarized, incoherent light
         if coherent:
-            phase_x = np.ones(ntraj)
-            phase_y = np.ones(ntraj)
+            phase_x = np.zeros(ntraj)
+            phase_y = np.zeros(ntraj)
         else:
             phase_x = np.random.random(ntraj)*2*np.pi
             phase_y = np.random.random(ntraj)*2*np.pi
-        fields0[0,0,:] = np.exp(phase_x*1j)
-        fields0[1,0,:] = np.exp(phase_y*1j)
+        if polarized:
+            fields0[0,0,:] = np.exp(phase_x*1j)
+        else:
+            fields0[0,0,:] = np.exp(phase_x*1j)
+            fields0[1,0,:] = np.exp(phase_y*1j)
         fields0x, fields0y, _ = normalize(fields0[0,0,:], fields0[1,0,:], 0)
         fields0[0,0,:] = fields0x
         fields0[1,0,:] = fields0y
@@ -1249,7 +1253,7 @@ def sample_angles(nevents, ntraj, p, min_angle=0.01):
         Sampled azimuthal and scattering angles, and their sines and cosines.
     
     """   
-   
+    rng = np.random.default_rng(1)
     if isinstance(p,sc.Quantity):
         p = p.magnitude
     num_theta = len(p)
@@ -1287,19 +1291,19 @@ def sample_angles(nevents, ntraj, p, min_angle=0.01):
     if len(p.shape)==2: # if p depends on theta and phi
         
         # get the number of phis from the shape of the phase function
-        num_phi = p.shape[1]
-            
+        num_phi = p.shape[1] 
+
         # sum for theta axis to get phi probabilities
         p_phi = np.sum(p, axis = 0)
-            
+
         # define phi values from which to sample 
         phis = sc.Quantity(np.linspace(min_angle,2*np.pi, num_phi), 'rad') 
         phis = phis.magnitude
     
         # sample indices for phi values
-        phi_ind = np.array([np.random.choice(num_phi, ntraj, p = p_phi/np.sum(p_phi))
+        phi_ind = np.array([rng.choice(num_phi, ntraj, p = p_phi/np.sum(p_phi))
                                 for i in range(nevents)])
-            
+           
         # sample thetas based on sampled phi values
         theta_ind = np.zeros((nevents,ntraj))
         theta = np.zeros((nevents,ntraj))
@@ -1307,7 +1311,7 @@ def sample_angles(nevents, ntraj, p, min_angle=0.01):
         for i in range(nevents):
             for j in range(ntraj):
                 p_theta = p[:,phi_ind[i,j]]*np.sin(thetas)
-                theta_ind[i,j] = np.random.choice(num_theta, p = p_theta/np.sum(p_theta))
+                theta_ind[i,j] = rng.choice(num_theta, p = p_theta/np.sum(p_theta))
                 theta[i,j] = thetas[int(theta_ind[i,j])]
                 phi[i,j] = phis[int(phi_ind[i,j])]
             
@@ -1358,7 +1362,8 @@ def sample_step(nevents, ntraj, mu_scat, fine_roughness=0.):
         mu_scat_mie = None
 
     # Generate array of random numbers from 0 to 1
-    rand = np.random.random((nevents,ntraj)) #uncomment
+    rng = np.random.default_rng(1) # SEED
+    rand = rng.random((nevents,ntraj)) #uncomment
 
     # sample step sizes
     step = -np.log(1.0-rand) / mu_scat
@@ -1367,7 +1372,7 @@ def sample_step(nevents, ntraj, mu_scat, fine_roughness=0.):
     # for the number of trajectories set by fine_roughness
     if mu_scat_mie is not None:
         ntraj_mie = int(round(ntraj * fine_roughness))
-        rand_ntraj = np.random.random(ntraj_mie)
+        rand_ntraj = rng.random(ntraj_mie)
         step[0,0:ntraj_mie] = -np.log(1.0-rand_ntraj) / mu_scat_mie
     
     return step
