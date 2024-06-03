@@ -1253,7 +1253,7 @@ def sample_angles(nevents, ntraj, p, min_angle=0.01):
         Sampled azimuthal and scattering angles, and their sines and cosines.
     
     """   
-    rng = np.random.default_rng(1)
+    rng = np.random.default_rng()
     if isinstance(p,sc.Quantity):
         p = p.magnitude
     num_theta = len(p)
@@ -1362,7 +1362,7 @@ def sample_step(nevents, ntraj, mu_scat, fine_roughness=0.):
         mu_scat_mie = None
 
     # Generate array of random numbers from 0 to 1
-    rng = np.random.default_rng(1) # SEED
+    rng = np.random.default_rng() # SEED
     rand = rng.random((nevents,ntraj)) #uncomment
 
     # sample step sizes
