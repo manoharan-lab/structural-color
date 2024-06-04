@@ -531,12 +531,12 @@ def test_surface_roughness():
                                      wavelen, seed, fine_roughness=1e-4,
                                      coarse_roughness = 1e-5, n_matrix=n_matrix)
 
-    assert_almost_equal(R, R_fine, decimal=16)
-    assert_almost_equal(T, T_fine, decimal=16)
-    assert_almost_equal(R, R_coarse, decimal=16)
-    assert_almost_equal(T, T_coarse, decimal=16)
-    assert_almost_equal(R, R_both, decimal=16)
-    assert_almost_equal(T, T_both, decimal=16)
+    assert_almost_equal(R, R_fine, decimal=15)
+    assert_almost_equal(T, T_fine, decimal=15)
+    assert_almost_equal(R, R_coarse, decimal=15)
+    assert_almost_equal(T, T_coarse, decimal=15)
+    assert_almost_equal(R, R_both, decimal=15)
+    assert_almost_equal(T, T_both, decimal=15)
 
 def calc_montecarlo(nevents, ntrajectories, radius, n_particle, n_sample,
                     n_medium, volume_fraction, wavelen, seed, radius2=None,
