@@ -640,7 +640,9 @@ def initialize(nevents, ntraj, n_medium, n_sample, boundary, seed=None,
     """
     
     if seed is not None:
-        np.random.seed([seed]) # uncomment
+        #np.random.seed([seed])
+        sc.set_seed(seed)
+        #print('in initialize: ' + str(np.random.random(1)))
         
     # get the spot size magnitude to multiply by initial x and y positions
     spot_size_magnitude = spot_size.to('um').magnitude
@@ -667,10 +669,10 @@ def initialize(nevents, ntraj, n_medium, n_sample, boundary, seed=None,
             raise ValueError('for film geometry, sample_diameter must be set\
                              to None')
         # randomly choose x positions on interval [0,1]
-        r0[0,0,:] = random((1,ntraj))*spot_size_magnitude 
+        r0[0,0,:] = sc.rng.random((1,ntraj))*spot_size_magnitude 
         
         # randomly choose y positions on interval [0,1]
-        r0[1,0,:] = random((1,ntraj))*spot_size_magnitude
+        r0[1,0,:] = sc.rng.random((1,ntraj))*spot_size_magnitude
         
         # initialize the incident angles theta and phi. The user can input 
         # data or sample randomly from a uniform distribution between a min and 
@@ -683,7 +685,7 @@ def initialize(nevents, ntraj, n_medium, n_sample, boundary, seed=None,
         else: 
             incidence_theta_min = incidence_theta_min.to('rad').magnitude
             incidence_theta_max = incidence_theta_max.to('rad').magnitude
-            theta = np.random.uniform(incidence_theta_min, incidence_theta_max, ntraj)
+            theta = sc.rng.uniform(incidence_theta_min, incidence_theta_max, ntraj)
 
         if incidence_phi_data is not None: 
             if len(incidence_phi_data) != ntraj:
@@ -693,7 +695,7 @@ def initialize(nevents, ntraj, n_medium, n_sample, boundary, seed=None,
         else: 
             incidence_phi_min = incidence_phi_min.to('rad').magnitude
             incidence_phi_max = incidence_phi_max.to('rad').magnitude
-            phi = np.random.uniform(incidence_phi_min, incidence_phi_max, ntraj)
+            phi = sc.rng.uniform(incidence_phi_min, incidence_phi_max, ntraj)
 
         sinphi = np.sin(phi)
         cosphi = np.cos(phi)
@@ -706,10 +708,10 @@ def initialize(nevents, ntraj, n_medium, n_sample, boundary, seed=None,
                              a physical quantity, not None')
             
         # randomly choose r on interval [0,1] and multiply by spot size radius
-        r = np.sqrt(random(ntraj))*spot_size_magnitude/2
+        r = np.sqrt(sc.rng.random(ntraj))*spot_size_magnitude/2
         
         # randomly choose th on interval [0,2*pi]
-        th = 2*np.pi*random(ntraj)
+        th = 2*np.pi*sc.rng.random(ntraj)
         
         # convert to x and y, so that the points are randomly distributed 
         # across the cross sectional area of the sphere
@@ -802,8 +804,8 @@ def initialize(nevents, ntraj, n_medium, n_sample, boundary, seed=None,
             phase_x = np.zeros(ntraj)
             phase_y = np.zeros(ntraj)
         else:
-            phase_x = np.random.random(ntraj)*2*np.pi
-            phase_y = np.random.random(ntraj)*2*np.pi
+            phase_x = sc.rng.random(ntraj)*2*np.pi
+            phase_y = sc.rng.random(ntraj)*2*np.pi
         if polarized:
             fields0[0,0,:] = np.exp(phase_x*1j)
         else:
@@ -1253,7 +1255,6 @@ def sample_angles(nevents, ntraj, p, min_angle=0.01):
         Sampled azimuthal and scattering angles, and their sines and cosines.
     
     """   
-    rng = np.random.default_rng()
     if isinstance(p,sc.Quantity):
         p = p.magnitude
     num_theta = len(p)
@@ -1276,7 +1277,7 @@ def sample_angles(nevents, ntraj, p, min_angle=0.01):
  
         # Random sampling of azimuthal angle phi from uniform distribution [0 -
         # 2pi]
-        rand = np.random.random((nevents,ntraj))
+        rand = sc.rng.random((nevents,ntraj))
         phi = 2*np.pi*rand
         
     
@@ -1285,7 +1286,7 @@ def sample_angles(nevents, ntraj, p, min_angle=0.01):
         prob_norm = prob/sum(prob)           # normalize to make it add up to 1
         
         # Randomly sample scattering angle theta
-        theta = np.array([np.random.choice(thetas, ntraj, p = prob_norm)
+        theta = np.array([sc.rng.choice(thetas, ntraj, p = prob_norm)
                           for i in range(nevents)])
         
     if len(p.shape)==2: # if p depends on theta and phi
@@ -1301,7 +1302,7 @@ def sample_angles(nevents, ntraj, p, min_angle=0.01):
         phis = phis.magnitude
     
         # sample indices for phi values
-        phi_ind = np.array([rng.choice(num_phi, ntraj, p = p_phi/np.sum(p_phi))
+        phi_ind = np.array([sc.rng.choice(num_phi, ntraj, p = p_phi/np.sum(p_phi))
                                 for i in range(nevents)])
            
         # sample thetas based on sampled phi values
@@ -1311,7 +1312,7 @@ def sample_angles(nevents, ntraj, p, min_angle=0.01):
         for i in range(nevents):
             for j in range(ntraj):
                 p_theta = p[:,phi_ind[i,j]]*np.sin(thetas)
-                theta_ind[i,j] = rng.choice(num_theta, p = p_theta/np.sum(p_theta))
+                theta_ind[i,j] = sc.rng.choice(num_theta, p = p_theta/np.sum(p_theta))
                 theta[i,j] = thetas[int(theta_ind[i,j])]
                 phi[i,j] = phis[int(phi_ind[i,j])]
             
@@ -1362,8 +1363,7 @@ def sample_step(nevents, ntraj, mu_scat, fine_roughness=0.):
         mu_scat_mie = None
 
     # Generate array of random numbers from 0 to 1
-    rng = np.random.default_rng() # SEED
-    rand = rng.random((nevents,ntraj)) #uncomment
+    rand = sc.rng.random((nevents,ntraj)) #uncomment
 
     # sample step sizes
     step = -np.log(1.0-rand) / mu_scat
@@ -1372,7 +1372,7 @@ def sample_step(nevents, ntraj, mu_scat, fine_roughness=0.):
     # for the number of trajectories set by fine_roughness
     if mu_scat_mie is not None:
         ntraj_mie = int(round(ntraj * fine_roughness))
-        rand_ntraj = rng.random(ntraj_mie)
+        rand_ntraj = sc.rng.random(ntraj_mie)
         step[0,0:ntraj_mie] = -np.log(1.0-rand_ntraj) / mu_scat_mie
     
     return step
@@ -1444,7 +1444,7 @@ def coarse_roughness_enter(k0, n_medium, n_sample,
     if np.isnan(prob_a).all(): 
         theta_a = np.zeros(ntraj)
     else: 
-        theta_a = np.array([np.random.choice(theta_a_full, ntraj, p=prob_a) for i in range(1)]).flatten()
+        theta_a = np.array([sc.rng.choice(theta_a_full, ntraj, p=prob_a) for i in range(1)]).flatten()
             
     # In case the surface is rough, then find new coordinates of initial 
     # directions after rotating the surface by an angle theta_a around y axis

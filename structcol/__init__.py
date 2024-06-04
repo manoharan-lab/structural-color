@@ -146,3 +146,18 @@ def select_events(inarray, events):
     if isinstance(inarray, Quantity):
         outarray = Quantity(outarray, inarray.units)
     return outarray
+
+# Create a global random number generator object
+rng = np.random.default_rng()
+
+def set_seed(seed):
+    global rng
+
+    # Create a random number generator that reproduces old sampling behavior
+    # Note that seed is in the form of a list. This is to reproduce the previous values which are hardcoded in the tests. 
+    # Setting the seed without the list brackets yeilds a different set of random numbers. 
+    rng = np.random.RandomState([seed])
+
+    # Also set the seed for the random module 
+    # in case any random numbers are generated without the Generator object.
+    np.random.seed([seed])
