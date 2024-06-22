@@ -92,7 +92,7 @@ def normalize(x, y, z, return_nan=True):
     # we ignore divide by zero error here because we do not want an error
     # in the case where we try to normalize a null vector <0,0,0>
     with np.errstate(divide='ignore', invalid='ignore'):
-        if ~return_nan and magnitude.all() == 0:
+        if (not return_nan) and magnitude.all() == 0:
             magnitude[magnitude == 0] = 1
         return np.array([x / magnitude, y / magnitude, z / magnitude])
 
