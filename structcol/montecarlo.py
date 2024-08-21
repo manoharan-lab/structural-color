@@ -977,7 +977,8 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
             raise ValueError('cannot handle polydispersity in core-shell particles')
         
         form_type = 'polydisperse'
-        structure_type = 'polydisperse'
+        if structure_type!='data': 
+            structure_type = 'polydisperse'
     
     # define the mean diameters in case the system is polydisperse    
     mean_diameters = sc.Quantity(np.array([2*radius.magnitude, 2*radius2.magnitude]),
