@@ -1,4 +1,4 @@
-name: color2
+name: structcol
 channels:
   - conda-forge
   - defaults
@@ -269,4 +269,4 @@ dependencies:
   - pip:
       - future==0.18.3
       - uncertainties==3.1.7
-prefix: /Users/User/opt/anaconda3/envs/color2
+prefix: /Users/User/opt/anaconda3/envs/structcol
