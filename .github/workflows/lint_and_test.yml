@@ -1,0 +1,46 @@
+name: Test on all platforms
+
+on:
+  push:
+    branches: [ "develop", "main" ]
+  pull_request:
+    branches: [ "develop", "main" ]
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    # conda enviroment activation requires bash
+    defaults:
+      run:
+        shell: bash -el {0}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python-version: ["3.13"] # , "3.10", "3.11", "3.12"]
+      max-parallel: 5
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: Set up miniforge with structcol environment
+      uses: conda-incubator/setup-miniconda@v3
+      with:
+        environment-file: environment.yml
+        miniforge-version: latest
+    - name: Check out python-mie and install
+      shell: bash -el {0}
+      run: |
+        git clone https://github.com/manoharan-lab/python-mie.git
+        pip install ./python-mie
+        rm -r ./python-mie
+    - name: Lint
+      run: |
+        # stop the build if there are Python syntax errors or undefined names
+        ruff check --select=E9,F63,F7,F82
+        # produce a linting report.  exit-zero treats all errors as warnings.
+        ruff check --exit-zero --output-format=github
+    - name: Install plugin to annotate test results
+      run: pip install pytest-github-actions-annotate-failures
+    - name: Test with pytest
+      run: |
+        pytest
