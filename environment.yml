@@ -29,17 +29,9 @@ dependencies:
   # for running tests
   - pytest
 
-  # for development
-  - pyright
-  - pylint
-  - flake8
-  - autoflake
-  - epc
-  - isort
-  - yapf
-  - debugpy
-  - pip
+  # for linting
+  - ruff
 
-  - pip:
-      - importmagic
+  # for installing other dependencies
+  - pip
 
