@@ -463,7 +463,7 @@ def n_eff(n_particle, n_matrix, volume_fraction, maxwell_garnett=False):
     if isinstance(volume_fraction, Quantity):
         volume_fraction = volume_fraction.magnitude
 
-    if maxwell_garnett==True:
+    if maxwell_garnett:
         # check that the particle and matrix indices have the same length
         if len(np.array([n_particle.magnitude]).flatten()) != len(np.array([n_matrix.magnitude]).flatten()):
             raise ValueError('Maxwell-Garnett requires particle and matrix index arrays to have the same length')

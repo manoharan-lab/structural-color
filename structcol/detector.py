@@ -1791,7 +1791,7 @@ def calc_refl_trans(trajectories, thickness, n_medium, n_sample, boundary,
 
     # Correct indices to account for detector.
     # TODO make this work for trans_indices as well
-    if detector == True:
+    if detector:
         shift_traj_tir(trajectories, tir_indices)
         refl_indices = calc_indices_detected(refl_indices, trajectories,
                                              det_theta, det_len, det_dist,
