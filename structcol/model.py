@@ -1067,7 +1067,8 @@ def _integrate_cross_section(cross_section, factor, angles,
     # pint does not yet preserve units for scipy.integrate.trapezoid, so we
     # need to state explicitly that we are in the same units as the integrand.
     if isinstance(integrand, Quantity):
-        integral = trapezoid(integrand, x=angles.magnitude) * integrand.units
+        integral = (trapezoid(integrand.magnitude, x=angles.magnitude)
+                    * integrand.units)
     else:
         integral = trapezoid(integrand, x=angles.magnitude)
     # multiply by azimuthal angular range to account for integral over phi
