@@ -1772,7 +1772,9 @@ def calc_refl_trans(trajectories, thickness, n_medium, n_sample, boundary,
         else:
             n_tir = fine_roughness * n_particle + (1 - fine_roughness) * n_sample
     else:
-        warnings.warn('n_particle and n_matrix not specified, using n_sample for n_tir instead of roughness correction', category=UserWarning)
+        warnings.warn('n_particle and n_matrix not specified; '
+                      'using n_sample for n_tir instead of roughness correction',
+                      category=UserWarning, stacklevel=2)
         n_tir = n_sample
     exits_pos_dir, exits_neg_dir, tir_refl_bool = find_valid_exits(n_tir,
                                                                    n_medium,

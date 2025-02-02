@@ -28,13 +28,14 @@ from structcol import event_distribution as ed
 from structcol import detector as det
 import numpy as np
 from numpy.testing import assert_equal, assert_almost_equal, assert_array_less
+import pytest
 
 # Monte Carlo parameters
 ntrajectories = 30 # number of trajectories
 nevents = 300 # number of scattering events in each trajectory
 
 # source/detector properties
-wavelength = sc.Quantity(np.array(550.0),'nm') # wavelength at which to run simulation 
+wavelength = sc.Quantity(np.array(550.0),'nm') # wavelength at which to run simulation
 
 # sample properties
 particle_radius = sc.Quantity('140.0 nm') # radius of the particles
@@ -45,15 +46,20 @@ matrix = 'air'
 boundary = 'film'
 
 # indices of refraction
-n_particle = ri.n('polystyrene', wavelength) # refractive indices can be specified as pint quantities or
-n_matrix = ri.n('vacuum', wavelength)      # called from the refractive_index module. n_matrix is the 
-n_medium = ri.n('vacuum', wavelength)      # space within sample. n_medium is outside the sample.
+#
+# Refractive indices can be specified as pint quantities or called from the
+# refractive_index module. n_matrix is the # space within sample. n_medium is
+# outside the sample.
+n_particle = ri.n('polystyrene', wavelength)
+n_matrix = ri.n('vacuum', wavelength)
+n_medium = ri.n('vacuum', wavelength)
 
 # Calculate the effective refractive index of the sample
 n_sample = ri.n_eff(n_particle, n_matrix, volume_fraction)
 
-# Calculate the phase function and scattering and absorption coefficients from the single scattering model
-# (this absorption coefficient is of the scatterer, not of an absorber added to the system)
+# Calculate the phase function and scattering and absorption coefficients from
+# the single scattering model (this absorption coefficient is of the scatterer,
+# not of an absorber added to the system)
 p, mu_scat, mu_abs = mc.calc_scat(particle_radius, n_particle, n_sample, volume_fraction, wavelength)
 lscat = 1/mu_scat.magnitude # microns
 
@@ -63,7 +69,7 @@ r0 = sc.Quantity(r0, 'um')
 k0 = sc.Quantity(k0, '')
 W0 = sc.Quantity(W0, '')
 
-# Generate a matrix of all the randomly sampled angles first 
+# Generate a matrix of all the randomly sampled angles first
 sintheta, costheta, sinphi, cosphi, theta, _ = mc.sample_angles(nevents, ntrajectories, p)
 sintheta = np.sin(theta)
 costheta = np.cos(theta)
@@ -75,78 +81,82 @@ step = mc.sample_step(nevents, ntrajectories, mu_scat)
 trajectories = mc.Trajectory(r0, k0, W0)
 
 # Run photons
-trajectories.absorb(mu_abs, step)                         
-trajectories.scatter(sintheta, costheta, sinphi, cosphi)         
+trajectories.absorb(mu_abs, step)
+trajectories.scatter(sintheta, costheta, sinphi, cosphi)
 trajectories.move(step)
 
-refl_indices, trans_indices,\
-inc_refl_per_traj,_,_, refl_per_traj, trans_per_traj,\
-trans_frac, refl_frac,\
-refl_fresnel,\
-trans_fresnel,\
-reflectance,\
-transmittance,\
-tir_refl_bool,_,_ = det.calc_refl_trans(trajectories, thickness, n_medium, 
-                                   n_sample, boundary, return_extra = True)
+# following calculation should raise a warning that n_particle and n_matrix are
+# not set
+with pytest.warns(UserWarning):
+    refl_indices, trans_indices,\
+        inc_refl_per_traj,_,_, refl_per_traj, trans_per_traj,\
+        trans_frac, refl_frac,\
+        refl_fresnel,\
+        trans_fresnel,\
+        reflectance,\
+        transmittance,\
+        tir_refl_bool,_,_ = det.calc_refl_trans(trajectories, thickness,
+                                                n_medium, n_sample, boundary,
+                                                return_extra = True)
 
-refl_events, trans_events = ed.calc_refl_trans_event(refl_per_traj, 
-                                                     inc_refl_per_traj, 
-                                                     trans_per_traj, 
-                                                     refl_indices, 
-                                                     trans_indices, 
+refl_events, trans_events = ed.calc_refl_trans_event(refl_per_traj,
+                                                     inc_refl_per_traj,
+                                                     trans_per_traj,
+                                                     refl_indices,
+                                                     trans_indices,
                                                      nevents)
 
 def test_refl_events():
     '''
     Check that refl_events is consistent with reflectance
     '''
-    
+
     # sum of refl_events should be less than reflectance because it doesn't
     # contain correction terms for fresnel (and stuck for cases where that matters)
     assert_array_less(np.sum(refl_events), reflectance)
-    
+
     # trajectories always propagate into the sample for first event, so none
     # can be reflected
     assert_equal(refl_events[1],0)
-    
+
     # trajectories cannot be transmitted at interface before first scattering
     # event
     assert_equal(trans_events[0],0)
-    
+
 def test_fresnel_events():
     '''
     Check that fresnel corrections make sense
     '''
-    refl_events_fresnel_avg = ed.calc_refl_event_fresnel_avg(refl_events, 
-                                                             refl_indices, 
-                                                             trans_indices, 
-                                                             refl_fresnel, 
+    refl_events_fresnel_avg = ed.calc_refl_event_fresnel_avg(refl_events,
+                                                             refl_indices,
+                                                             trans_indices,
+                                                             refl_fresnel,
                                                              trans_fresnel,
-                                                             refl_frac, 
-                                                             trans_frac, 
+                                                             refl_frac,
+                                                             trans_frac,
                                                              nevents)
-    
+
     pdf_refl, pdf_trans = ed.calc_pdf_scat(refl_events, trans_events, nevents)
 
-    refl_events_fresnel_samp = ed.calc_refl_event_fresnel_pdf(refl_events, 
-                                                              pdf_refl, 
-                                                              pdf_trans, 
-                                                              refl_indices, 
+    refl_events_fresnel_samp = ed.calc_refl_event_fresnel_pdf(refl_events,
+                                                              pdf_refl,
+                                                              pdf_trans,
+                                                              refl_indices,
                                                               trans_indices,
-                                                              refl_fresnel, 
+                                                              refl_fresnel,
                                                               trans_fresnel,
-                                                              refl_frac, 
-                                                              trans_frac, 
+                                                              refl_frac,
+                                                              trans_frac,
                                                               nevents)
-    
+
     # check that average and sampling give same total
     assert_almost_equal(np.sum(refl_events_fresnel_avg), np.sum(refl_events_fresnel_samp))
-    
+
     # check that reflectance from monte carlo gives same as fresnel reflected
     # summed reflectance from event distribution
-    # TODO these should be equal to more decimals. Need to look into this. 
+    # TODO these should be equal to more decimals. Need to look into this.
     assert_almost_equal(reflectance, np.sum(refl_events_fresnel_avg), decimal=1)
-    
+
 def test_tir_events():
     '''
     Check that totally internally reflected trajectories make sense
@@ -155,18 +165,14 @@ def test_tir_events():
     tir_all_refl,\
     tir_single,\
     tir_single_refl,\
-    tir_indices_single = ed.calc_tir(tir_refl_bool, refl_indices, 
-                                     trans_indices, inc_refl_per_traj, 
-                                     n_sample, 
+    tir_indices_single = ed.calc_tir(tir_refl_bool, refl_indices,
+                                     trans_indices, inc_refl_per_traj,
+                                     n_sample,
                                      n_medium,
-                                     boundary, 
+                                     boundary,
                                      trajectories,
                                      thickness)
-    
+
     # the reflected tir's should always be less than total tir's
     assert_array_less(np.sum(tir_single_refl), np.sum(tir_single))
     assert_array_less(np.sum(tir_all_refl), np.sum(tir_all))
-    
-    
-    
-    

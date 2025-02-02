@@ -62,14 +62,23 @@ def test_calc_refl_trans():
     kz = np.array([[1,1,1,1],[-1,1,1,1],[-1,1,1,1]])
     weights = np.array([[.8, .8, .9, .8],[.7, .3, .7, 0],[.1, .1, .5, 0]])
     trajectories = mc.Trajectory([np.nan, np.nan, z_pos],[np.nan, np.nan, kz], weights)
-    refl, trans= det.calc_refl_trans(trajectories, high_thresh, small_n, small_n, 'film')
+    # Should raise warning that n_matrix and n_particle are not set, so
+    # tir correction is based only on sample index
+    with pytest.warns(UserWarning):
+        refl, trans= det.calc_refl_trans(trajectories, high_thresh, small_n,
+                                         small_n, 'film')
     expected_trans_array = np.array([0, .3, .25, 0])/ntrajectories #calculated manually
     expected_refl_array = np.array([.7, 0, .25, 0])/ntrajectories #calculated manually
     assert_almost_equal(refl, np.sum(expected_refl_array))
     assert_almost_equal(trans, np.sum(expected_trans_array))
 
     # test above but with covers on front and back
-    refl, trans = det.calc_refl_trans(trajectories, high_thresh, small_n, small_n, 'film',n_front=large_n, n_back=large_n)
+    # (should raise warning that n_matrix and n_particle are not set, so
+    # tir correction is based only on sample index)
+    with pytest.warns(UserWarning):
+        refl, trans = det.calc_refl_trans(trajectories, high_thresh, small_n,
+                                          small_n, 'film',n_front=large_n,
+                                          n_back=large_n)
     expected_trans_array = np.array([0.00814545, 0.20014545, 0.2, 0.])/ntrajectories #calculated manually
     expected_refl_array = np.array([0.66700606, 0.20349091, 0.4, 0.2])/ntrajectories #calculated manually
     assert_almost_equal(refl, np.sum(expected_refl_array))
@@ -81,14 +90,23 @@ def test_calc_refl_trans():
     kz = np.array([[1,1,1,0.86746757864487367],[-.1,-.1,.1,.1],[0.1,-.1,-.1,0.1],[-1,-.9,1,1]])
     weights = np.array([[.8, .8, .9, .8],[.7, .3, .7, .5],[.6, .2, .6, .4], [.4, .1, .5, .3]])
     trajectories = mc.Trajectory([np.nan, np.nan, z_pos],[np.nan, np.nan, kz], weights)
-    refl, trans= det.calc_refl_trans(trajectories, high_thresh, small_n, large_n, 'film')
+
+    # Should raise warning that n_matrix and n_particle are not set, so
+    # tir correction is based only on sample index
+    with pytest.warns(UserWarning):
+        refl, trans= det.calc_refl_trans(trajectories, high_thresh, small_n,
+                                         large_n, 'film')
     expected_trans_array = np.array([ .00167588, .00062052, .22222222, .11075425])/ntrajectories #calculated manually
     expected_refl_array = np.array([ .43317894, .18760061, .33333333, .59300905])/ntrajectories #calculated manually
     assert_almost_equal(refl, np.sum(expected_refl_array))
     assert_almost_equal(trans, np.sum(expected_trans_array))
 
     # test refraction and detection_angle
-    refl, trans= det.calc_refl_trans(trajectories, high_thresh, small_n, large_n, 'film', detection_angle=0.1)
+    # (should raise warning that n_matrix and n_particle are not set, so
+    # tir correction is based only on sample index)
+    with pytest.warns(UserWarning):
+        refl, trans= det.calc_refl_trans(trajectories, high_thresh, small_n,
+                                         large_n, 'film', detection_angle=0.1)
     expected_trans_array = np.array([ .00167588, .00062052, .22222222,  .11075425])/ntrajectories #calculated manually
     expected_refl_array = np.array([  .43203386, .11291556, .29105299,  .00046666])/ntrajectories #calculated manually
     assert_almost_equal(refl, np.sum(expected_refl_array))
@@ -101,7 +119,11 @@ def test_calc_refl_trans():
     weights = np.array([[1,1,1,1,1,1,1],[1,1,1,1,1,1,1],[1,1,1,1,1,1,1]])
     thin_sample_thickness = 1
     trajectories = mc.Trajectory([np.nan, np.nan, z_pos],[np.nan, np.nan, kz], weights)
-    refl, trans= det.calc_refl_trans(trajectories, thin_sample_thickness, small_n, large_n, 'film')
+    # Should raise warning that n_matrix and n_particle are not set, so
+    # tir correction is based only on sample index
+    with pytest.warns(UserWarning):
+        refl, trans= det.calc_refl_trans(trajectories, thin_sample_thickness,
+                                         small_n, large_n, 'film')
     expected_trans_array = np.array([.8324515, .8324515, .8324515, .05643739, .05643739, .05643739, .8324515])/ntrajectories #calculated manually
     expected_refl_array = np.array([.1675485, .1675485, .1675485, .94356261, .94356261, .94356261, .1675485])/ntrajectories #calculated manually
     assert_almost_equal(refl, np.sum(expected_refl_array))
@@ -594,8 +616,12 @@ def calc_montecarlo(nevents, ntrajectories, radius, n_particle, n_sample,
     cutoff = sc.Quantity('50.0 um')
 
     # calculate R, T
-    R, T = det.calc_refl_trans(trajectories, cutoff, n_medium, n_sample, 'film',
-                               kz0_rot=kz0_rotated, kz0_refl=kz0_reflected)
+    # (should raise warning that n_matrix and n_particle are not set, so
+    # tir correction is based only on sample index)
+    with pytest.warns(UserWarning):
+        R, T = det.calc_refl_trans(trajectories, cutoff, n_medium, n_sample,
+                                   'film', kz0_rot=kz0_rotated,
+                                   kz0_refl=kz0_reflected)
 
     return R, T
 
@@ -625,11 +651,14 @@ def test_goniometer_detector():
     thickness = 10
     n_medium = 1
     n_sample = 1
-    R, T = det.calc_refl_trans(trajectories, thickness, n_medium, n_sample, 'film',
-                               detector=True,
-                               det_theta=sc.Quantity('45.0 degrees'),
-                               det_len=sc.Quantity('1.0 um'),
-                               det_dist=sc.Quantity('10.0 cm'),
-                               plot_detector=False)
+    # Should raise warning that n_matrix and n_particle are not set, so
+    # tir correction is based only on sample index
+    with pytest.warns(UserWarning):
+        R, T = det.calc_refl_trans(trajectories, thickness, n_medium, n_sample,
+                                   'film', detector=True,
+                                   det_theta=sc.Quantity('45.0 degrees'),
+                                   det_len=sc.Quantity('1.0 um'),
+                                   det_dist=sc.Quantity('10.0 cm'),
+                                   plot_detector=False)
 
     assert_almost_equal(R, 0.25)
