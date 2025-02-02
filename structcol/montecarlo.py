@@ -30,24 +30,16 @@ Radiation Transfer” (July 2013).
 .. moduleauthor:: Vinothan N. Manoharan <vnm@seas.harvard.edu>
 
 """
-import pymie as pm
 from pymie import mie, size_parameter, index_ratio
-from pymie import multilayer_sphere_lib as msl
 from . import model
 from . import refraction
 from . import normalize
 from . import select_events
-from . import event_distribution as ed
 import numpy as np
 from numpy.random import random as random
 import structcol as sc
 import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
 import itertools
-import scipy
-import seaborn as sns
-from . import structure
-import copy
 
 eps = 1.e-9
 

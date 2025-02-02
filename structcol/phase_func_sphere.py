@@ -8,16 +8,10 @@ Created on Thu Feb  8 12:34:06 2018
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
-from mpl_toolkits.mplot3d import Axes3D
-import scipy
 from scipy.stats import gaussian_kde
 from scipy.spatial.distance import cdist 
-from pymie import mie, size_parameter, index_ratio
 import structcol as sc
-from . import montecarlo as mc
-from . import model
 from . import select_events
-from . import structure
 from scipy.special import factorial
 import warnings
 

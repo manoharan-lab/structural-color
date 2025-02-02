@@ -29,7 +29,6 @@ import structcol as sc
 from .. import montecarlo as mc
 from .. import detector as det
 from .. import refractive_index as ri
-from .. import index_ratio, size_parameter, model
 import numpy as np
 import warnings
 from numpy.testing import assert_equal, assert_almost_equal

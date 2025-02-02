@@ -23,7 +23,7 @@ Tests for the refractive_index module of structcol
 
 from .. import refractive_index as ri
 from .. import Quantity
-from numpy.testing import assert_equal, assert_almost_equal, assert_array_almost_equal, assert_warns
+from numpy.testing import assert_equal, assert_almost_equal, assert_warns
 from pytest import raises
 from pint.errors import DimensionalityError
 import numpy as np

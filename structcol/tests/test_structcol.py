@@ -20,8 +20,8 @@ Tests various features of the structcol package not found in submodules
 .. moduleauthor:: Vinothan N. Manoharan <vnm@seas.harvard.edu>
 """
 
-from .. import Quantity, ureg, q, np
-from numpy.testing import assert_equal, assert_almost_equal, assert_array_almost_equal
+from .. import Quantity, q, np
+from numpy.testing import assert_equal
 from pytest import raises
 from pint.errors import DimensionalityError
 

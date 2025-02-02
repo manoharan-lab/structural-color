@@ -28,7 +28,6 @@ structure factors
 import numpy as np
 from . import ureg, Quantity  # unit registry and Quantity constructor from pint
 import scipy as sp
-import pandas as pd
 import scipy
 import os
 

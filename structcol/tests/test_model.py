@@ -21,11 +21,10 @@ Tests for the single-scattering model (in structcol/model.py)
 .. moduleauthor:: Victoria Hwang <vhwang@g.harvard.edu>
 """
 
-from .. import Quantity, ureg, q, index_ratio, size_parameter, np, mie, model
+from .. import Quantity, index_ratio, size_parameter, np, mie, model
 from .. import refractive_index as ri
 from pytest import raises
 from numpy.testing import assert_equal, assert_almost_equal, assert_array_almost_equal
-from pint.errors import DimensionalityError
 import pytest
 
 

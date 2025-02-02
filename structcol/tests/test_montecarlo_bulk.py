@@ -27,7 +27,7 @@ import structcol.refractive_index as ri
 from structcol import montecarlo as mc
 from structcol import detector as det
 from structcol import phase_func_sphere as pfs
-from numpy.testing import assert_equal, assert_almost_equal, assert_warns
+from numpy.testing import assert_almost_equal, assert_warns
 import pytest
 
 ### Set parameters ###

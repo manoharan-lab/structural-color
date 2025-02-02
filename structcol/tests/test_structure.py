@@ -22,13 +22,12 @@ Tests for the structure module
 .. moduleauthor:: Annie Stephenson <stephenson@g.harvard.edu>
 """
 
-from .. import Quantity, ureg, q, np, structure
+from .. import Quantity, np, structure
 from .. import size_parameter
 from .. import refractive_index as ri
-from numpy.testing import assert_equal, assert_almost_equal, assert_array_almost_equal
+from numpy.testing import assert_equal, assert_almost_equal
 from pytest import raises
 from pint.errors import DimensionalityError
-import scipy.interpolate
 
 
 def test_structure_factor_percus_yevick():

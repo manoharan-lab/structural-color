@@ -1,4 +1,4 @@
-# Copyright 2018, Vinothan N. Manoharan, Annie Stephenson, Victoria Hwang, 
+# Copyright 2018, Vinothan N. Manoharan, Annie Stephenson, Victoria Hwang,
 # Solomon Barkley
 #
 # This file is part of the structural-color python package.
@@ -25,10 +25,8 @@ Tests for the montecarlo model for sphere geometry (in structcol/montecarlo.py)
 
 import structcol as sc
 from .. import montecarlo as mc
-from .. import detector as det
 from .. import refractive_index as ri
 import numpy as np
-from numpy.testing import assert_almost_equal
 
 # Define a system to be used for the tests
 nevents = 3
@@ -38,8 +36,8 @@ assembly_radius = 5
 volume_fraction = 0.5
 n_particle = sc.Quantity(1.5, '')
 n_matrix = sc.Quantity(1.0, '')
-n_sample = ri.n_eff(n_particle, n_matrix, volume_fraction) 
-angles = sc.Quantity(np.linspace(0.01,np.pi, 200), 'rad')  
+n_sample = ri.n_eff(n_particle, n_matrix, volume_fraction)
+angles = sc.Quantity(np.linspace(0.01,np.pi, 200), 'rad')
 wavelen = sc.Quantity('400.0 nm')
 
 # Index of the scattering event and trajectory corresponding to the reflected
@@ -57,7 +55,3 @@ def test_trajectories():
 
     # Create a Trajectory object
     trajectories = mc.Trajectory(r0, k0, W0)
-    
-    
-    
-    

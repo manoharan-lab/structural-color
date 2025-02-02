@@ -27,9 +27,8 @@ from .. import montecarlo as mc
 from .. import detector as det
 from .. import detector_polarization_phase as detp
 from .. import refractive_index as ri
-from .. import index_ratio, size_parameter, model
 import numpy as np
-from numpy.testing import assert_equal, assert_almost_equal
+from numpy.testing import assert_almost_equal
 import pytest
 
 def test_2pi_shift():

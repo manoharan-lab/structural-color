@@ -20,7 +20,7 @@ Tests for the mie module
 .. moduleauthor:: Vinothan N. Manoharan <vnm@seas.harvard.edu>
 """
 
-from .. import Quantity, ureg, q, index_ratio, size_parameter, np, mie
+from .. import Quantity, index_ratio, size_parameter, np, mie
 from pytest import raises
 from numpy.testing import assert_almost_equal, assert_array_almost_equal
 from pint.errors import DimensionalityError
