@@ -947,16 +947,20 @@ def absorption_cross_section(form_type, m, diameters, n_matrix, x, wavelen,
                 coeffs = mie._scatcoeffs(m, x_poly[s], nstop)
                 internal_coeffs = mie._internal_coeffs(m, x_poly[s], nstop)
 
-                cabs = mie._cross_sections_complex_medium_fu(coeffs[0], coeffs[1],
+                cabs = mie._cross_sections_complex_medium_fu(coeffs[0],
+                                                             coeffs[1],
                                                              internal_coeffs[0],
                                                              internal_coeffs[1],
-                                                             Quantity(diameter_range[s]/2, diameters.units),
+                                                             Quantity(diameter_range[s]/2,
+                                                                      diameters.units),
                                                              n_particle,
                                                              n_matrix, x_scat,
-                                                             x_poly[s], wavelen)[1]
+                                                             x_poly[s],
+                                                             wavelen)[1]
                 cabs_magn[s] = cabs.magnitude
             # integrate and multiply the mu_abs by the concentrations to get the polydisperse mu_abs
-            cabs_poly[d] = np.trapz(cabs_magn*distr, x=diameter_range) * np.atleast_1d(concentration)[d]
+            cabs_poly[d] = (trapezoid(cabs_magn*distr, x=diameter_range)
+                            * np.atleast_1d(concentration)[d])
         cabs_total = Quantity(np.sum(cabs_poly), cabs.units)
 
     if form_type == None:
