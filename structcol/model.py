@@ -1039,16 +1039,14 @@ def _integrate_cross_section(cross_section, factor, angles,
     """
     # integrand
     integrand = cross_section * factor * np.sin(angles)
-    # for older versions of pint, np.trapz does not preserve units, so need to
-    # state explicitly that we are in the same units as the integrand
-    # for newer versions of pint, np.trapz does preserve units, and add the
-    # units of the angles. We therefore changed to angles.magnitude and removed
-    # the extra integrand.units term
-    integral = np.trapz(integrand, x=angles.magnitude)#* integrand.units # comment this
-
-    # multiply by 2*pi to account for integral over phi
+    # pint does not yet preserve units for scipy.integrate.trapezoid, so we
+    # need to state explicitly that we are in the same units as the integrand.
+    if isinstance(integrand, Quantity):
+        integral = trapezoid(integrand, x=angles.magnitude) * integrand.units
+    else:
+        integral = trapezoid(integrand, x=angles.magnitude)
+    # multiply by azimuthal angular range to account for integral over phi
     sigma = azi_angle_range * integral
-    #sigma = 2 * np.pi * integral
 
     return sigma
 
