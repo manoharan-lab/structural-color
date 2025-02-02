@@ -742,11 +742,12 @@ def polydisperse_form_factor(m, angles, diameters, concentration, pdi, wavelen,
     Returns
     -------
     float (2-tuple):
-        polydisperse form factor for parallel and perpendicular polarizations as a
-        function of scattering angle.
+        polydisperse form factor for parallel and perpendicular polarizations
+        as a function of scattering angle.
     """
     if len(np.atleast_1d(m)) > 1:
-        raise ValueError('cannot handle polydispersity in core-shell particles')
+        raise ValueError('cannot handle polydispersity in core-shell ',
+                         'particles')
 
     # if the pdi is zero, assume it's very small (we get the same results)
     # because otherwise we get a divide by zero error
@@ -762,23 +763,27 @@ def polydisperse_form_factor(m, angles, diameters, concentration, pdi, wavelen,
     # define the range of diameters of the size distribution
     three_std_dev = 3*diameters/np.sqrt(t+1)
     min_diameter = diameters - three_std_dev
-    min_diameter[min_diameter.magnitude < 0] = Quantity(0.000001, diameters.units)
+    min_diameter[min_diameter.magnitude < 0] = Quantity(0.000001,
+                                                        diameters.units)
     max_diameter = diameters + three_std_dev
 
-    if coordinate_system=='cartesian':
-        F_par = np.empty([len(np.atleast_1d(diameters)), angles.shape[0], angles.shape[1]])
-        F_perp = np.empty([len(np.atleast_1d(diameters)), angles.shape[0], angles.shape[1]])
-    else:
-        F_par = np.empty([len(np.atleast_1d(diameters)), len(angles)])
-        F_perp = np.empty([len(np.atleast_1d(diameters)), len(angles)])
+    F = {}
+    for pol in ('par', 'perp'):
+        if coordinate_system=='cartesian':
+            F[pol] = np.empty([len(np.atleast_1d(diameters)), angles.shape[0],
+                               angles.shape[1]])
+        else:
+            F[pol] = np.empty([len(np.atleast_1d(diameters)), len(angles)])
 
     # for each mean diameter, calculate the Schulz distribution and
     # the size parameter x_poly
     for d in np.arange(len(np.atleast_1d(diameters))):
         # the diameter range is the range between the min diameter and
         # the max diameter of the Schulz distribution
-        diameter_range = np.linspace(np.atleast_1d(min_diameter)[d], np.atleast_1d(max_diameter)[d], 50)
-        distr = size_distribution(diameter_range, np.atleast_1d(diameters)[d], np.atleast_1d(t)[d])
+        diameter_range = np.linspace(np.atleast_1d(min_diameter)[d],
+                                     np.atleast_1d(max_diameter)[d], 50)
+        distr = size_distribution(diameter_range, np.atleast_1d(diameters)[d],
+                                  np.atleast_1d(t)[d])
         if coordinate_system=='cartesian':
             distr_array = np.tile(distr, [angles.shape[0], angles.shape[1],1])
         else:
@@ -787,73 +792,89 @@ def polydisperse_form_factor(m, angles, diameters, concentration, pdi, wavelen,
 
         x_poly = size_parameter(wavelen, n_matrix, diameter_range/2)
 
-        if coordinate_system=='cartesian':
-            form_factor_par = np.empty([angles.shape[0], angles.shape[1], len(diameter_range)])
-            form_factor_perp = np.empty([angles.shape[0], angles.shape[1], len(diameter_range)])
-            integrand_par = np.empty([angles.shape[0], angles.shape[1], len(diameter_range)])
-            integrand_perp = np.empty([angles.shape[0], angles.shape[1], len(diameter_range)])
-        else:
-            form_factor_par = np.empty([len(angles), len(diameter_range)])
-            form_factor_perp = np.empty([len(angles), len(diameter_range)])
-            integrand_par = np.empty([len(angles), len(diameter_range)])
-            integrand_perp = np.empty([len(angles), len(diameter_range)])
+        form_factor = {}
+        integrand = {}
+        for pol in ('par', 'perp'):
+            if coordinate_system=='cartesian':
+                form_factor[pol] = np.empty([angles.shape[0], angles.shape[1],
+                                             len(diameter_range)])
+                integrand[pol] = np.empty([angles.shape[0], angles.shape[1],
+                                           len(diameter_range)])
+            else:
+                form_factor[pol] = np.empty([len(angles), len(diameter_range)])
+                integrand[pol] = np.empty([len(angles), len(diameter_range)])
 
         # for each diameter in the distribution, calculate the detected
         # and the total form factors for absorbing systems
         for s in np.arange(len(diameter_range)):
             # if the system has absorption, use the absorption formula from Mie
-            if ((np.abs(n_matrix.imag.magnitude) > 0. or coordinate_system == 'cartesian')
+            if ((np.abs(n_matrix.imag.magnitude) > 0.
+                 or coordinate_system == 'cartesian')
                  and (k is not None and distance is not None)):
-                distance_array = np.resize(distance, len(np.atleast_1d(diameters)))
-                form_factor = mie.diff_scat_intensity_complex_medium(m, x_poly[s],
+                distance_array = np.resize(distance,
+                                           len(np.atleast_1d(diameters)))
+                ff = mie.diff_scat_intensity_complex_medium(m,
+                                        x_poly[s],
                                         angles_array[s],
-                                        k*distance_array[d], # removed extra units for new pint
+                                        k*distance_array[d],
                                         coordinate_system=coordinate_system,
                                         incident_vector=incident_vector,
                                         phis=phis)
                 # it might seem reasonable to calculate the form factor of each
                 # individual radius in the Schulz distribution (meaning that we
-                # could use diameter_range[s] instead of distance_array[d]), but
-                # this doesn't lead to reasonable results because we later integrate
-                # the diff cross section at the mean radii, not at each of the
-                # radii of the distribution. So we need to be consistent with the
-                # distances we use for the integrand and the integral. For now,
-                # we use the mean radii.
+                # could use diameter_range[s] instead of distance_array[d]),
+                # but this doesn't lead to reasonable results because we later
+                # integrate the diff cross section at the mean radii, not at
+                # each of the radii of the distribution. So we need to be
+                # consistent with the distances we use for the integrand and
+                # the integral. For now, we use the mean radii.
             else:
-                form_factor = mie.calc_ang_dist(m, x_poly[s], angles_array[s])
-            if isinstance(form_factor[0], Quantity):
-                form_factor = list(form_factor)
-                form_factor[0] = form_factor[0].magnitude
-                form_factor[1] = form_factor[1].magnitude
+                ff = mie.calc_ang_dist(m, x_poly[s], angles_array[s])
+            if isinstance(ff[0], Quantity):
+                ff = list(ff)
+                ff[0] = ff[0].magnitude
+                ff[1] = ff[1].magnitude
             if coordinate_system=='cartesian':
-                form_factor_par[:, :, s] = form_factor[0]
-                form_factor_perp[:, :, s] = form_factor[1]
+                form_factor['par'][:, :, s] = ff[0]
+                form_factor['perp'][:, :, s] = ff[1]
             else:
-                form_factor_par[:, s] = form_factor[0]
-                form_factor_perp[:, s] = form_factor[1]
-
-        # multiply the form factors by the Schulz distribution
-        integrand_par = form_factor_par * distr_array
-        integrand_perp = form_factor_perp * distr_array
+                form_factor['par'][:, s] = ff[0]
+                form_factor['perp'][:, s] = ff[1]
 
         # integrate and multiply by the concentration of the mean
         # diameter to get the polydisperse form factor
         if isinstance(concentration, Quantity):
             concentration = concentration.magnitude
         diameter_range = diameter_range.magnitude
-        if coordinate_system == 'cartesian':
-            axis_int = 2
-            F_par[d, :, :] = np.trapz(integrand_par, x=diameter_range, axis=axis_int) * np.atleast_1d(concentration)[d]
-            F_perp[d, :, :] = np.trapz(integrand_perp, x=diameter_range, axis=axis_int) * np.atleast_1d(concentration)[d]
-        else:
-            axis_int = 1
-            F_par[d, :] = np.trapz(integrand_par, x=diameter_range, axis=axis_int) * np.atleast_1d(concentration)[d]
-            F_perp[d, :] = np.trapz(integrand_perp, x=diameter_range, axis=axis_int) * np.atleast_1d(concentration)[d]
+
+        for pol in ('par', 'perp'):
+            # multiply the form factors by the Schulz distribution
+            integrand[pol] = form_factor[pol] * distr_array
+
+            integral = {}
+            if isinstance(integrand[pol], Quantity):
+                integrand_mag = integrand[pol].magnitude
+                units = integrand[pol].units
+            else:
+                integrand_mag = integrand[pol]
+                units = 1
+            if coordinate_system == 'cartesian':
+                axis_int = 2
+            else:
+                axis_int = 1
+            integral = (trapezoid(integrand_mag, x=diameter_range,
+                                  axis=axis_int)
+                             * np.atleast_1d(concentration)[d]
+                             * units)
+            if coordinate_system == 'cartesian':
+                F[pol][d, :, :] = integral
+            else:
+                F[pol][d, :] = integral
 
     # the final polydisperse form factor as a function of angle is
     # calculated as the average of each mean diameter's form factor
-    f_par = np.sum(F_par, axis=0)
-    f_perp = np.sum(F_perp, axis=0)
+    f_par = np.sum(F['par'], axis=0)
+    f_perp = np.sum(F['perp'], axis=0)
     return(f_par, f_perp)
 
 
