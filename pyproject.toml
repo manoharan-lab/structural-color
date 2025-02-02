@@ -1,0 +1,17 @@
+# convert all warnings to errors
+[tool.pytest.ini_options]
+filterwarnings = [
+    "error",
+]
+
+[tool.ruff]
+src = ['structcol']
+# don't check the notebooks
+exclude = ["tutorials"]
+line-length = 79
+
+[tool.ruff.lint.per-file-ignores]
+# for now, ignore "imported but unused" in __init__.py
+"__init__.py" = ["F401"]
+# ignore "variable assigned to but never used" in test files
+"test_*.py" = ["F841"]
