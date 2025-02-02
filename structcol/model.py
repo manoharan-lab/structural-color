@@ -35,6 +35,7 @@ from pymie import index_ratio, mie
 from pymie import multilayer_sphere_lib as msl
 from pymie import size_parameter
 from scipy.special import factorial
+from scipy.integrate import trapezoid
 
 from . import Quantity
 from . import refractive_index as ri
@@ -1021,15 +1022,14 @@ def size_distribution(diameter_range, mean, t):
 
     if t <= 100:
         schulz = ((t+1)/mean)**(t+1) * diameter_range**t / factorial(t) * np.exp(-diameter_range/mean*(t+1))
-        norm = np.trapz(schulz, x=diameter_range)
+        norm = trapezoid(schulz, x=diameter_range)
         distr = schulz / norm
     else:
         std_dev = diameter_range / np.sqrt(t+1)
         distr = np.exp(-(diameter_range - mean)**2 / (2 * std_dev**2)) / np.sqrt(2*np.pi*std_dev**2)
-        norm = np.trapz(distr, x=diameter_range)
+        norm = trapezoid(distr, x=diameter_range)
         distr = distr/norm
     return(distr)
-
 
 def _integrate_cross_section(cross_section, factor, angles,
                              azi_angle_range = 2*np.pi):
