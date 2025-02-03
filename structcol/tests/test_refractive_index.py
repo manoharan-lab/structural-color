@@ -34,7 +34,7 @@ def test_n():
 
     # make sure that specifying no units throws an exception
     raises(DimensionalityError, ri.n, 'polystyrene', 0.5)
-    
+
     # and specifying the wrong units, too
     raises(DimensionalityError, ri.n, 'polystyrene', Quantity('0.5 J'))
 
@@ -88,7 +88,7 @@ def test_zirconia():
 def test_vacuum():
     assert_almost_equal(ri.n('vacuum', Quantity('0.400 um')).magnitude, Quantity('1.0').magnitude)
     assert_almost_equal(ri.n('vacuum', Quantity('0.800 um')).magnitude, Quantity('1.0').magnitude)
-    
+
 def test_cargille():
     assert_almost_equal(ri.n_cargille(1,'AAA',Quantity('0.400 um')).magnitude,
                         Quantity('1.3101597437500001').magnitude)
@@ -114,73 +114,73 @@ def test_cargille():
                         Quantity('1.50736788125').magnitude)
     assert_almost_equal(ri.n_cargille(0,'acrylic',Quantity('0.700 um')).magnitude,
                         Quantity('1.4878716959183673').magnitude)
-    
+
 def test_neff():
     # test that at low volume fractions, Maxwell-Garnett and Bruggeman roughly
     # match for a non-core-shell particle
     n_particle = Quantity(2.7, '')
     n_matrix = Quantity(2.2, '')
     vf = Quantity(0.001, '')
-    
+
     neff_mg = ri.n_eff(n_particle, n_matrix, vf, maxwell_garnett=True)
     neff_bg = ri.n_eff(n_particle, n_matrix, vf, maxwell_garnett=False)
 
     assert_almost_equal(neff_mg.magnitude, neff_bg.magnitude)
-    
-    # test that the non-core-shell particle with Maxwell-Garnett matches with 
+
+    # test that the non-core-shell particle with Maxwell-Garnett matches with
     # the core-shell of shell index of air with Bruggeman at low volume fractions
     n_particle2 = Quantity(np.array([2.7, 2.2]), '')
     vf2 = Quantity(np.array([0.001, 0.1]), '')
     neff_bg2 = ri.n_eff(n_particle2, n_matrix, vf2, maxwell_garnett=False)
-    
+
     assert_almost_equal(neff_mg.magnitude, neff_bg2.magnitude)
     assert_almost_equal(neff_bg.magnitude, neff_bg2.magnitude)
-    
+
     # test that the effective indices for a non-core-shell and a core-shell of
     # shell index of air match using Bruggeman at intermediate volume fractions
     vf3 = Quantity(0.5, '')
     neff_bg3 = ri.n_eff(n_particle, n_matrix, vf3, maxwell_garnett=False)
-    
+
     vf3_cs = Quantity(np.array([0.5, 0.1]), '')
     neff_bg3_cs = ri.n_eff(n_particle2, n_matrix, vf3_cs, maxwell_garnett=False)
-    
+
     assert_almost_equal(neff_bg3.magnitude, neff_bg3_cs.magnitude)
-    
-    # repeat the tests using complex indices    
+
+    # repeat the tests using complex indices
     n_particle_complex = Quantity(2.7+0.001j, '')
     n_matrix_complex = Quantity(2.2+0.001j, '')
-    
+
     neff_mg_complex = ri.n_eff(n_particle_complex, n_matrix_complex, vf, maxwell_garnett=True)
     neff_bg_complex = ri.n_eff(n_particle_complex, n_matrix_complex, vf, maxwell_garnett=False)
 
     assert_almost_equal(neff_mg_complex.magnitude, neff_bg_complex.magnitude)
-    
-    # test that the non-core-shell particle with Maxwell-Garnett matches with 
+
+    # test that the non-core-shell particle with Maxwell-Garnett matches with
     # the core-shell of shell index of air with Bruggeman at low volume fractions
     n_particle2_complex = Quantity(np.array([2.7+0.001j, 2.2+0.001j]), '')
     neff_bg2_complex = ri.n_eff(n_particle2_complex, n_matrix_complex, vf2, maxwell_garnett=False)
-    
+
     assert_almost_equal(neff_mg_complex.magnitude, neff_bg2_complex.magnitude)
     assert_almost_equal(neff_bg_complex.magnitude, neff_bg2_complex.magnitude)
-    
+
     # test that the effective indices for a non-core-shell and a core-shell of
     # shell index of air match using Bruggeman at intermediate volume fractions
     neff_bg3_complex = ri.n_eff(n_particle_complex, n_matrix_complex, vf3, maxwell_garnett=False)
-    
+
     neff_bg3_cs_complex = ri.n_eff(n_particle2_complex, n_matrix_complex, vf3_cs, maxwell_garnett=False)
-    
+
     assert_almost_equal(neff_bg3_complex.magnitude, neff_bg3_cs_complex.magnitude)
-    
+
 def test_data():
     # Test that we can input data for refractive index
     wavelength = Quantity(np.array([400.0, 500.0, 600.0]), 'nm')
     data = Quantity(np.array([1.5,1.55,1.6]), '')
     assert_equal(ri.n('data', wavelength, index_data=data, wavelength_data=wavelength).magnitude.all(), data.magnitude.all())
-    
+
     # Test that it also works for complex values
     data_complex = np.array([1.5+0.01j,1.55+0.02j,1.6+0.03j])
     assert_equal(ri.n('data', wavelength, index_data=data, wavelength_data=wavelength).all(), data_complex.all())
-    
+
     # Test that keyerror is raised when no index is specified for 'data'
     raises(KeyError, ri.n, 'data', Quantity('0.5 um'), index_data=None)
 
