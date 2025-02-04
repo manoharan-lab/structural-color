@@ -145,7 +145,8 @@ class Trajectory:
     def __init__(self, position, direction, weight,
                  fields=None):
         """
-        # TODO: remove phase and polarization as they have been replaced by fields
+        # TODO: remove phase and polarization as they have been replaced by
+        # fields
         Constructor for Trajectory object.
 
         Attributes
@@ -209,32 +210,35 @@ class Trajectory:
         kn = self.direction.magnitude
 
         # the 0th event is the inital direction which does not change when the
-        # photon first enters the sample. It only changes after the first scattering
-        # event. The trajectory steps first, then scatters. The reason that we don't
-        # extend the arange to nevents + 1 is that we still count this original
-        # initialized direction as an event, since the step size must be sampled
-        # once it enters the material.
+        # photon first enters the sample. It only changes after the first
+        # scattering event. The trajectory steps first, then scatters. The
+        # reason that we don't extend the arange to nevents + 1 is that we
+        # still count this original initialized direction as an event, since
+        # the step size must be sampled once it enters the material.
         for n in np.arange(1, self.nevents):
-            # Calculate the new x, y, z coordinates of the propagation direction
-            # using the following equations, which can be derived by using matrix
-            # operations to perform a rotation about the y-axis by angle theta
-            # followed by a rotation about the z-axis by angle phi
+            # Calculate the new x, y, z coordinates of the propagation
+            # direction using the following equations, which can be derived by
+            # using matrix operations to perform a rotation about the y-axis by
+            # angle theta followed by a rotation about the z-axis by angle phi
             # see pg 105 in A.B. Stephenson lab notebook 1 for derivation and
             # notes
-            kn[0, n, :] = ((kn[0, n - 1, :] * costheta[n - 1, :]
-                            + kn[2, n - 1, :] * sintheta[n - 1, :]) *
-                           cosphi[n - 1, :]) - kn[1, n - 1, :] * sinphi[n - 1, :]
-            kn[1, n, :] = ((kn[0, n - 1, :] * costheta[n - 1, :]
-                            + kn[2, n - 1, :] * sintheta[n - 1, :]) *
-                           sinphi[n - 1, :]) + kn[1, n - 1, :] * cosphi[n - 1, :]
-            kn[2, n, :] = -kn[0, n - 1, :] * sintheta[n - 1, :] + kn[2, n - 1, :] * costheta[n - 1, :]
+            kn[0, n, :] = (((kn[0, n - 1, :] * costheta[n - 1, :]
+                            + kn[2, n - 1, :] * sintheta[n - 1, :])
+                            * cosphi[n - 1, :])
+                           - kn[1, n - 1, :] * sinphi[n - 1, :])
+            kn[1, n, :] = (((kn[0, n - 1, :] * costheta[n - 1, :]
+                            + kn[2, n - 1, :] * sintheta[n - 1, :])
+                            * sinphi[n - 1, :])
+                           + kn[1, n - 1, :] * cosphi[n - 1, :])
+            kn[2, n, :] = (-kn[0, n - 1, :] * sintheta[n - 1, :]
+                           + kn[2, n - 1, :] * costheta[n - 1, :])
 
         # Update all the directions of the trajectories
         self.direction = sc.Quantity(kn, self.direction.units)
 
     def calc_fields(self, theta, phi, sintheta, costheta, sinphi, cosphi,
-                    n_particle, n_sample, radius, wavelen, step, volume_fraction,
-                    fine_roughness=0, tir_refl_bool=None):
+                    n_particle, n_sample, radius, wavelen, step,
+                    volume_fraction, fine_roughness=0, tir_refl_bool=None):
         """
         Calculates local x and y polarization rotated in reference frame where
         initial polarization is x-polarized. Assumes the incident light is in
@@ -244,10 +248,11 @@ class Trajectory:
         the form factor using Mie theory, which gives the scattered fields
         and phase.
 
-        To calculate the effects of interference between different trajectories,
-        we include the phase shift calculated from Mie theory, as well as the
-        phase shift due to the distances travelled. The structure factor contribution
-        comes in through the phase shift due to the distances travelled.
+        To calculate the effects of interference between different
+        trajectories, we include the phase shift calculated from Mie theory, as
+        well as the phase shift due to the distances travelled. The structure
+        factor contribution comes in through the phase shift due to the
+        distances travelled.
 
         Here is an outline of how it is implemented:
 
@@ -256,8 +261,8 @@ class Trajectory:
         initial fields. This gives the scattered fields purely due to
         the form factor.
 
-        Then we add these phase shifts to the phase shift incurred due to distance
-        travelled, calculated as k*distance.
+        Then we add these phase shifts to the phase shift incurred due to
+        distance travelled, calculated as k*distance.
 
         We then rotate these phase values into local x and y coordinates,
         and after that, rotate them into global x, y, and z coordinates.
@@ -287,14 +292,16 @@ class Trajectory:
         volume_fraction: float (structcol.Quantity [dimensionless])
             Volume fraction of the sample.
         fine_roughness: float (structcol.Quantity [dimensionless])
-            Fraction of the sample area that has fine roughness. Should be between
-            0 and 1. For ex, a value of 0.3 means that 30% of incident light will
-            hit fine surface roughness (e.g. will "see" a Mie scatterer first). The
-            rest of the light will see a smooth surface, which could be flat or
-            have coarse roughness (long in the lengthscale of light).
+            Fraction of the sample area that has fine roughness. Should be
+            between 0 and 1. For ex, a value of 0.3 means that 30% of incident
+            light will hit fine surface roughness (e.g. will "see" a Mie
+            scatterer first). The rest of the light will see a smooth surface,
+            which could be flat or have coarse roughness (long in the
+            lengthscale of light).
         tir_refl_bool: 2d array of booleans (shape: nevents, ntraj)
-            Describes whether a trajectory gets totally internally reflected at any
-            event and also exits in the negative direction to contribute to reflectance
+            Describes whether a trajectory gets totally internally reflected at
+            any event and also exits in the negative direction to contribute to
+            reflectance
 
         Calculates:
         ----------
@@ -313,8 +320,8 @@ class Trajectory:
         # scattering amplitude, because each matrix element contributes to
         # the changes in E field
         S1, S2, S3, S4 = mie.amplitude_scattering_matrix(m, x, theta,
-                                                         coordinate_system='cartesian',
-                                                         phis=phi)
+                                                coordinate_system='cartesian',
+                                                phis=phi)
 
         # mutliply the scat amp mats
         En = self.fields
@@ -324,8 +331,8 @@ class Trajectory:
         Ex = En[0, 0, :]
         Ey = En[1, 0, :]
 
-        # Ex and Ey are the initialized as the incident field vectors.
-        # To get the Ex and Ey at each event, we have to multiply by the scattering
+        # Ex and Ey are the initialized as the incident field vectors. To get
+        # the Ex and Ey at each event, we have to multiply by the scattering
         # amplitude matrix, cumulatively for each event.
         # this gives us the local Ex and Ey vectors
         # Reminder: there is one less sampled angle than event number, because
@@ -345,7 +352,8 @@ class Trajectory:
         # Deal with tir
         if tir_refl_bool is not None:
             # get indices for the first TIR event for each trajectory
-            tir_indices = np.argmax(np.vstack([np.zeros(ntraj), tir_refl_bool]), axis=0)
+            tir_indices = np.argmax(np.vstack([np.zeros(ntraj),
+                                               tir_refl_bool]), axis=0)
 
             # select the tir event for each trajectory
             theta_1 = select_events(theta, tir_indices - 2)
@@ -361,13 +369,14 @@ class Trajectory:
 
         # Rotate to global coords
         # Start with event 2 because the 0th event contains the initialized
-        # values from before the field enters the sample. The 1st event contains
-        # the values for the field after entering the sample, but before scattering
+        # values from before the field enters the sample. The 1st event
+        # contains the values for the field after entering the sample, but
+        # before scattering
         for n in np.arange(2, self.nevents + 1):
-            # Calculate the new x, y, z coordinates of the propagation direction
-            # using the following equations, which can be derived by using matrix
-            # operations to perform a rotation about the y-axis by angle theta
-            # followed by a rotation about the z-axis by angle phi
+            # Calculate the new x, y, z coordinates of the propagation
+            # direction using the following equations, which can be derived by
+            # using matrix operations to perform a rotation about the y-axis by
+            # angle theta followed by a rotation about the z-axis by angle phi
             Ex = ((En[0,n:,:]*costheta[n-2,:] + En[2,n:,:]*sintheta[n-2,:])*
                     cosphi[n-2,:]) - En[1,n:,:]*sinphi[n-2,:]
             Ey = ((En[0,n:,:]*costheta[n-2,:] + En[2,n:,:]*sintheta[n-2,:])*
@@ -394,7 +403,10 @@ class Trajectory:
         En[2, 1:, :] = En[2, 1:, :] * step_phase_factor
 
         # Normalize
-        En[0, :, :], En[1, :, :], En[2, :, :] = normalize(En[0, :, :], En[1, :, :], En[2, :, :], return_nan=False)
+        En[0, :, :], En[1, :, :], En[2, :, :] = normalize(En[0, :, :],
+                                                          En[1, :, :],
+                                                          En[2, :, :],
+                                                          return_nan=False)
 
         self.fields = sc.Quantity(En,self.fields.units)
 
@@ -562,38 +574,39 @@ def initialize(nevents, ntraj, n_medium, n_sample, boundary, seed=None,
         Coarse surface roughness should be included when the roughness is large
         on the scale of the wavelength of light. This means that light
         encounters a locally smooth surface that has a slope relative to the
-        z=0 plane. Then the model corrects the Fresnel reflection and refraction
-        to account for the different angles of incidence due to the roughness.
-        The coarse_roughness parameter is the rms slope of the surface. If
-        included, it should be larger than 0. There is no upper bound, but when
-        the coarse roughness tends to infinity, the surface becomes too "spiky"
-        and light can no longer hit it, which reduces the reflectance down to 0.
+        z=0 plane. Then the model corrects the Fresnel reflection and
+        refraction to account for the different angles of incidence due to the
+        roughness. The coarse_roughness parameter is the rms slope of the
+        surface. If included, it should be larger than 0. There is no upper
+        bound, but when the coarse roughness tends to infinity, the surface
+        becomes too "spiky" and light can no longer hit it, which reduces the
+        reflectance down to 0.
     fields: boolean
         If True, also returns the initial fields of trajectories
     coherent: boolean
-        If True, assumes the intial relative phases between trajectories are zero.
-        If coherent is set to True while fields is set to False, then the
-        coherent value is ignored, since there can be no coherence without taking
-        into account the fields.
+        If True, assumes the intial relative phases between trajectories are
+        zero. If coherent is set to True while fields is set to False, then the
+        coherent value is ignored, since there can be no coherence without
+        taking into account the fields.
 
     Returns
     -------
     r0: 3D array-like (structcol.Quantity [length])
-        Trajectory positions. Has shape of (3, number of events + 1, number
-        of trajectories). r0[0,0,:] contains random x-positions within a circle
-        on the x-y plane whose radius is the sphere radius. r0[1, 0, :] contains
+        Trajectory positions. Has shape of (3, number of events + 1, number of
+        trajectories). r0[0,0,:] contains random x-positions within a circle on
+        the x-y plane whose radius is the sphere radius. r0[1, 0, :] contains
         random y-positions within the same circle on the x-y plane. r0[2, 0, :]
         contains z-positions on the top hemisphere at the sphere boundary. The
         rest of the elements are initialized to zero.
     k0: 3D array-like (structcol.Quantity [dimensionless])
         Initial direction of propagation. Has shape of (3, number of events,
-        number of trajectories). k0[0,:,:] and k0[1,:,:] are initalized to zero,
-        and k0[2,0,:] is initalized to 1.
+        number of trajectories). k0[0,:,:] and k0[1,:,:] are initalized to
+        zero, and k0[2,0,:] is initalized to 1.
     weight0: 3D array-like (structcol.Quantity [dimensionless])
         Initial weight. Has shape of (number of events, number of trajectories)
-        - Note that the photon weight represents the fraction of
-        that particular photon that is propagated through the sample. It does
-        not represent the photon's weight relative to other photons. the weight0
+        - Note that the photon weight represents the fraction of that
+        particular photon that is propagated through the sample. It does not
+        represent the photon's weight relative to other photons. the weight0
         array is initialized to 1 because you start with the full weight of the
         initial photons. If you wanted to make the relative weights of photons
         different, you would need to introduce a new variable (e.g relative
@@ -605,9 +618,9 @@ def initialize(nevents, ntraj, n_medium, n_sample, boundary, seed=None,
         However, there is no need to keep track of the weight at the first
         event; The weight, by definition, must initially be 1 for each photon.
         Adding an additional row of ones to this array would be unecessary and
-        would contribute to less readable code in the calculation of absorptance,
-        reflectance, and transmittance. Therefore the weights array begins with
-        the weight of the photons after their first event.
+        would contribute to less readable code in the calculation of
+        absorptance, reflectance, and transmittance. Therefore the weights
+        array begins with the weight of the photons after their first event.
     pol0: (optional) 3D array-like (structcol.Quantity[dimensionless])
         Initial polarization vector in global coordinates. Has shape of
         (number of events, number of trajectories). Only returns initial
@@ -616,8 +629,8 @@ def initialize(nevents, ntraj, n_medium, n_sample, boundary, seed=None,
         Initial z-directions that are rotated to account for the fact that
         coarse surface roughness changes the angle of incidence of light. Thus
         these are the incident z-directions relative to the local normal to the
-        surface. The array size is (1, ntraj). Only returned if coarse_roughness
-        is set to > 0.
+        surface. The array size is (1, ntraj). Only returned if
+        coarse_roughness is set to > 0.
     kz0_refl : array_like (structcol.Quantity [dimensionless])
         z-directions of the Fresnel reflected light after it hits the sample
         surface for the first time. These directions are in the global
@@ -678,7 +691,8 @@ def initialize(nevents, ntraj, n_medium, n_sample, boundary, seed=None,
         else:
             incidence_theta_min = incidence_theta_min.to('rad').magnitude
             incidence_theta_max = incidence_theta_max.to('rad').magnitude
-            theta = sc.rng.uniform(incidence_theta_min, incidence_theta_max, ntraj)
+            theta = sc.rng.uniform(incidence_theta_min, incidence_theta_max,
+                                   ntraj)
 
         if incidence_phi_data is not None:
             if len(incidence_phi_data) != ntraj:
@@ -713,11 +727,13 @@ def initialize(nevents, ntraj, n_medium, n_sample, boundary, seed=None,
         r0[1,0,:] = r*np.sin(th)
 
         # calculate z-positions from x- and y-positions
-        r0[2,0,:] = sample_radius-np.sqrt(sample_radius**2 - r0[0,0,:]**2 - r0[1,0,:]**2)
+        r0[2,0,:] = sample_radius-np.sqrt(sample_radius**2 - r0[0,0,:]**2
+                                          - r0[1,0,:]**2)
 
         # find the minus normal vectors of the sphere at the initial positions
         neg_normal = np.zeros((3, ntraj))
-        r0_magnitude = np.sqrt(r0[0,0,:]**2 + r0[1,0,:]**2 + (r0[2,0,:]-sample_radius)**2)
+        r0_magnitude = np.sqrt(r0[0,0,:]**2 + r0[1,0,:]**2
+                               + (r0[2,0,:]-sample_radius)**2)
         neg_normal[0,:] = -r0[0,0,:]/r0_magnitude
         neg_normal[1,:] = -r0[1,0,:]/r0_magnitude
         neg_normal[2,:] = -(r0[2,0,:]-sample_radius)/r0_magnitude
@@ -755,10 +771,13 @@ def initialize(nevents, ntraj, n_medium, n_sample, boundary, seed=None,
             ax.set_zlim([0, sample_radius])
             ax.set_title('Initial Positions')
             ax.view_init(-164,-155)
-            X, Y, Z, U, V, W = [r0[0,0,:],r0[1,0,:],r0[2,0,:],k0[0,0,:], k0[1,0,:], k0[2,0,:]]
+            X, Y, Z, U, V, W = [r0[0,0,:], r0[1,0,:], r0[2,0,:],
+                                k0[0,0,:], k0[1,0,:], k0[2,0,:]]
             ax.quiver(X, Y, Z, U, V, W, color = 'g')
 
-            X, Y, Z, U, V, W = [r0[0,0,:],r0[1,0,:],r0[2,0,:],np.zeros(ntraj), np.zeros(ntraj), np.ones(ntraj)]
+            X, Y, Z, U, V, W = [r0[0,0,:], r0[1,0,:], r0[2,0,:],
+                                np.zeros(ntraj), np.zeros(ntraj),
+                                np.ones(ntraj)]
             ax.quiver(X, Y, Z, U, V, W)
 
             # draw wireframe hemisphere
@@ -835,8 +854,8 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
               effective_medium_form=True):
     """
     Calculates the phase function and scattering coefficient from either the
-    single scattering model or Mie theory. Calculates the absorption coefficient
-    from Mie theory.
+    single scattering model or Mie theory. Calculates the absorption
+    coefficientfrom Mie theory.
 
     Parameters
     ----------
@@ -890,8 +909,8 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
         Sets the number of phis at which phase function p will be calculated.
         Only used if polarization is True.
     structure_type: string or None
-        structure factor desired for calculation. Can be 'glass', 'paracrystal',
-        'polydisperse', 'data', or None.
+        structure factor desired for calculation. Can be 'glass',
+        'paracrystal', 'polydisperse', 'data', or None.
     form_type: string or None
         form factor desired for calculation. Can be 'sphere', 'polydisperse',
         or None.
@@ -916,9 +935,9 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
     mu_scat : float or 2-element array (structcol.Quantity [1/length])
         Scattering coefficient from either Mie theory or single scattering
         model. When fine_roughness is larger than 0, mu_scat is a 2-element
-        array, where the first element is the scattering coefficient from either
-        Mie theory or single scattering model, and the second element is the
-        scattering coefficient from Mie theory.
+        array, where the first element is the scattering coefficient from
+        either Mie theory or single scattering model, and the second element is
+        the scattering coefficient from Mie theory.
     mu_abs : float (structcol.Quantity [1/length])
         Absorption coefficient of the sample as an effective medium.
 
@@ -955,33 +974,37 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
     if radius2 is None:
         radius2 = radius
 
-    # General number density formula for binary systems, converges to monospecies
-    # formula when the concentration of either particle goes to zero. When the
-    # system is monospecies, define a concentration array to be able to use the
-    # general formula.
+    # General number density formula for binary systems, converges to
+    # monospecies formula when the concentration of either particle goes to
+    # zero. When the system is monospecies, define a concentration array to be
+    # able to use the general formula.
     if concentration is None:
         concentration = sc.Quantity(np.array([1.0, 0.0]), '')
     with np.errstate(divide='ignore', invalid='ignore'):
-        term1 = 1/(radius.max()**3 + radius2.max()**3 * concentration[1]/concentration[0])
-        term2 = 1/(radius2.max()**3 + radius.max()**3 * concentration[0]/concentration[1])
+        term1 = 1/(radius.max()**3
+                   + radius2.max()**3 * concentration[1]/concentration[0])
+        term2 = 1/(radius2.max()**3
+                   + radius.max()**3 * concentration[0]/concentration[1])
     np.seterr(divide='warn', invalid='warn')
     number_density = 3.0 * volume_fraction / (4.0 * np.pi) * (term1 + term2)
     # if the system is polydisperse, use the polydisperse form and structure
     # factors
     if polydisperse:
         if radius2 is None or concentration is None or pdi is None:
-            raise ValueError('must specify diameters, concentration, and pdi for polydisperperse systems')
+            raise ValueError('must specify diameters, concentration, and '
+                             'pdi for polydisperperse systems')
 
         if len(np.atleast_1d(m)) > 1:
-            raise ValueError('cannot handle polydispersity in core-shell particles')
+            raise ValueError('cannot handle polydispersity in '
+                             'core-shell particles')
 
         form_type = 'polydisperse'
         if structure_type!='data':
             structure_type = 'polydisperse'
 
     # define the mean diameters in case the system is polydisperse
-    mean_diameters = sc.Quantity(np.array([2*radius.magnitude, 2*radius2.magnitude]),
-                                 radius.units)
+    mean_diameters = sc.Quantity(np.array([2*radius.magnitude,
+                                           2*radius2.magnitude]), radius.units)
 
     # calculate the absorption coefficient
     mu_abs = 4*np.pi*n_sample.imag/wavelen
@@ -997,7 +1020,8 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
     if fields:
         coordinate_system = 'cartesian'
         phis = sc.Quantity(np.linspace(min_angle, 2*np.pi, num_phis), 'rad')
-        phis, thetas = np.meshgrid(phis, angles) # theta dimension must come first
+        # theta dimension must come first
+        phis, thetas = np.meshgrid(phis, angles)
     else:
         thetas = angles
         coordinate_system = 'scattering plane'
@@ -1103,8 +1127,8 @@ def phase_function(m, x, angles, volume_fraction, k, number_density,
         form factor desired for calculation. Can be 'sphere', 'polydisperse',
         or None.
     structure_type: str or None
-        structure factor desired for calculation. Can be 'glass', 'paracrystal',
-        'polydisperse', 'data', or None.
+        structure factor desired for calculation. Can be 'glass',
+        'paracrystal', 'polydisperse', 'data', or None.
     coordinate_system: string
         default value 'scattering plane' means scattering calculations will be
         carried out in the basis defined by basis vectors parallel and
@@ -1114,9 +1138,6 @@ def phase_function(m, x, angles, volume_fraction, k, number_density,
         as the direction of propagation.
     phis: array (sc.Quantity [rad])
         phi angles at which to calculate phase function
-        structure_type: string or None
-        structure factor desired for calculation. Can be 'glass', 'paracrystal',
-        'polydisperse', 'data', or None.
     structure_s_data: None or 1d array
         if structure_type is 'data', the structure factor data must be provided
         here in the form of a one dimensional array
@@ -1149,20 +1170,18 @@ def phase_function(m, x, angles, volume_fraction, k, number_density,
     # the values diff_cscat_x and y if coordinate_system is cartesian.
     diff_cscat_par, diff_cscat_perp = \
          model.differential_cross_section(m, x, angles, volume_fraction,
-                                             structure_type=structure_type,
-                                             form_type=form_type,
-                                             diameters=diameters,
-                                             coordinate_system=coordinate_system,
-                                             phis=phis,
-                                             concentration=concentration,
-                                             pdi=pdi,
-                                             wavelen=wavelen,
-                                             n_matrix=n_sample,
-                                             k=k,
-                                             distance=distance,
-                                             structure_s_data=structure_s_data,
-                                             structure_qd_data=structure_qd_data,
-                                             x_eff=x_eff)
+                                          structure_type=structure_type,
+                                          form_type=form_type,
+                                          diameters=diameters,
+                                          coordinate_system=coordinate_system,
+                                          phis=phis,
+                                          concentration=concentration,
+                                          pdi=pdi, wavelen=wavelen,
+                                          n_matrix=n_sample, k=k,
+                                          distance=distance,
+                                          structure_s_data=structure_s_data,
+                                          structure_qd_data=structure_qd_data,
+                                          x_eff=x_eff)
 
     # If in cartesian coordinate system, integrate the differential cross
     # section using integration functions in mie.py that can handle cartesian
@@ -1175,11 +1194,11 @@ def phase_function(m, x, angles, volume_fraction, k, number_density,
         # note that the diff_cscat_par and perp calculated above
         # will actually be diff_cscat_x and y
         cscat_total = mie.integrate_intensity_complex_medium(diff_cscat_par,
-                                                             diff_cscat_perp,
-                                                             distance,
-                                                             thetas_1d, k,
-                                                             coordinate_system='cartesian',
-                                                             phis=phis_1d)[0]
+                                                diff_cscat_perp,
+                                                distance,
+                                                thetas_1d, k,
+                                                coordinate_system='cartesian',
+                                                phis=phis_1d)[0]
 
     # If absorption and not cartesian coords, integrate the differential cross
     # section using integration functions in mie.py that use absorption
@@ -1198,14 +1217,16 @@ def phase_function(m, x, angles, volume_fraction, k, number_density,
                 mie.integrate_intensity_complex_medium(diff_cscat_par,
                                                        diff_cscat_perp,
                                                        distance[1],angles,k)
-            cscat_total = cscat_total1 * concentration[0] + cscat_total2 * concentration[1]
+            cscat_total = (cscat_total1 * concentration[0]
+                           + cscat_total2 * concentration[1])
 
         else:
-            cscat_total = mie.integrate_intensity_complex_medium(diff_cscat_par,
-                                                                 diff_cscat_perp,
-                                                                 distance,
-                                                                 angles,k,
-                                                                 coordinate_system=coordinate_system)[0]
+            cscat_total = mie.integrate_intensity_complex_medium(
+                                        diff_cscat_par,
+                                        diff_cscat_perp,
+                                        distance,
+                                        angles, k,
+                                        coordinate_system=coordinate_system)[0]
 
     # if there is no absorption in the system, Integrate with function in model
     else:
@@ -1217,7 +1238,8 @@ def phase_function(m, x, angles, volume_fraction, k, number_density,
         cscat_total = (cscat_total_par + cscat_total_perp)/2.0
 
     # calculate the phase function
-    p = (diff_cscat_par + diff_cscat_perp)/(np.sum(diff_cscat_par + diff_cscat_perp))
+    p = (diff_cscat_par + diff_cscat_perp)/(np.sum(diff_cscat_par
+                                                   + diff_cscat_perp))
 
     return(p, cscat_total)
 
@@ -1256,9 +1278,10 @@ def sample_angles(nevents, ntraj, p, min_angle=0.01):
     # The direction for the first event is defined upon initialization
     # so we only need to sample nevents-1.
     # In previous versions of the code, we sampled nevents, which gave us an
-    # extra sampled angle that was never used. While this did not lead to incorrect
-    # results, it led to inconsistencies in indexing which had the potential
-    # to create future bugs. Sampling one less angle fixes this issue.
+    # extra sampled angle that was never used. While this did not lead to
+    # incorrect results, it led to inconsistencies in indexing which had the
+    # potential to create future bugs. Sampling one less angle fixes this
+    # issue.
     nevents = nevents-1
 
     # Scattering angles for the phase function calculation (typically from 0 to
@@ -1276,8 +1299,10 @@ def sample_angles(nevents, ntraj, p, min_angle=0.01):
 
 
         # make sure probability is normalized
-        prob = p * np.sin(thetas)*2*np.pi    # prob is integral of p in solid angle
-        prob_norm = prob/sum(prob)           # normalize to make it add up to 1
+        # prob is integral of p in solid angle
+        prob = p * np.sin(thetas)*2*np.pi
+         # normalize to make it add up to 1
+        prob_norm = prob/sum(prob)
 
         # Randomly sample scattering angle theta
         theta = np.array([sc.rng.choice(thetas, ntraj, p = prob_norm)
@@ -1296,7 +1321,8 @@ def sample_angles(nevents, ntraj, p, min_angle=0.01):
         phis = phis.magnitude
 
         # sample indices for phi values
-        phi_ind = np.array([sc.rng.choice(num_phi, ntraj, p = p_phi/np.sum(p_phi))
+        phi_ind = np.array([sc.rng.choice(num_phi, ntraj,
+                                          p = p_phi/np.sum(p_phi))
                                 for i in range(nevents)])
 
         # sample thetas based on sampled phi values
@@ -1306,7 +1332,8 @@ def sample_angles(nevents, ntraj, p, min_angle=0.01):
         for i in range(nevents):
             for j in range(ntraj):
                 p_theta = p[:,phi_ind[i,j]]*np.sin(thetas)
-                theta_ind[i,j] = sc.rng.choice(num_theta, p = p_theta/np.sum(p_theta))
+                theta_ind[i,j] = sc.rng.choice(num_theta,
+                                               p = p_theta/np.sum(p_theta))
                 theta[i,j] = thetas[int(theta_ind[i,j])]
                 phi[i,j] = phis[int(phi_ind[i,j])]
 
@@ -1374,14 +1401,15 @@ def sample_step(nevents, ntraj, mu_scat, fine_roughness=0.):
 def coarse_roughness_enter(k0, n_medium, n_sample,
                            coarse_roughness, boundary):
     '''
-    Calculates new initial directions based on the coarse roughness of the sample.
+    Calculates new initial directions based on the coarse roughness of the
+    sample.
 
     Parameters
     ----------
     k0: 3D array-like (structcol.Quantity [dimensionless])
         Initial direction of propagation. Has shape of (3, number of events,
-        number of trajectories). k0[0,:,:] and k0[1,:,:] are initalized to zero,
-        and k0[2,0,:] is initalized to 1.
+        number of trajectories). k0[0,:,:] and k0[1,:,:] are initalized to
+        zero, and k0[2,0,:] is initalized to 1.
     n_medium: float (structcol.Quantity [dimensionless])
         Refractive index of the medium.
     n_sample: float (structcol.Quantity [dimensionless])
@@ -1390,12 +1418,13 @@ def coarse_roughness_enter(k0, n_medium, n_sample,
         Coarse surface roughness should be included when the roughness is large
         on the scale of the wavelength of light. This means that light
         encounters a locally smooth surface that has a slope relative to the
-        z=0 plane. Then the model corrects the Fresnel reflection and refraction
-        to account for the different angles of incidence due to the roughness.
-        The coarse_roughness parameter is the rms slope of the surface. If
-        included, it should be larger than 0. There is no upper bound, but when
-        the coarse roughness tends to infinity, the surface becomes too "spiky"
-        and light can no longer hit it, which reduces the reflectance down to 0.
+        z=0 plane. Then the model corrects the Fresnel reflection and
+        refraction to account for the different angles of incidence due to the
+        roughness. The coarse_roughness parameter is the rms slope of the
+        surface. If included, it should be larger than 0. There is no upper
+        bound, but when the coarse roughness tends to infinity, the surface
+        becomes too "spiky" and light can no longer hit it, which reduces the
+        reflectance down to 0.
     boundary: string
         Geometrical boundary for Monte Carlo calculations. Current options are
         'film' or 'sphere.' Coarse roughness is currently only implemented for
@@ -1409,8 +1438,8 @@ def coarse_roughness_enter(k0, n_medium, n_sample,
         Initial z-directions that are rotated to account for the fact that
         coarse surface roughness changes the angle of incidence of light. Thus
         these are the incident z-directions relative to the local normal to the
-        surface. The array size is (1, ntraj). Only returned if coarse_roughness
-        is set to > 0.
+        surface. The array size is (1, ntraj). Only returned if
+        coarse_roughness is set to > 0.
     kz0_refl : array_like (structcol.Quantity [dimensionless])
         z-directions of the Fresnel reflected light after it hits the sample
         surface for the first time. These directions are in the global
@@ -1432,13 +1461,15 @@ def coarse_roughness_enter(k0, n_medium, n_sample,
     # sample the surface roughness angles theta_a
     theta_a_full = np.linspace(0., np.pi / 2, 500)
     with np.errstate(divide='ignore', invalid='ignore'):
-        prob_a = P_theta_a(theta_a_full, coarse_roughness) / sum(P_theta_a(theta_a_full, coarse_roughness))
+        prob_a = (P_theta_a(theta_a_full, coarse_roughness) /
+                  sum(P_theta_a(theta_a_full, coarse_roughness)))
         if isinstance(prob_a, sc.Quantity):
             prob_a = prob_a.magnitude
     if np.isnan(prob_a).all():
         theta_a = np.zeros(ntraj)
     else:
-        theta_a = np.array([sc.rng.choice(theta_a_full, ntraj, p=prob_a) for i in range(1)]).flatten()
+        theta_a = np.array([sc.rng.choice(theta_a_full, ntraj, p=prob_a)
+                            for i in range(1)]).flatten()
 
     # In case the surface is rough, then find new coordinates of initial
     # directions after rotating the surface by an angle theta_a around y axis
@@ -1451,8 +1482,10 @@ def coarse_roughness_enter(k0, n_medium, n_sample,
 
     # Find the new angles theta and phi between the incident trajectories and
     # the normal to the new surface after the coordinate axis rotation
-    theta_rot = np.arccos(kz0_rot / np.sqrt(kx0_rot**2 + ky0_rot**2 + kz0_rot**2))
-    phi_rot = np.arccos(kx0_rot / np.sqrt(kx0_rot**2 + ky0_rot**2 + kz0_rot**2))
+    theta_rot = np.arccos(kz0_rot / np.sqrt(kx0_rot**2 + ky0_rot**2
+                                            + kz0_rot**2))
+    phi_rot = np.arccos(kx0_rot / np.sqrt(kx0_rot**2 + ky0_rot**2
+                                          + kz0_rot**2))
 
     # Refraction of incident light upon entering sample
     # TODO: only real part of n_sample should be used
@@ -1466,23 +1499,26 @@ def coarse_roughness_enter(k0, n_medium, n_sample,
     ky0_rot_refr = np.sin(theta_refr) * np.sin(phi_rot)
     kz0_rot_refr = np.cos(theta_refr)
 
-    # Rotate the axes back so that the initial refracted directions are in
-    # old (global) coordinates by doing an axis rotation around y by 2pi-theta_a
-    kx0_refr = np.cos(2*np.pi-theta_a) * kx0_rot_refr - np.sin(2*np.pi-theta_a) * kz0_rot_refr
+    # Rotate the axes back so that the initial refracted directions are in old
+    # (global) coordinates by doing an axis rotation around y by 2pi-theta_a
+    kx0_refr = (np.cos(2*np.pi-theta_a) * kx0_rot_refr
+                - np.sin(2*np.pi-theta_a) * kz0_rot_refr)
     ky0_refr = ky0_rot_refr
-    kz0_refr = np.sin(2*np.pi-theta_a) * kx0_rot_refr + np.cos(2*np.pi-theta_a) * kz0_rot_refr
+    kz0_refr = (np.sin(2*np.pi-theta_a) * kx0_rot_refr
+                + np.cos(2*np.pi-theta_a) * kz0_rot_refr)
 
     # Create an empty array of the initial direction cosines of the right size
     k0_rough = np.zeros((3, nevents, ntraj))
 
-    # Fill up the first row (corresponding to the first scattering event) of the
-    # direction cosines array with the randomly generated angles:
+    # Fill up the first row (corresponding to the first scattering event) of
+    # the direction cosines array with the randomly generated angles:
     k0_rough[0,0,:] = kx0_refr
     k0_rough[1,0,:] = ky0_refr
     k0_rough[2,0,:] = kz0_refr
 
     # Calculate Fresnel reflected directions, which are the same as the initial
-    # directions in the local coordinate sytem but with a rotation of pi in phi_rot
+    # directions in the local coordinate sytem but with a rotation of pi in
+    # phi_rot
 #    kx0_rot_refl = -kx0_rot
 #    ky0_rot_refl = -ky0_rot
 #    kz0_rot_refl = kz0_rot
@@ -1493,11 +1529,13 @@ def coarse_roughness_enter(k0, n_medium, n_sample,
     ky0_rot_refl = ky0_rot
     kz0_rot_refl = -kz0_rot
 
-    # Rotate the axes back so that the reflected directions are in
-    # old (global) coordinates by doing an axis rotation around y by 2pi-theta_a
-    kx0_refl = np.cos(2*np.pi-theta_a) * kx0_rot_refl - np.sin(2*np.pi-theta_a) * kz0_rot_refl
+    # Rotate the axes back so that the reflected directions are in old (global)
+    # coordinates by doing an axis rotation around y by 2pi-theta_a
+    kx0_refl = (np.cos(2*np.pi-theta_a) * kx0_rot_refl
+                - np.sin(2*np.pi-theta_a) * kz0_rot_refl)
     ky0_refl = ky0_rot_refl
-    kz0_refl = np.sin(2*np.pi-theta_a) * kx0_rot_refl + np.cos(2*np.pi-theta_a) * kz0_rot_refl
+    kz0_refl = (np.sin(2*np.pi-theta_a) * kx0_rot_refl
+                + np.cos(2*np.pi-theta_a) * kz0_rot_refl)
 
     return k0_rough, kz0_rot, kz0_refl
 
