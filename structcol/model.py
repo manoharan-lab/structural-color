@@ -1045,7 +1045,7 @@ def absorption_cross_section(form_type, m, diameters, n_matrix, x, wavelen,
                             * np.atleast_1d(concentration)[d])
         cabs_total = Quantity(np.sum(cabs_poly), cabs.units)
 
-    if form_type == None:
+    if form_type is None:
         cabs_total = Quantity(0.0, 'um^2')
 
     if form_type == 'sphere':
