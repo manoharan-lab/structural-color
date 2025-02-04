@@ -132,19 +132,22 @@ n_dict = {
     # measurements in the near-IR using an Abbe refractometer,
     # Meas. Sci. Technol. 8, 601-605 (1997)
     # refractiveindex.info
-    'ethanol': lambda w: 1.35265 + Quantity('0.00306 um^2')/(w**2) + Quantity('0.00002 um^4')/(w**4),
+    'ethanol': lambda w: (1.35265 + Quantity('0.00306 um^2')/(w**2)
+                          + Quantity('0.00002 um^4')/(w**4)),
 
     # the w/w is a crude hack to make the function output an array when the
     # input is an array
     'vacuum': lambda w: Quantity('1.0')*w/w,
 
     # brookite TiO2 from Radhakrishnan. "The Optical Properties of titanium
-    # dioxide". Proceedings of the Indian Academy of Sciences-Mathematical Sciences
-    #March 1982, 35:117. Note that this is for n_alpha. However, n_alpha is
-    #almost identical to n_beta, which in turn is very similar to rutile. However
-    #n_gama is a bit different, but is not considered
+    # dioxide". Proceedings of the Indian Academy of Sciences-Mathematical
+    # Sciences March 1982, 35:117. Note that this is for n_alpha. However,
+    # n_alpha is almost identical to n_beta, which in turn is very similar to
+    # rutile. However n_gamma is a bit different, but is not considered
     # data for rutile TiO2, ordinary ray, 0.43-0.71 micrometers
-    'brookite': lambda w: np.sqrt(2.9858 + 2.1036*w*w/(w*w - Quantity('0.287**2 um^2'))-Quantity('0.18 um^-2')*w*w+1.),
+    'brookite': lambda w: np.sqrt(2.9858 + 2.1036*w*w
+                                    /(w*w - Quantity('0.287**2 um^2'))
+                                  -Quantity('0.18 um^-2')*w*w+1.),
 
     # anatase TiO2 from Wang et al. Think Solid Films. 405, 2002, 50-54
     # measured from 500-1700 nm
