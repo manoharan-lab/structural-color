@@ -155,7 +155,8 @@ n_dict = {
                                   Quantity('2.1798e-3 um^4')/(w*w*w*w)
 }
 
-@ureg.check(None, '[length]', None, None, None)   # ensures wavelen has units of length
+# ensures wavelen has units of length
+@ureg.check(None, '[length]', None, None, None)
 def n(material, wavelen, index_data=None, wavelength_data=None, kind='linear'):
     """
     Refractive index of various materials.
@@ -191,7 +192,8 @@ def n(material, wavelen, index_data=None, wavelength_data=None, kind='linear'):
     """
     if material == 'data':
         if index_data is None or wavelength_data is None:
-            raise KeyError("'data' material requires input of index and corresponding wavelength data.")
+            raise KeyError("'data' material requires input of index "
+                           "and corresponding wavelength data.")
 
         if isinstance(index_data, Quantity):
             index_data = index_data.magnitude
@@ -201,11 +203,12 @@ def n(material, wavelen, index_data=None, wavelength_data=None, kind='linear'):
 
     else:
         if index_data is not None or wavelength_data is not None:
-            warnings.warn("No need to specify the index or wavelength data. No material except for 'data' requires input of data.")
+            warnings.warn("No need to specify the index or wavelength data. "
+                          "No material except for 'data' requires input data.")
         try:
             return n_dict[material](wavelen)
         except KeyError:
-            print("Material \""+material+"\" not implemented.  Perhaps a typo?")
+            print("Material \""+material+"\" not implemented. Perhaps a typo?")
             raise
 
 #------------------------------------------------------------------------------
@@ -429,10 +432,10 @@ def n_cargille(i,series,w):
 def n_eff(n_particle, n_matrix, volume_fraction, maxwell_garnett=False):
     """
     Calculates Bruggeman effective refractive index for a composite of n
-    dielectric media. If maxwell_garnett is set to true and there are two media,
-    calculates the effective index using the Maxwell-Garnett formulation.
-    Both Maxwell-Garnett and Bruggeman formulas can handle complex refractive
-    indices.
+    dielectric media. If maxwell_garnett is set to true and there are two
+    media, calculates the effective index using the Maxwell-Garnett
+    formulation. Both Maxwell-Garnett and Bruggeman formulas can handle complex
+    refractive indices.
 
     Parameters
     ----------
@@ -457,10 +460,11 @@ def n_eff(n_particle, n_matrix, volume_fraction, maxwell_garnett=False):
 
     References
     ----------
-    Markel, V. A. "Introduction to the Maxwell Garnett approximation: tutorial".
-    Vol. 33, No. 7, Journal of the Optical Society of America A (2016).
-    Bruggeman's equation in Eq. 29.
-    Maxwell-Garnett relation in Eq. 18.
+    [1] Markel, V. A. "Introduction to the Maxwell Garnett approximation:
+        tutorial". Vol. 33, No. 7, Journal of the Optical Society of America A
+        (2016).
+        Bruggeman's equation in Eq. 29.
+        Maxwell-Garnett relation in Eq. 18.
 
     """
     if isinstance(volume_fraction, Quantity):
@@ -468,8 +472,10 @@ def n_eff(n_particle, n_matrix, volume_fraction, maxwell_garnett=False):
 
     if maxwell_garnett:
         # check that the particle and matrix indices have the same length
-        if len(np.array([n_particle.magnitude]).flatten()) != len(np.array([n_matrix.magnitude]).flatten()):
-            raise ValueError('Maxwell-Garnett requires particle and matrix index arrays to have the same length')
+        if (len(np.array([n_particle.magnitude]).flatten())
+            != len(np.array([n_matrix.magnitude]).flatten())):
+            raise ValueError('Maxwell-Garnett requires particle and '
+                             'matrix index arrays to have the same length')
         ni = n_particle
         nm = n_matrix
         phi = volume_fraction
@@ -488,7 +494,8 @@ def n_eff(n_particle, n_matrix, volume_fraction, maxwell_garnett=False):
 
         # check that the number of volume fractions and of indices is the same
         if len(n_particle) != len(volume_fraction):
-            raise ValueError('Arrays of indices and volume fractions must be the same length')
+            raise ValueError('Arrays of indices and volume fractions '
+                             'must be the same length')
 
         volume_fraction_matrix = Quantity(1 - np.sum(volume_fraction), '')
 
@@ -505,16 +512,22 @@ def n_eff(n_particle, n_matrix, volume_fraction, maxwell_garnett=False):
         def sum_bg(n_bg, vf, n_array):
             N = len(n_array.flatten())
             a, b = n_bg
-            S = sum((vf[n]*(n_array[n]**2 - (a+b*1j)**2)/(n_array[n]**2 + 2*(a+b*1j)**2)) for n in np.arange(0, N))
+            S = sum((vf[n]*(n_array[n]**2 - (a+b*1j)**2)
+                     /(n_array[n]**2 + 2*(a+b*1j)**2))
+                    for n in np.arange(0, N))
             return (S.real, S.imag)
 
-        # set an initial guess and solve for Bruggeman's refractive index of the composite
-        initial_guess = [1.5, 0]    # most refractive indices range between 1 and 3
-        n_bg_real, n_bg_imag = fsolve(sum_bg, initial_guess, args=(vf_array, n_array))
+        # set an initial guess and solve for Bruggeman's refractive index of
+        # the composite
+        # most refractive indices range between 1 and 3
+        initial_guess = [1.5, 0]
+        n_bg_real, n_bg_imag = fsolve(sum_bg, initial_guess, args=(vf_array,
+                                                                   n_array))
 
         if n_bg_imag == 0:
             return Quantity(n_bg_real)
         elif n_bg_imag < 0:
-            raise ValueError('Cannot find positive imaginary root for the effective index')
+            raise ValueError('Cannot find positive imaginary root for the '
+                             'effective index')
         else:
             return Quantity(n_bg_real + n_bg_imag*1j)
