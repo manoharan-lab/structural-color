@@ -132,7 +132,8 @@ def calc_pdf(x, y, z, radius,
     nu_range: 1d array (optional)
         the nu values for which the pdf
     phi_range: 1d array (optional)
-        the phi values for which to calculate the pdf, if the pdf is phi-dependent
+        the phi values for which to calculate the pdf, if the pdf is
+        phi-dependent
     kz: 1d array or None (optional)
         the kz values at the exit events for all the trajectories
     kernel_bin_width: string or scalar or callable (optional)
