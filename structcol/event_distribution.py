@@ -20,17 +20,19 @@ def calc_refl_trans_event(refl_per_traj, inc_refl_per_traj, trans_per_traj,
     Parameters
     ----------
     refl_per_traj: 1d array (length: ntrajectories)
-        Reflectance contribution for each trajectory from Monte Carlo simulation.
-        Sum should be total reflectance from Monte Carlo calculation,
-        without corrections for Fresnel reflected and stuck weights.
+        Reflectance contribution for each trajectory from Monte Carlo
+        simulation. Sum should be total reflectance from Monte Carlo
+        calculation, without corrections for Fresnel reflected and stuck
+        weights.
     inc_refl_per_traj: 1d array (length: ntrajectories)
         Reflectance contribution for each trajectory at the sample interface.
         This contribution comes from the Fresnel reflection as the light
         enters the sample
     trans_per_traj: 1d array (length: ntrajectories)
-        Transmittance contribution for each trajectory from Monte Carlo simulation.
-        Sum should be total transmittance from Monte Carlo calculation,
-        without corrections for Fresnel reflected and stick weights.
+        Transmittance contribution for each trajectory from Monte Carlo
+        simulation. Sum should be total transmittance from Monte Carlo
+        calculation, without corrections for Fresnel reflected and stick
+        weights.
     refl_indices: 1d array (length: ntrajectories)
         Event indices at which each trajectory is reflected. Value of 0 means
         trajectory is not reflected at any event.
@@ -75,10 +77,10 @@ def calc_path_length(step, exit_indices):
         Sampled step sizes for all events and trajectories in Monte
         Carlo model
     exit_indices: 1d array (length: ntrajectories)
-        event number at exit for each trajectory. Input refl_indices if you want
-        to only consider reflectance and trans_indices if you want to only
-        consider transmittance. Input refl_indices + trans_indices if you
-        want to consider both
+        event number at exit for each trajectory. Input refl_indices if you
+        want to only consider reflectance and trans_indices if you want to only
+        consider transmittance. Input refl_indices + trans_indices if you want
+        to consider both
     Returns
     -------
     path_length_traj: 1d array (length: ntrajectories)
@@ -94,8 +96,9 @@ def calc_path_length(step, exit_indices):
     return path_length_traj
 
 
-def calc_refl_trans_event_traj(refl_per_traj, inc_refl_per_traj, trans_per_traj,
-                          refl_indices, trans_indices, nevents, ntraj=100):
+def calc_refl_trans_event_traj(refl_per_traj, inc_refl_per_traj,
+                          trans_per_traj, refl_indices, trans_indices, nevents,
+                          ntraj=100):
     '''
     Returns reflectance and transmittance as a function of event number
     and trajectory
@@ -103,17 +106,19 @@ def calc_refl_trans_event_traj(refl_per_traj, inc_refl_per_traj, trans_per_traj,
     Parameters
     ----------
     refl_per_traj: 1d array (length: ntrajectories)
-        Reflectance contribution for each trajectory from Monte Carlo simulation.
-        Sum should be total reflectance from Monte Carlo calculation,
-        without corrections for Fresnel reflected and stuck weights.
+        Reflectance contribution for each trajectory from Monte Carlo
+        simulation. Sum should be total reflectance from Monte Carlo
+        calculation, without corrections for Fresnel reflected and stuck
+        weights.
     inc_refl_per_traj: 1d array (length: ntrajectories)
         Reflectance contribution for each trajectory at the sample interface.
         This contribution comes from the Fresnel reflection as the light
         enters the sample
     trans_per_traj: 1d array (length: ntrajectories)
-        Transmittance contribution for each trajectory from Monte Carlo simulation.
-        Sum should be total transmittance from Monte Carlo calculation,
-        without corrections for Fresnel reflected and stick weights.
+        Transmittance contribution for each trajectory from Monte Carlo
+        simulation. Sum should be total transmittance from Monte Carlo
+        calculation, without corrections for Fresnel reflected and stick
+        weights.
     refl_indices: 1d array (length: ntrajectories)
         Event indices at which each trajectory is reflected. Value of 0 means
         trajectory is not reflected at any event.
@@ -154,8 +159,10 @@ def calc_refl_trans_event_traj(refl_per_traj, inc_refl_per_traj, trans_per_traj,
 
         # add reflectance/transmittance due to trajectories
         # reflected/transmitted at this event
-        refl_events_traj[ev, traj_ind_refl_ev] += np.sum(refl_per_traj[traj_ind_refl_ev])
-        trans_events_traj[ev, traj_ind_trans_ev] += np.sum(trans_per_traj[traj_ind_trans_ev])
+        refl_events_traj[ev, traj_ind_refl_ev] += \
+            np.sum(refl_per_traj[traj_ind_refl_ev])
+        trans_events_traj[ev, traj_ind_trans_ev] += \
+            np.sum(trans_per_traj[traj_ind_trans_ev])
 
     return refl_events_traj, trans_events_traj
 
@@ -167,23 +174,24 @@ def calc_thetas_event_traj(theta, refl_indices, nevents, ntraj = 100):
     Parameters
     ----------
     theta: 2d array (shape: nevents, ntrajectories)
-        sampled thetas used in Monte Carlo. Includes all thetas for all trajectories.
+        sampled thetas used in Monte Carlo. Includes all thetas for all
+        trajectories.
     refl_indices: 1d array (length: ntrajectories)
         Event indices at which each trajectory is reflected. Value of 0 means
         trajectory is not reflected at any event.
     nevents: int
         number of events for which Monte Carlo calculation is run
     ntraj: int, optional
-        number of trajectories from Monte Carlo to examine. Usually want a smaller
-        number than the full number of trajectories run because size of matrix
-        will be too big. Default value is 100.
+        number of trajectories from Monte Carlo to examine. Usually want a
+        smaller number than the full number of trajectories run because size of
+        matrix will be too big. Default value is 100.
 
     Returns
     -------
     theta_event_traj: 2d array (shape: nevents, ntrajectories)
         thetas at reflection for every event and trajectory. If trajectory is
-        not reflected at a particular event, theta value is 0 for that event and
-        trajectory.
+        not reflected at a particular event, theta value is 0 for that event
+        and trajectory.
     '''
 
     theta_event_traj = np.zeros((nevents, ntraj))
@@ -209,8 +217,8 @@ def calc_tir(tir_refl_bool, refl_indices, trans_indices, inc_refl_per_traj,
     '''
     Note: phase=True argument in this function is DEPRECATED
 
-    Returns weights of various types of totally internally reflected trajectories
-    as a function of event number
+    Returns weights of various types of totally internally reflected
+    trajectories as a function of event number
 
     Parameters
     ----------
@@ -254,9 +262,9 @@ def calc_tir(tir_refl_bool, refl_indices, trans_indices, inc_refl_per_traj,
         transmitted, or stuck. The event index of the array corresponds to the
         event at which they are totally internally reflected.
     tir_all_refl_events: 1d array (length: nevents)
-        summed weights of trajectories that are totally internally reflected at any
-        event, but only those which eventually contribute to reflectance. The
-        event index of the array corresponds to the event at which they are
+        summed weights of trajectories that are totally internally reflected at
+        any event, but only those which eventually contribute to reflectance.
+        The event index of the array corresponds to the event at which they are
         reflected.
     tir_single_events: 1d array (length: nevents)
         summed weights of trajectories that are totally internally reflected
@@ -265,8 +273,9 @@ def calc_tir(tir_refl_bool, refl_indices, trans_indices, inc_refl_per_traj,
         event at which they are totally internally reflected
     tir_single_refl_events: 1d array (length: nevents)
         summed weights of trajectories that are totally internally reflected
-        adter the first scattering event and eventually contribute to reflectance.
-        The event index corresponds to the event at which they are reflected.
+        adter the first scattering event and eventually contribute to
+        reflectance. The event index corresponds to the event at which they are
+        reflected.
     tir_indices_single_events: 1d array (length: nevents)
         The event indices of trajectories that are totally internally reflected
         after a single scattering event.
@@ -287,8 +296,8 @@ def calc_tir(tir_refl_bool, refl_indices, trans_indices, inc_refl_per_traj,
     # get the event indices for which trajectories are tir'd
     tir_indices = np.argmax(np.vstack([np.zeros(ntraj),tir_refl_bool]), axis=0)
 
-    # make event indices of zero larger than possible nevents
-    # so that refl_events of 0 never have a smaller number than any other events
+    # make event indices of zero larger than possible nevents so that
+    # refl_events of 0 never have a smaller number than any other events
     refl_ind_inf = np.copy(refl_indices)
     refl_ind_inf[refl_ind_inf == 0] = nevents*10
     trans_ind_inf = np.copy(trans_indices)
@@ -307,16 +316,19 @@ def calc_tir(tir_refl_bool, refl_indices, trans_indices, inc_refl_per_traj,
     tir_indices_refl = np.zeros(ntraj)
     tir_indices_refl[tir_ev_ind] = refl_indices[tir_ev_ind]
     # find the tir reflectance at each event
-    tir_all_refl = ((1-inc_refl_per_traj) * select_events(weights, tir_indices_refl)*
-                   fresnel_pass_frac(tir_indices_refl, n_sample, None, n_medium,
-                                     boundary, trajectories, thickness)[0])/ntraj
+    tir_all_refl = ((1-inc_refl_per_traj)
+                    * select_events(weights, tir_indices_refl)
+                    * fresnel_pass_frac(tir_indices_refl, n_sample, None,
+                                     n_medium, boundary, trajectories,
+                                     thickness)[0]) / ntraj
 
     ### tir for only single scat event ###
 
     # find the event indices where single scat trajectories are tir'd
     tir_indices_single = np.copy(tir_indices)
     tir_indices_single[np.where(tir_indices!=2)] = 0
-    tir_single = (1-inc_refl_per_traj) * select_events(weights, tir_indices_single)/ntraj
+    tir_single = ((1-inc_refl_per_traj)
+                  * select_events(weights, tir_indices_single) / ntraj)
     ### tir for only single scat event that gets reflected eventually ###
 
     # find event indices where single scat tir'd trajectories are reflected
@@ -325,9 +337,11 @@ def calc_tir(tir_refl_bool, refl_indices, trans_indices, inc_refl_per_traj,
     tir_indices_single_refl[tir_ev_sing_ind] = refl_indices[tir_ev_sing_ind]
 
     # calculate the single scat tir'd reflectance at each event
-    tir_single_refl = ((1-inc_refl_per_traj) * select_events(weights, tir_indices_single_refl)*
-                      fresnel_pass_frac(tir_indices_single_refl, n_sample, None, n_medium,
-                                        boundary, trajectories, thickness)[0])/ntraj
+    tir_single_refl = ((1-inc_refl_per_traj)
+                       * select_events(weights, tir_indices_single_refl)
+                       * fresnel_pass_frac(tir_indices_single_refl, n_sample,
+                                           None, n_medium, boundary,
+                                           trajectories, thickness)[0]) / ntraj
 
     #loop through all events
     tir_all_events = np.zeros(2*nevents + 1)
@@ -337,9 +351,12 @@ def calc_tir(tir_refl_bool, refl_indices, trans_indices, inc_refl_per_traj,
 
     # if phase, we need to calculate as fields
     if phase:
-        traj_field_x =  trajectories.polarization[0,:,:]*np.exp(trajectories.phase[0,:,:]*1j)
-        traj_field_y =  trajectories.polarization[1,:,:]*np.exp(trajectories.phase[1,:,:]*1j)
-        traj_field_z =  trajectories.polarization[2,:,:]*np.exp(trajectories.phase[2,:,:]*1j)
+        traj_field_x = (trajectories.polarization[0,:,:]
+                        * np.exp(trajectories.phase[0,:,:]*1j))
+        traj_field_y = (trajectories.polarization[1,:,:]
+                        * np.exp(trajectories.phase[1,:,:]*1j))
+        traj_field_z = (trajectories.polarization[2,:,:]
+                        * np.exp(trajectories.phase[2,:,:]*1j))
         tot_field_x_ev = np.zeros(2*nevents + 1, dtype=complex)
         tot_field_y_ev = np.zeros(2*nevents + 1, dtype=complex)
         tot_field_z_ev = np.zeros(2*nevents + 1, dtype=complex)
@@ -353,23 +370,31 @@ def calc_tir(tir_refl_bool, refl_indices, trans_indices, inc_refl_per_traj,
 
         if phase:
             # write expression for field including weight
-            # since the trajectory weights are in units of intensity, we take the
-            # square root to find the amplitude for the field
+            # since the trajectory weights are in units of intensity, we take
+            # the square root to find the amplitude for the field
             w = np.sqrt(tir_all_refl)
 
             # add reflectance/transmittance due to trajectories
             # reflected/transmitted at this event
-            tot_field_x_ev[ev] += np.sum(w[traj_ind_tir_refl_ev]*traj_field_x[ev,traj_ind_tir_refl_ev])
-            tot_field_y_ev[ev] += np.sum(w[traj_ind_tir_refl_ev]*traj_field_y[ev,traj_ind_tir_refl_ev])
-            tot_field_z_ev[ev] += np.sum(w[traj_ind_tir_refl_ev]*traj_field_z[ev,traj_ind_tir_refl_ev])
+            tot_field_x_ev[ev] += np.sum(w[traj_ind_tir_refl_ev]
+                                         * traj_field_x[ev,
+                                                        traj_ind_tir_refl_ev])
+            tot_field_y_ev[ev] += np.sum(w[traj_ind_tir_refl_ev]
+                                         * traj_field_y[ev,
+                                                        traj_ind_tir_refl_ev])
+            tot_field_z_ev[ev] += np.sum(w[traj_ind_tir_refl_ev]
+                                         * traj_field_z[ev,
+                                                        traj_ind_tir_refl_ev])
 
         else:
             # add reflectance/transmittance due to trajectories
             # reflected/transmitted at this event
             tir_all_events[ev] += np.sum(tir_all[traj_ind_tir_ev])
-            tir_all_refl_events[ev] += np.sum(tir_all_refl[traj_ind_tir_refl_ev])
+            tir_all_refl_events[ev] += \
+                np.sum(tir_all_refl[traj_ind_tir_refl_ev])
             tir_single_events[ev] += np.sum(tir_single[traj_ind_tir_sing_ev])
-            tir_single_refl_events[ev] += np.sum(tir_single_refl[traj_ind_tir_sing_refl_ev])
+            tir_single_refl_events[ev] += \
+                np.sum(tir_single_refl[traj_ind_tir_sing_refl_ev])
 
     if phase:
             # calculate intensity as E*E
@@ -377,7 +402,8 @@ def calc_tir(tir_refl_bool, refl_indices, trans_indices, inc_refl_per_traj,
             intensity_y_ev = np.conj(tot_field_y_ev)*tot_field_y_ev
             intensity_z_ev = np.conj(tot_field_z_ev)*tot_field_z_ev
             # add the x,y, and z intensity
-            tir_all_refl_events = intensity_x_ev + intensity_y_ev + intensity_z_ev
+            tir_all_refl_events = (intensity_x_ev + intensity_y_ev
+                                   + intensity_z_ev)
 
     return (tir_all_events,
             tir_all_refl_events,
@@ -387,9 +413,9 @@ def calc_tir(tir_refl_bool, refl_indices, trans_indices, inc_refl_per_traj,
 
 
 def calc_tir_phase_event_input(tir_refl_bool,step, refl_indices, radius,
-                              volume_fraction, n_particle, n_sample, wavelength,
-                              trajectories, refl_per_traj,
-                              bin_width=sc.Quantity(40,'fs')):
+                               volume_fraction, n_particle, n_sample,
+                               wavelength, trajectories, refl_per_traj,
+                               bin_width=sc.Quantity(40,'fs')):
     '''
     Calculates the parameters needed to input into calc_refl_trans_event
     in order to calculate the total internal reflected weights as a function
@@ -399,7 +425,8 @@ def calc_tir_phase_event_input(tir_refl_bool,step, refl_indices, radius,
     ----------
     tir_refl_bool: 2d array of booleans (shape: nevents, ntraj)
         describe whether a trajectory gets totally internally reflected at any
-        event and also exits in the negative direction to contribute to reflectance
+        event and also exits in the negative direction to contribute to
+        reflectance
     step: 2d array (structcol.Quantity [length])
         Step sizes between scattering events in each of the trajectories.
     refl_indices: 1d array (length: ntraj)
@@ -420,8 +447,8 @@ def calc_tir_phase_event_input(tir_refl_bool,step, refl_indices, radius,
         reflectance distributed to each trajectory, including fresnel
         contributions
     bin_width: float (structcol.Quantity [time])
-        size of time bins for creating field versus time. Should be set equal to
-        coherence time of source
+        size of time bins for creating field versus time. Should be set equal
+        to coherence time of source
 
     Returns
     -------
@@ -435,17 +462,19 @@ def calc_tir_phase_event_input(tir_refl_bool,step, refl_indices, radius,
     nevents = trajectories.nevents
     ntraj = len(refl_indices)
 
-    traj_times_tir,_,_ = det.calc_traj_time(step, refl_indices, radius, volume_fraction,
-                                    n_particle, n_sample, wavelength)
-    _, tir_per_traj_phase = det.calc_refl_phase_time(traj_times_tir, trajectories,
-                                                 refl_indices, refl_per_traj,
+    traj_times_tir,_,_ = det.calc_traj_time(step, refl_indices, radius,
+                                            volume_fraction, n_particle,
+                                            n_sample, wavelength)
+    _, tir_per_traj_phase = det.calc_refl_phase_time(traj_times_tir,
+                                                 trajectories, refl_indices,
+                                                 refl_per_traj,
                                                  bin_width=bin_width)
 
 
     # calculate tir_indices_refl
     tir_indices = np.argmax(np.vstack([np.zeros(ntraj),tir_refl_bool]), axis=0)
-        # make event indices of zero larger than possible nevents
-    # so that refl_events of 0 never have a smaller number than any other events
+    # make event indices of zero larger than possible nevents so that
+    # refl_events of 0 never have a smaller number than any other events
     refl_ind_inf = np.copy(refl_indices)
     refl_ind_inf[refl_ind_inf == 0] = nevents*10
     # find  tir indices where trajectories are tir'd before getting reflected
@@ -495,8 +524,8 @@ def calc_refl_event_fresnel_pdf(refl_events, pdf_refl, pdf_trans, refl_indices,
                             refl_frac, trans_frac, nevents):
     '''
     Calculates the reflectance contribution from fresnel reflected trajectory
-    weights and adds it to the total reflectance contribution for a sampled event
-    at which the fresnel trajectory exits
+    weights and adds it to the total reflectance contribution for a sampled
+    event at which the fresnel trajectory exits
 
 
     Parameters
@@ -515,10 +544,12 @@ def calc_refl_event_fresnel_pdf(refl_events, pdf_refl, pdf_trans, refl_indices,
         trajectory is not transmitted at any event
     refl_fresnel: 2d array (shape: nevents, ntrajectories)
         weights of trajectories that are Fresnel reflected back into the sample
-        when a trajectory exits. This does not include total internal reflection.
+        when a trajectory exits. This does not include total internal
+        reflection.
     trans_fresnel: 2d array (shape: nevents, ntrajectories)
         weights of trajectories that are Fresnel reflected back into the sample
-        when a trajectory exits. This does not include total internal reflection.
+        when a trajectory exits. This does not include total internal
+        reflection.
     refl_frac: 2d array (shape: nevents, ntrajectories)
         fraction of trajectory weights that are reflected normalized by the
         known outcomes of trajectories
@@ -531,8 +562,8 @@ def calc_refl_event_fresnel_pdf(refl_events, pdf_refl, pdf_trans, refl_indices,
     Returns
     -------
     refl_events + fresnel_samp: 1d array (length: 2*nevents + 1)
-        reflectance contribution for each event added to the fresnel reflectance
-        contribution for each event.
+        reflectance contribution for each event added to the fresnel
+        reflectance contribution for each event.
     '''
     # sample reflection and transmission event numbers
     sampled_refl_event = np.random.choice(np.arange(2, nevents + 1),
@@ -542,17 +573,21 @@ def calc_refl_event_fresnel_pdf(refl_events, pdf_refl, pdf_trans, refl_indices,
                                           size = nevents+1,
                                           p = pdf_trans)
 
-    # add the frensel reflected trajectory event to the sampled event of reflection
-    # or transmission
+    # add the frensel reflected trajectory event to the sampled event of
+    # reflection or transmission
     fresnel_samp = np.zeros(2*nevents + 1)
     for ev in range(1, nevents + 1):
         traj_ind_event_refl = np.where(refl_indices == ev)[0]
         traj_ind_event_trans = np.where(trans_indices == ev)[0]
-        # sampled_refl_event has a size nevents + 1, and this loop has size nevents + 1
-        # sampled_trans_event has a size nevents + 1, even though it includes an extra event to sample
+        # sampled_refl_event has a size nevents + 1, and this loop has size
+        # nevents + 1
+        # sampled_trans_event has a size nevents + 1, even though it includes
+        # an extra event to sample
 
-        fresnel_samp[int(ev + sampled_refl_event[ev])] += refl_frac*np.sum(refl_fresnel[traj_ind_event_refl])
-        fresnel_samp[int(ev + sampled_trans_event[ev])] += trans_frac*np.sum(trans_fresnel[traj_ind_event_trans])
+        fresnel_samp[int(ev + sampled_refl_event[ev])] += \
+            refl_frac*np.sum(refl_fresnel[traj_ind_event_refl])
+        fresnel_samp[int(ev + sampled_trans_event[ev])] += \
+            trans_frac*np.sum(trans_fresnel[traj_ind_event_trans])
     return refl_events + fresnel_samp
 
 def calc_refl_event_fresnel_avg(refl_events, refl_indices, trans_indices,
@@ -575,10 +610,12 @@ def calc_refl_event_fresnel_avg(refl_events, refl_indices, trans_indices,
         trajectory is not transmitted at any event
     refl_fresnel: 2d array (shape: nevents, ntrajectories)
         weights of trajectories that are Fresnel reflected back into the sample
-        when a trajectory exits. This does not include total internal reflection.
+        when a trajectory exits. This does not include total internal
+        reflection.
     trans_fresnel: 2d array (shape: nevents, ntrajectories)
         weights of trajectories that are Fresnel reflected back into the sample
-        when a trajectory exits. This does not include total internal reflection.
+        when a trajectory exits. This does not include total internal
+        reflection.
     refl_frac: 2d array (shape: nevents, ntrajectories)
         fraction of trajectory weights that are reflected normalized by the
         known outcomes of trajectories
@@ -591,21 +628,23 @@ def calc_refl_event_fresnel_avg(refl_events, refl_indices, trans_indices,
     Returns
     -------
     refl_events + fresnel_samp: 1d array (length: 2*nevents + 1)
-        reflectance contribution for each event added to the fresnel reflectance
-        contribution for each event.
+        reflectance contribution for each event added to the fresnel
+        reflectance contribution for each event.
     '''
     # find average event at which reflection or transmission occurs
     avg_refl_event = np.round(np.average(refl_indices[refl_indices!=0]))
     avg_trans_event = np.round(np.average(trans_indices[trans_indices!=0]))
 
     fresnel_avg = np.zeros(2*nevents + 1)
-    # add the frensel reflected trajectory event to the average event of reflection
-    # or transmission
+    # add the frensel reflected trajectory event to the average event of
+    # reflection or transmission
     for ev in range(1, nevents + 1):
         traj_ind_event_refl = np.where(refl_indices == ev)[0]
         traj_ind_event_trans = np.where(trans_indices == ev)[0]
-        fresnel_avg[int(ev + avg_refl_event)] += refl_frac*np.sum(refl_fresnel[traj_ind_event_refl])
-        fresnel_avg[int(ev + avg_trans_event)] += trans_frac*np.sum(trans_fresnel[traj_ind_event_trans])
+        fresnel_avg[int(ev + avg_refl_event)] += \
+            refl_frac*np.sum(refl_fresnel[traj_ind_event_refl])
+        fresnel_avg[int(ev + avg_trans_event)] += \
+            trans_frac*np.sum(trans_fresnel[traj_ind_event_trans])
     return refl_events + fresnel_avg
 
 def plot_refl_event(wavelengths, refl_events, event):
@@ -627,7 +666,8 @@ def plot_refl_event(wavelengths, refl_events, event):
 
     plt.figure()
     for ev in range(0, len(event)):
-        plt.plot(wavelengths, refl_events[:, event[ev]], label = event[ev], linewidth = 3)
+        plt.plot(wavelengths, refl_events[:, event[ev]], label = event[ev],
+                 linewidth = 3)
     plt.xlim(wavelengths[0], wavelengths[-1])
     plt.xlabel('Wavelength (nm)')
     plt.ylabel('Reflectance')
@@ -654,7 +694,10 @@ def plot_refl_event_norm(wavelengths, refl_events, event):
     plt.figure()
     for ev in range(0, len(event)):
         events_before = np.arange(0,event[ev])
-        plt.plot(wavelengths, refl_events[:, event[ev]]/(1-np.sum(refl_events[:,events_before], axis = 1)), label = event[ev], linewidth = 3)
+        plt.plot(wavelengths, (refl_events[:, event[ev]] /
+                               (1 - np.sum(refl_events[:,events_before],
+                                           axis = 1))),
+                 label = event[ev], linewidth = 3)
     plt.xlim(wavelengths[0], wavelengths[-1])
     plt.xlabel('Wavelength (nm)')
     plt.ylabel('Reflectance')
@@ -677,7 +720,8 @@ def plot_refl_event_sum(wavelengths, refl_events, events, label = ''):
     '''
     if isinstance(wavelengths, sc.Quantity):
         wavelengths = wavelengths.to('nm').magnitude
-    plt.plot(wavelengths, np.sum(refl_events[:,events], axis = 1), label = label, linewidth = 3)
+    plt.plot(wavelengths, np.sum(refl_events[:,events], axis = 1),
+             label = label, linewidth = 3)
     plt.xlim([wavelengths[0], wavelengths[-1]])
     plt.ylabel('Reflectance')
     plt.xlabel('Wavelength (nm)')
@@ -703,8 +747,11 @@ def plot_refl_event_sum_norm(wavelengths, refl_events, events, label = ''):
     refl_events_norm = np.zeros((len(wavelengths), len(events)))
     for ev in range(0, len(events)):
         events_before = np.arange(0, events[ev])
-        refl_events_norm[:, ev] = refl_events[:, events[ev]]/(1-np.sum(refl_events[:,events_before], axis = 1))
-    plt.plot(wavelengths, np.sum(refl_events_norm, axis = 1), label = label, linewidth = 3)
+        refl_events_norm[:, ev] = (refl_events[:, events[ev]]
+                                   / (1 - np.sum(refl_events[:,events_before],
+                                                 axis = 1)))
+    plt.plot(wavelengths, np.sum(refl_events_norm, axis = 1),
+             label = label, linewidth = 3)
     plt.xlim([wavelengths[0], wavelengths[-1]])
     plt.ylabel('Reflectance')
     plt.xlabel('Wavelength (nm)')
@@ -730,8 +777,10 @@ def plot_refl_dist(wavelengths, refl_events, wavelength):
     plt.figure()
     for wl in range(0, len(wavelength)):
         wavelength_ind = np.where(wavelengths == wavelength[wl])[0][0]
-        plt.semilogx(events-1, refl_events[wavelength_ind,:]/np.sum(refl_events[wavelength_ind,:]), label = wavelength[wl],
-                     marker = '.', markersize = 12, linewidth = 2)
+        plt.semilogx(events-1, (refl_events[wavelength_ind,:]
+                                / np.sum(refl_events[wavelength_ind,:])),
+                     label = wavelength[wl], marker = '.', markersize = 12,
+                     linewidth = 2)
     plt.xlim([1, events[-1]])
     plt.xlabel('Scattering Event Number')
     plt.ylabel('Reflectance Contribution')
@@ -740,8 +789,10 @@ def plot_refl_dist(wavelengths, refl_events, wavelength):
     plt.figure()
     for wl in range(0, len(wavelength)):
         wavelength_ind = np.where(wavelengths == wavelength[wl])[0][0]
-        plt.loglog(events-1, refl_events[wavelength_ind,:]/np.sum(refl_events[wavelength_ind,:]), label = wavelength[wl],
-                   marker = '.', markersize = 12, linewidth = 0)
+        plt.loglog(events-1, (refl_events[wavelength_ind,:] /
+                              np.sum(refl_events[wavelength_ind,:])),
+                   label = wavelength[wl], marker = '.', markersize = 12,
+                   linewidth = 0)
     plt.xlim([1, events[-1]])
     plt.xlabel('Scattering Event Number')
     plt.ylabel('Reflectance Contribution')
@@ -750,19 +801,20 @@ def plot_refl_dist(wavelengths, refl_events, wavelength):
     plt.figure()
     for wl in range(0, len(wavelength)):
         wavelength_ind = np.where(wavelengths == wavelength[wl])[0][0]
-        plt.semilogx(events-1, refl_events[wavelength_ind,:], label = wavelength[wl],
-                   marker = '.', markersize = 12, linewidth = 2)
+        plt.semilogx(events-1, refl_events[wavelength_ind,:],
+                     label = wavelength[wl], marker = '.', markersize = 12,
+                     linewidth = 2)
     plt.xlim([1, events[-1]])
     plt.xlabel('Scattering Event Number')
     plt.ylabel('Reflectance')
     plt.legend()
 
-def save_data(particle, matrix, particle_radius, volume_fraction, thickness, reflectance,
-              refl_events, wavelengths, nevents, ntrajectories, theta_event_traj = None,
-              refl_events_fresnel_samp = None, refl_events_fresnel_avg = None,
-              zpos = None, kz = None, theta_range = None, tir_single = None,
-              tir_single_refl = None, tir_all = None, tir_all_refl = None,
-              tir_indices_single = None):
+def save_data(particle, matrix, particle_radius, volume_fraction, thickness,
+              reflectance, refl_events, wavelengths, nevents, ntrajectories,
+              theta_event_traj = None, refl_events_fresnel_samp = None,
+              refl_events_fresnel_avg = None, zpos = None, kz = None,
+              theta_range = None, tir_single = None, tir_single_refl = None,
+              tir_all = None, tir_all_refl = None, tir_indices_single = None):
     '''
     Saves data as a .npz file. Generates file name using sample parameters.
     '''
