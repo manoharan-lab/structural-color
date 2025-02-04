@@ -170,15 +170,20 @@ def test_reflection_core_shell():
     assert_almost_equal(T_abs, T_cs_abs, decimal=6)
 
     # Expected outputs, consistent with results expected from before refactoring
+    #
+    # (note: values below may be off at the 10th decimal place as of scipy
+    # 1.15.0; since the goal is to ensure that we get the same results for
+    # homogeneous spheres as for index-matched core-shell spheres, this
+    # difference should not concern us too much)
     R_abs_before = 0.3079106226852705 #before correcting nevents in sample_angles: 0.3956821177047554
     R_cs_abs_before = 0.3079106226846794 #before correcting nevents in sample_angles: 0.39568211770416667
     T_abs_before = 0.02335228504958959 #before correcting nevents in sample_angles: 0.009944245822685388
     T_cs_abs_before = 0.023352285049450985 #before correcting nevents in sample_angles: 0.009944245822595715
 
-    assert_almost_equal(R_abs_before, R_abs, decimal=15)
-    assert_almost_equal(R_cs_abs_before, R_cs_abs, decimal=15)
-    assert_almost_equal(T_abs_before, T_abs, decimal=15)
-    assert_almost_equal(T_cs_abs_before, T_cs_abs, decimal=15)
+    assert_almost_equal(R_abs_before, R_abs, decimal=10)
+    assert_almost_equal(R_cs_abs_before, R_cs_abs, decimal=10)
+    assert_almost_equal(T_abs_before, T_abs, decimal=10)
+    assert_almost_equal(T_cs_abs_before, T_cs_abs, decimal=10)
 
     # Same as previous test but with absorbing matrix as well
     # Reflection using a non-core-shell absorbing system
