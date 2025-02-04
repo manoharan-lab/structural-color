@@ -283,9 +283,18 @@ def rotate_refract(a, b, c, u, v, w, kx_1, ky_1, kz_1, alpha):
     z = c + kz_1
 
     # rotation matrix
-    x_rot = (a * (v ** 2 + w ** 2) - u * (b * v + c * w - u * x - v * y - w * z)) * (1 - np.cos(alpha)) + x * np.cos(alpha) + (-c * v + b * w - w * y + v * z) * np.sin(alpha)
-    y_rot = (b * (u ** 2 + w ** 2) - v * (a * u + c * w - u * x - v * y - w * z)) * (1 - np.cos(alpha)) + y * np.cos(alpha) + (c * u - a * w + w * x - u * z) * np.sin(alpha)
-    z_rot = (c * (u ** 2 + v ** 2) - w * (a * u + b * v - u * x - v * y - w * z)) * (1 - np.cos(alpha)) + z * np.cos(alpha) + (-b * u + a * v - v * x + u * y) * np.sin(alpha)
+    x_rot = (a * (v**2 + w**2) \
+             - u * (b * v + c * w - u * x - v * y - w * z)) \
+             * (1 - np.cos(alpha)) + x * np.cos(alpha) \
+             + (-c * v + b * w - w * y + v * z) * np.sin(alpha)
+    y_rot = (b * (u**2 + w**2) \
+             - v * (a * u + c * w - u * x - v * y - w * z)) \
+             * (1 - np.cos(alpha)) + y * np.cos(alpha) \
+             + (c * u - a * w + w * x - u * z) * np.sin(alpha)
+    z_rot = (c * (u**2 + v**2) \
+             - w * (a * u + b * v - u * x - v * y - w * z)) \
+             * (1 - np.cos(alpha)) + z * np.cos(alpha) \
+             + (-b * u + a * v - v * x + u * y) * np.sin(alpha)
 
     # to recover the k vector from the point rotated in space, we must subtract
     # a,b,c
