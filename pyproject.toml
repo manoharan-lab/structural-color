@@ -10,8 +10,22 @@ src = ['structcol']
 exclude = ["tutorials"]
 line-length = 79
 
+[tool.ruff.lint]
+# Rulesets for ruff to check
+select = [
+    # pyflakes rules
+    "F",
+    # pycodestyle (PEP8)
+    "E", "W",
+]
+
 [tool.ruff.lint.per-file-ignores]
+# Ignore long line warnings and unused variable warnings in test files. We
+# sometimes have long lines for nicely formatting gold results, and we sometimes
+# have unused variables just to check if function returns without an error
+"**/tests/*" = ["E501", "F841"]
+# Ignore "ambiguous variable name" when we use "l" as a variable in Mie
+# calculations
+"pymie/mie.py" = ["E741"]
 # for now, ignore "imported but unused" in __init__.py
 "__init__.py" = ["F401"]
-# ignore "variable assigned to but never used" in test files
-"test_*.py" = ["F841"]
