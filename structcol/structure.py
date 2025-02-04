@@ -26,7 +26,8 @@ structure factors
 """
 
 import numpy as np
-from . import ureg, Quantity  # unit registry and Quantity constructor from pint
+# unit registry and Quantity constructor from pint
+from . import ureg, Quantity
 import scipy as sp
 import scipy
 import os
@@ -34,8 +35,8 @@ import os
 @ureg.check('[]', '[]')    # inputs should be dimensionless
 def factor_py(qd, phi):
     """
-    Calculate structure factor of hard spheres using the Ornstein-Zernike equation
-    and Percus-Yevick approximation [1]_ [2]_.
+    Calculate structure factor of hard spheres using the Ornstein-Zernike
+    equation and Percus-Yevick approximation [1]_ [2]_.
 
     Parameters:
     ----------
@@ -76,12 +77,14 @@ def factor_py(qd, phi):
     lambda1 = (1 + 2*phi)**2 / (1 - phi)**4
     lambda2 = -(1 + phi/2.)**2 / (1 - phi)**4
     # Fourier transform of the direct correlation function (eq X.33 of [2]_)
-    c = -24*phi*(lambda1 * (np.sin(qd) - qd*np.cos(qd)) / qd**3  -
-                 6*phi*lambda2 * (qd**2 * np.cos(qd) - 2*qd*np.sin(qd) -
-                                  2*np.cos(qd)+2.0) / qd**4 -
-                 (phi*lambda1/2.) * (qd**4 * np.cos(qd) - 4*qd**3 * np.sin(qd) -
-                                     12 * qd**2 * np.cos(qd) + 24*qd * np.sin(qd) +
-                                     24 * np.cos(qd) - 24.0) / qd**6)
+    c = -24*phi*(lambda1 * (np.sin(qd) - qd*np.cos(qd)) / qd**3
+                 - 6*phi*lambda2 * (qd**2 * np.cos(qd) - 2*qd*np.sin(qd)
+                                    - 2*np.cos(qd)+2.0) / qd**4
+                 - (phi*lambda1/2.) * (qd**4 * np.cos(qd)
+                                       - 4*qd**3 * np.sin(qd)
+                                       - 12 * qd**2 * np.cos(qd)
+                                       + 24*qd * np.sin(qd)
+                                       + 24 * np.cos(qd) - 24.0) / qd**6)
     # Structure factor at qd (eq X.34 of [2]_)
     return 1.0/(1-c)
 
@@ -89,8 +92,8 @@ def factor_py(qd, phi):
 def factor_para(qd, phi, sigma=.15):
     """
     Calculate structure factor of a structure characterized by disorder of the
-    second kind as defined in Guinier [1]. This type of structure is referred to as
-    paracrystalline by Hoseman [2]. See also [3] for concise description.
+    second kind as defined in Guinier [1]. This type of structure is referred
+    to as paracrystalline by Hoseman [2]. See also [3] for concise description.
 
     Parameters:
     ----------
@@ -120,7 +123,8 @@ def factor_para(qd, phi, sigma=.15):
 
     References
     ----------
-    [1] Guinier, A (1963). X-Ray Diffraction. San Francisco and London: WH Freeman.
+    [1] Guinier, A (1963). X-Ray Diffraction. San Francisco and London: WH
+    Freeman.
 
     [2] Lindenmeyer, PH; Hosemann, R (1963). "Application of the Theory of
     Paracrystals to the Crystal Structure Analysis of Polyacrylonitrile".
@@ -270,8 +274,9 @@ def factor_poly(q, phi, diameters, c, pdi):
            np.pi**2*zeta2*rho/(2*Delta**2*s**2) * Ialpha2)
 
     F11 = np.sum(c*2*np.pi*rho*diameters**3/Delta * fa, axis=0)
-    F12 = np.sum(c/diameters * ((np.pi/Delta)**2 * rho * zeta2 * diameters**4*fa +
-                 np.pi*rho*diameters**3/Delta * fc), axis=0)
+    F12 = np.sum(c/diameters * ((np.pi/Delta)**2 * rho * zeta2
+                                * diameters**4*fa
+                                + np.pi*rho*diameters**3/Delta * fc), axis=0)
     F21 = np.sum(c * diameters * 2*np.pi*rho*diameters**3/Delta * fb, axis=0)
     F22 = np.sum(c * ((np.pi/Delta)**2 *rho*zeta2*diameters**4*fb +
                  np.pi*rho*diameters**3/Delta * fd), axis=0)
@@ -334,7 +339,8 @@ def field_phase_data(qd, filename='spf.dat'):
     qd_data = s_phase_data[:,0]
     s_phase = s_phase_data[:,1]
     s_phase_func = sp.interpolate.interp1d(qd_data, s_phase, kind = 'linear',
-                                           bounds_error=False, fill_value=s_phase_data[0,1])
+                                           bounds_error=False,
+                                           fill_value=s_phase_data[0,1])
     return s_phase_func(qd)
 
 def phase_factor(qd, phi, n=1000):
@@ -396,12 +402,14 @@ def field_phase_py(qd, phi, n=10000, r_d=np.arange(1,5,0.005)):
 
 def radial_dist_py(phi, x=np.arange(1,5,0.005)):
     '''
-    Calcualte the radial distribution function for hard spheres using the Percus-Yevick approximation.
+    Calculate the radial distribution function for hard spheres using the
+    Percus-Yevick approximation.
 
     This function and its helper functions is based on the code found here:
     https://github.com/FTurci/hard-spheres-utilities/blob/master/Percus-Yevick.py
     This method for calculating g(r) is described in the SI of:
-    J. W. E. Drewitt, F. Turci, B. J. Heinen, S. G. Macleod, F. Qin, A. K. Kleppe, and O. T. Lord. Phys. Rev. Lett. 124
+    J. W. E. Drewitt, F. Turci, B. J. Heinen, S. G. Macleod, F. Qin, A. K.
+    Kleppe, and O. T. Lord. Phys. Rev. Lett. 124
 
     Parameters:
     -----------
@@ -413,15 +421,16 @@ def radial_dist_py(phi, x=np.arange(1,5,0.005)):
     Returns:
     --------
     g_fcn(x): 1D numpy array
-            The radial distribution function calculated at the specified x values.
+       The radial distribution function calculated at the specified x
+       values.
     '''
     # number density
     if isinstance(phi,Quantity):
         phi = phi.magnitude
     rho=6./np.pi*phi
 
-    # get the direct correlation function c(r) from the analytic Percus-Yevick solution
-    # vectorizing the function
+    # get the direct correlation function c(r) from the analytic Percus-Yevick
+    # solution, vectorizing the function
     c=np.vectorize(cc)
 
     # space discretization
@@ -475,8 +484,10 @@ def inverse_spherical_FT(ff,k,r,dk):
     return ift
 
 # functions to calcualte direct correlation function
-# from Percus-Yevick. See D. Henderson "Condensed Matter Physics" 2009, Vol. 12, No. 2, pp. 127-135
-# or M. S Wertheim "Exact Solutions of the Percus-Yevick Integral for Hard Spheres" PRL. Vol. 10, No. 8, 1963
+# from Percus-Yevick. See D. Henderson "Condensed Matter Physics" 2009, Vol.
+# 12, No. 2, pp. 127-135
+# or M. S Wertheim "Exact Solutions of the Percus-Yevick Integral for Hard
+# Spheres" PRL. Vol. 10, No. 8, 1963
 def c0(eta):
     return -(1.+2.*eta)**2/(1.-eta)**4
 def c1(eta):
