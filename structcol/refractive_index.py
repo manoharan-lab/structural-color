@@ -40,7 +40,8 @@ http://refractiveindex.info (accessed August 14, 2016).
 """
 
 import numpy as np
-from . import ureg, Quantity  # unit registry and Quantity constructor from pint
+# unit registry and Quantity constructor from pint
+from . import ureg, Quantity
 from scipy.optimize import fsolve
 from scipy.interpolate import interp1d
 import warnings
@@ -71,11 +72,13 @@ n_dict = {
                                     2.086189578e-2*w*w/
                                     (w*w - Quantity('2.620722293e-2 um^2')) +
                                     1.130748688e-1*w*w/
-                                    (w*w - Quantity('1.069792721e1 um^2')) + 1),
+                                    (w*w - Quantity('1.069792721e1 um^2'))
+                               + 1),
 
 
-    # polystyrene data from N. Sultanova, S. Kasarova and I. Nikolov. Dispersion
-    # properties of optical polymers, Acta Physica Polonica A 116, 585-587 (2009).
+    # polystyrene data from N. Sultanova, S. Kasarova and I. Nikolov.
+    # Dispersion properties of optical polymers, Acta Physica Polonica A 116,
+    # 585-587 (2009).
     # Fit of the experimental data with the Sellmeier dispersion formula:
     # refractiveindex.info
     # data for 20 degrees C, 0.4368-1.052 micrometers
@@ -117,8 +120,8 @@ n_dict = {
     # silica glasses, Solar Energy Materials 12, 275-288 (1985)
     # refractiveindex.info
     # data for "room temperature", 0.31-4.6 micrometers
-    'soda lime glass': lambda w: 1.5130 - Quantity('0.003169 um^-2')*w*w +
-                                                  Quantity('0.003962 um^2')/(w*w),
+    'soda lime glass': lambda w: (1.5130 - Quantity('0.003169 um^-2')*w*w
+                                  + Quantity('0.003962 um^2')/(w*w)),
 
 
     # zirconia (ZrO2) data from I. Bodurov, I. Vlaeva, A. Viraneva,
