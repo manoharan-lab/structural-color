@@ -112,7 +112,8 @@ def select_events(inarray, events):
 
     Returns
     -------
-    1D array: contains only the elements of inarray corresponding to non-zero events values.
+    1D array: contains only the elements of inarray corresponding to non-zero
+              events values.
 
     '''
     # make inarray a numpy array if not already
@@ -153,9 +154,10 @@ rng = np.random.default_rng()
 def set_seed(seed):
     global rng
 
-    # Create a random number generator that reproduces old sampling behavior
-    # Note that seed is in the form of a list. This is to reproduce the previous values which are hardcoded in the tests.
-    # Setting the seed without the list brackets yeilds a different set of random numbers.
+    # Create a random number generator that reproduces old sampling behavior.
+    # Note that seed is in the form of a list. This is to reproduce the
+    # previous values which are hardcoded in the tests. Setting the seed
+    # without the list brackets yields a different set of random numbers.
     rng = np.random.RandomState([seed])
 
     # Also set the seed for the random module
