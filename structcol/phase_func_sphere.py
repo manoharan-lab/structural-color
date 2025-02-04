@@ -217,14 +217,15 @@ def calc_pdf(x, y, z, radius,
 
     if not phi_dependent:
         if nu_edge_correct.size == 0:
-            no_scat_warn = "No trajectories reflected or transmitted. Check sample parameters"
-            warnings.warn(no_scat_warn)
+            warnings.warn("No trajectories reflected or transmitted. "
+                          "Check sample parameters")
             pdf_array = np.nan
 
         else:
             # calculate the pdf kernel density estimate
             pdf = gaussian_kde(nu_edge_correct.magnitude,
-                               bw_method=kernel_bin_width, weights=weights_edge_correct)
+                               bw_method=kernel_bin_width,
+                               weights=weights_edge_correct)
 
             # calculate the pdf for specific nu values
             theta = np.linspace(0.01, np.pi, 200)
@@ -244,7 +245,8 @@ def calc_pdf(x, y, z, radius,
         # add reflections of data to ends to prevent dips in distribution
         # due to edges
         phi_edge_correct = np.tile(np.hstack((-phi, phi, -phi + 4 * np.pi)), 3)
-        nu_edge_correct = np.hstack((np.tile(-nu, 3), np.tile(nu, 3), np.tile(-nu + 2, 3)))
+        nu_edge_correct = np.hstack((np.tile(-nu, 3), np.tile(nu, 3),
+                                     np.tile(-nu + 2, 3)))
 
         # calculate the pdf kernel density estimate
         pdf = gaussian_kde(np.vstack([nu_edge_correct, phi_edge_correct]))
@@ -265,7 +267,8 @@ def calc_pdf(x, y, z, radius,
             plot_dist_1d(nu_range, nu, nu_edge_correct, pdf_marg_nu)
             plt.xlabel(r'$\nu$')
 
-            # plot the phi distribution from data, with edge correction, and kde
+            # plot the phi distribution from data, with edge correction, and
+            # kde
             pdf_marg_phi = np.sum(pdf_vals, axis = 1)
             plot_dist_1d(phi_range, phi, phi_edge_correct, pdf_marg_phi)
             plt.xlabel(r'$\phi$')
@@ -320,11 +323,13 @@ def plot_phase_func(pdf, nu=np.linspace(0, 1, 200), phi=None, save=False):
         nu_2d = (np.cos(theta_2d) + 1) / 2
         angles = np.vstack([nu_2d.ravel(), phi_2d.ravel()])
         pdf_vals = np.reshape(pdf(angles), theta_2d.shape)
-        phase_func = pdf_vals / np.sum(pdf_vals * np.diff(phi)[0] * np.diff(theta)[0])
+        phase_func = pdf_vals / np.sum(pdf_vals * np.diff(phi)[0]
+                                       * np.diff(theta)[0])
 
         # make heatmap
         fig, ax = plt.subplots()
-        cax = ax.imshow(phase_func, cmap=plt.cm.gist_earth_r, extent=[theta[0], theta[-1], phi[0], phi[-1]])
+        cax = ax.imshow(phase_func, cmap=plt.cm.gist_earth_r,
+                        extent=[theta[0], theta[-1], phi[0], phi[-1]])
         ax.set_xlabel('theta')
         ax.set_ylabel('phi')
         ax.set_xlim([theta[0], theta[-1]])
@@ -375,7 +380,8 @@ def plot_dist_1d(var_range, var_data, var_data_edge_correct, pdf_var_vals):
     plt.xlim([var_range[0],var_range[-1]])
     plt.ylabel('probability density')
 
-def calc_directions(theta_sample, phi_sample, x_inter,y_inter, z_inter, k1, radius):
+def calc_directions(theta_sample, phi_sample, x_inter,y_inter, z_inter, k1,
+                    radius):
     '''
     Calculates directions of exit trajectories
 
@@ -497,8 +503,9 @@ def calc_d_avg(volume_fraction, radius):
 
     return d_avg
 
-def calc_mu_scat_abs(refl_per_traj, trans_per_traj, refl_indices, trans_indices,
-                     volume_fraction, radius, n_sample, wavelength):
+def calc_mu_scat_abs(refl_per_traj, trans_per_traj, refl_indices,
+                     trans_indices, volume_fraction, radius, n_sample,
+                     wavelength):
     '''
     Calculates scattering coefficient and absorption coefficient using results
     of the Monte Carlo calc_refl_trans() function
@@ -572,13 +579,15 @@ def calc_mu_scat_abs(refl_per_traj, trans_per_traj, refl_indices, trans_indices,
 
     # calculate the total absorption cross section
     # assumes no stuck
-    tot_abs_cross_section = (1 - np.sum(refl_per_traj + trans_per_traj)) * np.pi * radius**2
+    tot_abs_cross_section = ((1 - np.sum(refl_per_traj + trans_per_traj))
+                             * np.pi * radius**2)
 
     # remove transmission contribution from trajectories that did not scatter
     trans_per_traj_scat = np.copy(trans_per_traj)
     trans_per_traj_scat[trans_indices == 1] = 0
 
-    tot_scat_cross_section = np.sum(refl_per_traj + trans_per_traj_scat) * 2 * np.pi * radius**2
+    tot_scat_cross_section = (np.sum(refl_per_traj + trans_per_traj_scat)
+                              * 2 * np.pi * radius**2)
 
     # calculate mu_scat, mu_abs using the sphere
     mu_scat = number_density * tot_scat_cross_section
@@ -645,7 +654,8 @@ def calc_scat_bulk(refl_per_traj,
     nu_range: 1d array (optional)
         the nu values for which the pdf
     phi_range: 1d array (optional)
-        the phi values for which to calculate the pdf, if the pdf is phi-dependent
+        the phi values for which to calculate the pdf, if the pdf is
+        phi-dependent
     kz: None or 1d array (optional)
         the kz values at the exit events of the trajectories
     kernel_bin_width: string or scalar or callable (optional)
@@ -669,12 +679,14 @@ def calc_scat_bulk(refl_per_traj,
     # calculate the lscat of the microsphere for use in the bulk simulation
     mu_scat, mu_abs = calc_mu_scat_abs(refl_per_traj, trans_per_traj,
                                        refl_indices, trans_indices,
-                                       volume_fraction, radius, n_sample, wavelength)
+                                       volume_fraction, radius, n_sample,
+                                       wavelength)
 
     # find the points on the sphere where trajectories exit
     x_inter, y_inter, z_inter = get_exit_pos(norm_refl, norm_trans, radius)
 
-    # calculate the probability density function as a function of nu, which depends on the scattering angle
+    # calculate the probability density function as a function of nu, which
+    # depends on the scattering angle
     p = calc_pdf(x_inter, y_inter, z_inter, radius,
                  refl_per_traj,
                  trans_per_traj,
@@ -711,20 +723,22 @@ def size_distribution(diameter_range, mean, t):
 
     '''
     if t <= 100:
-        schulz = ((t + 1) / mean)**(t + 1) * diameter_range**t / factorial(t) * np.exp(- diameter_range / mean * (t + 1))
+        schulz = (((t + 1) / mean)**(t + 1) * diameter_range**t
+                  / factorial(t) * np.exp(- diameter_range / mean * (t + 1)))
         distr = schulz
     else:
         std_dev = diameter_range / np.sqrt(t + 1)
-        distr = np.exp(- (diameter_range - mean)**2 / (2 * std_dev**2)) / np.sqrt(2 * np.pi * std_dev**2)
+        distr = (np.exp(-(diameter_range - mean)**2 / (2 * std_dev**2))
+                 / np.sqrt(2 * np.pi * std_dev**2))
         #distr = distr/np.sum(distr)
     return(distr)
 
 def calc_diam_list(num_diam, diameter_mean, pdi,
                    equal_spacing=False, plot=True, num_pdf_points=600):
     '''
-    Calculate the list of radii to sample from for a given polydispersity and number of radii.
-    This function is used specifically to calculate a list of radii to sample
-    in the polydisperse bulk Monte Carlo model.
+    Calculate the list of radii to sample from for a given polydispersity and
+    number of radii. This function is used specifically to calculate a list of
+    radii to sample in the polydisperse bulk Monte Carlo model.
 
     Parameters
     ----------
@@ -753,14 +767,18 @@ def calc_diam_list(num_diam, diameter_mean, pdi,
     radius_mean = diameter_mean / 2
 
     # calculate the range of diameters at which to calculate the pdf
-    diam_range = np.linspace(1, 4 * radius_mean.magnitude, num_pdf_points) * radius_mean.units
+    diam_range = (np.linspace(1, 4 * radius_mean.magnitude, num_pdf_points)
+                  * radius_mean.units)
 
     # claculate the radii at equal spacings
     if equal_spacing:
         rad_mean = radius_mean.magnitude
         num_half = int(np.round((num_diam + 1) / 2))
-        rad_list = np.unique(np.hstack((np.linspace(rad_mean / 100, rad_mean, num_half),
-                                        np.linspace(rad_mean, 2 * rad_mean, num_half)))) * radius_mean.units
+        rad_list = (np.unique(np.hstack((np.linspace(rad_mean / 100,
+                                                     rad_mean, num_half),
+                                         np.linspace(rad_mean,
+                                                    2 * rad_mean, num_half))))
+                    * radius_mean.units)
     # calculate the radii based on FWHM
     else:
         # calculate pdf
@@ -773,15 +791,17 @@ def calc_diam_list(num_diam, diameter_mean, pdi,
         max_rad = rad_range[max_rad_ind]
 
         # calculate the list of radii
-        # This algorithm starts by finding the radius at the FWHM on either side
-        # of the maximum. Then is finds the radius at the FW(3/4)M, then FW(1/4)M,
-        # then FW(7/8)M, then FW(5/8)M, then FW(3/8)M...
+        # This algorithm starts by finding the radius at the FWHM on either
+        # side of the maximum. Then is finds the radius at the FW(3/4)M, then
+        # FW(1/4)M, then FW(7/8)M, then FW(5/8)M, then FW(3/8)M...
         rad_list = [max_rad]
         num = 1
         denom = 2
         for i in range(0, num_diam - 1, 2):
-            rad_ind_1 = np.argmin(np.abs(pdf_range[0:int(num_pdf_points/2)] - (num / denom) * np.max(pdf_range)))
-            rad_ind_2 = np.argmin(np.abs(pdf_range[int(num_pdf_points/2):] - (num / denom) * np.max(pdf_range)))
+            rad_ind_1 = np.argmin(np.abs(pdf_range[0:int(num_pdf_points/2)]
+                                         - (num / denom) * np.max(pdf_range)))
+            rad_ind_2 = np.argmin(np.abs(pdf_range[int(num_pdf_points/2):]
+                                         - (num / denom) * np.max(pdf_range)))
             rad_list.append(rad_range[rad_ind_1])
             rad_list.append(rad_range[300 + rad_ind_2])
             if num == 1:
@@ -817,7 +837,8 @@ def calc_diam_list(num_diam, diameter_mean, pdi,
 
 def sample_diams(pdi, diam_list, diam_mean, ntrajectories_bulk, nevents_bulk):
     '''
-    Sample the radii to simulate polydispersity in the bulk Monte Carlo simulation
+    Sample the radii to simulate polydispersity in the bulk Monte Carlo
+    simulation
 
     Parameters
     ----------
@@ -835,8 +856,8 @@ def sample_diams(pdi, diam_list, diam_mean, ntrajectories_bulk, nevents_bulk):
     Returns
     -------
     diams_sampled: 2d array (shape nevents_bulk, ntrajectories_bulk)
-        array of the samples microsphere diameters for polydisperity in the bulk
-        Monte Carlo calculations
+        array of the samples microsphere diameters for polydisperity in the
+        bulk Monte Carlo calculations
     '''
     # calculate t for distrubtion
     t = (1 - pdi**2) / pdi**2
@@ -849,14 +870,14 @@ def sample_diams(pdi, diam_list, diam_mean, ntrajectories_bulk, nevents_bulk):
     diams_sampled = np.reshape(np.random.choice(diam_list.magnitude,
                                                 ntrajectories_bulk*nevents_bulk,
                                                 p=pdf_norm),
-                                                (nevents_bulk,ntrajectories_bulk))
+                               (nevents_bulk, ntrajectories_bulk))
 
     return diams_sampled
 
 def sample_concentration(p, ntrajectories_bulk, nevents_bulk):
     '''
-    Sample the radii to simulate polydispersity in the bulk Monte Carlo simulation
-    using pre-calculated probabilities
+    Sample the radii to simulate polydispersity in the bulk Monte Carlo
+    simulation using pre-calculated probabilities
 
     Parameters
     ----------
@@ -877,8 +898,9 @@ def sample_concentration(p, ntrajectories_bulk, nevents_bulk):
     param_list = np.arange(np.size(p)) + 1
 
     params_sampled = np.reshape(np.random.choice(param_list,
-                                                 ntrajectories_bulk*nevents_bulk, p=p),
-                                                 (nevents_bulk,ntrajectories_bulk))
+                                                 (ntrajectories_bulk
+                                                  *nevents_bulk), p=p),
+                                (nevents_bulk, ntrajectories_bulk))
 
     return params_sampled
 
@@ -886,9 +908,9 @@ def sample_concentration(p, ntrajectories_bulk, nevents_bulk):
 def sample_angles_step_poly(nevents_bulk, ntrajectories_bulk, p_sphere,
                             params_sampled, mu_scat_bulk, param_list=None):
     '''
-    Calculate the list of radii to sample from for a given polydispersity and number of radii.
-    This function is used specifically to calculate a list of radii to sample
-    in the polydisperse bulk Monte Carlo model.
+    Calculate the list of radii to sample from for a given polydispersity and
+    number of radii. This function is used specifically to calculate a list of
+    radii to sample in the polydisperse bulk Monte Carlo model.
 
     Parameters
     ----------
@@ -900,8 +922,8 @@ def sample_angles_step_poly(nevents_bulk, ntrajectories_bulk, p_sphere,
         phase function for a sphere, found from a Monte Carlo simulation
         with spherical boundary conditions
     params_sampled: 2d array (shape nevents_bulk, ntrajectories_bulk)
-        array of the sampled microsphere parameters (could be radius or diameter)
-        for polydisperity in the bulk Monte Carlo calculations
+        array of the sampled microsphere parameters (could be radius or
+        diameter) for polydisperity in the bulk Monte Carlo calculations
     mu_scat_bulk: 1d array (sc.Quantity, length number of sphere types)
         scattering coefficient for a sphere, calculated using Monte Carlo
         simulation with spherical boundary conditions
@@ -950,7 +972,8 @@ def sample_angles_step_poly(nevents_bulk, ntrajectories_bulk, p_sphere,
 
         # sample step sizes
         rand = np.random.random(ind_ev.size)
-        lscat_rad_samp[ind_ev, ind_tr] = -np.log(1.0 - rand) * lscat[j].magnitude
+        lscat_rad_samp[ind_ev, ind_tr] = (-np.log(1.0 - rand)
+                                          * lscat[j].magnitude)
 
         # sample angles
         theta[ind_ev, ind_tr] = np.random.choice(angles, ind_ev.size,
@@ -959,6 +982,7 @@ def sample_angles_step_poly(nevents_bulk, ntrajectories_bulk, p_sphere,
     # calculate sines, cosines, and step
     sintheta = np.sin(theta)
     costheta = np.cos(theta)
-    step = lscat_rad_samp * np.ones((nevents_bulk, ntrajectories_bulk)) * lscat.units
+    step = (lscat_rad_samp * np.ones((nevents_bulk, ntrajectories_bulk))
+            * lscat.units)
 
     return sintheta, costheta, sinphi, cosphi, step, theta, phi
