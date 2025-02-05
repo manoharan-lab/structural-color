@@ -49,7 +49,10 @@ refl_index = np.array([2, 0, 2])
 
 
 def test_sampling():
-    # Test that 'calc_scat' runs
+    # Test that 'calc_scat' runs. Since this test just looks to see whether
+    # sampling angles and steps works, it's better if we don't give it a seeded
+    # random number generator, so that we can ensure that sampling works with
+    # the default generator.
     p, mu_scat, mu_abs = mc.calc_scat(radius, n_particle, n_sample,
                                       volume_fraction, wavelen)
 
@@ -65,7 +68,7 @@ def test_trajectories():
     nevents = 2
     ntrajectories = 3
     r0, k0, W0 = mc.initialize(nevents, ntrajectories, n_medium, n_sample,
-                               'film', seed=1)
+                               'film')
     r0 = sc.Quantity(r0, 'um')
     k0 = sc.Quantity(k0, '')
     W0 = sc.Quantity(W0, '')
@@ -77,6 +80,8 @@ def test_trajectories():
     mu_abs = 1/sc.Quantity(10.0, 'um')
     step = sc.Quantity(np.array([[1, 1, 1], [1, 1, 1]]), 'um')
     trajectories.absorb(mu_abs, step)
+    # since step size is given (not sampled), this test should produce a
+    # deterministic result
     assert_almost_equal(trajectories.weight.magnitude,
                  np.array([[ 0.90483742,  0.90483742,  0.90483742],
                            [ 0.81873075,  0.81873075,  0.81873075]]))
@@ -86,6 +91,8 @@ def test_trajectories():
     costheta = np.array([[-1., -1., -1.], [1., 1., 1.]])
     sinphi = np.array([[0., 0., 0.], [0., 0., 0.]])
     cosphi = np.array([[0., 0., 0.], [0., 0., 0.]])
+
+    # Test the scatter function. Should also produce a deterministic result
     trajectories.scatter(sintheta, costheta, sinphi, cosphi)
 
     # Expected propagation directions
@@ -93,12 +100,12 @@ def test_trajectories():
     ky = sc.Quantity(np.array([[0., 0., 0.], [0., 0., 0.]]), '')
     kz = sc.Quantity(np.array([[1., 1., 1.], [-1., -1., -1.]]), '')
 
-    # Test the scatter function
-    assert_almost_equal(trajectories.direction[0].magnitude, kx.magnitude)
-    assert_almost_equal(trajectories.direction[1].magnitude, ky.magnitude)
-    assert_almost_equal(trajectories.direction[2].magnitude, kz.magnitude)
+    assert_equal(trajectories.direction[0].magnitude, kx.magnitude)
+    assert_equal(trajectories.direction[1].magnitude, ky.magnitude)
+    assert_equal(trajectories.direction[2].magnitude, kz.magnitude)
 
-    # Test the move function
+    # Test the move function.  Should also produce a deterministic result since
+    # step sizes are given.
     trajectories.move(step)
     assert_equal(trajectories.position[2].magnitude, np.array([[0, 0, 0],
                                                                [1, 1, 1],
@@ -108,9 +115,9 @@ def test_trajectories():
 def test_phase_function_absorbing_medium():
     # test that the phase function using the far-field Mie solutions
     # (mie.calc_ang_dist()) in an absorbing medium is the same as the phase
-    # function using the Mie solutions with the asymptotic form of the spherical
-    # Hankel functions but using a complex k (mie.diff_scat_intensity_complex_medium()
-    # with near_fields=False)
+    # function using the Mie solutions with the asymptotic form of the
+    # spherical Hankel functions but using a complex k
+    # (mie.diff_scat_intensity_complex_medium() with near_fields=False)
     wavelen = sc.Quantity('550.0 nm')
     radius = sc.Quantity('105.0 nm')
     n_matrix = sc.Quantity(1.47 + 0.001j, '')

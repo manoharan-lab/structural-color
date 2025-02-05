@@ -31,15 +31,16 @@ from numpy.testing import assert_equal, assert_almost_equal, assert_array_less
 import pytest
 
 # Monte Carlo parameters
-ntrajectories = 30 # number of trajectories
-nevents = 300 # number of scattering events in each trajectory
+ntrajectories = 30
+# number of scattering events in each trajectory
+nevents = 300
 
 # source/detector properties
-wavelength = sc.Quantity(np.array(550.0),'nm') # wavelength at which to run simulation
+wavelength = sc.Quantity(np.array(550.0),'nm')
 
 # sample properties
-particle_radius = sc.Quantity('140.0 nm') # radius of the particles
-volume_fraction = sc.Quantity(0.56, '') # volume fraction of particles
+particle_radius = sc.Quantity('140.0 nm')
+volume_fraction = sc.Quantity(0.56, '')
 thickness = sc.Quantity('10.0 um')
 particle = 'ps'
 matrix = 'air'
@@ -60,22 +61,31 @@ n_sample = ri.n_eff(n_particle, n_matrix, volume_fraction)
 # Calculate the phase function and scattering and absorption coefficients from
 # the single scattering model (this absorption coefficient is of the scatterer,
 # not of an absorber added to the system)
-p, mu_scat, mu_abs = mc.calc_scat(particle_radius, n_particle, n_sample, volume_fraction, wavelength)
+p, mu_scat, mu_abs = mc.calc_scat(particle_radius, n_particle, n_sample,
+                                  volume_fraction, wavelength)
 lscat = 1/mu_scat.magnitude # microns
 
+# set up a seeded random number generator that will give consistent results
+# between numpy versions.
+seed = 1
+rng = np.random.RandomState([seed])
+
 # Initialize the trajectories
-r0, k0, W0 = mc.initialize(nevents, ntrajectories, n_medium, n_sample, boundary)
+r0, k0, W0 = mc.initialize(nevents, ntrajectories, n_medium, n_sample,
+                           boundary, rng=rng)
 r0 = sc.Quantity(r0, 'um')
 k0 = sc.Quantity(k0, '')
 W0 = sc.Quantity(W0, '')
 
 # Generate a matrix of all the randomly sampled angles first
-sintheta, costheta, sinphi, cosphi, theta, _ = mc.sample_angles(nevents, ntrajectories, p)
+sintheta, costheta, sinphi, cosphi, theta, _ = mc.sample_angles(nevents,
+                                                                ntrajectories,
+                                                                p, rng=rng)
 sintheta = np.sin(theta)
 costheta = np.cos(theta)
 
 # Create step size distribution
-step = mc.sample_step(nevents, ntrajectories, mu_scat)
+step = mc.sample_step(nevents, ntrajectories, mu_scat, rng=rng)
 
 # Create trajectories object
 trajectories = mc.Trajectory(r0, k0, W0)
@@ -112,7 +122,8 @@ def test_refl_events():
     '''
 
     # sum of refl_events should be less than reflectance because it doesn't
-    # contain correction terms for fresnel (and stuck for cases where that matters)
+    # contain correction terms for fresnel (and stuck for cases where that
+    # matters)
     assert_array_less(np.sum(refl_events), reflectance)
 
     # trajectories always propagate into the sample for first event, so none
@@ -147,10 +158,11 @@ def test_fresnel_events():
                                                               trans_fresnel,
                                                               refl_frac,
                                                               trans_frac,
-                                                              nevents)
+                                                              nevents, rng=rng)
 
     # check that average and sampling give same total
-    assert_almost_equal(np.sum(refl_events_fresnel_avg), np.sum(refl_events_fresnel_samp))
+    assert_almost_equal(np.sum(refl_events_fresnel_avg),
+                        np.sum(refl_events_fresnel_samp))
 
     # check that reflectance from monte carlo gives same as fresnel reflected
     # summed reflectance from event distribution

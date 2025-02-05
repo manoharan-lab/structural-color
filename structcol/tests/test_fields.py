@@ -32,7 +32,9 @@ from numpy.testing import assert_almost_equal
 import pytest
 
 def test_2pi_shift():
-# test that phase mod 2Pi is the same as phase
+    # test that phase mod 2Pi is the same as phase.
+    # This test should pass irrespective of the state of the random number
+    # generator, so we do not need to explicitly specify a seed.
 
     # incident light wavelength
     wavelength = sc.Quantity('600.0 nm')
@@ -107,8 +109,11 @@ def test_2pi_shift():
 
 
 def test_intensity_coherent():
-#  tests that the intensity of the summed fields correspond to the equation for
-#  coherent light: Ix = E_x1^2 + E_x2^2 + 2E_x1*E_x2
+    # tests that the intensity of the summed fields correspond to the equation for
+    # coherent light: Ix = E_x1^2 + E_x2^2 + 2E_x1*E_x2
+
+    # this test isn't based on random values, so should produce deterministic
+    # results.
 
     # construct 2 identical trajectories that exit at same event
     ntrajectories = 2
@@ -144,7 +149,8 @@ def test_intensity_coherent():
     assert_almost_equal(intensity, intensity_2, decimal=15)
 
 def test_pi_shift_zero():
-# tests if a pi shift leads to zero intensity
+    # tests if a pi shift leads to zero intensity. This test should produce a
+    # deterministic result.
 
     # construct 2 trajectories with relative pi phase shift that exit at same event
     ntrajectories = 2
@@ -170,6 +176,10 @@ def test_pi_shift_zero():
 
 def test_field_normalized():
     # calculate fields and directions
+
+    # This test should pass regardless of the state of the random number
+    # generator, so we do not need to specify an explicit seed.
+
     # incident light wavelength
     wavelength = sc.Quantity('600.0 nm')
 
@@ -229,6 +239,10 @@ def test_field_normalized():
 
 def test_field_perp_direction():
     # calculate fields and directions
+
+    # This test should pass regardless of the state of the random number
+    # generator, so we do not need to specify an explicit seed.
+
     # incident light wavelength
     wavelength = sc.Quantity('600.0 nm')
 
@@ -236,10 +250,10 @@ def test_field_perp_direction():
     radius = sc.Quantity('0.140 um')
     volume_fraction = sc.Quantity(0.55, '')
     n_imag = 2.1e-4
-    n_particle = ri.n('polystyrene', wavelength) + n_imag*1j    # refractive indices can be specified as pint quantities or
-    n_matrix = ri.n('vacuum', wavelength)      # called from the refractive_index module. n_matrix is the
-    n_medium = ri.n('vacuum', wavelength)      # space within sample. n_medium is outside the sample
-    n_sample = ri.n_eff(n_particle,         # refractive index of sample, calculated using Bruggeman approximation
+    n_particle = ri.n('polystyrene', wavelength) + n_imag*1j
+    n_matrix = ri.n('vacuum', wavelength)
+    n_medium = ri.n('vacuum', wavelength)
+    n_sample = ri.n_eff(n_particle,
                         n_matrix,
                         volume_fraction)
     boundary = 'film'
@@ -265,7 +279,7 @@ def test_field_perp_direction():
 
     # Sample trajectory angles
     sintheta, costheta, sinphi, cosphi, theta, phi= mc.sample_angles(nevents,
-                                                               ntrajectories,p)
+                                                                     ntrajectories,p)
     # Sample step sizes
     step = mc.sample_step(nevents, ntrajectories, mu_scat)
 

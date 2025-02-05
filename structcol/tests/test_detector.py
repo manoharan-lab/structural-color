@@ -176,16 +176,18 @@ def test_reflection_core_shell():
     n_particle_abs = sc.Quantity(1.5+0.001j, '')
     n_sample_abs = ri.n_eff(n_particle_abs, n_matrix, volume_fraction)
 
-    R_abs, T_abs = calc_montecarlo(nevents, ntrajectories, radius, n_particle_abs,
-                           n_sample_abs, n_medium, volume_fraction, wavelen, seed)
+    R_abs, T_abs = calc_montecarlo(nevents, ntrajectories, radius,
+                                   n_particle_abs, n_sample_abs, n_medium,
+                                   volume_fraction, wavelen, seed)
 
     # Reflection using core-shells with the shell index-matched to the core
     n_particle_cs_abs = sc.Quantity(np.array([1.5+0.001j,1.5+0.001j]), '')
     n_sample_cs_abs = ri.n_eff(n_particle_cs_abs, n_matrix, vf_array)
 
     R_cs_abs, T_cs_abs = calc_montecarlo(nevents, ntrajectories, radius_cs,
-                                 n_particle_cs_abs, n_sample_cs_abs, n_medium,
-                                 volume_fraction, wavelen, seed)
+                                         n_particle_cs_abs, n_sample_cs_abs,
+                                         n_medium, volume_fraction, wavelen,
+                                         seed)
 
     assert_almost_equal(R_abs, R_cs_abs, decimal=6)
     assert_almost_equal(T_abs, T_cs_abs, decimal=6)
@@ -212,8 +214,9 @@ def test_reflection_core_shell():
     n_matrix_abs = sc.Quantity(1.+0.001j, '')
     n_sample_abs = ri.n_eff(n_particle_abs, n_matrix_abs, volume_fraction)
 
-    R_abs, T_abs = calc_montecarlo(nevents, ntrajectories, radius, n_particle_abs,
-                           n_sample_abs, n_medium, volume_fraction, wavelen, seed)
+    R_abs, T_abs = calc_montecarlo(nevents, ntrajectories, radius,
+                           n_particle_abs, n_sample_abs, n_medium,
+                           volume_fraction, wavelen, seed)
 
     # Reflection using core-shells with the shell index-matched to the core
     n_particle_cs_abs = sc.Quantity(np.array([1.5+0.001j,1.5+0.001j]), '')
@@ -570,29 +573,34 @@ def calc_montecarlo(nevents, ntrajectories, radius, n_particle, n_sample,
                     fine_roughness=0., coarse_roughness=0., n_matrix=None,
                     incidence_theta_min=0., incidence_theta_max=0.):
 
+    # set up a seeded random number generator that will give consistent results
+    # between numpy versions. This is to reproduce the gold values which are
+    # hardcoded in the tests. Note that seed is in the form of a list. Setting
+    # the seed without the list brackets yields a different set of random
+    # numbers.
+    rng = np.random.RandomState([seed])
+
     incidence_theta_min=sc.Quantity(incidence_theta_min,'rad')
     incidence_theta_max=sc.Quantity(incidence_theta_min,'rad')
 
     # Function to run montecarlo for the tests
     p, mu_scat, mu_abs = mc.calc_scat(radius, n_particle, n_sample,
-                                      volume_fraction, wavelen, radius2=radius2,
+                                      volume_fraction, wavelen,
+                                      radius2=radius2,
                                       concentration=concentration, pdi=pdi,
                                       polydisperse=polydisperse,
-                                      fine_roughness=fine_roughness, n_matrix=n_matrix)
+                                      fine_roughness=fine_roughness,
+                                      n_matrix=n_matrix)
 
     if coarse_roughness > 0.:
-        r0, k0, W0, kz0_rotated, kz0_reflected = mc.initialize(nevents,
-                                                               ntrajectories,
-                                                               n_medium,
-                                                               n_sample,
-                                                               'film',
-                                                               seed=seed,
-                                                               coarse_roughness=coarse_roughness,
-                                                               incidence_theta_min=incidence_theta_min,
-                                                               incidence_theta_max=incidence_theta_max)
+        r0, k0, W0, kz0_rotated, kz0_reflected = \
+            mc.initialize(nevents, ntrajectories, n_medium, n_sample, 'film',
+                          rng=rng, coarse_roughness=coarse_roughness,
+                          incidence_theta_min=incidence_theta_min,
+                          incidence_theta_max=incidence_theta_max)
     else:
         r0, k0, W0 = mc.initialize(nevents, ntrajectories, n_medium, n_sample,
-                                   'film', seed=seed,
+                                   'film', rng=rng,
                                    incidence_theta_min=incidence_theta_min,
                                    incidence_theta_max=incidence_theta_max)
         kz0_rotated = None
@@ -603,9 +611,10 @@ def calc_montecarlo(nevents, ntrajectories, radius, n_particle, n_sample,
     W0 = sc.Quantity(W0, '')
 
     sintheta, costheta, sinphi, cosphi, _, _= mc.sample_angles(nevents,
-                                                               ntrajectories,p)
+                                                               ntrajectories,
+                                                               p, rng=rng)
     step = mc.sample_step(nevents, ntrajectories, mu_scat,
-                          fine_roughness=fine_roughness)
+                          fine_roughness=fine_roughness, rng=rng)
 
     trajectories = mc.Trajectory(r0, k0, W0)
     trajectories.absorb(mu_abs, step)
@@ -631,7 +640,8 @@ def test_goniometer_normalization():
     det_distance = 13.
     det_len = 2.4
     det_theta = 0
-    refl_renorm = det.normalize_refl_goniometer(refl, det_distance, det_len, det_theta)
+    refl_renorm = det.normalize_refl_goniometer(refl, det_distance, det_len,
+                                                det_theta)
 
     assert_almost_equal(refl_renorm, 0.368700804483) # calculated by hand
 
@@ -646,7 +656,8 @@ def test_goniometer_detector():
     kx = np.array([[0,0,0,0],[0,0,0,0],[0,0,0,1/np.sqrt(2)]])
     kz = np.array([[1,1,1,1],[-1,-1,1,1],[-1,-1,1,-1/np.sqrt(2)]])
     weights = np.ones((nevents, ntrajectories))
-    trajectories = mc.Trajectory(np.array([x_pos, y_pos, z_pos]),np.array([kx, ky, kz]), weights)
+    trajectories = mc.Trajectory(np.array([x_pos, y_pos, z_pos]),
+                                 np.array([kx, ky, kz]), weights)
     thickness = 10
     n_medium = 1
     n_sample = 1

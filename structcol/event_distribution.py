@@ -520,8 +520,8 @@ def calc_pdf_scat(refl_events, trans_events, nevents):
     return pdf_refl, pdf_trans
 
 def calc_refl_event_fresnel_pdf(refl_events, pdf_refl, pdf_trans, refl_indices,
-                            trans_indices, refl_fresnel, trans_fresnel,
-                            refl_frac, trans_frac, nevents):
+                                trans_indices, refl_fresnel, trans_fresnel,
+                                refl_frac, trans_frac, nevents, rng=None):
     '''
     Calculates the reflectance contribution from fresnel reflected trajectory
     weights and adds it to the total reflectance contribution for a sampled
@@ -558,6 +558,9 @@ def calc_refl_event_fresnel_pdf(refl_events, pdf_refl, pdf_trans, refl_indices,
         known outcomes of trajectories
     nevents: int
         number of events for which Monte Carlo calculation is run
+    rng: numpy.random.Generator object (default None) random number generator.
+        If not specified, use the default generator initialized on loading the
+        package
 
     Returns
     -------
@@ -565,13 +568,16 @@ def calc_refl_event_fresnel_pdf(refl_events, pdf_refl, pdf_trans, refl_indices,
         reflectance contribution for each event added to the fresnel
         reflectance contribution for each event.
     '''
+    if rng is None:
+        rng = sc.rng
+
     # sample reflection and transmission event numbers
-    sampled_refl_event = np.random.choice(np.arange(2, nevents + 1),
-                                          size = nevents+1,
-                                          p = pdf_refl)
-    sampled_trans_event = np.random.choice(np.arange(1, nevents + 1),
-                                          size = nevents+1,
-                                          p = pdf_trans)
+    sampled_refl_event = rng.choice(np.arange(2, nevents + 1),
+                                    size = nevents+1,
+                                    p = pdf_refl)
+    sampled_trans_event = rng.choice(np.arange(1, nevents + 1),
+                                     size = nevents+1,
+                                     p = pdf_trans)
 
     # add the frensel reflected trajectory event to the sampled event of
     # reflection or transmission

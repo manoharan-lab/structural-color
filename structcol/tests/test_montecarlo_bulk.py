@@ -68,6 +68,11 @@ nevents = 300
 
 
 def calc_sphere_mc():
+    # set up a seeded random number generator that will give consistent results
+    # between numpy versions.
+    seed = 1
+    rng = np.random.RandomState([seed])
+
 
     # caculate the effective index of the sample
     n_sample = ri.n_eff(n_particle, n_matrix, volume_fraction_particles)
@@ -80,9 +85,10 @@ def calc_sphere_mc():
                                       volume_fraction_particles, wavelength)
 
     # Initialize the trajectories
-    r0, k0, W0 = mc.initialize(nevents, ntrajectories, n_matrix_bulk,
-                                      n_sample, boundary,
-                                      sample_diameter = sphere_boundary_diameter)
+    r0, k0, W0 = mc.initialize(nevents, ntrajectories, n_matrix_bulk, n_sample,
+                               boundary,
+                               sample_diameter = sphere_boundary_diameter,
+                               rng=rng)
     r0 = sc.Quantity(r0, 'um')
     k0 = sc.Quantity(k0, '')
     W0 = sc.Quantity(W0, '')
@@ -93,10 +99,10 @@ def calc_sphere_mc():
     # Generate a matrix of all the randomly sampled angles first
     sintheta, costheta, sinphi, cosphi, _, _ = mc.sample_angles(nevents,
                                                                 ntrajectories,
-                                                                p)
+                                                                p, rng=rng)
 
     # Create step size distribution
-    step = mc.sample_step(nevents, ntrajectories, mu_scat)
+    step = mc.sample_step(nevents, ntrajectories, mu_scat, rng=rng)
 
     # Run photons
     trajectories.absorb(mu_abs, step)

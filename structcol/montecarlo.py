@@ -487,7 +487,7 @@ class Trajectory:
                              color=next(colors))
 
 
-def initialize(nevents, ntraj, n_medium, n_sample, boundary, seed=None,
+def initialize(nevents, ntraj, n_medium, n_sample, boundary, rng=None,
                incidence_theta_min=sc.Quantity(0.,'rad'),
                incidence_theta_max=sc.Quantity(0.,'rad'),
                incidence_theta_data=None,
@@ -531,9 +531,9 @@ def initialize(nevents, ntraj, n_medium, n_sample, boundary, seed=None,
     boundary: string
         Geometrical boundary for Monte Carlo calculations. Current options are
         'film' or 'sphere'
-    seed: int or None
-        If seed is int, the simulation results will be reproducible. If seed is
-        None, the simulation results are actually random.
+    rng: numpy.random.Generator object (default None) random number generator.
+        If not specified, use the default generator initialized on loading the
+        package
     incidence_theta_min: float (structcol.Quantity [angle])
         Minimum value for theta when it incides onto the sample.
         Should be >= 0 and < pi/2.
@@ -644,11 +644,8 @@ def initialize(nevents, ntraj, n_medium, n_sample, boundary, seed=None,
     definition of rsm slope of the surface).
 
     """
-
-    if seed is not None:
-        #np.random.seed([seed])
-        sc.set_seed(seed)
-        #print('in initialize: ' + str(np.random.random(1)))
+    if rng is None:
+        rng = sc.rng
 
     # get the spot size magnitude to multiply by initial x and y positions
     spot_size_magnitude = spot_size.to('um').magnitude
@@ -675,10 +672,10 @@ def initialize(nevents, ntraj, n_medium, n_sample, boundary, seed=None,
             raise ValueError('for film geometry, sample_diameter must be set\
                              to None')
         # randomly choose x positions on interval [0,1]
-        r0[0,0,:] = sc.rng.random((1,ntraj))*spot_size_magnitude
+        r0[0,0,:] = rng.random((1,ntraj))*spot_size_magnitude
 
         # randomly choose y positions on interval [0,1]
-        r0[1,0,:] = sc.rng.random((1,ntraj))*spot_size_magnitude
+        r0[1,0,:] = rng.random((1,ntraj))*spot_size_magnitude
 
         # initialize the incident angles theta and phi. The user can input
         # data or sample randomly from a uniform distribution between a min and
@@ -691,8 +688,8 @@ def initialize(nevents, ntraj, n_medium, n_sample, boundary, seed=None,
         else:
             incidence_theta_min = incidence_theta_min.to('rad').magnitude
             incidence_theta_max = incidence_theta_max.to('rad').magnitude
-            theta = sc.rng.uniform(incidence_theta_min, incidence_theta_max,
-                                   ntraj)
+            theta = rng.uniform(incidence_theta_min, incidence_theta_max,
+                                ntraj)
 
         if incidence_phi_data is not None:
             if len(incidence_phi_data) != ntraj:
@@ -702,7 +699,7 @@ def initialize(nevents, ntraj, n_medium, n_sample, boundary, seed=None,
         else:
             incidence_phi_min = incidence_phi_min.to('rad').magnitude
             incidence_phi_max = incidence_phi_max.to('rad').magnitude
-            phi = sc.rng.uniform(incidence_phi_min, incidence_phi_max, ntraj)
+            phi = rng.uniform(incidence_phi_min, incidence_phi_max, ntraj)
 
         sinphi = np.sin(phi)
         cosphi = np.cos(phi)
@@ -715,10 +712,10 @@ def initialize(nevents, ntraj, n_medium, n_sample, boundary, seed=None,
                              a physical quantity, not None')
 
         # randomly choose r on interval [0,1] and multiply by spot size radius
-        r = np.sqrt(sc.rng.random(ntraj))*spot_size_magnitude/2
+        r = np.sqrt(rng.random(ntraj))*spot_size_magnitude/2
 
         # randomly choose th on interval [0,2*pi]
-        th = 2*np.pi*sc.rng.random(ntraj)
+        th = 2*np.pi*rng.random(ntraj)
 
         # convert to x and y, so that the points are randomly distributed
         # across the cross sectional area of the sphere
@@ -816,8 +813,8 @@ def initialize(nevents, ntraj, n_medium, n_sample, boundary, seed=None,
             phase_x = np.zeros(ntraj)
             phase_y = np.zeros(ntraj)
         else:
-            phase_x = sc.rng.random(ntraj)*2*np.pi
-            phase_y = sc.rng.random(ntraj)*2*np.pi
+            phase_x = rng.random(ntraj)*2*np.pi
+            phase_y = rng.random(ntraj)*2*np.pi
         if polarized:
             fields0[0,0,:] = np.exp(phase_x*1j)
         else:
@@ -855,7 +852,7 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
     """
     Calculates the phase function and scattering coefficient from either the
     single scattering model or Mie theory. Calculates the absorption
-    coefficientfrom Mie theory.
+    coefficient from Mie theory.
 
     Parameters
     ----------
@@ -1244,7 +1241,7 @@ def phase_function(m, x, angles, volume_fraction, k, number_density,
     return(p, cscat_total)
 
 
-def sample_angles(nevents, ntraj, p, min_angle=0.01):
+def sample_angles(nevents, ntraj, p, min_angle=0.01, rng=None):
     """
     Samples scattering angles (theta) and azimuthal angles (phi)
 
@@ -1264,6 +1261,9 @@ def sample_angles(nevents, ntraj, p, min_angle=0.01):
         Phase function values returned from 'phase_function'.
     min_angle: float
         min_angle to prevent error because structure factor is zero at theta=0
+    rng: numpy.random.Generator object (default None) random number generator.
+        If not specified, use the default generator initialized on loading the
+        package
 
     Returns
     -------
@@ -1271,6 +1271,9 @@ def sample_angles(nevents, ntraj, p, min_angle=0.01):
         Sampled azimuthal and scattering angles, and their sines and cosines.
 
     """
+    if rng is None:
+        rng = sc.rng
+
     if isinstance(p,sc.Quantity):
         p = p.magnitude
     num_theta = len(p)
@@ -1294,7 +1297,7 @@ def sample_angles(nevents, ntraj, p, min_angle=0.01):
 
         # Random sampling of azimuthal angle phi from uniform distribution [0 -
         # 2pi]
-        rand = sc.rng.random((nevents,ntraj))
+        rand = rng.random((nevents,ntraj))
         phi = 2*np.pi*rand
 
 
@@ -1305,7 +1308,7 @@ def sample_angles(nevents, ntraj, p, min_angle=0.01):
         prob_norm = prob/sum(prob)
 
         # Randomly sample scattering angle theta
-        theta = np.array([sc.rng.choice(thetas, ntraj, p = prob_norm)
+        theta = np.array([rng.choice(thetas, ntraj, p = prob_norm)
                           for i in range(nevents)])
 
     if len(p.shape)==2: # if p depends on theta and phi
@@ -1321,9 +1324,9 @@ def sample_angles(nevents, ntraj, p, min_angle=0.01):
         phis = phis.magnitude
 
         # sample indices for phi values
-        phi_ind = np.array([sc.rng.choice(num_phi, ntraj,
-                                          p = p_phi/np.sum(p_phi))
-                                for i in range(nevents)])
+        phi_ind = np.array([rng.choice(num_phi, ntraj,
+                                       p = p_phi/np.sum(p_phi))
+                            for i in range(nevents)])
 
         # sample thetas based on sampled phi values
         theta_ind = np.zeros((nevents,ntraj))
@@ -1332,8 +1335,8 @@ def sample_angles(nevents, ntraj, p, min_angle=0.01):
         for i in range(nevents):
             for j in range(ntraj):
                 p_theta = p[:,phi_ind[i,j]]*np.sin(thetas)
-                theta_ind[i,j] = sc.rng.choice(num_theta,
-                                               p = p_theta/np.sum(p_theta))
+                theta_ind[i,j] = rng.choice(num_theta,
+                                            p = p_theta/np.sum(p_theta))
                 theta[i,j] = thetas[int(theta_ind[i,j])]
                 phi[i,j] = phis[int(phi_ind[i,j])]
 
@@ -1345,7 +1348,7 @@ def sample_angles(nevents, ntraj, p, min_angle=0.01):
     return sintheta, costheta, sinphi, cosphi, theta, phi
 
 
-def sample_step(nevents, ntraj, mu_scat, fine_roughness=0.):
+def sample_step(nevents, ntraj, mu_scat, fine_roughness=0., rng=None):
     """
     Samples step sizes from exponential distribution.
 
@@ -1366,6 +1369,9 @@ def sample_step(nevents, ntraj, mu_scat, fine_roughness=0.):
         hit fine surface roughness (e.g. will "see" a Mie scatterer first). The
         rest of the light will see a smooth surface, which could be flat or
         have coarse roughness (long in the lengthscale of light).
+    rng: numpy.random.Generator object (default None) random number generator.
+        If not specified, use the default generator initialized on loading the
+        package
 
     Returns
     -------
@@ -1373,6 +1379,8 @@ def sample_step(nevents, ntraj, mu_scat, fine_roughness=0.):
         Sampled step sizes for all trajectories and scattering events.
 
     """
+    if rng is None:
+        rng = sc.rng
 
     if fine_roughness > 1. or fine_roughness < 0.:
         raise ValueError('fine roughness fraction must be between 0 and 1')
@@ -1384,7 +1392,7 @@ def sample_step(nevents, ntraj, mu_scat, fine_roughness=0.):
         mu_scat_mie = None
 
     # Generate array of random numbers from 0 to 1
-    rand = sc.rng.random((nevents,ntraj)) #uncomment
+    rand = rng.random((nevents,ntraj)) #uncomment
 
     # sample step sizes
     step = -np.log(1.0-rand) / mu_scat
@@ -1393,13 +1401,13 @@ def sample_step(nevents, ntraj, mu_scat, fine_roughness=0.):
     # for the number of trajectories set by fine_roughness
     if mu_scat_mie is not None:
         ntraj_mie = int(round(ntraj * fine_roughness))
-        rand_ntraj = sc.rng.random(ntraj_mie)
+        rand_ntraj = rng.random(ntraj_mie)
         step[0,0:ntraj_mie] = -np.log(1.0-rand_ntraj) / mu_scat_mie
 
     return step
 
-def coarse_roughness_enter(k0, n_medium, n_sample,
-                           coarse_roughness, boundary):
+def coarse_roughness_enter(k0, n_medium, n_sample, coarse_roughness, boundary,
+                           rng=None):
     '''
     Calculates new initial directions based on the coarse roughness of the
     sample.
@@ -1429,6 +1437,9 @@ def coarse_roughness_enter(k0, n_medium, n_sample,
         Geometrical boundary for Monte Carlo calculations. Current options are
         'film' or 'sphere.' Coarse roughness is currently only implemented for
         a film.
+    rng: numpy.random.Generator object (default None) random number generator.
+        If not specified, use the default generator initialized on loading the
+        package
 
     Returns
     -------
@@ -1447,6 +1458,9 @@ def coarse_roughness_enter(k0, n_medium, n_sample,
         coarse_roughness is set to > 0.
 
     '''
+    if rng is None:
+        rng = sc.rng
+
     if boundary == 'sphere':
         raise ValueError('course roughness not yet implemented for sphere\
                          boundary')
@@ -1468,7 +1482,7 @@ def coarse_roughness_enter(k0, n_medium, n_sample,
     if np.isnan(prob_a).all():
         theta_a = np.zeros(ntraj)
     else:
-        theta_a = np.array([sc.rng.choice(theta_a_full, ntraj, p=prob_a)
+        theta_a = np.array([rng.choice(theta_a_full, ntraj, p=prob_a)
                             for i in range(1)]).flatten()
 
     # In case the surface is rough, then find new coordinates of initial

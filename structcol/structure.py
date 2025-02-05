@@ -31,6 +31,7 @@ from . import ureg, Quantity
 import scipy as sp
 import scipy
 import os
+import structcol as sc
 
 @ureg.check('[]', '[]')    # inputs should be dimensionless
 def factor_py(qd, phi):
@@ -361,9 +362,9 @@ def phase_factor(qd, phi, n=1000):
     return integral
 
 
-def field_phase_py(qd, phi, n=10000, r_d=np.arange(1,5,0.005)):
+def field_phase_py(qd, phi, n=10000, r_d=np.arange(1,5,0.005), rng=None):
     '''
-    Calcualte the phase shift contribution based on the radial distribution
+    Calculate the phase shift contribution based on the radial distribution
     function calculated using the Percus-Yevick approximation
 
     Parameters:
@@ -376,12 +377,18 @@ def field_phase_py(qd, phi, n=10000, r_d=np.arange(1,5,0.005)):
         number of samples of g(r)
     r_d: 1D numpy array
         range of radial positions normalized by particle diameter.
+    rng: numpy.random.Generator object (default None) random number generator.
+        If not specified, use the default generator initialized on loading the
+        package
 
     Returns:
     --------
     field_s: 1D numpy array
         phase shift contributions based on the structure
     '''
+    if rng is None:
+        rng = sc.rng
+
     # calculate radial distribution function up to r/R= 5
     #g_file = os.path.join(os.getcwd(),'g_4.csv')
     #df=pd.read_csv(g_file, sep=',',header=None)
@@ -390,7 +397,7 @@ def field_phase_py(qd, phi, n=10000, r_d=np.arange(1,5,0.005)):
     g = radial_dist_py(phi, x = r_d)
 
     # sample the g of r probability distribution
-    r_samp = np.random.choice(r_d, n, p = g/np.sum(g))
+    r_samp = rng.choice(r_d, n, p = g/np.sum(g))
 
     # calculate the field term
     field_s = np.zeros(qd.shape, dtype='complex')

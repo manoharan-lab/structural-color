@@ -45,10 +45,13 @@ wavelen = sc.Quantity('400.0 nm')
 refl_index = np.array([2,0,2])
 
 def test_trajectories():
-    # Initialize runs
+    # Initialize runs. Since this test just checks to make sure a trajectory
+    # object can be created, we don't need to give it a seeded random number
+    # generator.
     nevents = 2
     ntrajectories = 3
-    r0, k0, W0 = mc.initialize(nevents, ntrajectories, n_matrix, n_sample, 'sphere', seed=1, sample_diameter=sc.Quantity('1.0 um'))
+    r0, k0, W0 = mc.initialize(nevents, ntrajectories, n_matrix, n_sample,
+                               'sphere', sample_diameter=sc.Quantity('1.0 um'))
     r0 = sc.Quantity(r0, 'um')
     k0 = sc.Quantity(k0, '')
     W0 = sc.Quantity(W0, '')

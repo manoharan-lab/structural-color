@@ -50,6 +50,7 @@ wavelen = sc.Quantity('400.0 nm')
 refl_index = np.array([2,0,2])
 
 def test_calc_refl_trans():
+    # this test should give deterministic results
     small_n = sc.Quantity(1.0,'')
     large_n = sc.Quantity(2.0,'')
 
@@ -179,4 +180,9 @@ def test_index_match():
     # calculated by hand from fresnel infinite sum
     refl_fresnel_int = 0.053 # calculated by hand
     refl_exact = refl_fresnel_int + (1-refl_fresnel_int)**2*refl_fresnel_int/(1-refl_fresnel_int**2)
+
+    # under index-matched conditions, the step sizes are huge (bigger than the
+    # sample size), and the light is scattered into the forward direction. As a
+    # result, the reflectance is essentially deterministic, even though the
+    # seed is not set for the random number generator.
     assert_almost_equal(refl_sphere, refl_exact, decimal=3)

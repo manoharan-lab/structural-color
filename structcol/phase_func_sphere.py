@@ -835,7 +835,8 @@ def calc_diam_list(num_diam, diameter_mean, pdi,
 
     return diam_list
 
-def sample_diams(pdi, diam_list, diam_mean, ntrajectories_bulk, nevents_bulk):
+def sample_diams(pdi, diam_list, diam_mean, ntrajectories_bulk, nevents_bulk,
+                 rng=None):
     '''
     Sample the radii to simulate polydispersity in the bulk Monte Carlo
     simulation
@@ -852,6 +853,9 @@ def sample_diams(pdi, diam_list, diam_mean, ntrajectories_bulk, nevents_bulk):
         number of trajectories in the bulk Monte Carlo simulation
     nevents_bulk: int
         number of trajectories in the bulk Monte Carlo simulation
+    rng: numpy.random.Generator object (default None)
+        random number generator.  If not specified, use the default
+        generator initialized on loading the package
 
     Returns
     -------
@@ -859,6 +863,10 @@ def sample_diams(pdi, diam_list, diam_mean, ntrajectories_bulk, nevents_bulk):
         array of the samples microsphere diameters for polydisperity in the
         bulk Monte Carlo calculations
     '''
+
+    if rng is None:
+        rng = sc.rng
+
     # calculate t for distrubtion
     t = (1 - pdi**2) / pdi**2
 
@@ -867,14 +875,14 @@ def sample_diams(pdi, diam_list, diam_mean, ntrajectories_bulk, nevents_bulk):
     pdf_norm = pdf / np.sum(pdf)
 
     # sample diameter distribution
-    diams_sampled = np.reshape(np.random.choice(diam_list.magnitude,
-                                                ntrajectories_bulk*nevents_bulk,
-                                                p=pdf_norm),
+    diams_sampled = np.reshape(rng.choice(diam_list.magnitude,
+                                          ntrajectories_bulk*nevents_bulk,
+                                          p=pdf_norm),
                                (nevents_bulk, ntrajectories_bulk))
 
     return diams_sampled
 
-def sample_concentration(p, ntrajectories_bulk, nevents_bulk):
+def sample_concentration(p, ntrajectories_bulk, nevents_bulk, rng=None):
     '''
     Sample the radii to simulate polydispersity in the bulk Monte Carlo
     simulation using pre-calculated probabilities
@@ -887,6 +895,9 @@ def sample_concentration(p, ntrajectories_bulk, nevents_bulk):
         number of trajectories in the bulk Monte Carlo simulation
     nevents_bulk: int
         number of trajectories in the bulk Monte Carlo simulation
+    rng: numpy.random.Generator object (default None)
+        random number generator.  If not specified, use the default
+        generator initialized on loading the package
 
     Returns
     -------
@@ -894,19 +905,23 @@ def sample_concentration(p, ntrajectories_bulk, nevents_bulk):
         array of the sample parameter for polydisperity in the bulk
         Monte Carlo calculations
     '''
+    if rng is None:
+        rng = sc.rng
+
     # sample distribution
     param_list = np.arange(np.size(p)) + 1
 
-    params_sampled = np.reshape(np.random.choice(param_list,
-                                                 (ntrajectories_bulk
-                                                  *nevents_bulk), p=p),
+    params_sampled = np.reshape(rng.choice(param_list,
+                                           (ntrajectories_bulk
+                                            *nevents_bulk), p=p),
                                 (nevents_bulk, ntrajectories_bulk))
 
     return params_sampled
 
 
 def sample_angles_step_poly(nevents_bulk, ntrajectories_bulk, p_sphere,
-                            params_sampled, mu_scat_bulk, param_list=None):
+                            params_sampled, mu_scat_bulk, param_list=None,
+                            rng=None):
     '''
     Calculate the list of radii to sample from for a given polydispersity and
     number of radii. This function is used specifically to calculate a list of
@@ -930,6 +945,10 @@ def sample_angles_step_poly(nevents_bulk, ntrajectories_bulk, p_sphere,
     param_list: 1d numpy array
         list of parameters (usually radius or diameter) from which to sample
         in polydisperse bulk Monte Carlo
+    rng: numpy.random.Generator object (default None)
+        random number generator.  If not specified, use the default
+        generator initialized on loading the package
+
     Returns
     -------
     sintheta, costheta, sinphi, cosphi: ndarray
@@ -939,6 +958,9 @@ def sample_angles_step_poly(nevents_bulk, ntrajectories_bulk, p_sphere,
     theta, phi: ndarray
         Sampled scattering and azimuthal angles
     '''
+    if rng is None:
+        rng = sc.rng
+
     # get param_list
     if param_list is None:
         param_list = np.arange(p_sphere.shape[0]) + 1
@@ -949,7 +971,7 @@ def sample_angles_step_poly(nevents_bulk, ntrajectories_bulk, p_sphere,
     lscat = 1/mu_scat_bulk
 
     # Sample phi angles
-    rand = np.random.random((nevents_bulk,ntrajectories_bulk))
+    rand = rng.random((nevents_bulk,ntrajectories_bulk))
     phi = 2 * np.pi * rand
     sinphi = np.sin(phi)
     cosphi = np.cos(phi)
@@ -971,13 +993,12 @@ def sample_angles_step_poly(nevents_bulk, ntrajectories_bulk, p_sphere,
         prob_norm = prob / np.sum(prob)
 
         # sample step sizes
-        rand = np.random.random(ind_ev.size)
+        rand = rng.random(ind_ev.size)
         lscat_rad_samp[ind_ev, ind_tr] = (-np.log(1.0 - rand)
                                           * lscat[j].magnitude)
 
         # sample angles
-        theta[ind_ev, ind_tr] = np.random.choice(angles, ind_ev.size,
-                                                 p=prob_norm)
+        theta[ind_ev, ind_tr] = rng.choice(angles, ind_ev.size, p=prob_norm)
 
     # calculate sines, cosines, and step
     sintheta = np.sin(theta)
