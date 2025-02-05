@@ -1,4 +1,25 @@
-# convert all warnings to errors
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "structcol"
+version = "0.3"
+description = "Python package for modeling structural color"
+readme = "README.md"
+authors = [
+    { name = "Manoharan Lab, Harvard University", email = "vnm@seas.harvard.edu" },
+]
+dependencies = [
+    "numpy",
+    "pint",
+    "scipy",
+]
+
+[project.urls]
+Homepage = "https://github.com/manoharan-lab/structural-color"
+
+# pytest: convert all warnings to errors
 [tool.pytest.ini_options]
 filterwarnings = [
     "error",
