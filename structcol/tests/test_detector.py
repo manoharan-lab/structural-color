@@ -164,10 +164,10 @@ def test_reflection_core_shell():
     T_before = 0.21378476227537888 #before correcting nevents in sample_angles: 0.1861762169688054
     T_cs_before = 0.21378476227537888 #before correcting nevents in sample_angles: 0.1861762169688054
 
-    assert_almost_equal(R_before, R, decimal=15)
-    assert_almost_equal(R_cs_before, R_cs, decimal=15)
-    assert_almost_equal(T_before, T, decimal=15)
-    assert_almost_equal(T_cs_before, T_cs, decimal=15)
+    assert_almost_equal(R_before, R)
+    assert_almost_equal(R_cs_before, R_cs)
+    assert_almost_equal(T_before, T)
+    assert_almost_equal(T_cs_before, T_cs)
 
     # Test that the reflectance is the same for a core-shell that absorbs (with
     # the same refractive indices for all layers) and a non-core-shell that
@@ -232,10 +232,10 @@ def test_reflection_core_shell():
     T_abs_before = 0.0038425936376528256 #before correcting nevents in sample_angles: 0.0006391960305096798
     T_cs_abs_before = 0.0038425936376528256 #before correcting nevents in sample_angles: 0.0006391960305096798
 
-    assert_almost_equal(R_abs_before, R_abs, decimal=15)
-    assert_almost_equal(R_cs_abs_before, R_cs_abs, decimal=15)
-    assert_almost_equal(T_abs_before, T_abs, decimal=15)
-    assert_almost_equal(T_cs_abs_before, T_cs_abs, decimal=15)
+    assert_almost_equal(R_abs_before, R_abs)
+    assert_almost_equal(R_cs_abs_before, R_cs_abs)
+    assert_almost_equal(T_abs_before, T_abs)
+    assert_almost_equal(T_cs_abs_before, T_cs_abs)
 
 
 def test_reflection_absorbing_particle_or_matrix():
@@ -265,10 +265,10 @@ def test_reflection_absorbing_particle_or_matrix():
     T_before = 0.21378476227537888#before correcting nevents in sample_angles: 0.1861762169688054
     T_abs_before = 0.21378476227537888#before correcting nevents in sample_angles: 0.1861762169688054
 
-    assert_almost_equal(R_before, R, decimal=15)
-    assert_almost_equal(R_abs_before, R_abs, decimal=15)
-    assert_almost_equal(T_before, T, decimal=15)
-    assert_almost_equal(T_abs_before, T_abs, decimal=15)
+    assert_almost_equal(R_before, R)
+    assert_almost_equal(R_abs_before, R_abs)
+    assert_almost_equal(T_before, T)
+    assert_almost_equal(T_abs_before, T_abs)
 
     # Same as previous test but with absorbing matrix
     # Reflection using matrix with an imaginary component of 0
@@ -287,10 +287,10 @@ def test_reflection_absorbing_particle_or_matrix():
     T_before = 0.21378476227537888 #before correcting nevents in sample_angles: 0.1861762169688054
     T_abs_before = 0.21378476227537888#before correcting nevents in sample_angles: 0.1861762169688054
 
-    assert_almost_equal(R_before, R, decimal=15)
-    assert_almost_equal(R_abs_before, R_abs, decimal=15)
-    assert_almost_equal(T_before, T, decimal=15)
-    assert_almost_equal(T_abs_before, T_abs, decimal=15)
+    assert_almost_equal(R_before, R)
+    assert_almost_equal(R_abs_before, R_abs)
+    assert_almost_equal(T_before, T)
+    assert_almost_equal(T_abs_before, T_abs)
 
     # test that the reflection is essentially the same when the imaginary
     # index is 0 or very close to 0
@@ -333,10 +333,10 @@ def test_reflection_polydispersity():
     T_mono_before = 0.21378476227537888 #before correcting nevents in sample_angles: 0.1861762169688054
     T_poly_before = 0.21378476227537888 #before correcting nevents in sample_angles: 0.1861762169688054
 
-    assert_almost_equal(R_mono_before, R_mono, decimal=15)
-    assert_almost_equal(R_poly_before, R_poly, decimal=15)
-    assert_almost_equal(T_mono_before, T_mono, decimal=15)
-    assert_almost_equal(T_poly_before, T_poly, decimal=15)
+    assert_almost_equal(R_mono_before, R_mono)
+    assert_almost_equal(R_poly_before, R_poly)
+    assert_almost_equal(T_mono_before, T_mono)
+    assert_almost_equal(T_poly_before, T_poly)
 
     # With absorption: test that the reflectance using with very small
     # polydispersity is the same as the monodisperse case
@@ -364,10 +364,10 @@ def test_reflection_polydispersity():
     T_mono_abs_before = 0.11704096147886706 #before correcting nevents in sample_angles: 0.09473841417422774
     T_poly_abs_before = 0.11704096346317548 #before correcting nevents in sample_angles: 0.09456832138047852
 
-    assert_almost_equal(R_mono_abs_before, R_mono_abs, decimal=14)
-    assert_almost_equal(R_poly_abs_before, R_poly_abs, decimal=10)
-    assert_almost_equal(T_mono_abs_before, T_mono_abs, decimal=15)
-    assert_almost_equal(T_poly_abs_before, T_poly_abs, decimal=10)
+    assert_almost_equal(R_mono_abs_before, R_mono_abs)
+    assert_almost_equal(R_poly_abs_before, R_poly_abs)
+    assert_almost_equal(T_mono_abs_before, T_mono_abs)
+    assert_almost_equal(T_poly_abs_before, T_poly_abs)
 
     # test that the reflectance is the same for a polydisperse monospecies
     # and a bispecies with equal types of particles
@@ -445,8 +445,8 @@ def test_reflection_polydispersity():
                                    radius2 = radius1,
                                    concentration = concentration2,
                                    pdi = pdi4, polydisperse=True)
-    assert_almost_equal(R_noabs1, R_abs1, decimal=14)
-    assert_almost_equal(T_noabs1, T_abs1, decimal=14)
+    assert_almost_equal(R_noabs1, R_abs1)
+    assert_almost_equal(T_noabs1, T_abs1)
 
     # When there are 2 mean diameters
     R_noabs2, T_noabs2 = calc_montecarlo(nevents, ntrajectories, radius1,
@@ -557,12 +557,12 @@ def test_surface_roughness():
                                      wavelen, seed, fine_roughness=1e-4,
                                      coarse_roughness = 1e-5, n_matrix=n_matrix)
 
-    assert_almost_equal(R, R_fine, decimal=15)
-    assert_almost_equal(T, T_fine, decimal=15)
-    assert_almost_equal(R, R_coarse, decimal=15)
-    assert_almost_equal(T, T_coarse, decimal=15)
-    assert_almost_equal(R, R_both, decimal=15)
-    assert_almost_equal(T, T_both, decimal=15)
+    assert_almost_equal(R, R_fine)
+    assert_almost_equal(T, T_fine)
+    assert_almost_equal(R, R_coarse)
+    assert_almost_equal(T, T_coarse)
+    assert_almost_equal(R, R_both)
+    assert_almost_equal(T, T_both)
 
 def calc_montecarlo(nevents, ntrajectories, radius, n_particle, n_sample,
                     n_medium, volume_fraction, wavelen, seed, radius2=None,
