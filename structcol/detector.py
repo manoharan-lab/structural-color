@@ -1645,7 +1645,8 @@ def calc_refl_trans(trajectories, thickness, n_medium, n_sample, boundary,
                     save_stuck_weights=False,
                     fine_roughness=0,
                     n_particle=None,
-                    n_matrix=None):
+                    n_matrix=None,
+                    rng=None):
     """
     Calculates the weight fraction of reflected and transmitted trajectories
     (reflectance and transmittance).Identifies which trajectories are reflected
@@ -1750,6 +1751,9 @@ def calc_refl_trans(trajectories, thickness, n_medium, n_sample, boundary,
     fine_roughness: TODO document argument
     n_particle: TODO document argument
     n_matrix: TODO document argument
+    rng: numpy.random.Generator object (default None) random number generator.
+        If not specified, use the default generator initialized on loading the
+        package.  The RNG is needed only when run_fresnel_traj is True.
 
     Returns
     -------
@@ -1892,15 +1896,16 @@ def calc_refl_trans(trajectories, thickness, n_medium, n_sample, boundary,
          transmittance,
          refl_per_traj,
          trans_per_traj) = run_sphere_fresnel_traj(refl_per_traj_nf,
-                                                  trans_per_traj_nf,
-                                                  refl_fresnel,
-                                                  trans_fresnel,stuck_weights,
-                                                  trajectories, refl_indices,
-                                                  trans_indices, tir_indices,
-                                                  thickness, boundary, z_low,
-                                                  p, n_medium, n_sample,
-                                                  mu_scat, mu_abs, max_stuck,
-                                                  call_depth, plot_exits)
+                                                   trans_per_traj_nf,
+                                                   refl_fresnel,
+                                                   trans_fresnel,stuck_weights,
+                                                   trajectories, refl_indices,
+                                                   trans_indices, tir_indices,
+                                                   thickness, boundary, z_low,
+                                                   p, n_medium, n_sample,
+                                                   mu_scat, mu_abs, max_stuck,
+                                                   call_depth, plot_exits,
+                                                   rng=rng)
     else:
         # Distribute ambiguous trajectory weights.
         # Note that when run_fresnel_traj == True, this statement is only
@@ -1955,12 +1960,13 @@ def calc_refl_trans(trajectories, thickness, n_medium, n_sample, boundary,
 
 
 def run_sphere_fresnel_traj(refl_per_traj_nf, trans_per_traj_nf,
-                             refl_fresnel, trans_fresnel, stuck_weights,
-                             trajectories, refl_indices, trans_indices,
-                             tir_indices, thickness, boundary, z_low,
-                             p, n_medium, n_sample,
-                             mu_scat, mu_abs,
-                             max_stuck, call_depth, plot_exits):
+                            refl_fresnel, trans_fresnel, stuck_weights,
+                            trajectories, refl_indices, trans_indices,
+                            tir_indices, thickness, boundary, z_low,
+                            p, n_medium, n_sample,
+                            mu_scat, mu_abs,
+                            max_stuck, call_depth, plot_exits,
+                            rng=None):
     '''
     For the sphere case, there are many trajectories that are totally
     internally reflected or partially reflected back into the sample
@@ -2030,6 +2036,9 @@ def run_sphere_fresnel_traj(refl_per_traj_nf, trans_per_traj_nf,
         the sphere, the first point of the trajectory outside the sphere,
         and the point on the sphere boundary at which the trajectory exits,
         making one plot for reflection and one plot for transmission
+    rng: numpy.random.Generator object (default None) random number generator.
+        If not specified, use the default generator initialized on loading the
+        package
 
     Returns
     -------
@@ -2043,6 +2052,9 @@ def run_sphere_fresnel_traj(refl_per_traj_nf, trans_per_traj_nf,
         addition to the transmittance (transmittance_fresnel)
 
     '''
+
+    if rng is None:
+        rng = sc.rng
 
     # Set up values to use throughout function.
     n_sample, trajectories, z_low, diameter = set_up_values(n_sample,
@@ -2134,11 +2146,11 @@ def run_sphere_fresnel_traj(refl_per_traj_nf, trans_per_traj_nf,
                                          weights_fresnel)
 
     # Generate a matrix of all the randomly sampled angles first
-    sintheta, costheta, sinphi, cosphi, _, _ = mc.sample_angles(nevents,
-                                                                ntraj, p)
+    sintheta, costheta, sinphi, cosphi, _, _ = mc.sample_angles(nevents, ntraj,
+                                                                p, rng=rng)
 
     # Create step size distribution
-    step = mc.sample_step(nevents, ntraj, mu_scat)
+    step = mc.sample_step(nevents, ntraj, mu_scat, rng=rng)
 
     # Run photons
     trajectories_fresnel.absorb(mu_abs, step)
@@ -2162,7 +2174,8 @@ def run_sphere_fresnel_traj(refl_per_traj_nf, trans_per_traj_nf,
                                                   fresnel_traj = True,
                                                   call_depth = call_depth + 1,
                                                   max_stuck = max_stuck,
-                                                  return_extra = True)
+                                                  return_extra = True,
+                                                  rng=rng)
 
     # Calculate reflectance and transmittance without fresnel
     reflectance_no_fresnel = np.sum(refl_per_traj_nf)
