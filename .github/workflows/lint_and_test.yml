@@ -1,8 +1,8 @@
 name: Test on all platforms
 
 on:
+  # empty "push:" will allow CI on push to any branch
   push:
-    branches: [ "develop", "master" ]
   pull_request:
     branches: [ "develop", "master" ]
 
