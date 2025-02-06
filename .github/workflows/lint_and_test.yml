@@ -25,6 +25,9 @@ jobs:
     - run: ruff check --exit-zero --output-format=github
 
   test:
+    # linting must succeed for testing to run; this helps us rapidly flag code
+    # errors before going to testing
+    needs: lint
     runs-on: ${{ matrix.os }}
     # conda enviroment activation requires bash
     defaults:
