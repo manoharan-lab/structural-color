@@ -16,7 +16,8 @@
 # You should have received a copy of the GNU General Public License along with
 # this package. If not, see <http://www.gnu.org/licenses/>.
 """
-Tests for the montecarlo model (in structcol/montecarlo.py)
+Tests for the montecarlo model (in structcol/montecarlo.py).  Tests of
+calculated reflectance are in test_detector.py
 
 .. moduleauthor:: Victoria Hwang <vhwang@g.harvard.edu>
 .. moduleauthor:: Solomon Barkley <barkley@g.harvard.edu>
@@ -110,7 +111,6 @@ def test_trajectories():
     assert_equal(trajectories.position[2].magnitude, np.array([[0, 0, 0],
                                                                [1, 1, 1],
                                                                [0, 0, 0]]))
-
 
 def test_phase_function_absorbing_medium():
     # test that the phase function using the far-field Mie solutions

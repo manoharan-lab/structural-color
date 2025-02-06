@@ -186,3 +186,83 @@ def test_index_match():
     # result, the reflectance is essentially deterministic, even though the
     # seed is not set for the random number generator.
     assert_almost_equal(refl_sphere, refl_exact, decimal=3)
+
+def test_reflection_sphere_mc():
+    """
+    Tests whether the reflectance is what we expect from a simulation on a
+    sphere containing particles. The parameters, setup, and expected values
+    come from the montecarlo_tutorial notebook (might need to set the seed in
+    the notebook to get these values).
+    """
+
+    seed = 1
+    rng = np.random.RandomState([seed])
+    ntrajectories = 100
+    nevents = 100
+    wavelen = sc.Quantity('600 nm')
+    radius = sc.Quantity('0.125 um')
+    assembly_diameter = sc.Quantity('10 um')
+    volume_fraction = sc.Quantity(0.5, '')
+    n_particle = sc.Quantity(1.54, '')
+    n_matrix = ri.n('vacuum', wavelen)
+    n_medium = ri.n('vacuum', wavelen)
+    n_sample = ri.n_eff(n_particle, n_matrix, volume_fraction)
+    boundary = 'sphere'
+
+    p, mu_scat, mu_abs = mc.calc_scat(radius, n_particle, n_sample,
+                                      volume_fraction, wavelen)
+
+    # Initialize the trajectories for a sphere
+    r0, k0, W0 = mc.initialize(nevents, ntrajectories, n_medium, n_sample,
+                               boundary, plot_initial = False,
+                               sample_diameter = assembly_diameter,
+                               spot_size = assembly_diameter, rng=rng)
+
+    # make positions, directions, and weights into quantities with units
+    r0 = sc.Quantity(r0, 'um')
+    k0 = sc.Quantity(k0, '')
+    W0 = sc.Quantity(W0, '')
+
+    # Generate a matrix of all the randomly sampled angles first
+    sintheta, costheta, sinphi, cosphi, _, _ = mc.sample_angles(nevents,
+                                                                ntrajectories,
+                                                                p, rng=rng)
+
+    # Create step size distribution
+    step = mc.sample_step(nevents, ntrajectories, mu_scat, rng=rng)
+
+    # Create trajectories object
+    trajectories = mc.Trajectory(r0, k0, W0)
+
+    # Run photons
+    trajectories.absorb(mu_abs, step)
+    trajectories.scatter(sintheta, costheta, sinphi, cosphi)
+    trajectories.move(step)
+
+    # Calculate reflectance and transmittance
+    # The default value of run_tir is True, so you must set it to False to
+    # exclude the fresnel reflected trajectories.
+    with pytest.warns(UserWarning):
+        R, T = det.calc_refl_trans(trajectories, assembly_diameter, n_medium,
+                                   n_sample, boundary, plot_exits = False)
+
+    R_expected = 0.24878084752516244
+    T_expected = 0.7512191524748375
+
+    assert_almost_equal(R, R_expected)
+    assert_almost_equal(T, T_expected)
+
+    # test with Fresnel reflections
+    # Calculate reflectance and transmittance
+    with pytest.warns(UserWarning):
+        R, T = det.calc_refl_trans(trajectories, assembly_diameter, n_medium,
+                                   n_sample, boundary, run_fresnel_traj = True,
+                                   mu_abs=mu_abs, mu_scat=mu_scat, p=p,
+                                   rng=rng)
+
+    R_expected = 0.2508833560792594
+    T_expected = 0.7491166439207406
+
+    assert_almost_equal(R, R_expected)
+    assert_almost_equal(T, T_expected)
+
