@@ -176,8 +176,8 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius,
     -------
     float (5-tuple):
         fraction of light reflected from sample for unpolarized light, parallel
-        polarization, and perpendicular polarization;
-        asymmetry parameter and transport length for unpolarized light
+        polarization, and perpendicular polarization; asymmetry parameter and
+        transport length for unpolarized light
 
     Notes
     -----

@@ -558,7 +558,7 @@ def initialize(nevents, ntraj, n_medium, n_sample, boundary, rng=None,
         None, the code will randomly sample phi angles from a uniform
         distribution between incidence_phi_min and incidence_phi_max.  If
         user does not specify units, values must be in radians.
-    plot_inital: boolean
+    plot_initial: boolean
         If plot_initial is set to True, function will create a 3d plot showing
         initial positions and directions of trajectories before entering the
         sphere and directly after refraction correction upon entering the
@@ -797,11 +797,9 @@ def initialize(nevents, ntraj, n_medium, n_sample, boundary, rng=None,
         k0[1,0,:] = sintheta * sinphi
         k0[2,0,:] = costheta
 
-        k0, kz0_rot, kz0_refl = coarse_roughness_enter(k0,
-                                                 n_medium,
-                                                 n_sample,
-                                                 coarse_roughness,
-                                                 boundary)
+        k0, kz0_rot, kz0_refl = coarse_roughness_enter(k0, n_medium, n_sample,
+                                                       coarse_roughness,
+                                                       boundary, rng=rng)
         init_traj_props = [r0, k0, weight0, kz0_rot, kz0_refl]
 
     if fields:
