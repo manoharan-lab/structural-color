@@ -1,13 +1,30 @@
-name: Test on all platforms
+name: Lint, then test on all platforms
 
 on:
-  # empty "push:" will allow CI on push to any branch
+  # empty "push:" will trigger CI on push to any branch
   push:
   pull_request:
     branches: [ "develop", "master" ]
 
 jobs:
-  build:
+  lint:
+    # only need to run on one platform since we're just looking at the code
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash -el {0}
+    steps:
+    - uses: actions/checkout@v4
+    - uses: astral-sh/ruff-action@v3
+      with:
+        # fail if there are Python syntax errors or undefined names
+        args: "check --select=E9,F63,F7,F82"
+      # do another run to produce a linting report. exit-zero treats all errors
+      # as warnings.  This will flag codestyle problems in the PR but will not
+      # cause the action to fail
+    - run: ruff check --exit-zero --output-format=github
+
+  test:
     runs-on: ${{ matrix.os }}
     # conda enviroment activation requires bash
     defaults:
@@ -33,12 +50,6 @@ jobs:
         git clone https://github.com/manoharan-lab/python-mie.git
         pip install ./python-mie
         rm -r ./python-mie
-    - name: Lint
-      run: |
-        # stop the build if there are Python syntax errors or undefined names
-        ruff check --select=E9,F63,F7,F82
-        # produce a linting report.  exit-zero treats all errors as warnings.
-        ruff check --exit-zero --output-format=github
     - name: Install plugin to annotate test results
       run: pip install pytest-github-actions-annotate-failures
     - name: Test with pytest
