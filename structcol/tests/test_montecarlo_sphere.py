@@ -19,7 +19,7 @@
 Tests for the montecarlo model for sphere geometry (in structcol/montecarlo.py)
 .. moduleauthor:: Annie Stephenson <stephenson@g.harvard.edu>
 .. moduleauthor:: Victoria Hwang <vhwang@g.harvard.edu>
-.. moduleathor:: Solomon Barkley <barkley@g.harvard.edu>
+.. moduleauthor:: Solomon Barkley <barkley@g.harvard.edu>
 .. moduleauthor:: Vinothan N. Manoharan <vnm@seas.harvard.edu>
 """
 
