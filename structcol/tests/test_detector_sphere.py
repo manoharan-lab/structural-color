@@ -651,3 +651,169 @@ def test_multiscale_polydispersity_mc():
                   0.5257883007967756, 0.42045495158959834, 0.41978848175878514,
                   0.41228258651823824, 0.3873631350450162]
     assert_almost_equal(reflectance_bulk_poly, R_expected)
+
+def test_multiscale_color_mixing_mc():
+    """
+    Tests whether the reflectance is what we expect from a simulation on a bulk
+    collection of two types of spheres with different internal particle sizes.
+    The parameters, setup, and expected values come from the
+    multiscale_color_mixing_tutorial.ipynb notebook
+
+    """
+    seed = 1
+    rng = np.random.RandomState([seed])
+
+    # Properties of the source
+    wavelengths = sc.Quantity(np.arange(400., 801.,10),'nm')
+
+    # Geometric properties of the sample
+    # radii of the two species of particles
+    particle_radii = sc.Quantity([130, 160],'nm')
+    # volume fraction of the spheres in the bulk film
+    volume_fraction_bulk = sc.Quantity(0.63,'')
+    # volume fraction of the particles in the sphere boundary
+    volume_fraction_particles = sc.Quantity(0.55, '')
+    # diameter of sphere boundary in bulk film
+    sphere_boundary_diameter = sc.Quantity('10 um')
+    bulk_thickness = sc.Quantity('50 um')
+    # geometry of sample
+    boundary = 'sphere'
+    # geometry of the bulk sample
+    boundary_bulk = 'film'
+
+    # Refractive indices
+    n_particle = ri.n('vacuum', wavelengths)
+    n_matrix = ri.n('polystyrene', wavelengths) + 2e-5*1j
+    n_matrix_bulk = ri.n('vacuum', wavelengths)
+    n_medium = ri.n('vacuum', wavelengths)
+
+    # Monte Carlo parameters
+    ntrajectories = 2000
+    nevents = 300
+    ntrajectories_bulk = 2000
+    nevents_bulk = 300
+
+    p_bulk = np.zeros((particle_radii.size, wavelengths.size, 200))
+
+    reflectance_sphere = np.zeros(wavelengths.size)
+    mu_scat_bulk = sc.Quantity(np.zeros((particle_radii.size,
+                                         wavelengths.size)),'1/um')
+    mu_abs_bulk = sc.Quantity(np.zeros((particle_radii.size,
+                                        wavelengths.size)),'1/um')
+
+
+    for j in range(particle_radii.size):
+        for i in range(wavelengths.size):
+            n_sample = ri.n_eff(n_particle[i], n_matrix[i],
+                                volume_fraction_particles)
+
+            p, mu_scat, mu_abs = mc.calc_scat(particle_radii[j], n_particle[i],
+                                              n_sample,
+                                              volume_fraction_particles,
+                                              wavelengths[i])
+
+            r0, k0, W0 = mc.initialize(nevents, ntrajectories,
+                                       n_matrix_bulk[i], n_sample, boundary,
+                                       sample_diameter =
+                                       sphere_boundary_diameter, rng=rng)
+            r0 = sc.Quantity(r0, 'um')
+            k0 = sc.Quantity(k0, '')
+            W0 = sc.Quantity(W0, '')
+
+            trajectories = mc.Trajectory(r0, k0, W0)
+
+            sintheta, costheta, sinphi, cosphi, _, _ = \
+                mc.sample_angles(nevents, ntrajectories, p, rng=rng)
+
+
+            step = mc.sample_step(nevents, ntrajectories, mu_scat, rng=rng)
+
+            trajectories.absorb(mu_abs, step)
+            trajectories.scatter(sintheta, costheta, sinphi, cosphi)
+            trajectories.move(step)
+
+            with pytest.warns(UserWarning):
+                (refl_indices,
+                 trans_indices,
+                 _, _, _,
+                 refl_per_traj, trans_per_traj,
+                 _,_,_,_,
+                 reflectance_sphere[i],
+                 _,_, norm_refl, norm_trans) = \
+                     det.calc_refl_trans(trajectories,
+                                      sphere_boundary_diameter,
+                                      n_matrix_bulk[i], n_sample, boundary,
+                                      run_fresnel_traj = False,
+                                      return_extra = True)
+
+            p_bulk[j,i,:], mu_scat_bulk[j,i], mu_abs_bulk[j,i] = \
+                pfs.calc_scat_bulk(refl_per_traj, trans_per_traj, refl_indices,
+                                   trans_indices, norm_refl, norm_trans,
+                                   volume_fraction_bulk,
+                                   sphere_boundary_diameter, n_matrix_bulk[i],
+                                   wavelengths[i], plot=False,
+                                   phi_dependent=False)
+
+    # sample
+    prob = np.array([0.5, 0.5]) # fraction of each sphere color type
+    sphere_type_sampled = pfs.sample_concentration(prob, ntrajectories_bulk,
+                                                   nevents_bulk, rng=rng)
+
+    # test that the number of samples for each sphere type matches what is
+    # in the notebook
+    num_samples = np.unique(sphere_type_sampled,
+                            return_counts=True)[1]
+    num_samples_expected = np.array([299530, 300470])
+    assert_equal(num_samples, num_samples_expected)
+
+    # calculate reflectance of bulk film with spheres of two different colors
+    reflectance_bulk_mix = np.zeros(wavelengths.size)
+    for i in range(wavelengths.size):
+        # Initialize the trajectories
+        r0, k0, W0 = mc.initialize(nevents_bulk, ntrajectories_bulk,
+                                   n_medium[i], n_matrix_bulk[i],
+                                   boundary_bulk, rng=rng)
+        r0 = sc.Quantity(r0, 'um')
+        W0 = sc.Quantity(W0, '')
+        k0 = sc.Quantity(k0, '')
+
+        (sintheta, costheta, sinphi, cosphi, step, _, _) = \
+            pfs.sample_angles_step_poly(nevents_bulk, ntrajectories_bulk,
+                                        p_bulk[:,i,:],
+                                        sphere_type_sampled,
+                                        mu_scat_bulk[:,i],
+                                        rng=rng)
+
+
+        # Create trajectories object
+        trajectories = mc.Trajectory(r0, k0, W0)
+
+        # Run photons
+        # Note: we assume that all scattering events
+        # have the same amount of absorption
+        trajectories.absorb(mu_abs_bulk[0,i], step) 
+        trajectories.scatter(sintheta, costheta, sinphi, cosphi)
+        trajectories.move(step)
+
+        # calculate reflectance
+        with pytest.warns(UserWarning):
+            reflectance_bulk_mix[i], transmittance = \
+                det.calc_refl_trans(trajectories, bulk_thickness, n_medium[i],
+                                    n_matrix_bulk[i], boundary_bulk)
+
+    R_expected = [0.5826801822412575, 0.5702215184018711, 0.5731687923054422,
+                  0.5766088842163823, 0.6053588610189652, 0.5845773357414805,
+                  0.5779789355691176, 0.6076395346359109, 0.5943424417671181,
+                  0.6185563799423084, 0.637205901773559, 0.6530679940741657,
+                  0.6804828781523293, 0.6865780901198721, 0.69671357688658,
+                  0.7220475454635316, 0.7067427468589211, 0.6938059843106995,
+                  0.6917673690258764, 0.6729278013509614, 0.6760325991355923,
+                  0.6297464297708327, 0.6028277805948036, 0.5825058356257393,
+                  0.5512018280412787, 0.5627401564798604, 0.5292611114058134,
+                  0.5286803240372856, 0.5171994032545681, 0.4890223620686648,
+                  0.45994954424484724, 0.4406385043576606, 0.4188602185212018,
+                  0.4230511974137862, 0.35669602730162475, 0.3509835670828349,
+                  0.3116737424739726, 0.28723857026233096, 0.27742488907293594,
+                  0.251790453205595, 0.24318888896750582]
+
+    assert_almost_equal(reflectance_bulk_mix, R_expected)
