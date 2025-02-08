@@ -770,7 +770,7 @@ def calc_diam_list(num_diam, diameter_mean, pdi,
     diam_range = (np.linspace(1, 4 * radius_mean.magnitude, num_pdf_points)
                   * radius_mean.units)
 
-    # claculate the radii at equal spacings
+    # calculate the radii at equal spacings
     if equal_spacing:
         rad_mean = radius_mean.magnitude
         num_half = int(np.round((num_diam + 1) / 2))
