@@ -136,7 +136,7 @@ def test_structure_factor_data_reflectances():
     from "data" (in this case, data generated from the PY function). The
     parameters, setup, and expected values come from the
     structure_factor_data_tutorial notebook.
-    
+
     """
 
     wavelengths = Quantity(np.arange(400, 800, 20), 'nm')

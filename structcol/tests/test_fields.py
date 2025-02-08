@@ -299,3 +299,95 @@ def test_field_perp_direction():
                trajectories.direction[2,:,:]*trajectories.fields[2,1:,:])
 
     assert_almost_equal(np.sum(dot_prod), 0., decimal=14)
+
+def test_field_reflectance_mc():
+    """
+    Tests whether the reflectance for the fields model is what we expect from a
+    simulation on a film of particles. The parameters, setup, and
+    expected values come from the fields_montecarlo_tutorial.ipynb notebook.
+
+    This test runs the simulation only at a single wavelength. The notebook
+    contains a multi-wavelength simulation, but it would take too long to test.
+    The single-wavelength simulation should be sufficient for testing purposes.
+    """
+
+    seed = 1
+    rng = np.random.RandomState([seed])
+
+    wavelength = sc.Quantity('600 nm')
+
+    # sample parameters
+    radius = sc.Quantity('0.140 um')
+    volume_fraction = sc.Quantity(0.55, '')
+    n_imag = 2.1e-4
+    n_particle = ri.n('polystyrene', wavelength) + n_imag*1j
+    n_matrix = ri.n('vacuum', wavelength)
+    n_medium = ri.n('vacuum', wavelength)
+    n_sample = ri.n_eff(n_particle,
+                        n_matrix,
+                        volume_fraction)
+    thickness = sc.Quantity('800 um')
+    boundary = 'film'
+
+    ntrajectories = 2000
+    nevents = 300
+
+    # Calculate scattering quantities
+    p, mu_scat, mu_abs = mc.calc_scat(radius, n_particle, n_sample,
+                                      volume_fraction, wavelength,
+                                      fields=True)
+
+    # Initialize trajectories
+    r0, k0, W0, E0 = mc.initialize(nevents, ntrajectories,
+                                   n_medium, n_sample, boundary,
+                                   coherent=False,
+                                   fields=True, rng=rng)
+    r0 = sc.Quantity(r0, 'um')
+    k0 = sc.Quantity(k0, '')
+    W0 = sc.Quantity(W0, '')
+    E0 = sc.Quantity(E0,'')
+
+    trajectories = mc.Trajectory(r0, k0, W0, fields=E0)
+
+    # Sample trajectory angles
+    sintheta, costheta, sinphi, cosphi, theta, phi = \
+        mc.sample_angles(nevents, ntrajectories, p, rng=rng)
+
+    # Sample step sizes
+    step = mc.sample_step(nevents, ntrajectories, mu_scat, rng=rng)
+
+    # Update trajectories based on sampled values
+    trajectories.scatter(sintheta, costheta, sinphi, cosphi)
+    trajectories.calc_fields(theta, phi, sintheta, costheta, sinphi, cosphi,
+                             n_particle, n_sample, radius, wavelength, step,
+                             volume_fraction,
+                             fine_roughness=0, tir_refl_bool=None)
+    trajectories.move(step)
+    trajectories.absorb(mu_abs, step)
+
+    with pytest.warns(UserWarning):
+        refl_trans_result = det.calc_refl_trans(trajectories, thickness,
+                                                n_medium, n_sample, boundary,
+                                                return_extra=True)
+
+    reflectance = refl_trans_result[11]
+    refl_indices = refl_trans_result[0]
+    refl_per_traj = refl_trans_result[3]
+
+    # calculate reflectance including phase
+    with pytest.warns(UserWarning):
+        refl_trans_result = det.calc_refl_trans(trajectories, thickness,
+                                                n_medium, n_sample, boundary,
+                                                return_extra=True)
+
+    refl_indices = refl_trans_result[0]
+    refl_per_traj = refl_trans_result[3]
+    refl_fields, _ = detp.calc_refl_phase_fields(trajectories,
+                                                 refl_indices,
+                                                 refl_per_traj)
+
+    refl_fields_expected = 0.3848868020860198
+    refl_intensity_expected = 0.4216450105698871
+
+    assert_almost_equal(refl_fields, refl_fields_expected)
+    assert_almost_equal(reflectance, refl_intensity_expected)
