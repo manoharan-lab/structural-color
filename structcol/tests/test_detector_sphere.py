@@ -791,7 +791,7 @@ def test_multiscale_color_mixing_mc():
         # Run photons
         # Note: we assume that all scattering events
         # have the same amount of absorption
-        trajectories.absorb(mu_abs_bulk[0,i], step) 
+        trajectories.absorb(mu_abs_bulk[0,i], step)
         trajectories.scatter(sintheta, costheta, sinphi, cosphi)
         trajectories.move(step)
 

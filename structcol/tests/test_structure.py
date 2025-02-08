@@ -22,11 +22,14 @@ Tests for the structure module
 .. moduleauthor:: Annie Stephenson <stephenson@g.harvard.edu>
 """
 
+import structcol as sc
+from structcol import montecarlo as mc
+from structcol import detector as det
 from .. import Quantity, np, structure
 from .. import size_parameter
 from .. import refractive_index as ri
 from numpy.testing import assert_equal, assert_almost_equal
-from pytest import raises
+import pytest
 from pint.errors import DimensionalityError
 
 
@@ -38,10 +41,10 @@ def test_structure_factor_percus_yevick():
     # dimensionless arguments
     structure.factor_py(Quantity('0.1'), Quantity('0.4'))
     structure.factor_py(0.1, 0.4)
-    raises(DimensionalityError, structure.factor_py,
-                  Quantity('0.1'), Quantity('0.1 m'))
-    raises(DimensionalityError, structure.factor_py,
-                  Quantity('0.1 m'), Quantity('0.1'))
+    pytest.raises(DimensionalityError, structure.factor_py, Quantity('0.1'),
+                  Quantity('0.1 m'))
+    pytest.raises(DimensionalityError, structure.factor_py, Quantity('0.1 m'),
+                  Quantity('0.1'))
 
     # test vectorization by doing calculation over range of qd and phi
     qd = np.arange(0.1, 20, 0.01)
@@ -125,3 +128,117 @@ def test_structure_factor_data():
     s_data = np.array([1, 1])
     s = structure.factor_data(qd, s_data, qd_data)
     assert_equal(s[0], 1)
+
+def test_structure_factor_data_reflectances():
+    """
+    Tests that the reflectance (calculated from single-scattering model and
+    Monte Carlo model) match expected values for a structure factor that comes
+    from "data" (in this case, data generated from the PY function). The
+    parameters, setup, and expected values come from the
+    structure_factor_data_tutorial notebook.
+    
+    """
+
+    wavelengths = Quantity(np.arange(400, 800, 20), 'nm')
+    radius = Quantity('0.5 um')
+    volume_fraction = Quantity(0.5, '')
+    n_particle = ri.n('fused silica', wavelengths)
+    n_matrix = ri.n('vacuum', wavelengths)
+    n_medium = ri.n('vacuum', wavelengths)
+    thickness = Quantity('50 um')
+
+    # generate structure factor "data" from Percus-Yevick model
+    qd_data = np.arange(0.001, 75, 0.1)
+    s_data = structure.factor_py(qd_data, volume_fraction.magnitude)
+
+    # make interpolation function
+    qd = np.arange(0, 70, 0.1)
+    s = structure.factor_data(qd, s_data, qd_data)
+
+    # calculate reflectance from single-scattering model
+    reflectance = np.zeros(len(wavelengths))
+    for i in range(len(wavelengths)):
+        reflectance[i],_,_,_,_ = \
+            sc.model.reflection(n_particle[i],
+                                n_matrix[i],
+                                n_medium[i],
+                                wavelengths[i],
+                                radius,
+                                volume_fraction,
+                                thickness=thickness,
+                                structure_type='data',
+                                structure_s_data=s_data,
+                                structure_qd_data=qd_data)
+
+    reflectance_expected = [0.02776632370015263, 0.025862410582306178,
+                            0.02804132579281817, 0.029567824927529483,
+                            0.02883201740020668, 0.02489322299891402,
+                            0.025529207080894668, 0.0313209850678431,
+                            0.034468516429692606, 0.031091754929536804,
+                            0.026184798431381887, 0.025578270586409414,
+                            0.029741968447070125, 0.03553369792759859,
+                            0.039927975180883306, 0.04145348535377456,
+                            0.040166711576661615, 0.037305165165199786,
+                            0.03432092904706069, 0.03218808662896649]
+
+    assert_almost_equal(reflectance, reflectance_expected)
+
+    # calculate reflectance from Monte Carlo model
+    seed = 1
+    rng = np.random.RandomState([seed])
+    ntrajectories = 500
+    nevents = 500
+    wavelengths = sc.Quantity(np.arange(400, 800, 20), 'nm')
+    radius = sc.Quantity('0.5 um')
+    volume_fraction = sc.Quantity(0.5, '')
+    n_particle = ri.n('fused silica', wavelengths)
+    n_matrix = ri.n('vacuum', wavelengths)
+    n_medium = ri.n('vacuum', wavelengths)
+    boundary = 'film'
+    thickness = sc.Quantity('50 um')
+
+    qd_data = np.arange(0.001, 75, 0.1)
+    s_data = structure.factor_py(qd_data, volume_fraction.magnitude)
+
+    reflectance = np.zeros(wavelengths.size)
+    for i in range(wavelengths.size):
+        n_sample = ri.n_eff(n_particle[i], n_matrix[i], volume_fraction)
+
+        p, mu_scat, mu_abs = mc.calc_scat(radius, n_particle[i], n_sample,
+                                          volume_fraction.magnitude,
+                                          wavelengths[i],
+                                          structure_type = 'data',
+                                          structure_s_data = s_data,
+                                          structure_qd_data = qd_data)
+
+        r0, k0, W0 = mc.initialize(nevents, ntrajectories, n_medium[i],
+                                   n_sample, boundary, rng=rng)
+        r0 = sc.Quantity(r0, 'um')
+        k0 = sc.Quantity(k0, '')
+        W0 = sc.Quantity(W0, '')
+
+        sintheta, costheta, sinphi, cosphi, _, _ = \
+            mc.sample_angles(nevents, ntrajectories, p, rng=rng)
+        step = mc.sample_step(nevents, ntrajectories, mu_scat, rng=rng)
+        trajectories = mc.Trajectory(r0, k0, W0)
+
+        trajectories.absorb(mu_abs, step)
+        trajectories.scatter(sintheta, costheta, sinphi, cosphi)
+        trajectories.move(step)
+
+        with pytest.warns(UserWarning):
+            reflectance[i], _ = det.calc_refl_trans(trajectories, thickness,
+                                                    n_medium[i],
+                                                    n_sample, boundary)
+    reflectance_expected = [0.8095144529605994, 0.7708351929683783,
+                            0.7683968574771831, 0.7731988230034157,
+                            0.7926600420894914, 0.7581023055101348,
+                            0.749330074570443, 0.7446221926705844,
+                            0.7195657001870523, 0.7358665716261953,
+                            0.7339394788533995, 0.7133017796237899,
+                            0.6927204896275403, 0.6997635142273888,
+                            0.6823068533385318, 0.6705433382082067,
+                            0.6722019134466689, 0.6727772099454623,
+                            0.650529567039051, 0.6410007651289527]
+
+    assert_almost_equal(reflectance, reflectance_expected)
