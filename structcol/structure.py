@@ -329,6 +329,10 @@ def factor_data(qd, s_data, qd_data):
     1D numpy array:
         The structure factor as a function of qd.
     """
+    # the returned interpolating function cannot handle pint quantities
+    if isinstance(qd, sc.Quantity):
+        qd = qd.magnitude
+
     s_func = sp.interpolate.interp1d(qd_data, s_data, kind = 'linear',
                                      bounds_error=False, fill_value=s_data[0])
 
