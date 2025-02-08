@@ -28,6 +28,15 @@ markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
 ]
 
+# this configures pytest --cov
+[tool.coverage.run]
+# provide branch coverage
+branch = true
+include = ["structcol/*"]
+# don't need to do coverage on the test files
+omit = [
+     "structcol/tests/*",
+]
 
 [tool.ruff]
 src = ['structcol']
