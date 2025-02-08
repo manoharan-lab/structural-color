@@ -35,6 +35,7 @@ from pymie import index_ratio, mie
 from pymie import multilayer_sphere_lib as msl
 from pymie import size_parameter
 from scipy.special import factorial
+from scipy.integrate import trapezoid
 
 from . import Quantity
 from . import refractive_index as ri
@@ -175,8 +176,8 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius,
     -------
     float (5-tuple):
         fraction of light reflected from sample for unpolarized light, parallel
-        polarization, and perpendicular polarization;
-        asymmetry parameter and transport length for unpolarized light
+        polarization, and perpendicular polarization; asymmetry parameter and
+        transport length for unpolarized light
 
     Notes
     -----
@@ -212,16 +213,18 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius,
                                         2*radius2.magnitude]),
                                     radius.units)
 
-    # General number density formula for binary systems, converges to monospecies
-    # formula when the concentration of either particle is zero. When the
-    # system is monospecies, define a concentration array to be able to use the
-    # general formula.
+    # General number density formula for binary systems, converges to
+    # monospecies formula when the concentration of either particle is zero.
+    # When the system is monospecies, define a concentration array to be able
+    # to use the general formula.
     if (concentration is None) or (np.any(np.atleast_1d(concentration) == 0)):
         # concentration = Quantity(np.array([1.0, 0.0]), '')
         rho = _number_density(volume_fraction, np.atleast_1d(radius).max())
     else:
-        term1 = 1 / (radius.max() ** 3 + radius2.max() ** 3 * concentration[1]/concentration[0])
-        term2 = 1 / (radius2.max() ** 3 + radius.max() ** 3 * concentration[0]/concentration[1])
+        term1 = 1 / (radius.max() ** 3 + radius2.max() ** 3
+                     * concentration[1]/concentration[0])
+        term2 = 1 / (radius2.max() ** 3 + radius.max() ** 3
+                     * concentration[0]/concentration[1])
         rho = 3.0 * volume_fraction / (4.0 * np.pi) * (term1 + term2)
 
     # calculate array of volume fractions of each layer in the particle. If
@@ -229,7 +232,8 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius,
     vf_array = np.empty(len(np.atleast_1d(radius)))
     r_array = np.array([0] + np.atleast_1d(radius.magnitude).tolist())
     for r in np.arange(len(r_array)-1):
-        vf_array[r] = (r_array[r+1]**3-r_array[r]**3) / (r_array[-1]**3) * volume_fraction.magnitude
+        vf_array[r] = ((r_array[r+1]**3-r_array[r]**3)
+                       / (r_array[-1]**3) * volume_fraction.magnitude)
     if len(vf_array) == 1:
         vf_array = float(vf_array[0])
 
@@ -281,8 +285,11 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius,
     # light exits into the medium at (180-theta_min) degrees from the normal.
     # (Snell's law: n_medium sin(alpha_medium) = n_sample sin(alpha_sample)
     # where alpha = pi - theta)
-    sin_alpha_sample_theta_min = np.sin(np.pi-theta_min) * n_medium / np.abs(n_sample)   # TODO: use n_sample.real or abs(n_sample)?
-    sin_alpha_sample_theta_max = np.sin(np.pi-theta_max) * n_medium / np.abs(n_sample)
+    # TODO: use n_sample.real or abs(n_sample)?
+    sin_alpha_sample_theta_min = (np.sin(np.pi-theta_min)
+                                  * n_medium / np.abs(n_sample))
+    sin_alpha_sample_theta_max = (np.sin(np.pi-theta_max)
+                                  * n_medium / np.abs(n_sample))
 
     if sin_alpha_sample_theta_min >= 1:
         # in this case, theta_min and the ratio of n_medium/n_sample are
@@ -306,7 +313,8 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius,
     # coefficient*sin(theta) over angles to get sigma_detected (eq 5)
     angles = Quantity(np.linspace(theta_min_refracted, theta_max_refracted,
                                   num_angles), 'rad')
-    angles_tot = Quantity(np.linspace(0.0 + small_angle, np.pi, num_angles), 'rad')
+    angles_tot = Quantity(np.linspace(0.0 + small_angle, np.pi, num_angles),
+                          'rad')
     azi_angle_range = Quantity(phi_max - phi_min,'rad')
     azi_angle_range_tot = Quantity(2 * np.pi, 'rad')
 
@@ -333,27 +341,31 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius,
     else:
         distance = mean_diameters.max() / 2
 
-    diff_cs_detected = differential_cross_section(m, x, angles, volume_fraction,
-                                                  structure_type=structure_type,
-                                                  form_type=form_type,
-                                                  diameters=mean_diameters,
-                                                  concentration=concentration,
-                                                  pdi=pdi, wavelen=wavelen,
-                                                  n_matrix=n_sample, k=k, distance=distance,
-                                                  structure_s_data=structure_s_data,
-                                                  structure_qd_data=structure_qd_data,
-                                                  x_eff=x_eff)
+    diff_cs_detected = differential_cross_section(m, x, angles,
+                                        volume_fraction,
+                                        structure_type=structure_type,
+                                        form_type=form_type,
+                                        diameters=mean_diameters,
+                                        concentration=concentration,
+                                        pdi=pdi, wavelen=wavelen,
+                                        n_matrix=n_sample, k=k,
+                                        distance=distance,
+                                        structure_s_data=structure_s_data,
+                                        structure_qd_data=structure_qd_data,
+                                        x_eff=x_eff)
 
-    diff_cs_total = differential_cross_section(m, x, angles_tot, volume_fraction,
-                                               structure_type=structure_type,
-                                               form_type=form_type,
-                                               diameters=mean_diameters,
-                                               concentration=concentration,
-                                               pdi=pdi, wavelen=wavelen,
-                                               n_matrix=n_sample, k=k, distance=distance,
-                                               structure_s_data=structure_s_data,
-                                               structure_qd_data=structure_qd_data,
-                                               x_eff=x_eff)
+    diff_cs_total = differential_cross_section(m, x, angles_tot,
+                                        volume_fraction,
+                                        structure_type=structure_type,
+                                        form_type=form_type,
+                                        diameters=mean_diameters,
+                                        concentration=concentration,
+                                        pdi=pdi, wavelen=wavelen,
+                                        n_matrix=n_sample, k=k,
+                                        distance=distance,
+                                        structure_s_data=structure_s_data,
+                                        structure_qd_data=structure_qd_data,
+                                        x_eff=x_eff)
 
     # integrate the differential cross sections to get the total cross section
     if np.abs(n_sample.imag.magnitude) > 0.:
@@ -362,16 +374,18 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius,
             # polydisperse differential cross section at the surface of each
             # component (meaning at a distance of each mean radius). Then we
             # do a number average the total cross sections.
-            cscat1 = mie.integrate_intensity_complex_medium(diff_cs_detected[0] * transmission[0],
-                                                       diff_cs_detected[1] * transmission[1],
-                                                       distance[0], angles, k,
-                                                       phi_min=Quantity(phi_min, 'rad'),
-                                                       phi_max=Quantity(phi_max, 'rad'))
-            cscat2 = mie.integrate_intensity_complex_medium(diff_cs_detected[0] * transmission[0],
-                                                       diff_cs_detected[1] * transmission[1],
-                                                       distance[1], angles, k,
-                                                       phi_min=Quantity(phi_min, 'rad'),
-                                                       phi_max=Quantity(phi_max, 'rad'))
+            cscat1 = mie.integrate_intensity_complex_medium(
+                                        diff_cs_detected[0] * transmission[0],
+                                        diff_cs_detected[1] * transmission[1],
+                                        distance[0], angles, k,
+                                        phi_min=Quantity(phi_min, 'rad'),
+                                        phi_max=Quantity(phi_max, 'rad'))
+            cscat2 = mie.integrate_intensity_complex_medium(
+                                        diff_cs_detected[0] * transmission[0],
+                                        diff_cs_detected[1] * transmission[1],
+                                        distance[1], angles, k,
+                                        phi_min=Quantity(phi_min, 'rad'),
+                                        phi_max=Quantity(phi_max, 'rad'))
             cscat_detected1 = cscat1[0]
             cscat_detected_par1 = cscat1[1]
             cscat_detected_perp1 = cscat1[2]
@@ -379,98 +393,127 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius,
             cscat_detected_par2 = cscat2[1]
             cscat_detected_perp2 = cscat2[2]
 
-            cscat_detected = cscat_detected1 * concentration[0] + cscat_detected2 * concentration[1]
-            cscat_detected_par = cscat_detected_par1 * concentration[0] + cscat_detected_par2 * concentration[1]
-            cscat_detected_perp = cscat_detected_perp1 * concentration[0] + cscat_detected_perp2 * concentration[1]
+            cscat_detected = (cscat_detected1 * concentration[0]
+                              + cscat_detected2 * concentration[1])
+            cscat_detected_par = (cscat_detected_par1 * concentration[0]
+                                  + cscat_detected_par2 * concentration[1])
+            cscat_detected_perp = (cscat_detected_perp1 * concentration[0]
+                                   + cscat_detected_perp2 * concentration[1])
 
-            cscat_total1 = mie.integrate_intensity_complex_medium(diff_cs_total[0],
-                                                             diff_cs_total[1],
-                                                             distance[0], angles_tot, k)[0]
-            cscat_total2 = mie.integrate_intensity_complex_medium(diff_cs_total[0],
-                                                             diff_cs_total[1],
-                                                             distance[1], angles_tot, k)[0]
-            cscat_total = cscat_total1 * concentration[0] + cscat_total2 * concentration[1]
+            cscat_total1 = mie.integrate_intensity_complex_medium(
+                                                        diff_cs_total[0],
+                                                        diff_cs_total[1],
+                                                        distance[0],
+                                                        angles_tot, k)[0]
+            cscat_total2 = mie.integrate_intensity_complex_medium(
+                                                        diff_cs_total[0],
+                                                        diff_cs_total[1],
+                                                        distance[1],
+                                                        angles_tot, k)[0]
+            cscat_total = (cscat_total1 * concentration[0] +
+                           cscat_total2 * concentration[1])
 
             # Similarly, we calculate the asymmetry parameter integrating at
             # the surface of each mean component of the binary mixture and
             # then average
             factor = np.cos(angles_tot)
-            asymmetry_unpolarized1 = mie.integrate_intensity_complex_medium(diff_cs_total[0] * factor,
-                                                                       diff_cs_total[1] * factor,
-                                                                       distance[0],
-                                                                       angles_tot, k)[0]
-            asymmetry_unpolarized2 = mie.integrate_intensity_complex_medium(diff_cs_total[0] * factor,
-                                                                       diff_cs_total[1] * factor,
-                                                                       distance[1],
-                                                                       angles_tot, k)[0]
-            asymmetry_unpolarized = asymmetry_unpolarized1 * concentration[0] + asymmetry_unpolarized2 * concentration[1]
+            asymmetry_unpolarized1 = mie.integrate_intensity_complex_medium(
+                                            diff_cs_total[0] * factor,
+                                            diff_cs_total[1] * factor,
+                                            distance[0],
+                                            angles_tot, k)[0]
+            asymmetry_unpolarized2 = mie.integrate_intensity_complex_medium(
+                                            diff_cs_total[0] * factor,
+                                            diff_cs_total[1] * factor,
+                                            distance[1],
+                                            angles_tot, k)[0]
+            asymmetry_unpolarized = (asymmetry_unpolarized1 * concentration[0]
+                                     + asymmetry_unpolarized2
+                                       * concentration[1])
 
         else:
             # We calculate the detected and total cross sections using the full
-            # Mie solutions with the asymptotic form of the spherical
-            # Hankel functions (see mie.diff_scat_intensity_complex_medium()).
-            # By doing so, we ignore near-field effects but still include the
+            # Mie solutions with the asymptotic form of the spherical Hankel
+            # functions (see mie.diff_scat_intensity_complex_medium()). By
+            # doing so, we ignore near-field effects but still include the
             # complex k into the Mie solutions. Since the cross sections then
-            # decay over distance, we integrate them at the surface of the particle.
-            # The decay through the sample is accounted for later with Beer-
-            # Lambert's law.
-            cscat = mie.integrate_intensity_complex_medium(diff_cs_detected[0]*transmission[0],
-                                                           diff_cs_detected[1]*transmission[1],
-                                                           distance, angles, k,
-                                                           phi_min=Quantity(phi_min, 'rad'),
-                                                           phi_max=Quantity(phi_max, 'rad'))
+            # decay over distance, we integrate them at the surface of the
+            # particle. The decay through the sample is accounted for later
+            # with Beer- Lambert's law.
+            cscat = mie.integrate_intensity_complex_medium(
+                                        diff_cs_detected[0]*transmission[0],
+                                        diff_cs_detected[1]*transmission[1],
+                                        distance, angles, k,
+                                        phi_min=Quantity(phi_min, 'rad'),
+                                        phi_max=Quantity(phi_max, 'rad'))
             cscat_detected = cscat[0]
             cscat_detected_par = cscat[1]
             cscat_detected_perp = cscat[2]
 
-            cscat_total = mie.integrate_intensity_complex_medium(diff_cs_total[0],
-                                                                 diff_cs_total[1],
-                                                                 distance, angles_tot, k)[0]
+            cscat_total = mie.integrate_intensity_complex_medium(
+                                        diff_cs_total[0],
+                                        diff_cs_total[1],
+                                        distance, angles_tot, k)[0]
             asym_factor = np.cos(angles_tot)
-            asymmetry_unpolarized = mie.integrate_intensity_complex_medium(diff_cs_total[0]*asym_factor,
-                                                                           diff_cs_total[1]*asym_factor,
-                                                                           distance,
-                                                                           angles_tot, k)[0]
+            asymmetry_unpolarized = mie.integrate_intensity_complex_medium(
+                                        diff_cs_total[0]*asym_factor,
+                                        diff_cs_total[1]*asym_factor,
+                                        distance,
+                                        angles_tot, k)[0]
 
         asymmetry_parameter = asymmetry_unpolarized/cscat_total
 
         # Calculate the transport length for unpolarized light (see eq. 5 of
         # Kaplan, Dinsmore, Yodh, Pine, PRE 50(6): 4827, 1994)
-        transport_length = 1/(1.0-asymmetry_parameter)/rho/cscat_total  # TODO is this cscat or cext_tot?
+        # TODO is this cscat or cext_tot?
+        transport_length = 1/(1.0-asymmetry_parameter)/rho/cscat_total
 
     # if there is no absorption in the system
     else:
         cscat_detected_par = _integrate_cross_section(diff_cs_detected[0],
-                                                  transmission[0]/np.abs(k)**2,
-                                                  angles, azi_angle_range)
+                                                transmission[0]/np.abs(k)**2,
+                                                angles, azi_angle_range)
         cscat_detected_perp = _integrate_cross_section(diff_cs_detected[1],
-                                                   transmission[1]/np.abs(k)**2,
-                                                   angles, azi_angle_range)
+                                                transmission[1]/np.abs(k)**2,
+                                                angles, azi_angle_range)
         cscat_detected = (cscat_detected_par + cscat_detected_perp)/2.0
 
-        cscat_total_par = _integrate_cross_section(diff_cs_total[0], 1.0/np.abs(k)**2,
-                                                   angles_tot, azi_angle_range_tot)
-        cscat_total_perp = _integrate_cross_section(diff_cs_total[1], 1.0/np.abs(k)**2,
-                                                    angles_tot, azi_angle_range_tot)
+        cscat_total_par = _integrate_cross_section(diff_cs_total[0],
+                                                   1.0/np.abs(k)**2,
+                                                   angles_tot,
+                                                   azi_angle_range_tot)
+        cscat_total_perp = _integrate_cross_section(diff_cs_total[1],
+                                                    1.0/np.abs(k)**2,
+                                                    angles_tot,
+                                                    azi_angle_range_tot)
         cscat_total = (cscat_total_par + cscat_total_perp)/2.0
 
-        asymmetry_par = _integrate_cross_section(diff_cs_total[0], np.cos(angles_tot)*1.0/np.abs(k)**2,
-                                                 angles_tot, azi_angle_range_tot)
-        asymmetry_perp = _integrate_cross_section(diff_cs_total[1], np.cos(angles_tot)*1.0/np.abs(k)**2,
-                                                  angles_tot, azi_angle_range_tot)
+        asymmetry_par = _integrate_cross_section(diff_cs_total[0],
+                                        np.cos(angles_tot)*1.0/np.abs(k)**2,
+                                        angles_tot,
+                                        azi_angle_range_tot)
+        asymmetry_perp = _integrate_cross_section(diff_cs_total[1],
+                                        np.cos(angles_tot)*1.0/np.abs(k)**2,
+                                        angles_tot,
+                                        azi_angle_range_tot)
         asymmetry_parameter = (asymmetry_par + asymmetry_perp)/cscat_total/2.0
 
         # calculate transport cscat
         # not currently returned, but could be useful in the future
-        transport_cscat_par = _integrate_cross_section(diff_cs_total[0], (1-np.cos(angles_tot))*1.0/np.abs(k)**2,
-                                                 angles_tot, azi_angle_range_tot)
-        transport_cscat_perp = _integrate_cross_section(diff_cs_total[1], (1-np.cos(angles_tot))*1.0/np.abs(k)**2,
-                                                 angles_tot, azi_angle_range_tot)
+        transport_cscat_par = _integrate_cross_section(
+                                    diff_cs_total[0],
+                                    (1-np.cos(angles_tot))*1.0/np.abs(k)**2,
+                                    angles_tot, azi_angle_range_tot)
+        transport_cscat_perp = _integrate_cross_section(
+                                    diff_cs_total[1],
+                                    (1-np.cos(angles_tot))*1.0/np.abs(k)**2,
+                                    angles_tot, azi_angle_range_tot)
         transport_cscat = (transport_cscat_par + transport_cscat_perp)/2
 
         # Calculate the transport length for unpolarized light (see eq. 5 of
         # Kaplan, Dinsmore, Yodh, Pine, PRE 50(6): 4827, 1994)
-        transport_length = 1/(1.0-asymmetry_parameter)/rho/cscat_total  # TODO is this cscat or cext_tot?
+        # TODO is this cscat or cext_tot?
+        transport_length = 1/(1.0-asymmetry_parameter)/rho/cscat_total
 
     cext_total = cscat_total.to('um**2') + cabs_total.to('um**2')
 
@@ -480,7 +523,8 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius,
         factor = 1.0
     else:
         # use Beer-Lambert law to account for attenuation
-        factor = ((1.0 - np.exp(-rho*cext_total*thickness)) * cscat_total/cext_total).to('')
+        factor = ((1.0 - np.exp(-rho*cext_total*thickness))
+                  * cscat_total/cext_total).to('')
 
     # one critical difference from Sofia's original code is that this code
     # calculates the reflected intensity in each polarization channel
@@ -521,8 +565,8 @@ def differential_cross_section(m, x, angles, volume_fraction,
                                x_eff=None):
     """
     Calculate dimensionless differential scattering cross-section for a sphere,
-    including contributions from the structure factor. Need to multiply by 1/k**2
-    to get the dimensional differential cross section.
+    including contributions from the structure factor. Need to multiply by
+    1/k**2 to get the dimensional differential cross section.
 
     Parameters
     ----------
@@ -538,8 +582,9 @@ def differential_cross_section(m, x, angles, volume_fraction,
         fraction of the entire core-shell particle.
     structure_type: str or None
         type of structure to calculate the structure factor. Can be 'glass',
-        'paracrystal', 'polydisperse', 'data', or None. If structure_type=='data',
-        you must also provide structure_s_data and structure_qd_data.
+        'paracrystal', 'polydisperse', 'data', or None. If
+        structure_type=='data', you must also provide structure_s_data and
+        structure_qd_data.
     form_type: str or None
         type of particle geometry to calculate the form factor. Can be 'sphere'
         or None.
@@ -615,14 +660,15 @@ def differential_cross_section(m, x, angles, volume_fraction,
 
     # calculate form factor
     if form_type == 'sphere':
-        if k is not None and (np.abs(k.imag.magnitude) > 0. or coordinate_system == 'cartesian'):
+        if k is not None and (np.abs(k.imag.magnitude) > 0.
+                              or coordinate_system == 'cartesian'):
             if distance is None:
                 raise ValueError('must specify distance for absorbing systems')
             form_factor = mie.diff_scat_intensity_complex_medium(m, x, angles,
-                                            k*distance,
-                                            coordinate_system=coordinate_system,
-                                            incident_vector=incident_vector,
-                                            phis=phis)
+                                        k*distance,
+                                        coordinate_system=coordinate_system,
+                                        incident_vector=incident_vector,
+                                        phis=phis)
         else:
             form_factor = mie.calc_ang_dist(m, x, angles)
             #if k is not None:
@@ -632,15 +678,18 @@ def differential_cross_section(m, x, angles, volume_fraction,
         f_perp = form_factor[1]
 
     elif form_type == 'polydisperse':
-        if diameters is None or concentration is None or pdi is None or wavelen is None or n_matrix is None:
-            raise ValueError('must specify diameters, concentration, pdi, wavelength, and n_matrix for polydisperse systems')
+        if (diameters is None or concentration is None
+            or pdi is None or wavelen is None or n_matrix is None):
+            raise ValueError('must specify diameters, concentration, pdi, '
+                             'wavelength, and n_matrix for polydisperse '
+                             'systems')
 
         form_factor = polydisperse_form_factor(m, angles, diameters,
-                                               concentration, pdi, wavelen,
-                                               n_matrix, k=k, distance=distance,
-                                               coordinate_system=coordinate_system,
-                                               incident_vector=incident_vector,
-                                               phis=phis)
+                                        concentration, pdi, wavelen,
+                                        n_matrix, k=k, distance=distance,
+                                        coordinate_system=coordinate_system,
+                                        incident_vector=incident_vector,
+                                        phis=phis)
         f_par = form_factor[0]
         f_perp = form_factor[1]
 
@@ -654,7 +703,8 @@ def differential_cross_section(m, x, angles, volume_fraction,
     if x_eff is not None:
         qd = 4*np.array(np.abs(x_eff)).max()*np.sin(angles/2)
     else:
-        qd = 4*np.array(np.abs(x)).max()*np.sin(angles/2)  #TODO: should it be x.real or x.abs?
+        # TODO: should it be x.real or x.abs?
+        qd = 4*np.array(np.abs(x)).max()*np.sin(angles/2)
 
     if isinstance(structure_type, dict):
         if structure_type['name'] == 'paracrystal':
@@ -675,12 +725,15 @@ def differential_cross_section(m, x, angles, volume_fraction,
 
         elif structure_type == 'polydisperse':
             if diameters is None or concentration is None or pdi is None:
-                raise ValueError('must specify diameters, concentration, and pdi for polydisperse systems')
+                raise ValueError('must specify diameters, concentration, '
+                                 'and pdi for polydisperse systems')
             if len(np.atleast_1d(m)) > 1:
-                raise ValueError('cannot handle polydispersity in core-shell particles')
+                raise ValueError('cannot handle polydispersity in '
+                                 'core-shell particles')
 
-            q = qd / diameters[0]  # I think it's okay to divide by the first
-                                   # radius because it cancels out the radius dependence from qd
+            # I think it's okay to divide by the first
+            # radius because it cancels out the radius dependence from qd
+            q = qd / diameters[0]
             s = structure.factor_poly(q, volume_fraction, diameters,
                                       concentration, pdi)
 
@@ -741,11 +794,12 @@ def polydisperse_form_factor(m, angles, diameters, concentration, pdi, wavelen,
     Returns
     -------
     float (2-tuple):
-        polydisperse form factor for parallel and perpendicular polarizations as a
-        function of scattering angle.
+        polydisperse form factor for parallel and perpendicular polarizations
+        as a function of scattering angle.
     """
     if len(np.atleast_1d(m)) > 1:
-        raise ValueError('cannot handle polydispersity in core-shell particles')
+        raise ValueError('cannot handle polydispersity in core-shell ',
+                         'particles')
 
     # if the pdi is zero, assume it's very small (we get the same results)
     # because otherwise we get a divide by zero error
@@ -761,23 +815,27 @@ def polydisperse_form_factor(m, angles, diameters, concentration, pdi, wavelen,
     # define the range of diameters of the size distribution
     three_std_dev = 3*diameters/np.sqrt(t+1)
     min_diameter = diameters - three_std_dev
-    min_diameter[min_diameter.magnitude < 0] = Quantity(0.000001, diameters.units)
+    min_diameter[min_diameter.magnitude < 0] = Quantity(0.000001,
+                                                        diameters.units)
     max_diameter = diameters + three_std_dev
 
-    if coordinate_system=='cartesian':
-        F_par = np.empty([len(np.atleast_1d(diameters)), angles.shape[0], angles.shape[1]])
-        F_perp = np.empty([len(np.atleast_1d(diameters)), angles.shape[0], angles.shape[1]])
-    else:
-        F_par = np.empty([len(np.atleast_1d(diameters)), len(angles)])
-        F_perp = np.empty([len(np.atleast_1d(diameters)), len(angles)])
+    F = {}
+    for pol in ('par', 'perp'):
+        if coordinate_system=='cartesian':
+            F[pol] = np.empty([len(np.atleast_1d(diameters)), angles.shape[0],
+                               angles.shape[1]])
+        else:
+            F[pol] = np.empty([len(np.atleast_1d(diameters)), len(angles)])
 
     # for each mean diameter, calculate the Schulz distribution and
     # the size parameter x_poly
     for d in np.arange(len(np.atleast_1d(diameters))):
         # the diameter range is the range between the min diameter and
         # the max diameter of the Schulz distribution
-        diameter_range = np.linspace(np.atleast_1d(min_diameter)[d], np.atleast_1d(max_diameter)[d], 50)
-        distr = size_distribution(diameter_range, np.atleast_1d(diameters)[d], np.atleast_1d(t)[d])
+        diameter_range = np.linspace(np.atleast_1d(min_diameter)[d],
+                                     np.atleast_1d(max_diameter)[d], 50)
+        distr = size_distribution(diameter_range, np.atleast_1d(diameters)[d],
+                                  np.atleast_1d(t)[d])
         if coordinate_system=='cartesian':
             distr_array = np.tile(distr, [angles.shape[0], angles.shape[1],1])
         else:
@@ -786,73 +844,89 @@ def polydisperse_form_factor(m, angles, diameters, concentration, pdi, wavelen,
 
         x_poly = size_parameter(wavelen, n_matrix, diameter_range/2)
 
-        if coordinate_system=='cartesian':
-            form_factor_par = np.empty([angles.shape[0], angles.shape[1], len(diameter_range)])
-            form_factor_perp = np.empty([angles.shape[0], angles.shape[1], len(diameter_range)])
-            integrand_par = np.empty([angles.shape[0], angles.shape[1], len(diameter_range)])
-            integrand_perp = np.empty([angles.shape[0], angles.shape[1], len(diameter_range)])
-        else:
-            form_factor_par = np.empty([len(angles), len(diameter_range)])
-            form_factor_perp = np.empty([len(angles), len(diameter_range)])
-            integrand_par = np.empty([len(angles), len(diameter_range)])
-            integrand_perp = np.empty([len(angles), len(diameter_range)])
+        form_factor = {}
+        integrand = {}
+        for pol in ('par', 'perp'):
+            if coordinate_system=='cartesian':
+                form_factor[pol] = np.empty([angles.shape[0], angles.shape[1],
+                                             len(diameter_range)])
+                integrand[pol] = np.empty([angles.shape[0], angles.shape[1],
+                                           len(diameter_range)])
+            else:
+                form_factor[pol] = np.empty([len(angles), len(diameter_range)])
+                integrand[pol] = np.empty([len(angles), len(diameter_range)])
 
         # for each diameter in the distribution, calculate the detected
         # and the total form factors for absorbing systems
         for s in np.arange(len(diameter_range)):
             # if the system has absorption, use the absorption formula from Mie
-            if ((np.abs(n_matrix.imag.magnitude) > 0. or coordinate_system == 'cartesian')
+            if ((np.abs(n_matrix.imag.magnitude) > 0.
+                 or coordinate_system == 'cartesian')
                  and (k is not None and distance is not None)):
-                distance_array = np.resize(distance, len(np.atleast_1d(diameters)))
-                form_factor = mie.diff_scat_intensity_complex_medium(m, x_poly[s],
+                distance_array = np.resize(distance,
+                                           len(np.atleast_1d(diameters)))
+                ff = mie.diff_scat_intensity_complex_medium(m,
+                                        x_poly[s],
                                         angles_array[s],
-                                        k*distance_array[d], # removed extra units for new pint
+                                        k*distance_array[d],
                                         coordinate_system=coordinate_system,
                                         incident_vector=incident_vector,
                                         phis=phis)
                 # it might seem reasonable to calculate the form factor of each
                 # individual radius in the Schulz distribution (meaning that we
-                # could use diameter_range[s] instead of distance_array[d]), but
-                # this doesn't lead to reasonable results because we later integrate
-                # the diff cross section at the mean radii, not at each of the
-                # radii of the distribution. So we need to be consistent with the
-                # distances we use for the integrand and the integral. For now,
-                # we use the mean radii.
+                # could use diameter_range[s] instead of distance_array[d]),
+                # but this doesn't lead to reasonable results because we later
+                # integrate the diff cross section at the mean radii, not at
+                # each of the radii of the distribution. So we need to be
+                # consistent with the distances we use for the integrand and
+                # the integral. For now, we use the mean radii.
             else:
-                form_factor = mie.calc_ang_dist(m, x_poly[s], angles_array[s])
-            if isinstance(form_factor[0], Quantity):
-                form_factor = list(form_factor)
-                form_factor[0] = form_factor[0].magnitude
-                form_factor[1] = form_factor[1].magnitude
+                ff = mie.calc_ang_dist(m, x_poly[s], angles_array[s])
+            if isinstance(ff[0], Quantity):
+                ff = list(ff)
+                ff[0] = ff[0].magnitude
+                ff[1] = ff[1].magnitude
             if coordinate_system=='cartesian':
-                form_factor_par[:, :, s] = form_factor[0]
-                form_factor_perp[:, :, s] = form_factor[1]
+                form_factor['par'][:, :, s] = ff[0]
+                form_factor['perp'][:, :, s] = ff[1]
             else:
-                form_factor_par[:, s] = form_factor[0]
-                form_factor_perp[:, s] = form_factor[1]
-
-        # multiply the form factors by the Schulz distribution
-        integrand_par = form_factor_par * distr_array
-        integrand_perp = form_factor_perp * distr_array
+                form_factor['par'][:, s] = ff[0]
+                form_factor['perp'][:, s] = ff[1]
 
         # integrate and multiply by the concentration of the mean
         # diameter to get the polydisperse form factor
         if isinstance(concentration, Quantity):
             concentration = concentration.magnitude
         diameter_range = diameter_range.magnitude
-        if coordinate_system == 'cartesian':
-            axis_int = 2
-            F_par[d, :, :] = np.trapz(integrand_par, x=diameter_range, axis=axis_int) * np.atleast_1d(concentration)[d]
-            F_perp[d, :, :] = np.trapz(integrand_perp, x=diameter_range, axis=axis_int) * np.atleast_1d(concentration)[d]
-        else:
-            axis_int = 1
-            F_par[d, :] = np.trapz(integrand_par, x=diameter_range, axis=axis_int) * np.atleast_1d(concentration)[d]
-            F_perp[d, :] = np.trapz(integrand_perp, x=diameter_range, axis=axis_int) * np.atleast_1d(concentration)[d]
+
+        for pol in ('par', 'perp'):
+            # multiply the form factors by the Schulz distribution
+            integrand[pol] = form_factor[pol] * distr_array
+
+            integral = {}
+            if isinstance(integrand[pol], Quantity):
+                integrand_mag = integrand[pol].magnitude
+                units = integrand[pol].units
+            else:
+                integrand_mag = integrand[pol]
+                units = 1
+            if coordinate_system == 'cartesian':
+                axis_int = 2
+            else:
+                axis_int = 1
+            integral = (trapezoid(integrand_mag, x=diameter_range,
+                                  axis=axis_int)
+                             * np.atleast_1d(concentration)[d]
+                             * units)
+            if coordinate_system == 'cartesian':
+                F[pol][d, :, :] = integral
+            else:
+                F[pol][d, :] = integral
 
     # the final polydisperse form factor as a function of angle is
     # calculated as the average of each mean diameter's form factor
-    f_par = np.sum(F_par, axis=0)
-    f_perp = np.sum(F_perp, axis=0)
+    f_par = np.sum(F['par'], axis=0)
+    f_perp = np.sum(F['perp'], axis=0)
     return(f_par, f_perp)
 
 
@@ -902,9 +976,11 @@ def absorption_cross_section(form_type, m, diameters, n_matrix, x, wavelen,
 
     if form_type == 'polydisperse':
         if concentration is None or pdi is None:
-            raise ValueError('must specify concentration and pdi for absorbing polydisperse systems')
+            raise ValueError('must specify concentration and pdi '
+                             'for absorbing polydisperse systems')
         if len(np.atleast_1d(m)) > 1:
-            raise ValueError('cannot handle polydispersity in core-shell particles')
+            raise ValueError('cannot handle polydispersity in '
+                             'core-shell particles')
 
         # if the pdi is zero, assume it's very small (we get the same results)
         # because otherwise we get a divide by zero error
@@ -918,7 +994,8 @@ def absorption_cross_section(form_type, m, diameters, n_matrix, x, wavelen,
         # define the range of diameters of the size distribution
         three_std_dev = 3*diameters/np.sqrt(t+1)
         min_diameter = diameters - three_std_dev
-        min_diameter[min_diameter.magnitude < 0] = Quantity(0.0, diameters.units)
+        min_diameter[min_diameter.magnitude < 0] = Quantity(0.0,
+                                                            diameters.units)
         max_diameter = diameters + three_std_dev
 
         cabs_poly = np.empty(len(np.atleast_1d(diameters)))
@@ -928,9 +1005,14 @@ def absorption_cross_section(form_type, m, diameters, n_matrix, x, wavelen,
         for d in np.arange(len(np.atleast_1d(diameters))):
             # the diameter range is the range between the min diameter and
             # the max diameter of the Schulz distribution
-            diameter_range = np.linspace(np.atleast_1d(min_diameter)[d], np.atleast_1d(max_diameter)[d], 50)
-            distr = size_distribution(diameter_range, np.atleast_1d(diameters)[d], np.atleast_1d(t)[d])
-            x_poly = size_parameter(wavelen, n_matrix, Quantity(diameter_range/2, diameters.units))
+            diameter_range = np.linspace(np.atleast_1d(min_diameter)[d],
+                                         np.atleast_1d(max_diameter)[d], 50)
+            distr = size_distribution(diameter_range,
+                                      np.atleast_1d(diameters)[d],
+                                      np.atleast_1d(t)[d])
+            x_poly = size_parameter(wavelen, n_matrix,
+                                    Quantity(diameter_range/2,
+                                             diameters.units))
 
             # for polydisperse mu_abs calculation
             x_scat = size_parameter(wavelen, n_particle, diameters[d]/2)
@@ -940,25 +1022,30 @@ def absorption_cross_section(form_type, m, diameters, n_matrix, x, wavelen,
             # for each diameter in the distribution, calculate the detected
             # and the total form factors for absorbing systems
             for s in np.arange(len(diameter_range)):
-                # if the system has absorption, use the absorption formula from Mie
-                # for polydisperse mu_abs calculation
+                # if the system has absorption, use the absorption formula from
+                # Mie for polydisperse mu_abs calculation
                 nstop = mie._nstop(np.array(x_poly[s]).max())
                 coeffs = mie._scatcoeffs(m, x_poly[s], nstop)
                 internal_coeffs = mie._internal_coeffs(m, x_poly[s], nstop)
 
-                cabs = mie._cross_sections_complex_medium_fu(coeffs[0], coeffs[1],
-                                                             internal_coeffs[0],
-                                                             internal_coeffs[1],
-                                                             Quantity(diameter_range[s]/2, diameters.units),
-                                                             n_particle,
-                                                             n_matrix, x_scat,
-                                                             x_poly[s], wavelen)[1]
+                cabs = mie._cross_sections_complex_medium_fu(coeffs[0],
+                                                coeffs[1],
+                                                internal_coeffs[0],
+                                                internal_coeffs[1],
+                                                Quantity(diameter_range[s]/2,
+                                                         diameters.units),
+                                                n_particle,
+                                                n_matrix, x_scat,
+                                                x_poly[s],
+                                                wavelen)[1]
                 cabs_magn[s] = cabs.magnitude
-            # integrate and multiply the mu_abs by the concentrations to get the polydisperse mu_abs
-            cabs_poly[d] = np.trapz(cabs_magn*distr, x=diameter_range) * np.atleast_1d(concentration)[d]
+            # integrate and multiply the mu_abs by the concentrations to get
+            # the polydisperse mu_abs
+            cabs_poly[d] = (trapezoid(cabs_magn*distr, x=diameter_range)
+                            * np.atleast_1d(concentration)[d])
         cabs_total = Quantity(np.sum(cabs_poly), cabs.units)
 
-    if form_type == None:
+    if form_type is None:
         cabs_total = Quantity(0.0, 'um^2')
 
     if form_type == 'sphere':
@@ -971,7 +1058,8 @@ def absorption_cross_section(form_type, m, diameters, n_matrix, x, wavelen,
             coeffs = msl.scatcoeffs_multi(m, x)
             cabs_total = mie._cross_sections_complex_medium_sudiarta(coeffs[0],
                                                                      coeffs[1],
-                                                                     x, radius)[1]
+                                                                     x,
+                                                                     radius)[1]
             if cabs_total.magnitude < 0.0:
                 cabs_total = 0.0 * cabs_total.units
         else:
@@ -979,12 +1067,13 @@ def absorption_cross_section(form_type, m, diameters, n_matrix, x, wavelen,
             internal_coeffs = mie._internal_coeffs(m, x, nstop)
             x_scat = size_parameter(wavelen, n_particle, radius)
 
-            cabs_total = mie._cross_sections_complex_medium_fu(coeffs[0], coeffs[1],
-                                                               internal_coeffs[0],
-                                                               internal_coeffs[1],
-                                                               radius, n_particle,
-                                                               n_matrix, x_scat,
-                                                               x, wavelen)[1]
+            cabs_total = mie._cross_sections_complex_medium_fu(
+                                                        coeffs[0], coeffs[1],
+                                                        internal_coeffs[0],
+                                                        internal_coeffs[1],
+                                                        radius, n_particle,
+                                                        n_matrix, x_scat,
+                                                        x, wavelen)[1]
     return(cabs_total)
 
 
@@ -1020,16 +1109,17 @@ def size_distribution(diameter_range, mean, t):
         t = t.magnitude
 
     if t <= 100:
-        schulz = ((t+1)/mean)**(t+1) * diameter_range**t / factorial(t) * np.exp(-diameter_range/mean*(t+1))
-        norm = np.trapz(schulz, x=diameter_range)
+        schulz = (((t+1)/mean)**(t+1) * diameter_range**t / factorial(t)
+                  * np.exp(-diameter_range/mean*(t+1)))
+        norm = trapezoid(schulz, x=diameter_range)
         distr = schulz / norm
     else:
         std_dev = diameter_range / np.sqrt(t+1)
-        distr = np.exp(-(diameter_range - mean)**2 / (2 * std_dev**2)) / np.sqrt(2*np.pi*std_dev**2)
-        norm = np.trapz(distr, x=diameter_range)
+        distr = (np.exp(-(diameter_range - mean)**2 / (2 * std_dev**2))
+                 / np.sqrt(2*np.pi*std_dev**2))
+        norm = trapezoid(distr, x=diameter_range)
         distr = distr/norm
     return(distr)
-
 
 def _integrate_cross_section(cross_section, factor, angles,
                              azi_angle_range = 2*np.pi):
@@ -1039,16 +1129,15 @@ def _integrate_cross_section(cross_section, factor, angles,
     """
     # integrand
     integrand = cross_section * factor * np.sin(angles)
-    # for older versions of pint, np.trapz does not preserve units, so need to
-    # state explicitly that we are in the same units as the integrand
-    # for newer versions of pint, np.trapz does preserve units, and add the
-    # units of the angles. We therefore changed to angles.magnitude and removed
-    # the extra integrand.units term
-    integral = np.trapz(integrand, x=angles.magnitude)#* integrand.units # comment this
-
-    # multiply by 2*pi to account for integral over phi
+    # pint does not yet preserve units for scipy.integrate.trapezoid, so we
+    # need to state explicitly that we are in the same units as the integrand.
+    if isinstance(integrand, Quantity):
+        integral = (trapezoid(integrand.magnitude, x=angles.magnitude)
+                    * integrand.units)
+    else:
+        integral = trapezoid(integrand, x=angles.magnitude)
+    # multiply by azimuthal angular range to account for integral over phi
     sigma = azi_angle_range * integral
-    #sigma = 2 * np.pi * integral
 
     return sigma
 
@@ -1065,7 +1154,8 @@ def fresnel_reflection(n1, n2, incident_angle):
     n1: structcol.Quantity [dimensionless]
         refractive index of the first medium along the direction of propagation
     n2: structcol.Quantity [dimensionless]
-        refractive index of the second medium along the direction of propagation
+        refractive index of the second medium along the direction of
+        propagation
     incident_angle: structcol.Quantity [dimensionless] or ndarray of such
         incident angle, measured from the normal (specify degrees or radians by
         using the appropriate units in Quantity())
@@ -1130,7 +1220,8 @@ def fresnel_transmission(index1, index2, incident_angle):
     n1: structcol.Quantity [dimensionless]
         refractive index of the first medium along the direction of propagation
     n2: structcol.Quantity [dimensionless]
-        refractive index of the second medium along the direction of propagation
+        refractive index of the second medium along the direction of
+        propagation
     incident_angle: structcol.Quantity [dimensionless] or ndarray of such
         incident angle, measured from the normal (specify degrees or radians by
         using the appropriate units in Quantity())

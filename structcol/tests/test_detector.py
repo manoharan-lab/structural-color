@@ -29,7 +29,6 @@ import structcol as sc
 from .. import montecarlo as mc
 from .. import detector as det
 from .. import refractive_index as ri
-from .. import index_ratio, size_parameter, model
 import numpy as np
 import warnings
 from numpy.testing import assert_equal, assert_almost_equal
@@ -62,14 +61,23 @@ def test_calc_refl_trans():
     kz = np.array([[1,1,1,1],[-1,1,1,1],[-1,1,1,1]])
     weights = np.array([[.8, .8, .9, .8],[.7, .3, .7, 0],[.1, .1, .5, 0]])
     trajectories = mc.Trajectory([np.nan, np.nan, z_pos],[np.nan, np.nan, kz], weights)
-    refl, trans= det.calc_refl_trans(trajectories, high_thresh, small_n, small_n, 'film')
+    # Should raise warning that n_matrix and n_particle are not set, so
+    # tir correction is based only on sample index
+    with pytest.warns(UserWarning):
+        refl, trans= det.calc_refl_trans(trajectories, high_thresh, small_n,
+                                         small_n, 'film')
     expected_trans_array = np.array([0, .3, .25, 0])/ntrajectories #calculated manually
     expected_refl_array = np.array([.7, 0, .25, 0])/ntrajectories #calculated manually
     assert_almost_equal(refl, np.sum(expected_refl_array))
     assert_almost_equal(trans, np.sum(expected_trans_array))
 
     # test above but with covers on front and back
-    refl, trans = det.calc_refl_trans(trajectories, high_thresh, small_n, small_n, 'film',n_front=large_n, n_back=large_n)
+    # (should raise warning that n_matrix and n_particle are not set, so
+    # tir correction is based only on sample index)
+    with pytest.warns(UserWarning):
+        refl, trans = det.calc_refl_trans(trajectories, high_thresh, small_n,
+                                          small_n, 'film',n_front=large_n,
+                                          n_back=large_n)
     expected_trans_array = np.array([0.00814545, 0.20014545, 0.2, 0.])/ntrajectories #calculated manually
     expected_refl_array = np.array([0.66700606, 0.20349091, 0.4, 0.2])/ntrajectories #calculated manually
     assert_almost_equal(refl, np.sum(expected_refl_array))
@@ -81,14 +89,23 @@ def test_calc_refl_trans():
     kz = np.array([[1,1,1,0.86746757864487367],[-.1,-.1,.1,.1],[0.1,-.1,-.1,0.1],[-1,-.9,1,1]])
     weights = np.array([[.8, .8, .9, .8],[.7, .3, .7, .5],[.6, .2, .6, .4], [.4, .1, .5, .3]])
     trajectories = mc.Trajectory([np.nan, np.nan, z_pos],[np.nan, np.nan, kz], weights)
-    refl, trans= det.calc_refl_trans(trajectories, high_thresh, small_n, large_n, 'film')
+
+    # Should raise warning that n_matrix and n_particle are not set, so
+    # tir correction is based only on sample index
+    with pytest.warns(UserWarning):
+        refl, trans= det.calc_refl_trans(trajectories, high_thresh, small_n,
+                                         large_n, 'film')
     expected_trans_array = np.array([ .00167588, .00062052, .22222222, .11075425])/ntrajectories #calculated manually
     expected_refl_array = np.array([ .43317894, .18760061, .33333333, .59300905])/ntrajectories #calculated manually
     assert_almost_equal(refl, np.sum(expected_refl_array))
     assert_almost_equal(trans, np.sum(expected_trans_array))
 
     # test refraction and detection_angle
-    refl, trans= det.calc_refl_trans(trajectories, high_thresh, small_n, large_n, 'film', detection_angle=0.1)
+    # (should raise warning that n_matrix and n_particle are not set, so
+    # tir correction is based only on sample index)
+    with pytest.warns(UserWarning):
+        refl, trans= det.calc_refl_trans(trajectories, high_thresh, small_n,
+                                         large_n, 'film', detection_angle=0.1)
     expected_trans_array = np.array([ .00167588, .00062052, .22222222,  .11075425])/ntrajectories #calculated manually
     expected_refl_array = np.array([  .43203386, .11291556, .29105299,  .00046666])/ntrajectories #calculated manually
     assert_almost_equal(refl, np.sum(expected_refl_array))
@@ -101,7 +118,11 @@ def test_calc_refl_trans():
     weights = np.array([[1,1,1,1,1,1,1],[1,1,1,1,1,1,1],[1,1,1,1,1,1,1]])
     thin_sample_thickness = 1
     trajectories = mc.Trajectory([np.nan, np.nan, z_pos],[np.nan, np.nan, kz], weights)
-    refl, trans= det.calc_refl_trans(trajectories, thin_sample_thickness, small_n, large_n, 'film')
+    # Should raise warning that n_matrix and n_particle are not set, so
+    # tir correction is based only on sample index
+    with pytest.warns(UserWarning):
+        refl, trans= det.calc_refl_trans(trajectories, thin_sample_thickness,
+                                         small_n, large_n, 'film')
     expected_trans_array = np.array([.8324515, .8324515, .8324515, .05643739, .05643739, .05643739, .8324515])/ntrajectories #calculated manually
     expected_refl_array = np.array([.1675485, .1675485, .1675485, .94356261, .94356261, .94356261, .1675485])/ntrajectories #calculated manually
     assert_almost_equal(refl, np.sum(expected_refl_array))
@@ -143,10 +164,10 @@ def test_reflection_core_shell():
     T_before = 0.21378476227537888 #before correcting nevents in sample_angles: 0.1861762169688054
     T_cs_before = 0.21378476227537888 #before correcting nevents in sample_angles: 0.1861762169688054
 
-    assert_almost_equal(R_before, R, decimal=15)
-    assert_almost_equal(R_cs_before, R_cs, decimal=15)
-    assert_almost_equal(T_before, T, decimal=15)
-    assert_almost_equal(T_cs_before, T_cs, decimal=15)
+    assert_almost_equal(R_before, R)
+    assert_almost_equal(R_cs_before, R_cs)
+    assert_almost_equal(T_before, T)
+    assert_almost_equal(T_cs_before, T_cs)
 
     # Test that the reflectance is the same for a core-shell that absorbs (with
     # the same refractive indices for all layers) and a non-core-shell that
@@ -155,16 +176,18 @@ def test_reflection_core_shell():
     n_particle_abs = sc.Quantity(1.5+0.001j, '')
     n_sample_abs = ri.n_eff(n_particle_abs, n_matrix, volume_fraction)
 
-    R_abs, T_abs = calc_montecarlo(nevents, ntrajectories, radius, n_particle_abs,
-                           n_sample_abs, n_medium, volume_fraction, wavelen, seed)
+    R_abs, T_abs = calc_montecarlo(nevents, ntrajectories, radius,
+                                   n_particle_abs, n_sample_abs, n_medium,
+                                   volume_fraction, wavelen, seed)
 
     # Reflection using core-shells with the shell index-matched to the core
     n_particle_cs_abs = sc.Quantity(np.array([1.5+0.001j,1.5+0.001j]), '')
     n_sample_cs_abs = ri.n_eff(n_particle_cs_abs, n_matrix, vf_array)
 
     R_cs_abs, T_cs_abs = calc_montecarlo(nevents, ntrajectories, radius_cs,
-                                 n_particle_cs_abs, n_sample_cs_abs, n_medium,
-                                 volume_fraction, wavelen, seed)
+                                         n_particle_cs_abs, n_sample_cs_abs,
+                                         n_medium, volume_fraction, wavelen,
+                                         seed)
 
     assert_almost_equal(R_abs, R_cs_abs, decimal=6)
     assert_almost_equal(T_abs, T_cs_abs, decimal=6)
@@ -191,8 +214,9 @@ def test_reflection_core_shell():
     n_matrix_abs = sc.Quantity(1.+0.001j, '')
     n_sample_abs = ri.n_eff(n_particle_abs, n_matrix_abs, volume_fraction)
 
-    R_abs, T_abs = calc_montecarlo(nevents, ntrajectories, radius, n_particle_abs,
-                           n_sample_abs, n_medium, volume_fraction, wavelen, seed)
+    R_abs, T_abs = calc_montecarlo(nevents, ntrajectories, radius,
+                           n_particle_abs, n_sample_abs, n_medium,
+                           volume_fraction, wavelen, seed)
 
     # Reflection using core-shells with the shell index-matched to the core
     n_particle_cs_abs = sc.Quantity(np.array([1.5+0.001j,1.5+0.001j]), '')
@@ -211,10 +235,10 @@ def test_reflection_core_shell():
     T_abs_before = 0.0038425936376528256 #before correcting nevents in sample_angles: 0.0006391960305096798
     T_cs_abs_before = 0.0038425936376528256 #before correcting nevents in sample_angles: 0.0006391960305096798
 
-    assert_almost_equal(R_abs_before, R_abs, decimal=15)
-    assert_almost_equal(R_cs_abs_before, R_cs_abs, decimal=15)
-    assert_almost_equal(T_abs_before, T_abs, decimal=15)
-    assert_almost_equal(T_cs_abs_before, T_cs_abs, decimal=15)
+    assert_almost_equal(R_abs_before, R_abs)
+    assert_almost_equal(R_cs_abs_before, R_cs_abs)
+    assert_almost_equal(T_abs_before, T_abs)
+    assert_almost_equal(T_cs_abs_before, T_cs_abs)
 
 
 def test_reflection_absorbing_particle_or_matrix():
@@ -244,10 +268,10 @@ def test_reflection_absorbing_particle_or_matrix():
     T_before = 0.21378476227537888#before correcting nevents in sample_angles: 0.1861762169688054
     T_abs_before = 0.21378476227537888#before correcting nevents in sample_angles: 0.1861762169688054
 
-    assert_almost_equal(R_before, R, decimal=15)
-    assert_almost_equal(R_abs_before, R_abs, decimal=15)
-    assert_almost_equal(T_before, T, decimal=15)
-    assert_almost_equal(T_abs_before, T_abs, decimal=15)
+    assert_almost_equal(R_before, R)
+    assert_almost_equal(R_abs_before, R_abs)
+    assert_almost_equal(T_before, T)
+    assert_almost_equal(T_abs_before, T_abs)
 
     # Same as previous test but with absorbing matrix
     # Reflection using matrix with an imaginary component of 0
@@ -266,10 +290,10 @@ def test_reflection_absorbing_particle_or_matrix():
     T_before = 0.21378476227537888 #before correcting nevents in sample_angles: 0.1861762169688054
     T_abs_before = 0.21378476227537888#before correcting nevents in sample_angles: 0.1861762169688054
 
-    assert_almost_equal(R_before, R, decimal=15)
-    assert_almost_equal(R_abs_before, R_abs, decimal=15)
-    assert_almost_equal(T_before, T, decimal=15)
-    assert_almost_equal(T_abs_before, T_abs, decimal=15)
+    assert_almost_equal(R_before, R)
+    assert_almost_equal(R_abs_before, R_abs)
+    assert_almost_equal(T_before, T)
+    assert_almost_equal(T_abs_before, T_abs)
 
     # test that the reflection is essentially the same when the imaginary
     # index is 0 or very close to 0
@@ -312,10 +336,10 @@ def test_reflection_polydispersity():
     T_mono_before = 0.21378476227537888 #before correcting nevents in sample_angles: 0.1861762169688054
     T_poly_before = 0.21378476227537888 #before correcting nevents in sample_angles: 0.1861762169688054
 
-    assert_almost_equal(R_mono_before, R_mono, decimal=15)
-    assert_almost_equal(R_poly_before, R_poly, decimal=15)
-    assert_almost_equal(T_mono_before, T_mono, decimal=15)
-    assert_almost_equal(T_poly_before, T_poly, decimal=15)
+    assert_almost_equal(R_mono_before, R_mono)
+    assert_almost_equal(R_poly_before, R_poly)
+    assert_almost_equal(T_mono_before, T_mono)
+    assert_almost_equal(T_poly_before, T_poly)
 
     # With absorption: test that the reflectance using with very small
     # polydispersity is the same as the monodisperse case
@@ -343,10 +367,10 @@ def test_reflection_polydispersity():
     T_mono_abs_before = 0.11704096147886706 #before correcting nevents in sample_angles: 0.09473841417422774
     T_poly_abs_before = 0.11704096346317548 #before correcting nevents in sample_angles: 0.09456832138047852
 
-    assert_almost_equal(R_mono_abs_before, R_mono_abs, decimal=14)
-    assert_almost_equal(R_poly_abs_before, R_poly_abs, decimal=10)
-    assert_almost_equal(T_mono_abs_before, T_mono_abs, decimal=15)
-    assert_almost_equal(T_poly_abs_before, T_poly_abs, decimal=10)
+    assert_almost_equal(R_mono_abs_before, R_mono_abs)
+    assert_almost_equal(R_poly_abs_before, R_poly_abs)
+    assert_almost_equal(T_mono_abs_before, T_mono_abs)
+    assert_almost_equal(T_poly_abs_before, T_poly_abs)
 
     # test that the reflectance is the same for a polydisperse monospecies
     # and a bispecies with equal types of particles
@@ -424,8 +448,8 @@ def test_reflection_polydispersity():
                                    radius2 = radius1,
                                    concentration = concentration2,
                                    pdi = pdi4, polydisperse=True)
-    assert_almost_equal(R_noabs1, R_abs1, decimal=14)
-    assert_almost_equal(T_noabs1, T_abs1, decimal=14)
+    assert_almost_equal(R_noabs1, R_abs1)
+    assert_almost_equal(T_noabs1, T_abs1)
 
     # When there are 2 mean diameters
     R_noabs2, T_noabs2 = calc_montecarlo(nevents, ntrajectories, radius1,
@@ -536,12 +560,12 @@ def test_surface_roughness():
                                      wavelen, seed, fine_roughness=1e-4,
                                      coarse_roughness = 1e-5, n_matrix=n_matrix)
 
-    assert_almost_equal(R, R_fine, decimal=15)
-    assert_almost_equal(T, T_fine, decimal=15)
-    assert_almost_equal(R, R_coarse, decimal=15)
-    assert_almost_equal(T, T_coarse, decimal=15)
-    assert_almost_equal(R, R_both, decimal=15)
-    assert_almost_equal(T, T_both, decimal=15)
+    assert_almost_equal(R, R_fine)
+    assert_almost_equal(T, T_fine)
+    assert_almost_equal(R, R_coarse)
+    assert_almost_equal(T, T_coarse)
+    assert_almost_equal(R, R_both)
+    assert_almost_equal(T, T_both)
 
 def calc_montecarlo(nevents, ntrajectories, radius, n_particle, n_sample,
                     n_medium, volume_fraction, wavelen, seed, radius2=None,
@@ -549,29 +573,34 @@ def calc_montecarlo(nevents, ntrajectories, radius, n_particle, n_sample,
                     fine_roughness=0., coarse_roughness=0., n_matrix=None,
                     incidence_theta_min=0., incidence_theta_max=0.):
 
+    # set up a seeded random number generator that will give consistent results
+    # between numpy versions. This is to reproduce the gold values which are
+    # hardcoded in the tests. Note that seed is in the form of a list. Setting
+    # the seed without the list brackets yields a different set of random
+    # numbers.
+    rng = np.random.RandomState([seed])
+
     incidence_theta_min=sc.Quantity(incidence_theta_min,'rad')
     incidence_theta_max=sc.Quantity(incidence_theta_min,'rad')
 
     # Function to run montecarlo for the tests
     p, mu_scat, mu_abs = mc.calc_scat(radius, n_particle, n_sample,
-                                      volume_fraction, wavelen, radius2=radius2,
+                                      volume_fraction, wavelen,
+                                      radius2=radius2,
                                       concentration=concentration, pdi=pdi,
                                       polydisperse=polydisperse,
-                                      fine_roughness=fine_roughness, n_matrix=n_matrix)
+                                      fine_roughness=fine_roughness,
+                                      n_matrix=n_matrix)
 
     if coarse_roughness > 0.:
-        r0, k0, W0, kz0_rotated, kz0_reflected = mc.initialize(nevents,
-                                                               ntrajectories,
-                                                               n_medium,
-                                                               n_sample,
-                                                               'film',
-                                                               seed=seed,
-                                                               coarse_roughness=coarse_roughness,
-                                                               incidence_theta_min=incidence_theta_min,
-                                                               incidence_theta_max=incidence_theta_max)
+        r0, k0, W0, kz0_rotated, kz0_reflected = \
+            mc.initialize(nevents, ntrajectories, n_medium, n_sample, 'film',
+                          rng=rng, coarse_roughness=coarse_roughness,
+                          incidence_theta_min=incidence_theta_min,
+                          incidence_theta_max=incidence_theta_max)
     else:
         r0, k0, W0 = mc.initialize(nevents, ntrajectories, n_medium, n_sample,
-                                   'film', seed=seed,
+                                   'film', rng=rng,
                                    incidence_theta_min=incidence_theta_min,
                                    incidence_theta_max=incidence_theta_max)
         kz0_rotated = None
@@ -582,9 +611,10 @@ def calc_montecarlo(nevents, ntrajectories, radius, n_particle, n_sample,
     W0 = sc.Quantity(W0, '')
 
     sintheta, costheta, sinphi, cosphi, _, _= mc.sample_angles(nevents,
-                                                               ntrajectories,p)
+                                                               ntrajectories,
+                                                               p, rng=rng)
     step = mc.sample_step(nevents, ntrajectories, mu_scat,
-                          fine_roughness=fine_roughness)
+                          fine_roughness=fine_roughness, rng=rng)
 
     trajectories = mc.Trajectory(r0, k0, W0)
     trajectories.absorb(mu_abs, step)
@@ -594,8 +624,12 @@ def calc_montecarlo(nevents, ntrajectories, radius, n_particle, n_sample,
     cutoff = sc.Quantity('50.0 um')
 
     # calculate R, T
-    R, T = det.calc_refl_trans(trajectories, cutoff, n_medium, n_sample, 'film',
-                               kz0_rot=kz0_rotated, kz0_refl=kz0_reflected)
+    # (should raise warning that n_matrix and n_particle are not set, so
+    # tir correction is based only on sample index)
+    with pytest.warns(UserWarning):
+        R, T = det.calc_refl_trans(trajectories, cutoff, n_medium, n_sample,
+                                   'film', kz0_rot=kz0_rotated,
+                                   kz0_refl=kz0_reflected)
 
     return R, T
 
@@ -606,7 +640,8 @@ def test_goniometer_normalization():
     det_distance = 13.
     det_len = 2.4
     det_theta = 0
-    refl_renorm = det.normalize_refl_goniometer(refl, det_distance, det_len, det_theta)
+    refl_renorm = det.normalize_refl_goniometer(refl, det_distance, det_len,
+                                                det_theta)
 
     assert_almost_equal(refl_renorm, 0.368700804483) # calculated by hand
 
@@ -621,15 +656,19 @@ def test_goniometer_detector():
     kx = np.array([[0,0,0,0],[0,0,0,0],[0,0,0,1/np.sqrt(2)]])
     kz = np.array([[1,1,1,1],[-1,-1,1,1],[-1,-1,1,-1/np.sqrt(2)]])
     weights = np.ones((nevents, ntrajectories))
-    trajectories = mc.Trajectory(np.array([x_pos, y_pos, z_pos]),np.array([kx, ky, kz]), weights)
+    trajectories = mc.Trajectory(np.array([x_pos, y_pos, z_pos]),
+                                 np.array([kx, ky, kz]), weights)
     thickness = 10
     n_medium = 1
     n_sample = 1
-    R, T = det.calc_refl_trans(trajectories, thickness, n_medium, n_sample, 'film',
-                               detector=True,
-                               det_theta=sc.Quantity('45.0 degrees'),
-                               det_len=sc.Quantity('1.0 um'),
-                               det_dist=sc.Quantity('10.0 cm'),
-                               plot_detector=False)
+    # Should raise warning that n_matrix and n_particle are not set, so
+    # tir correction is based only on sample index
+    with pytest.warns(UserWarning):
+        R, T = det.calc_refl_trans(trajectories, thickness, n_medium, n_sample,
+                                   'film', detector=True,
+                                   det_theta=sc.Quantity('45.0 degrees'),
+                                   det_len=sc.Quantity('1.0 um'),
+                                   det_dist=sc.Quantity('10.0 cm'),
+                                   plot_detector=False)
 
     assert_almost_equal(R, 0.25)

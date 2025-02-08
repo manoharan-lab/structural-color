@@ -40,7 +40,8 @@ http://refractiveindex.info (accessed August 14, 2016).
 """
 
 import numpy as np
-from . import ureg, Quantity  # unit registry and Quantity constructor from pint
+# unit registry and Quantity constructor from pint
+from . import ureg, Quantity
 from scipy.optimize import fsolve
 from scipy.interpolate import interp1d
 import warnings
@@ -71,11 +72,13 @@ n_dict = {
                                     2.086189578e-2*w*w/
                                     (w*w - Quantity('2.620722293e-2 um^2')) +
                                     1.130748688e-1*w*w/
-                                    (w*w - Quantity('1.069792721e1 um^2')) + 1),
+                                    (w*w - Quantity('1.069792721e1 um^2'))
+                               + 1),
 
 
-    # polystyrene data from N. Sultanova, S. Kasarova and I. Nikolov. Dispersion
-    # properties of optical polymers, Acta Physica Polonica A 116, 585-587 (2009).
+    # polystyrene data from N. Sultanova, S. Kasarova and I. Nikolov.
+    # Dispersion properties of optical polymers, Acta Physica Polonica A 116,
+    # 585-587 (2009).
     # Fit of the experimental data with the Sellmeier dispersion formula:
     # refractiveindex.info
     # data for 20 degrees C, 0.4368-1.052 micrometers
@@ -117,8 +120,8 @@ n_dict = {
     # silica glasses, Solar Energy Materials 12, 275-288 (1985)
     # refractiveindex.info
     # data for "room temperature", 0.31-4.6 micrometers
-    'soda lime glass': lambda w: 1.5130 - Quantity('0.003169 um^-2')*w*w +
-                                                  Quantity('0.003962 um^2')/(w*w),
+    'soda lime glass': lambda w: (1.5130 - Quantity('0.003169 um^-2')*w*w
+                                  + Quantity('0.003962 um^2')/(w*w)),
 
 
     # zirconia (ZrO2) data from I. Bodurov, I. Vlaeva, A. Viraneva,
@@ -132,19 +135,22 @@ n_dict = {
     # measurements in the near-IR using an Abbe refractometer,
     # Meas. Sci. Technol. 8, 601-605 (1997)
     # refractiveindex.info
-    'ethanol': lambda w: 1.35265 + Quantity('0.00306 um^2')/(w**2) + Quantity('0.00002 um^4')/(w**4),
+    'ethanol': lambda w: (1.35265 + Quantity('0.00306 um^2')/(w**2)
+                          + Quantity('0.00002 um^4')/(w**4)),
 
     # the w/w is a crude hack to make the function output an array when the
     # input is an array
     'vacuum': lambda w: Quantity('1.0')*w/w,
 
     # brookite TiO2 from Radhakrishnan. "The Optical Properties of titanium
-    # dioxide". Proceedings of the Indian Academy of Sciences-Mathematical Sciences
-    #March 1982, 35:117. Note that this is for n_alpha. However, n_alpha is
-    #almost identical to n_beta, which in turn is very similar to rutile. However
-    #n_gama is a bit different, but is not considered
+    # dioxide". Proceedings of the Indian Academy of Sciences-Mathematical
+    # Sciences March 1982, 35:117. Note that this is for n_alpha. However,
+    # n_alpha is almost identical to n_beta, which in turn is very similar to
+    # rutile. However n_gamma is a bit different, but is not considered
     # data for rutile TiO2, ordinary ray, 0.43-0.71 micrometers
-    'brookite': lambda w: np.sqrt(2.9858 + 2.1036*w*w/(w*w - Quantity('0.287**2 um^2'))-Quantity('0.18 um^-2')*w*w+1.),
+    'brookite': lambda w: np.sqrt(2.9858 + 2.1036*w*w
+                                    /(w*w - Quantity('0.287**2 um^2'))
+                                  -Quantity('0.18 um^-2')*w*w+1.),
 
     # anatase TiO2 from Wang et al. Think Solid Films. 405, 2002, 50-54
     # measured from 500-1700 nm
@@ -152,7 +158,8 @@ n_dict = {
                                   Quantity('2.1798e-3 um^4')/(w*w*w*w)
 }
 
-@ureg.check(None, '[length]', None, None, None)   # ensures wavelen has units of length
+# ensures wavelen has units of length
+@ureg.check(None, '[length]', None, None, None)
 def n(material, wavelen, index_data=None, wavelength_data=None, kind='linear'):
     """
     Refractive index of various materials.
@@ -188,7 +195,8 @@ def n(material, wavelen, index_data=None, wavelength_data=None, kind='linear'):
     """
     if material == 'data':
         if index_data is None or wavelength_data is None:
-            raise KeyError("'data' material requires input of index and corresponding wavelength data.")
+            raise KeyError("'data' material requires input of index "
+                           "and corresponding wavelength data.")
 
         if isinstance(index_data, Quantity):
             index_data = index_data.magnitude
@@ -198,11 +206,12 @@ def n(material, wavelen, index_data=None, wavelength_data=None, kind='linear'):
 
     else:
         if index_data is not None or wavelength_data is not None:
-            warnings.warn("No need to specify the index or wavelength data. No material except for 'data' requires input of data.")
+            warnings.warn("No need to specify the index or wavelength data. "
+                          "No material except for 'data' requires input data.")
         try:
             return n_dict[material](wavelen)
         except KeyError:
-            print("Material \""+material+"\" not implemented.  Perhaps a typo?")
+            print("Material \""+material+"\" not implemented. Perhaps a typo?")
             raise
 
 #------------------------------------------------------------------------------
@@ -426,10 +435,10 @@ def n_cargille(i,series,w):
 def n_eff(n_particle, n_matrix, volume_fraction, maxwell_garnett=False):
     """
     Calculates Bruggeman effective refractive index for a composite of n
-    dielectric media. If maxwell_garnett is set to true and there are two media,
-    calculates the effective index using the Maxwell-Garnett formulation.
-    Both Maxwell-Garnett and Bruggeman formulas can handle complex refractive
-    indices.
+    dielectric media. If maxwell_garnett is set to true and there are two
+    media, calculates the effective index using the Maxwell-Garnett
+    formulation. Both Maxwell-Garnett and Bruggeman formulas can handle complex
+    refractive indices.
 
     Parameters
     ----------
@@ -454,19 +463,22 @@ def n_eff(n_particle, n_matrix, volume_fraction, maxwell_garnett=False):
 
     References
     ----------
-    Markel, V. A. "Introduction to the Maxwell Garnett approximation: tutorial".
-    Vol. 33, No. 7, Journal of the Optical Society of America A (2016).
-    Bruggeman's equation in Eq. 29.
-    Maxwell-Garnett relation in Eq. 18.
+    [1] Markel, V. A. "Introduction to the Maxwell Garnett approximation:
+        tutorial". Vol. 33, No. 7, Journal of the Optical Society of America A
+        (2016).
+        Bruggeman's equation in Eq. 29.
+        Maxwell-Garnett relation in Eq. 18.
 
     """
     if isinstance(volume_fraction, Quantity):
         volume_fraction = volume_fraction.magnitude
 
-    if maxwell_garnett==True:
+    if maxwell_garnett:
         # check that the particle and matrix indices have the same length
-        if len(np.array([n_particle.magnitude]).flatten()) != len(np.array([n_matrix.magnitude]).flatten()):
-            raise ValueError('Maxwell-Garnett requires particle and matrix index arrays to have the same length')
+        if (len(np.array([n_particle.magnitude]).flatten())
+            != len(np.array([n_matrix.magnitude]).flatten())):
+            raise ValueError('Maxwell-Garnett requires particle and '
+                             'matrix index arrays to have the same length')
         ni = n_particle
         nm = n_matrix
         phi = volume_fraction
@@ -485,7 +497,8 @@ def n_eff(n_particle, n_matrix, volume_fraction, maxwell_garnett=False):
 
         # check that the number of volume fractions and of indices is the same
         if len(n_particle) != len(volume_fraction):
-            raise ValueError('Arrays of indices and volume fractions must be the same length')
+            raise ValueError('Arrays of indices and volume fractions '
+                             'must be the same length')
 
         volume_fraction_matrix = Quantity(1 - np.sum(volume_fraction), '')
 
@@ -502,16 +515,22 @@ def n_eff(n_particle, n_matrix, volume_fraction, maxwell_garnett=False):
         def sum_bg(n_bg, vf, n_array):
             N = len(n_array.flatten())
             a, b = n_bg
-            S = sum((vf[n]*(n_array[n]**2 - (a+b*1j)**2)/(n_array[n]**2 + 2*(a+b*1j)**2)) for n in np.arange(0, N))
+            S = sum((vf[n]*(n_array[n]**2 - (a+b*1j)**2)
+                     /(n_array[n]**2 + 2*(a+b*1j)**2))
+                    for n in np.arange(0, N))
             return (S.real, S.imag)
 
-        # set an initial guess and solve for Bruggeman's refractive index of the composite
-        initial_guess = [1.5, 0]    # most refractive indices range between 1 and 3
-        n_bg_real, n_bg_imag = fsolve(sum_bg, initial_guess, args=(vf_array, n_array))
+        # set an initial guess and solve for Bruggeman's refractive index of
+        # the composite
+        # most refractive indices range between 1 and 3
+        initial_guess = [1.5, 0]
+        n_bg_real, n_bg_imag = fsolve(sum_bg, initial_guess, args=(vf_array,
+                                                                   n_array))
 
         if n_bg_imag == 0:
             return Quantity(n_bg_real)
         elif n_bg_imag < 0:
-            raise ValueError('Cannot find positive imaginary root for the effective index')
+            raise ValueError('Cannot find positive imaginary root for the '
+                             'effective index')
         else:
             return Quantity(n_bg_real + n_bg_imag*1j)

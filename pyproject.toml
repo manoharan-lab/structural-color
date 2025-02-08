@@ -1,0 +1,52 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "structcol"
+version = "0.3"
+description = "Python package for modeling structural color"
+readme = "README.md"
+authors = [
+    { name = "Manoharan Lab, Harvard University", email = "vnm@seas.harvard.edu" },
+]
+dependencies = [
+    "numpy",
+    "pint",
+    "scipy",
+]
+
+[project.urls]
+Homepage = "https://github.com/manoharan-lab/structural-color"
+
+# pytest: convert all warnings to errors
+[tool.pytest.ini_options]
+filterwarnings = [
+    "error",
+]
+
+[tool.ruff]
+src = ['structcol']
+# don't check the notebooks
+exclude = ["tutorials"]
+line-length = 79
+
+[tool.ruff.lint]
+# Rulesets for ruff to check
+select = [
+    # pyflakes rules
+    "F",
+    # pycodestyle (PEP8)
+    "E", "W",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Ignore long line warnings and unused variable warnings in test files. We
+# sometimes have long lines for nicely formatting gold results, and we sometimes
+# have unused variables just to check if function returns without an error
+"**/tests/*" = ["E501", "F841"]
+# Ignore "ambiguous variable name" when we use "l" as a variable in Mie
+# calculations
+"pymie/mie.py" = ["E741"]
+# for now, ignore "imported but unused" in __init__.py
+"__init__.py" = ["F401"]

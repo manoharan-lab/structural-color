@@ -112,7 +112,8 @@ def select_events(inarray, events):
 
     Returns
     -------
-    1D array: contains only the elements of inarray corresponding to non-zero events values.
+    1D array: contains only the elements of inarray corresponding to non-zero
+              events values.
 
     '''
     # make inarray a numpy array if not already
@@ -147,17 +148,8 @@ def select_events(inarray, events):
         outarray = Quantity(outarray, inarray.units)
     return outarray
 
-# Create a global random number generator object
+# Create a module-wide random number generator object that will be used by
+# default in any functions that do random sampling. Users can override the
+# default by passing their own rng to such functions. A user-specified rng is
+# needed for testing and may be useful for parallel computation.
 rng = np.random.default_rng()
-
-def set_seed(seed):
-    global rng
-
-    # Create a random number generator that reproduces old sampling behavior
-    # Note that seed is in the form of a list. This is to reproduce the previous values which are hardcoded in the tests. 
-    # Setting the seed without the list brackets yeilds a different set of random numbers. 
-    rng = np.random.RandomState([seed])
-
-    # Also set the seed for the random module 
-    # in case any random numbers are generated without the Generator object.
-    np.random.seed([seed])
