@@ -718,6 +718,110 @@ def test_reflection_polydispersity_mc():
     assert_almost_equal(T, T_expected)
 
 
+def test_detectors_mc():
+    """
+    Tests whether the reflectances on the default detector (full reflection
+    hemisphere), large aperture detector, and goniometer detector are what we
+    expect from a simulation on a film of particles. The parameters, setup, and
+    expected values come from the detector_tutorial notebook.
+    """
+
+    seed = 1
+    rng = np.random.RandomState([seed])
+
+    wavelength = sc.Quantity('600 nm')
+
+    radius = sc.Quantity('0.140 um')
+    volume_fraction = sc.Quantity(0.55, '')
+    n_imag = 2.1e-4 * 1j
+    n_particle = ri.n('polystyrene', wavelength) + n_imag
+    n_matrix = ri.n('vacuum', wavelength)
+    n_medium = ri.n('vacuum', wavelength)
+    n_sample = ri.n_eff(n_particle,
+                        n_matrix,
+                        volume_fraction)
+    thickness = sc.Quantity('80 um')
+    boundary = 'film'
+
+    # Monte Carlo parameters
+    ntrajectories = 300
+    nevents = 200
+
+    p, mu_scat, mu_abs = mc.calc_scat(radius, n_particle, n_sample,
+                                      volume_fraction, wavelength)
+
+    # Initialize the trajectories
+    r0, k0, W0 = mc.initialize(nevents, ntrajectories, n_medium, n_sample,
+                               boundary, rng=rng)
+    r0 = sc.Quantity(r0, 'um')
+    k0 = sc.Quantity(k0, '')
+    W0 = sc.Quantity(W0, '')
+
+    # Generate a matrix of all the randomly sampled angles first
+    sintheta, costheta, sinphi, cosphi, _, _ = mc.sample_angles(nevents,
+                                                                ntrajectories,
+                                                                p, rng=rng)
+
+    # Create step size distribution
+    step = mc.sample_step(nevents, ntrajectories, mu_scat, rng=rng)
+
+    # Create trajectories object
+    trajectories = mc.Trajectory(r0, k0, W0)
+
+    # Run photons
+    trajectories.absorb(mu_abs, step)
+    trajectories.scatter(sintheta, costheta, sinphi, cosphi)
+    trajectories.move(step)
+
+    # test default detector (full reflection hemisphere)
+    with pytest.warns(UserWarning):
+        R, _ = det.calc_refl_trans(trajectories, thickness, n_medium,
+                                   n_sample, boundary)
+
+    R_expected = 0.42179454919817455
+
+    assert_almost_equal(R, R_expected)
+
+    # test with 80 degree large-aperture detector
+    detection_angle = sc.Quantity('80 degrees')
+
+    with pytest.warns(UserWarning):
+        R, _ = det.calc_refl_trans(trajectories, thickness, n_medium, n_sample,
+                                   boundary,
+                                   detection_angle = detection_angle)
+
+    R_expected = 0.4130249995689382
+
+    assert_almost_equal(R, R_expected)
+
+    # test with goniometer detector
+    detector = True
+    det_theta = sc.Quantity('45 degrees')
+    det_len = sc.Quantity('5 cm')
+    det_dist = sc.Quantity('10 cm')
+
+    # Calculate reflectance
+    with pytest.warns(UserWarning):
+        R, _ = det.calc_refl_trans(trajectories, thickness, n_medium, n_sample,
+                                   boundary,
+                                    detector = detector,
+                                    det_theta = det_theta,
+                                    det_len = det_len,
+                                    det_dist = det_dist,
+                                    plot_detector = False)
+
+    R_expected = 0.028071349010350494
+
+    assert_almost_equal(R, R_expected)
+
+    # test renormalized goniometer reflectance
+    refl_renorm = det.normalize_refl_goniometer(R, det_dist, det_len,
+                                                det_theta)
+
+    refl_renorm_expected = 0.4988708702766998
+
+    assert_almost_equal(refl_renorm.magnitude, refl_renorm_expected)
+
 def test_throw_valueerror_for_polydisperse_core_shells():
 # test that a valueerror is raised when trying to run polydisperse core-shells
     with pytest.raises(ValueError):
