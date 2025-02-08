@@ -129,6 +129,7 @@ def test_structure_factor_data():
     s = structure.factor_data(qd, s_data, qd_data)
     assert_equal(s[0], 1)
 
+@pytest.mark.slow
 def test_structure_factor_data_reflectances():
     """
     Tests that the reflectance (calculated from single-scattering model and

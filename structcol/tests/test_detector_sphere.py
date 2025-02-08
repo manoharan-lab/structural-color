@@ -268,6 +268,7 @@ def test_reflection_sphere_mc():
     assert_almost_equal(R, R_expected)
     assert_almost_equal(T, T_expected)
 
+@pytest.mark.slow
 def test_multiscale_mc():
     """
     Tests whether the reflectance is what we expect from a simulation on a bulk
@@ -466,7 +467,7 @@ def test_multiscale_mc():
 
     assert_almost_equal(reflectance_bulk, R_bulk_expected)
 
-
+@pytest.mark.slow
 def test_multiscale_polydispersity_mc():
     """
     Tests whether the reflectance is what we expect from a simulation on a
@@ -652,6 +653,7 @@ def test_multiscale_polydispersity_mc():
                   0.41228258651823824, 0.3873631350450162]
     assert_almost_equal(reflectance_bulk_poly, R_expected)
 
+@pytest.mark.slow
 def test_multiscale_color_mixing_mc():
     """
     Tests whether the reflectance is what we expect from a simulation on a bulk

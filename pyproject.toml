@@ -24,6 +24,10 @@ Homepage = "https://github.com/manoharan-lab/structural-color"
 filterwarnings = [
     "error",
 ]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+]
+
 
 [tool.ruff]
 src = ['structcol']

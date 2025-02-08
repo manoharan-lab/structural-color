@@ -300,6 +300,7 @@ def test_field_perp_direction():
 
     assert_almost_equal(np.sum(dot_prod), 0., decimal=14)
 
+@pytest.mark.slow
 def test_field_reflectance_mc():
     """
     Tests whether the reflectance for the fields model is what we expect from a
