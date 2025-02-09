@@ -1327,13 +1327,22 @@ def sample_angles(nevents, ntraj, p, min_angle=0.01, rng=None):
         theta_ind = np.zeros((nevents,ntraj))
         theta = np.zeros((nevents,ntraj))
         phi = np.zeros((nevents,ntraj))
+
+        # calculate and normalize p(theta) for each phi, event, and trajectory
+        p_theta = p[:, phi_ind] * np.sin(thetas[:, np.newaxis, np.newaxis])
+        p_theta_norm = p_theta/np.sum(p_theta, axis=0)
+
+        # It's hard to vectorize this loop because rng.choice works only with a
+        # one-dimensional probability vector p.  There may be a way to
+        # vectorize using rng.multinomial, which takes an array of probs
         for i in range(nevents):
             for j in range(ntraj):
-                p_theta = p[:,phi_ind[i,j]]*np.sin(thetas)
                 theta_ind[i,j] = rng.choice(num_theta,
-                                            p = p_theta/np.sum(p_theta))
-                theta[i,j] = thetas[int(theta_ind[i,j])]
-                phi[i,j] = phis[int(phi_ind[i,j])]
+                                            p = p_theta_norm[:,i,j])
+
+        # sampled angles
+        theta = thetas[theta_ind.astype(int)]
+        phi = phis[phi_ind.astype(int)]
 
     sintheta = np.sin(theta)
     costheta = np.cos(theta)
