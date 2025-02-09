@@ -209,29 +209,45 @@ class Trajectory:
         """
         kn = self.direction.magnitude
 
-        # the 0th event is the inital direction which does not change when the
+        # the 0th event is the initial direction which does not change when the
         # photon first enters the sample. It only changes after the first
         # scattering event. The trajectory steps first, then scatters. The
         # reason that we don't extend the arange to nevents + 1 is that we
         # still count this original initialized direction as an event, since
         # the step size must be sampled once it enters the material.
+
+        # Calculate the new x, y, z coordinates of the propagation
+        # direction using the following equations, which can be derived by
+        # using matrix operations to perform a rotation about the y-axis by
+        # angle theta followed by a rotation about the z-axis by angle phi
+        # see pg 105 in A.B. Stephenson lab notebook 1 for derivation and
+        # notes
+
+        # this is the product of the rotation matrices R_z(phi).R_y(theta)
+        # calculated for each event in each trajectory
+        # shape of kn is [3,nevents,ntraj]
+        # shape of R is [3,3,nevents,ntraj]
+        R = np.array([[costheta*cosphi, -sinphi, sintheta*cosphi],
+                      [costheta*sinphi, cosphi, sintheta*sinphi],
+                      [-sintheta, np.zeros(sinphi.shape), costheta]])
+
         for n in np.arange(1, self.nevents):
-            # Calculate the new x, y, z coordinates of the propagation
-            # direction using the following equations, which can be derived by
-            # using matrix operations to perform a rotation about the y-axis by
-            # angle theta followed by a rotation about the z-axis by angle phi
-            # see pg 105 in A.B. Stephenson lab notebook 1 for derivation and
-            # notes
-            kn[0, n, :] = (((kn[0, n - 1, :] * costheta[n - 1, :]
-                            + kn[2, n - 1, :] * sintheta[n - 1, :])
-                            * cosphi[n - 1, :])
-                           - kn[1, n - 1, :] * sinphi[n - 1, :])
-            kn[1, n, :] = (((kn[0, n - 1, :] * costheta[n - 1, :]
-                            + kn[2, n - 1, :] * sintheta[n - 1, :])
-                            * sinphi[n - 1, :])
-                           + kn[1, n - 1, :] * cosphi[n - 1, :])
-            kn[2, n, :] = (-kn[0, n - 1, :] * sintheta[n - 1, :]
-                           + kn[2, n - 1, :] * costheta[n - 1, :])
+            # now use Einstein summation to take the dot product of each
+            # rotation matrix at each event in each trajectory with the
+            # wavevector
+            kn[:, n, :] = np.einsum('ijl,jl->il',
+                                    R[:, :, n-1, :], kn[:, n-1, :])
+            # Annie's equivalent code:
+            # kn[0, n, :] = (((kn[0, n - 1, :] * costheta[n - 1, :]
+            #                 + kn[2, n - 1, :] * sintheta[n - 1, :])
+            #                 * cosphi[n - 1, :])
+            #                - kn[1, n - 1, :] * sinphi[n - 1, :])
+            # kn[1, n, :] = (((kn[0, n - 1, :] * costheta[n - 1, :]
+            #                 + kn[2, n - 1, :] * sintheta[n - 1, :])
+            #                 * sinphi[n - 1, :])
+            #                + kn[1, n - 1, :] * cosphi[n - 1, :])
+            # kn[2, n, :] = (-kn[0, n - 1, :] * sintheta[n - 1, :]
+            #                + kn[2, n - 1, :] * costheta[n - 1, :])
 
         # Update all the directions of the trajectories
         self.direction = sc.Quantity(kn, self.direction.units)
