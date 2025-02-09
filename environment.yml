@@ -17,8 +17,10 @@ dependencies:
   - python>=3.11
   - numpy
   - scipy
-  - pandas
+  - xarray
   - pint
+  - pint-xarray
+  - dask
   - ipython
   - matplotlib
   - seaborn
