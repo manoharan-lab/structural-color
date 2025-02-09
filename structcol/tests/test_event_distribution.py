@@ -558,7 +558,10 @@ def test_event_distribution_angle_mc():
         # Generate a matrix of all the randomly sampled angles first
         _, _, sinphi, cosphi, _, _ = mc.sample_angles(nevents, ntrajectories,
                                                       p, rng=rng)
-        theta = (np.ones((nevents,ntrajectories))
+
+        # need nevents-1 because the first event doesn't involve a change in
+        # direction.
+        theta = (np.ones((nevents-1, ntrajectories))
                  * theta_range[j].to('rad').magnitude)
         sintheta = np.sin(theta)
         costheta = np.cos(theta)

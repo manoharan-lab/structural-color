@@ -93,6 +93,13 @@ def test_trajectories():
     sinphi = np.array([[0., 0., 0.], [0., 0., 0.]])
     cosphi = np.array([[0., 0., 0.], [0., 0., 0.]])
 
+    # Note that since the first event is given, we've specified an extra event
+    # in the test theta and phi above.  We correct for this below:
+    sintheta = sintheta[:-1]
+    costheta = costheta[:-1]
+    sinphi = sinphi[:-1]
+    cosphi = cosphi[:-1]
+
     # Test the scatter function. Should also produce a deterministic result
     trajectories.scatter(sintheta, costheta, sinphi, cosphi)
 

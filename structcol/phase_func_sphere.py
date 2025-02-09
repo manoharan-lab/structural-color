@@ -1008,4 +1008,12 @@ def sample_angles_step_poly(nevents_bulk, ntrajectories_bulk, p_sphere,
     step = (lscat_rad_samp * np.ones((nevents_bulk, ntrajectories_bulk))
             * lscat.units)
 
-    return sintheta, costheta, sinphi, cosphi, step, theta, phi
+    # This function samples one extra step for each angle than is needed.
+    # Whereas sample_angles was corrected to use nevents = nevents-1, this
+    # function was not. So we correct the lengths of the arrays for the angles
+    # before returning them. To ensure that MC tests give the same resuts
+    # (which requires the same number of random numbers to be generated, we do
+    # the correction here (for now).
+
+    return sintheta[:-1], costheta[:-1], sinphi[:-1], \
+        cosphi[:-1], step, theta[:-1], phi[:-1]
