@@ -1291,13 +1291,12 @@ def sample_angles(nevents, ntraj, p, min_angle=0.01, rng=None):
     thetas = sc.Quantity(np.linspace(min_angle, np.pi, num_theta), 'rad')
     thetas = thetas.magnitude
 
-    if len(p.shape)==1:# if p depends on theta
+    if len(p.shape)==1: # if p depends only on theta
 
-        # Random sampling of azimuthal angle phi from uniform distribution [0 -
+        # Randomly sample azimuthal angle phi from uniform distribution [0 -
         # 2pi]
         rand = rng.random((nevents,ntraj))
         phi = 2*np.pi*rand
-
 
         # make sure probability is normalized
         # prob is integral of p in solid angle
@@ -1306,8 +1305,7 @@ def sample_angles(nevents, ntraj, p, min_angle=0.01, rng=None):
         prob_norm = prob/sum(prob)
 
         # Randomly sample scattering angle theta
-        theta = np.array([rng.choice(thetas, ntraj, p = prob_norm)
-                          for i in range(nevents)])
+        theta = rng.choice(thetas, (nevents, ntraj), p = prob_norm)
 
     if len(p.shape)==2: # if p depends on theta and phi
 
@@ -1322,9 +1320,8 @@ def sample_angles(nevents, ntraj, p, min_angle=0.01, rng=None):
         phis = phis.magnitude
 
         # sample indices for phi values
-        phi_ind = np.array([rng.choice(num_phi, ntraj,
-                                       p = p_phi/np.sum(p_phi))
-                            for i in range(nevents)])
+        phi_ind = rng.choice(num_phi, (nevents, ntraj),
+                             p = p_phi/np.sum(p_phi))
 
         # sample thetas based on sampled phi values
         theta_ind = np.zeros((nevents,ntraj))
