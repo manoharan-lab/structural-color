@@ -109,8 +109,8 @@ def test_2pi_shift():
 
 
 def test_intensity_coherent():
-    # tests that the intensity of the summed fields correspond to the equation for
-    # coherent light: Ix = E_x1^2 + E_x2^2 + 2E_x1*E_x2
+    # tests that the intensity of the summed fields correspond to the equation
+    # for coherent light: Ix = E_x1^2 + E_x2^2 + 2E_x1*E_x2
 
     # this test isn't based on random values, so should produce deterministic
     # results.
@@ -131,7 +131,8 @@ def test_intensity_coherent():
     # calculate reflectance phase
     refl_per_traj = np.array([0.5, 0.5])
     refl_indices = np.array([2, 2])
-    refl_phase, _ = detp.calc_refl_phase_fields(trajectories, refl_indices, refl_per_traj)
+    refl_phase, _ = detp.calc_refl_phase_fields(trajectories, refl_indices,
+                                                refl_per_traj)
     intensity_incident = np.sum(trajectories.weight[0,:])
     intensity = refl_phase*intensity_incident
 
@@ -140,9 +141,18 @@ def test_intensity_coherent():
     field_x = np.sqrt(trajectories.weight[ev,:])*trajectories.fields[0,ev,:]
     field_y = np.sqrt(trajectories.weight[ev,:])*trajectories.fields[1,ev,:]
     field_z = np.sqrt(trajectories.weight[ev,:])*trajectories.fields[2,ev,:]
-    intensity_x = np.conj(field_x[0])*field_x[0] + np.conj(field_x[1])*field_x[1] + np.conj(field_x[0])*field_x[1] + np.conj(field_x[1])*field_x[0]
-    intensity_y = np.conj(field_y[0])*field_y[0] + np.conj(field_y[1])*field_y[1] + np.conj(field_y[0])*field_y[1] + np.conj(field_y[1])*field_y[0]
-    intensity_z = np.conj(field_z[0])*field_z[0] + np.conj(field_z[1])*field_z[1] + np.conj(field_z[0])*field_z[1] + np.conj(field_z[1])*field_z[0]
+    intensity_x = (np.conj(field_x[0])*field_x[0]
+                   + np.conj(field_x[1])*field_x[1]
+                   + np.conj(field_x[0])*field_x[1]
+                   + np.conj(field_x[1])*field_x[0])
+    intensity_y = (np.conj(field_y[0])*field_y[0]
+                   + np.conj(field_y[1])*field_y[1]
+                   + np.conj(field_y[0])*field_y[1]
+                   + np.conj(field_y[1])*field_y[0])
+    intensity_z = (np.conj(field_z[0])*field_z[0]
+                   + np.conj(field_z[1])*field_z[1]
+                   + np.conj(field_z[0])*field_z[1]
+                   + np.conj(field_z[1])*field_z[0])
     intensity_2 = intensity_x + intensity_y + intensity_z
 
     # compare values
@@ -152,7 +162,8 @@ def test_pi_shift_zero():
     # tests if a pi shift leads to zero intensity. This test should produce a
     # deterministic result.
 
-    # construct 2 trajectories with relative pi phase shift that exit at same event
+    # construct 2 trajectories with relative pi phase shift that exit at same
+    # event
     ntrajectories = 2
     nevents = 3
     z_pos = np.array([[0,0],[1,1],[-1,-1]])
@@ -168,7 +179,8 @@ def test_pi_shift_zero():
     # calculate reflectance phase
     refl_per_traj = np.array([0.5, 0.5])
     refl_indices = np.array([2, 2])
-    refl_fields, _ = detp.calc_refl_phase_fields(trajectories, refl_indices, refl_per_traj)
+    refl_fields, _ = detp.calc_refl_phase_fields(trajectories, refl_indices,
+                                                 refl_per_traj)
 
     # check whether reflectance phase is 0
     assert_almost_equal(refl_fields, 0, decimal=15)
@@ -187,25 +199,25 @@ def test_field_normalized():
     radius = sc.Quantity('0.140 um')
     volume_fraction = sc.Quantity(0.55, '')
     n_imag = 2.1e-4
-    n_particle = ri.n('polystyrene', wavelength) + n_imag*1j    # refractive indices can be specified as pint quantities or
-    n_matrix = ri.n('vacuum', wavelength)      # called from the refractive_index module. n_matrix is the
-    n_medium = ri.n('vacuum', wavelength)      # space within sample. n_medium is outside the sample
-    n_sample = ri.n_eff(n_particle,         # refractive index of sample, calculated using Bruggeman approximation
+    n_particle = ri.n('polystyrene', wavelength) + n_imag*1j
+    n_matrix = ri.n('vacuum', wavelength)
+    n_medium = ri.n('vacuum', wavelength)
+    n_sample = ri.n_eff(n_particle,
                         n_matrix,
                         volume_fraction)
     boundary = 'film'
 
     # Monte Carlo parameters
-    ntrajectories = 10                # number of trajectories
-    nevents = 10                         # number of scattering events in each trajectory
+    ntrajectories = 10
+    nevents = 10
 
     # Calculate scattering quantities
     p, mu_scat, mu_abs = mc.calc_scat(radius, n_particle, n_sample,
                                       volume_fraction, wavelength, fields=True)
 
     # Initialize trajectories
-    r0, k0, W0, E0 = mc.initialize(nevents, ntrajectories, n_medium, n_sample, boundary,
-                                       fields=True)
+    r0, k0, W0, E0 = mc.initialize(nevents, ntrajectories, n_medium, n_sample,
+                                   boundary, fields=True)
     r0 = sc.Quantity(r0, 'um')
     k0 = sc.Quantity(k0, '')
     W0 = sc.Quantity(W0, '')
@@ -231,11 +243,15 @@ def test_field_normalized():
     # take the dot product
     trajectories.fields = trajectories.fields.magnitude
 
-    field_mag= np.sqrt(np.conj(trajectories.fields[0,:,:])*trajectories.fields[0,:,:] +
-                       np.conj(trajectories.fields[1,:,:])*trajectories.fields[1,:,:] +
-                       np.conj(trajectories.fields[2,:,:])*trajectories.fields[2,:,:])
+    field_mag= np.sqrt(np.conj(trajectories.fields[0,:,:])
+                       * trajectories.fields[0,:,:] +
+                       np.conj(trajectories.fields[1,:,:])
+                       * trajectories.fields[1,:,:] +
+                       np.conj(trajectories.fields[2,:,:])
+                       * trajectories.fields[2,:,:])
 
-    assert_almost_equal(np.sum(field_mag)/(ntrajectories*(nevents+1)), 1, decimal=15)
+    assert_almost_equal(np.sum(field_mag)/(ntrajectories*(nevents+1)), 1,
+                        decimal=15)
 
 def test_field_perp_direction():
     # calculate fields and directions
@@ -259,16 +275,16 @@ def test_field_perp_direction():
     boundary = 'film'
 
     # Monte Carlo parameters
-    ntrajectories = 10                # number of trajectories
-    nevents = 10                         # number of scattering events in each trajectory
+    ntrajectories = 10
+    nevents = 10
 
     # Calculate scattering quantities
     p, mu_scat, mu_abs = mc.calc_scat(radius, n_particle, n_sample,
                                       volume_fraction, wavelength, fields=True)
 
     # Initialize trajectories
-    r0, k0, W0, E0 = mc.initialize(nevents, ntrajectories, n_medium, n_sample, boundary,
-                                   fields=True)
+    r0, k0, W0, E0 = mc.initialize(nevents, ntrajectories, n_medium, n_sample,
+                                   boundary, fields=True)
     r0 = sc.Quantity(r0, 'um')
     k0 = sc.Quantity(k0, '')
     W0 = sc.Quantity(W0, '')
@@ -278,16 +294,17 @@ def test_field_perp_direction():
 
 
     # Sample trajectory angles
-    sintheta, costheta, sinphi, cosphi, theta, phi= mc.sample_angles(nevents,
-                                                                     ntrajectories,p)
-    # Sample step sizes
+    sintheta, costheta, sinphi, cosphi, theta, phi =\
+        mc.sample_angles(nevents, ntrajectories,p)
+
     step = mc.sample_step(nevents, ntrajectories, mu_scat)
 
     # Update trajectories based on sampled values
     trajectories.scatter(sintheta, costheta, sinphi, cosphi)
     trajectories.move(step)
     trajectories.calc_fields(theta, phi, sintheta, costheta, sinphi, cosphi,
-                 n_particle, n_sample, radius, wavelength, step, volume_fraction)
+                             n_particle, n_sample, radius, wavelength, step,
+                             volume_fraction)
     trajectories.absorb(mu_abs, step)
 
     # take the dot product
@@ -306,10 +323,6 @@ def test_field_reflectance_mc():
     Tests whether the reflectance for the fields model is what we expect from a
     simulation on a film of particles. The parameters, setup, and
     expected values come from the fields_montecarlo_tutorial.ipynb notebook.
-
-    This test runs the simulation only at a single wavelength. The notebook
-    contains a multi-wavelength simulation, but it would take too long to test.
-    The single-wavelength simulation should be sufficient for testing purposes.
     """
 
     seed = 1
@@ -392,3 +405,137 @@ def test_field_reflectance_mc():
 
     assert_almost_equal(refl_fields, refl_fields_expected)
     assert_almost_equal(reflectance, refl_intensity_expected)
+
+@pytest.mark.slow
+def test_field_co_cross_mc():
+    """
+    Tests whether the co- and cross-polarized reflectances for the fields model
+    match the results in the fields_montecarlo_tutorial.ipynb notebook.
+    """
+
+    seed = 1
+    rng = np.random.RandomState([seed])
+
+    wavelengths = sc.Quantity(np.arange(440, 780, 20), 'nm')
+
+    radius = sc.Quantity('0.140 um')
+    volume_fraction = sc.Quantity(0.55, '')
+    n_imag = 2.1e-5
+    n_particle = ri.n('polystyrene', wavelengths) + n_imag*1j
+    n_matrix = ri.n('vacuum', wavelengths)
+    n_medium = ri.n('vacuum', wavelengths)
+
+    thickness = sc.Quantity('80 um')
+    boundary = 'film'
+
+    ntrajectories = 500
+    nevents = 150
+
+    # polarization detector parameters
+    det_theta = sc.Quantity('10 deg')
+
+    reflectance = np.zeros(wavelengths.size)
+    refl_tot = np.zeros(wavelengths.size)
+    refl_co = np.zeros(wavelengths.size)
+    refl_cr = np.zeros(wavelengths.size)
+    refl_perp = np.zeros(wavelengths.size)
+    refl_field = np.zeros(wavelengths.size)
+    refl_intensity = np.zeros(wavelengths.size)
+
+    for i in range(wavelengths.size):
+        # calculate n_sample
+        n_sample = ri.n_eff(n_particle[i], n_matrix[i], volume_fraction)
+
+        # Calculate scattering quantities
+        p, mu_scat, mu_abs = mc.calc_scat(radius, n_particle[i], n_sample,
+                                          volume_fraction, wavelengths[i],
+                                          fields=True)
+
+        # Initialize trajectories
+        r0, k0, W0, E0 = mc.initialize(nevents, ntrajectories, n_medium[i],
+                                       n_sample, boundary, fields=True,
+                                       coherent=False, rng=rng)
+        r0 = sc.Quantity(r0, 'um')
+        k0 = sc.Quantity(k0, '')
+        W0 = sc.Quantity(W0, '')
+        E0 = sc.Quantity(E0,'')
+
+        trajectories = mc.Trajectory(r0, k0, W0, E0)
+
+        sintheta, costheta, sinphi, cosphi, theta, phi =\
+            mc.sample_angles(nevents, ntrajectories, p, rng=rng)
+
+        step = mc.sample_step(nevents, ntrajectories, mu_scat, rng=rng)
+
+        trajectories.scatter(sintheta, costheta, sinphi, cosphi)
+        trajectories.move(step)
+        trajectories.absorb(mu_abs, step)
+        trajectories.calc_fields(theta, phi, sintheta, costheta, sinphi,
+                                 cosphi, n_particle[i], n_sample, radius,
+                                 wavelengths[i], step, volume_fraction,
+                                 fine_roughness=0, tir_refl_bool=None)
+
+        with pytest.warns(UserWarning):
+            refl_trans_result = det.calc_refl_trans(trajectories,thickness,
+                                                    n_medium[i], n_sample,
+                                                    boundary,
+                                                    return_extra=True)
+
+        reflectance[i] = refl_trans_result[11]
+        refl_indices = refl_trans_result[0]
+        refl_per_traj = refl_trans_result[3]
+
+        # calculate reflectance including fields
+        refl_fields, _ = detp.calc_refl_phase_fields(trajectories,
+                                                     refl_indices,
+                                                     refl_per_traj)
+
+        # calculate reflectance contribution from each polarization component
+        (refl_co[i],
+         refl_cr[i],
+         refl_perp[i],
+         refl_field[i],
+         refl_intensity[i]) = detp.calc_refl_co_cross_fields(trajectories,
+                                                          refl_indices,
+                                                          refl_per_traj,
+                                                          det_theta)
+
+    R_expected = [0.6818239027988798, 0.6948435902788378, 0.6576767363912293,
+                  0.6485419490282506, 0.6105017312246305, 0.610248113448991,
+                  0.5589356887128389, 0.5575609090530609, 0.5757231078357871,
+                  0.6101265925414807, 0.5758020810429944, 0.5538053785009902,
+                  0.5142860078764621, 0.47196209364896763, 0.4205562336078029,
+                  0.38837230436216574, 0.3574811605636892]
+
+    R_field_expected = [0.5979755068722215, 0.20095123221751834,
+                        1.1676679521354882, 0.5477814385252179,
+                        0.3348114079532808, 0.43523427289893646,
+                        0.5037181358415458, 0.9002597022095241,
+                        0.6655094198238951, 0.5314303249118808,
+                        0.39259816407642845, 0.917167794491729,
+                        0.5048045364499516, 0.4079200822892743,
+                        0.42036863036736405, 0.3245279368044734,
+                        0.13341537008710438]
+
+    R_co_expected = [0.605587279561404, 0.13178875779291185,
+                     0.1936508027764766, 0.6282263171707353,
+                     0.30481199220342176, 0.6587976580578032,
+                     0.32910629573759087, 0.5108196425031858, 1.0,
+                     0.1227779716301733, 0.034942618242929886,
+                     0.11104145426216996, 0.07861211507410897,
+                     0.30939045564175116, 0.3040550419655162,
+                     0.16016706545322174, 0.024446646332762535]
+
+    R_cross_expected = [0.0106364701868872, 0.11451626694721864, 1.0,
+                        0.18452942880221118, 0.20500327797022916,
+                        0.0945464760088375, 0.29278450424549957,
+                        0.6295948478851608, 0.1978930219113831,
+                        0.29290279122003954, 0.3429407370602462,
+                        0.8433708859800838, 0.5113729248909841,
+                        0.16212795938328153, 0.21010564421109604,
+                        0.14350179291386156, 0.07163478994233281]
+
+    assert_almost_equal(refl_intensity, R_expected)
+    assert_almost_equal(refl_field, R_field_expected)
+    assert_almost_equal(refl_co/np.max(refl_co), R_co_expected)
+    assert_almost_equal(refl_cr/np.max(refl_cr), R_cross_expected)
