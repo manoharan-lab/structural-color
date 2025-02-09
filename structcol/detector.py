@@ -423,7 +423,7 @@ def get_angles(indices, boundary, trajectories, thickness,
         angles = sc.Quantity(angles, '')
 
         # plot the points before exit, after exit, and on exit boundary
-        if plot_exits:
+        if plot_exits:  # pragma: no cover
             fig = plt.figure()
             ax = fig.add_subplot(111, projection='3d')
             # ax.scatter(select_x0,select_y0,select_z0, c = 'b')
@@ -1045,7 +1045,7 @@ def fresnel_correct_exit(n_sample, n_medium, n_front, n_back, refl_indices,
                                         plot_exits=plot_exits)
 
     # set up axes if plot_exits is true
-    if plot_exits:
+    if plot_exits:  # pragma: no cover
         plt.gca().set_title('Reflected exits')
         plt.gca().view_init(-164, -155)
 
@@ -1065,7 +1065,7 @@ def fresnel_correct_exit(n_sample, n_medium, n_front, n_back, refl_indices,
                                          plot_exits=plot_exits)
 
     # set up axes if plot_exits is true
-    if plot_exits:
+    if plot_exits:  # pragma: no cover
         plt.gca().set_title('Transmitted exits')
         plt.gca().view_init(-164, -155)
 
@@ -1414,7 +1414,7 @@ def calc_refracted_direction(kx_1, ky_1, kz_1, x_1, y_1, z_1, n1, n2, plot):
     kx_2, ky_2, kz_2 = rotate_refract(x_plane, y_plane, z_plane,
                                       u, v, w, kx_1, ky_1, kz_1, alpha)
 
-    if plot:
+    if plot:    # pragma: no cover
         fig = plt.figure()
         ax = fig.add_subplot(111, projection='3d')
         ax.set_title('intesection points of exit vector and film plane')
@@ -1555,7 +1555,7 @@ def calc_indices_detected(indices, trajectories, det_theta, det_len, det_dist,
             y_int_detected[i] = y_int[i]
             z_int_detected[i] = z_int[i]
 
-    if plot:
+    if plot:    # pragma: no cover
         fig = plt.figure()
         ax = fig.add_subplot(111, projection='3d')
         ax.set_title('exit and detected trajectories')
@@ -1951,7 +1951,7 @@ def calc_refl_trans(trajectories, thickness, n_medium, n_sample, boundary,
 
     # For performance testing, print the stuck weights to text file
     if save_stuck_weights:
-        if boundary == 'film':
+        if boundary == 'film':  # pragma: no cover
             with open('stuck_weights_small.txt', 'a') as f:
                 print(total_stuck, file=f)
             f.close()

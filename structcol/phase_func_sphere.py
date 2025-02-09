@@ -233,7 +233,7 @@ def calc_pdf(x, y, z, radius,
             pdf_array = pdf(nu)
             pdf_array = pdf_array / np.sum(pdf_array)
 
-        if plot:
+        if plot:    # pragma: no cover
             # plot the distribution from data, with edge correction, and kde
             plot_dist_1d(nu_range, nu, nu_edge_correct, pdf(nu_range))
             plt.xlabel(r'$\nu$')
@@ -256,7 +256,7 @@ def calc_pdf(x, y, z, radius,
         nu = (np.cos(theta) + 1) / 2
         pdf_array = pdf(nu, phi_range)
 
-        if plot:
+        if plot:    # pragma: no cover
             # plot the the calculated kernel density estimate in phi
             nu_2d, phi_2d = np.meshgrid(nu_range, phi_range)
             angle_range = np.vstack([nu_2d.ravel(), phi_2d.ravel()])
@@ -275,7 +275,8 @@ def calc_pdf(x, y, z, radius,
 
     return pdf_array
 
-def plot_phase_func(pdf, nu=np.linspace(0, 1, 200), phi=None, save=False):
+def plot_phase_func(pdf, nu=np.linspace(0, 1, 200), phi=None,
+                    save=False):            # pragma: no cover
     '''
     Plots a given probability density function (pdf)
 
@@ -341,7 +342,8 @@ def plot_phase_func(pdf, nu=np.linspace(0, 1, 200), phi=None, save=False):
         np.save('phase_function_data',phase_func)
 
 
-def plot_dist_1d(var_range, var_data, var_data_edge_correct, pdf_var_vals):
+def plot_dist_1d(var_range, var_data, var_data_edge_correct,
+                 pdf_var_vals):                 # pragma: no cover
     '''
     plots the probability distribution of a variable of interest
 
@@ -420,7 +422,7 @@ def calc_directions(theta_sample, phi_sample, x_inter,y_inter, z_inter, k1,
 
     return k1[:,ind]
 
-def plot_exit_points(x, y, z, radius, plot_dimension='3d'):
+def plot_exit_points(x, y, z, radius, plot_dimension='3d'): # pragma: no cover
     '''
     plots data corresponding to the x,y,z and radius inputs
 
@@ -815,7 +817,7 @@ def calc_diam_list(num_diam, diameter_mean, pdi,
         rad_list = np.array(rad_list)*radius_mean.units
 
     # plot the radii over the pdf
-    if plot:
+    if plot:    # pragma: no cover
         # calculate t for distrubtion
         t = (1 - pdi**2) / pdi**2
 

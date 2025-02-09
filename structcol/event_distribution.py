@@ -653,7 +653,7 @@ def calc_refl_event_fresnel_avg(refl_events, refl_indices, trans_indices,
             trans_frac*np.sum(trans_fresnel[traj_ind_event_trans])
     return refl_events + fresnel_avg
 
-def plot_refl_event(wavelengths, refl_events, event):
+def plot_refl_event(wavelengths, refl_events, event):   # pragma: no cover
     '''
     Plot the reflectance spectrum for a given event(s)
 
@@ -679,7 +679,7 @@ def plot_refl_event(wavelengths, refl_events, event):
     plt.ylabel('Reflectance')
     plt.legend()
 
-def plot_refl_event_norm(wavelengths, refl_events, event):
+def plot_refl_event_norm(wavelengths, refl_events, event): # pragma: no cover
     '''
     Plot the reflectance spectrum for a given event(s),
     normalized by the amount of light still in the sample at each event
@@ -709,7 +709,8 @@ def plot_refl_event_norm(wavelengths, refl_events, event):
     plt.ylabel('Reflectance')
     plt.legend()
 
-def plot_refl_event_sum(wavelengths, refl_events, events, label = ''):
+def plot_refl_event_sum(wavelengths, refl_events, events,
+                        label = ''):        # pragma: no cover
     '''
     Plot the summed reflectance spectrum for a given range of events event(s)
 
@@ -732,7 +733,8 @@ def plot_refl_event_sum(wavelengths, refl_events, events, label = ''):
     plt.ylabel('Reflectance')
     plt.xlabel('Wavelength (nm)')
 
-def plot_refl_event_sum_norm(wavelengths, refl_events, events, label = ''):
+def plot_refl_event_sum_norm(wavelengths, refl_events, events,
+                             label = ''):       # pragma: no cover
     '''
     Plot the summed reflectance spectrum for a given range of events event(s)
     normalized by the amount of light still in the sample at each event
@@ -762,7 +764,7 @@ def plot_refl_event_sum_norm(wavelengths, refl_events, events, label = ''):
     plt.ylabel('Reflectance')
     plt.xlabel('Wavelength (nm)')
 
-def plot_refl_dist(wavelengths, refl_events, wavelength):
+def plot_refl_dist(wavelengths, refl_events, wavelength): # pragma: no cover
     '''
     Plot the distribution of reflectance as a function of event number
     at a given wavelength
@@ -820,7 +822,8 @@ def save_data(particle, matrix, particle_radius, volume_fraction, thickness,
               theta_event_traj = None, refl_events_fresnel_samp = None,
               refl_events_fresnel_avg = None, zpos = None, kz = None,
               theta_range = None, tir_single = None, tir_single_refl = None,
-              tir_all = None, tir_all_refl = None, tir_indices_single = None):
+              tir_all = None, tir_all_refl = None,
+              tir_indices_single = None):   # pragma: no cover
     '''
     Saves data as a .npz file. Generates file name using sample parameters.
     '''

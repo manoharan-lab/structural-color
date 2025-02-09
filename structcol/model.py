@@ -930,8 +930,9 @@ def polydisperse_form_factor(m, angles, diameters, concentration, pdi, wavelen,
     return(f_par, f_perp)
 
 
-def absorption_cross_section(form_type, m, diameters, n_matrix, x, wavelen,
-                             n_particle, concentration=None, pdi=None):
+def absorption_cross_section(form_type, m, diameters, n_matrix, x,
+                             wavelen, n_particle, concentration=None,
+                             pdi=None):         # pragma: no cover
     """
     Calculate the absorption cross section.
     Note: this function is currently NOT used anywhere in this package.

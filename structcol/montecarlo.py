@@ -438,7 +438,7 @@ class Trajectory:
         self.position[1] = np.cumsum(displacement[1,:,:], axis=0)
         self.position[2] = np.cumsum(displacement[2,:,:], axis=0)
 
-    def plot_coord(self, ntraj, three_dim=False):
+    def plot_coord(self, ntraj, three_dim=False): # pragma: no cover
         """
         Plots the cartesian coordinates of the trajectories as a function of
         the number of scattering events.
@@ -757,7 +757,7 @@ def initialize(nevents, ntraj, n_medium, n_sample, boundary, rng=None,
         k0[2,0,:] = costheta
 
         # plot the initial positions and directions of the trajectories
-        if plot_initial and (boundary == 'sphere'):
+        if plot_initial and (boundary == 'sphere'): # pragma: no cover
             fig = plt.figure()
             ax = fig.add_subplot(111, projection='3d')
             ax.set_xlabel('x')
