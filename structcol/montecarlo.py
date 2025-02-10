@@ -38,6 +38,7 @@ from . import normalize
 from . import select_events
 import numpy as np
 from numpy.random import random as random
+import xarray as xr
 import structcol as sc
 import matplotlib.pyplot as plt
 import itertools
@@ -169,6 +170,10 @@ class Trajectory:
     def nevents(self):
         return self.weight.shape[0]
 
+    @property
+    def ntrajectories(self):
+        return self.weight.shape[1]
+
     def absorb(self, mu_abs, step_size):
         """
         Calculates absorption of photon packet due to traveling the sample
@@ -231,6 +236,8 @@ class Trajectory:
                       [costheta*sinphi, cosphi, sintheta*sinphi],
                       [-sintheta, np.zeros(sinphi.shape), costheta]])
 
+        # could vectorize this loop if numpy had a cumulative dot product
+        # ufunc.  But np.cumprod only does element by element.
         for n in np.arange(1, self.nevents):
             # now use Einstein summation to take the dot product of each
             # rotation matrix at each event in each trajectory with the
@@ -440,19 +447,29 @@ class Trajectory:
 
         """
 
-        displacement = self.position
-        if not isinstance(displacement, sc.Quantity):
-            step = step.to('um').magnitude
-            direction = self.direction.magnitude
+        # define coords/dims for position array (shape: [3, nevents+1, ntraj])
+        pos_coords = [("vector", ["x", "y", "z"]),
+                      ("event", np.arange(0, self.nevents+1)),
+                      ("trajectory", np.arange(self.ntrajectories))]
+
+        # strip and save units
+        if isinstance(self.position, sc.Quantity):
+            units = self.position.to('um').units
+            displacement = xr.DataArray(self.position.magnitude,
+                                        coords=pos_coords)
         else:
-            direction = self.direction
-        displacement[:, 1:, :] = step * direction
+            units = 1
+            displacement = xr.DataArray(self.position, coords=pos_coords)
+
+        # calculate vector displacement after each event
+        displacement[dict(event=slice(1, None))] = (step.to('um').magnitude
+                                                    * self.direction.magnitude)
 
         # The array of positions is a cumulative sum of all of the
-        # displacements
-        self.position[0] = np.cumsum(displacement[0,:,:], axis=0)
-        self.position[1] = np.cumsum(displacement[1,:,:], axis=0)
-        self.position[2] = np.cumsum(displacement[2,:,:], axis=0)
+        # displacements. Note: we use da.cumsum() because
+        # da.cumulative("event").sum() will be much slower if numbagg is not
+        # installed. See https://github.com/pydata/xarray/issues/6528
+        self.position = displacement.cumsum("event").to_numpy() * units
 
     def plot_coord(self, ntraj, three_dim=False): # pragma: no cover
         """
@@ -1350,7 +1367,8 @@ def sample_angles(nevents, ntraj, p, min_angle=0.01, rng=None):
 
         # It's hard to vectorize this loop because rng.choice works only with a
         # one-dimensional probability vector p.  There may be a way to
-        # vectorize using rng.multinomial, which takes an array of probs
+        # vectorize using rng.multinomial, which takes an array of probs.
+        # However, rng.multinomial might not work with np.random.RandomState
         for i in range(nevents):
             for j in range(ntraj):
                 theta_ind[i,j] = rng.choice(num_theta,
