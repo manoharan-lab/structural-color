@@ -687,6 +687,12 @@ def initialize(nevents, ntraj, n_medium, n_sample, boundary, rng=None,
     if isinstance(sample_diameter, sc.Quantity):
         sample_radius = sample_diameter.to('um').magnitude/2
 
+    # strip units from dimensionless quantities
+    if isinstance(n_medium, sc.Quantity):
+        n_medium = n_medium.magnitude
+    if isinstance(n_sample, sc.Quantity):
+        n_sample = n_sample.magnitude
+
     # Initial position. The position array has one more row than the direction
     # and weight arrays because it includes the starting positions on the x-y
     # plane.  Shape should be [3, nevents+1, ntraj]
@@ -709,7 +715,7 @@ def initialize(nevents, ntraj, n_medium, n_sample, boundary, rng=None,
             raise ValueError('for film geometry, sample_diameter must be set\
                              to None')
         # randomly choose positions on interval [0,1]
-        r0.sel(event=0).loc["x":"y"] = [rng.random(ntraj), rng.random(ntraj)]
+        r0.sel(event=0).loc["x":"y"] = rng.random((2, ntraj))
 
         # initialize the incident angles theta and phi. The user can input
         # data or sample randomly from a uniform distribution between a min and
@@ -761,16 +767,15 @@ def initialize(nevents, ntraj, n_medium, n_sample, boundary, rng=None,
         r0.loc[dict(event=0)] = [x, y, z]
 
         # find the minus normal vectors of the sphere at the initial positions
-        neg_normal = np.zeros((3, ntraj))
         r0_magnitude = np.sqrt(x**2 + y**2 + (z - sample_radius)**2)
-        neg_normal[0,:] = -x / r0_magnitude
-        neg_normal[1,:] = -y / r0_magnitude
-        neg_normal[2,:] = -(z - sample_radius) / r0_magnitude
-
+        # neg_normal should have shape [3, ntraj]
+        neg_normal = xr.zeros_like(r0.sel(event=0, drop=True))
+        neg_normal.loc["x":"z"] = np.array([-x / r0_magnitude,
+                                            -y / r0_magnitude,
+                                            -(z - sample_radius)/r0_magnitude])
         # solve for theta and phi for these samples
-        theta = np.arccos(neg_normal[2,:])
-        cosphi = neg_normal[0,:]/np.sin(theta)
-        sinphi = neg_normal[1,:]/np.sin(theta)
+        theta = np.arccos(neg_normal.loc['z'])
+        cosphi, sinphi = neg_normal.loc["x":"y"] / np.sin(theta)
 
     # If there is no coarse roughness (e.g. surface is flat)
     if coarse_roughness == 0:
@@ -778,12 +783,9 @@ def initialize(nevents, ntraj, n_medium, n_sample, boundary, rng=None,
         # TODO: only real part of n_sample should be used
         # for the calculation of angles of integration? Or abs(n_sample)?
         theta = refraction(theta, np.abs(n_medium), np.abs(n_sample))
-        if isinstance(theta, sc.Quantity):
-            theta = theta.magnitude
 
     sintheta = np.sin(theta)
     costheta = np.cos(theta)
-
     # calculate new directions using refracted theta and initial phi
     kx, ky, kz = (sintheta * cosphi), (sintheta * sinphi), costheta
     k0.loc[dict(event=0)] = [kx, ky, kz]
@@ -1491,6 +1493,12 @@ def coarse_roughness_enter(k, n_medium, n_sample, coarse_roughness, boundary,
         raise ValueError("course roughness not yet implemented for sphere "
                          "boundary")
 
+    # strip units from dimensionless quantities
+    if isinstance(n_medium, sc.Quantity):
+        n_medium = n_medium.magnitude
+    if isinstance(n_sample, sc.Quantity):
+        n_sample = n_sample.magnitude
+
     ntraj = k.shape[2]
 
     # for constructing rotation matrices
@@ -1538,10 +1546,6 @@ def coarse_roughness_enter(k, n_medium, n_sample, coarse_roughness, boundary,
     # TODO: only real part of n_sample should be used
     # for the calculation of angles of integration? Or abs(n_sample)?
     theta_refr = refraction(theta_rot, n_medium, np.abs(n_sample))
-    if isinstance(theta_refr.data, sc.Quantity):
-        theta_refr.data = theta_refr.data.to('radians').magnitude
-    if isinstance(phi_rot.data, sc.Quantity):
-        phi_rot = phi_rot.data.to('radians').magnitude
 
     k0_rot_refr = xr.DataArray([np.sin(theta_refr) * np.cos(phi_rot),
                                 np.sin(theta_refr) * np.sin(phi_rot),
