@@ -687,21 +687,20 @@ def initialize(nevents, ntraj, n_medium, n_sample, boundary, rng=None,
     if isinstance(sample_diameter, sc.Quantity):
         sample_radius = sample_diameter.to('um').magnitude/2
 
-
     # Initial position. The position array has one more row than the direction
     # and weight arrays because it includes the starting positions on the x-y
-    # plane
-    # r0 = np.zeros((3, nevents+1, ntraj))
+    # plane.  Shape should be [3, nevents+1, ntraj]
     r0 = xr.DataArray(dims=["component", "event", "trajectory"],
                       coords = {"component": ["x", "y", "z"],
                                 "event": range(nevents+1),
                                 "trajectory": range(ntraj)})
 
     # Create an empty array of the initial direction cosines of the right size
-    k0 = xr.zeros_like(r0[:, :-1, :])
+    # Shape should be [3, nevents, ntraj], so 1 event smaller than r0.
+    k0 = xr.zeros_like(r0.isel(event=slice(0, -1)))
 
     # Initial weight
-    weight0 = xr.ones_like(k0[0, :, :]).drop_vars("component")
+    weight0 = xr.ones_like(k0.sel(component='x')).drop_vars("component")
 
     if boundary == 'film':
 
@@ -829,28 +828,23 @@ def initialize(nevents, ntraj, n_medium, n_sample, boundary, rng=None,
 
     if fields:
         # The field is initialized with nevents+1 because we want to save
-        # the value of the field from before the photon enters the sample
-        #fields0 = np.zeros((3, nevents+1, ntraj), dtype = 'complex')
+        # the value of the field from before the photon enters the sample.
+        # Shape should be [3, nevents+1, ntraj)]
         fields0 = xr.zeros_like(r0, dtype = 'complex')
         # initialize for unpolarized, incoherent light
         if coherent:
-            phase_x = np.zeros(ntraj)
-            phase_y = np.zeros(ntraj)
+            phase = np.zeros((2,ntraj))
         else:
-            phase_x = rng.random(ntraj)*2*np.pi
-            phase_y = rng.random(ntraj)*2*np.pi
+            phase = rng.random((2, ntraj))*2*np.pi
         if polarized:
-            fields0[0,0,:] = np.exp(phase_x*1j)
+            fields0.sel(event=0).loc['x'] = np.exp(phase[0]*1j)
         else:
-            fields0[0,0,:] = np.exp(phase_x*1j)
-            fields0[1,0,:] = np.exp(phase_y*1j)
-        fields0x, fields0y, _ = normalize(fields0[0,0,:], fields0[1,0,:], 0)
-        fields0[0,0,:] = fields0x
-        fields0[1,0,:] = fields0y
+            fields0.sel(event=0).loc['x':'y'] = np.exp(phase*1j)
+
+        fields0.loc[dict(event=0)] = normalize(*fields0.sel(event=0))
 
         # first step into the sample is same
-        fields0[0,1,:] = fields0x
-        fields0[1,1,:] = fields0y
+        fields0.loc[dict(event=1)] = fields0.sel(event=0)
         init_traj_props.append(fields0.to_numpy())
 
     return init_traj_props
