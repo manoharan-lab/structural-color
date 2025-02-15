@@ -53,6 +53,16 @@ from .refractive_index import Index
 # get this from Pint in a somewhat indirect way:
 LIGHT_SPEED_VACUUM = Quantity(1.0, 'speed_of_light').to('m/s')
 
+# Preferred unit for length. Because the package allows calculations as a
+# function of wavelength and radius, it's not always clear what length scale to
+# use for nondimensionalization. We specify a preferred length scale here for
+# nondimensionalizing length scales internally. All dimensional quantities
+# (specified using pint) are converted to the same units as the preferred and
+# are then nondimensionalized. We choose micrometers because all the dispersion
+# relations are expressed in terms of micrometers.
+ureg.default_preferred_units = [ureg.micrometer]
+
+
 def refraction(angles, n_before, n_after):
     '''
     Returns angles after refracting through an interface
