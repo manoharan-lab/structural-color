@@ -25,6 +25,11 @@ dependencies:
   - matplotlib
   - seaborn
 
+  # for documentation
+  - sphinx
+  - numpydoc
+  - furo
+
   # include jupyterlab for convenience
   - jupyterlab
 
