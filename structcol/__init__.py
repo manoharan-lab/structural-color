@@ -46,6 +46,8 @@ Physical Review E 90, no. 6 (2014): 62302. doi:10.1103/PhysRevE.90.062302
 # make unit mistakes.
 # Also load commonly used functions from pymie package
 from pymie import Quantity, ureg, q, index_ratio, size_parameter, np, mie
+from . import refractive_index as index
+from .refractive_index import Index
 
 # Global variable speed of light
 # get this from Pint in a somewhat indirect way:

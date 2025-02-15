@@ -44,7 +44,102 @@ import numpy as np
 from . import ureg, Quantity
 from scipy.optimize import fsolve
 from scipy.interpolate import interp1d
+from functools import partial
 import warnings
+
+@ureg.check(None, '[length]')
+def _constant_index(index, wavelen):
+    """
+    Returns a constant index irrespective of the wavelength
+
+    Parameters
+    ----------
+    wavelen : structcol.Quantity [length] or array thereof
+        Wavelengths at which to calculate index
+    index : float or complex
+        Index to return
+
+    Returns
+    -------
+    n: float or complex
+        Index of refraction (same at all wavelengths)
+    """
+    n = np.ones_like(wavelen.magnitude) * index
+    return n
+
+class Index:
+    """Class describing index of refraction as a function of wavelength.
+
+    Attributes
+    ----------
+    index_func : Function
+        Returns index as a function of wavelength and other parameters
+    kwargs : dict
+        Keyword arguments to pass to `index_func`.
+
+    """
+    def __init__(self, index_func, **kwargs):
+        self.n = partial(index_func, **kwargs)
+        self.n_args = kwargs
+
+    @ureg.check(None, '[length]')
+    def __call__(self, wavelen):
+        """Calculate index of refraction over a set of wavelengths.
+
+        This is a convenience method, enabling one to call (for example)
+        "myindex(wavelen)" where myindex is an Index object and wavelen is the
+        array over which to calculate the index.
+
+        Parameters
+        ----------
+        wavelen: structcol.Quantity [length] or array thereof
+            Wavelengths at which to calculate index
+
+        Returns
+        -------
+        index: float/complex or array of float/complex
+            Refractive indices (possibly complex) at specified wavelengths
+
+        """
+        return self.n(wavelen)
+
+    @classmethod
+    def constant(cls, index):
+        """Makes an Index object with a constant index of refraction for all
+        wavelengths.
+
+        Parameters
+        ----------
+        index : float or complex
+            Index of refraction
+
+        """
+        # TODO: check to make sure index is float or complex
+        return cls(partial(_constant_index, index))
+
+    @classmethod
+    @ureg.check(None, '[length]', None, None)
+    def from_data(cls, wavelen, index_data, kind=None):
+        """Make an Index object that interpolates from data to calculate
+        indices of refraction.
+
+        Parameters
+        ----------
+        index_data : array_like (float or complex)
+            Refractive index data from literature or experiment. The index data
+            can be real or complex.
+        wavelength_data : array_like (sc.Quantity)
+            Wavelength data corresponding to index_data. Must be specified as
+            pint Quantity so that units are .
+        kind : string (optional)
+            Type of interpolation. The options are: 'linear', 'nearest',
+            'zero', 'slinear', 'quadratic', 'cubic', 'previous', 'next', where
+            'zero', 'slinear', 'quadratic' and 'cubic' refer to a spline
+            interpolation of zeroth, first, second or third order; 'previous'
+            and 'next' simply return the previous or next value of the point.
+            The default is 'linear'.
+        """
+        pass
 
 # dictionary of refractive index dispersion formulas. This is used by the 'n'
 # function below; it's outside the function definition so that it doesn't have

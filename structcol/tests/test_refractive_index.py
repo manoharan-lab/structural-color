@@ -21,12 +21,48 @@ Tests for the refractive_index module of structcol
 .. moduleauthor:: Victoria Hwang <vhwang@g.harvard.edu>
 """
 
+import structcol as sc
 from .. import refractive_index as ri
 from .. import Quantity
 from numpy.testing import assert_equal, assert_almost_equal, assert_warns
 from pytest import raises
 from pint.errors import DimensionalityError
 import numpy as np
+import pytest
+
+def test_index_from_function():
+    # test that making an index object from a function works
+    def fake_index_relation(wavelen, fake_index=None):
+        if fake_index is None:
+            return np.ones_like(wavelen) * 1.0
+        else:
+            return np.ones_like(wavelen) * fake_index
+    wavelen = sc.Quantity(np.linspace(400, 800, 100), 'nm')
+
+    my_index = sc.Index(fake_index_relation)
+    assert_equal(my_index(wavelen), np.ones_like(wavelen) * 1.0)
+
+    # check that scalar wavelength works
+    assert_equal(my_index(sc.Quantity('400.0 nm')), 1.0)
+
+    # check that keyword is set when creating Index object
+    my_index = sc.Index(fake_index_relation, fake_index=3.33)
+    assert_equal(my_index(wavelen), np.ones_like(wavelen) * 3.33)
+
+    # check that wavelengths with no units give error
+    with pytest.raises(DimensionalityError):
+        my_index(np.linspace(400, 800, 100))
+
+def test_index_from_constant():
+    # test that making an index object from a constant works
+    wavelen = sc.Quantity(np.linspace(400, 800, 10), 'nm')
+
+    my_index = sc.Index.constant(1.888)
+    assert_equal(my_index(wavelen), np.ones_like(wavelen) * 1.888)
+
+    # check that wavelengths with wrong units gives error
+    with pytest.raises(DimensionalityError):
+        my_index(sc.Quantity('400 kg'))
 
 def test_n():
     # make sure that a material not in the dictionary raises a KeyError
