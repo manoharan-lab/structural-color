@@ -597,7 +597,7 @@ def calc_mu_scat_abs(refl_per_traj, trans_per_traj, refl_indices,
 
     # don't need to include volume fraction for mu_abs_sphere component
     # because already included in number_density
-    mu_abs_matrix = 4 * np.pi * np.imag(n_sample.magnitude) / wavelength
+    mu_abs_matrix = 4 * np.pi * np.imag(n_sample) / wavelength
     mu_abs = mu_abs_sphere + mu_abs_matrix * (1 - volume_fraction)
 
     return mu_scat, mu_abs

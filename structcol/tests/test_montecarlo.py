@@ -28,7 +28,7 @@ calculated reflectance are in test_detector.py
 import structcol as sc
 from .. import montecarlo as mc
 from .. import refractive_index as ri
-from .. import index_ratio, size_parameter, model
+from .. import size_parameter, model
 import numpy as np
 from numpy.testing import assert_equal, assert_almost_equal
 
@@ -37,9 +37,9 @@ nevents = 3
 ntrajectories = 4
 radius = sc.Quantity('150.0 nm')
 volume_fraction = 0.5
-n_particle = sc.Quantity(1.5, '')
-n_matrix = sc.Quantity(1.0, '')
-n_medium = sc.Quantity(1.0, '')
+n_particle = 1.5
+n_matrix = 1.0
+n_medium = 1.0
 n_sample = ri.n_eff(n_particle, n_matrix, volume_fraction)
 angles = sc.Quantity(np.linspace(0.01, np.pi, 200), 'rad')
 wavelen = sc.Quantity('400.0 nm')
@@ -127,9 +127,9 @@ def test_phase_function_absorbing_medium():
     # (mie.diff_scat_intensity_complex_medium() with near_fields=False)
     wavelen = sc.Quantity('550.0 nm')
     radius = sc.Quantity('105.0 nm')
-    n_matrix = sc.Quantity(1.47 + 0.001j, '')
-    n_particle = sc.Quantity(1.5 + 1e-1 * 1.0j, '')
-    m = index_ratio(n_particle, n_matrix)
+    n_matrix = 1.47 + 0.001j
+    n_particle = 1.5 + 1e-1 * 1.0j
+    m = n_particle/n_matrix
     x = size_parameter(wavelen, n_matrix, radius)
     k = 2 * np.pi * n_matrix / wavelen
     ksquared = np.abs(k)**2

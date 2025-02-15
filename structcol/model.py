@@ -31,7 +31,7 @@ Physical Review E 90, no. 6 (2014): 62302. doi:10.1103/PhysRevE.90.062302
 """
 
 import numpy as np
-from pymie import index_ratio, mie
+from pymie import mie
 from pymie import multilayer_sphere_lib as msl
 from pymie import size_parameter
 from scipy.special import factorial
@@ -252,14 +252,14 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius,
         n_sample = n_matrix
 
     if len(np.atleast_1d(radius)) > 1:
-        m = index_ratio(n_particle, n_sample).flatten()
+        m = (n_particle/n_sample).flatten()
         x = size_parameter(wavelen, n_sample, radius).flatten()
         if effective_medium_struct and not effective_medium_form:
             x_eff = size_parameter(wavelen, n_sample_eff, radius).flatten()
         else:
             x_eff = None
     else:
-        m = index_ratio(n_particle, n_sample)
+        m = n_particle/n_sample
         x = size_parameter(wavelen, n_sample, radius)
         if effective_medium_struct and not effective_medium_form:
             x_eff = size_parameter(wavelen, n_sample_eff, radius)
@@ -321,7 +321,7 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius,
     transmission = fresnel_transmission(n_sample, n_medium, np.pi-angles)
 
     # calculate the absorption cross section
-    if np.abs(n_sample.imag.magnitude) > 0.0:
+    if np.abs(n_sample.imag) > 0.0:
         # The absorption coefficient can be calculated from the imaginary
         # component of the samples's refractive index
         mu_abs = 4 * np.pi * n_sample.imag / wavelen
@@ -368,7 +368,7 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius,
                                         x_eff=x_eff)
 
     # integrate the differential cross sections to get the total cross section
-    if np.abs(n_sample.imag.magnitude) > 0.:
+    if np.abs(n_sample.imag) > 0.:
         if form_type == 'polydisperse' and len(concentration) > 1:
             # When the system is binary and absorbing, we integrate the
             # polydisperse differential cross section at the surface of each
@@ -860,7 +860,7 @@ def polydisperse_form_factor(m, angles, diameters, concentration, pdi, wavelen,
         # and the total form factors for absorbing systems
         for s in np.arange(len(diameter_range)):
             # if the system has absorption, use the absorption formula from Mie
-            if ((np.abs(n_matrix.imag.magnitude) > 0.
+            if ((np.abs(n_matrix.imag) > 0.
                  or coordinate_system == 'cartesian')
                  and (k is not None and distance is not None)):
                 distance_array = np.resize(distance,
@@ -972,7 +972,7 @@ def absorption_cross_section(form_type, m, diameters, n_matrix, x,
         absorption cross section.
     """
 
-    if np.abs(n_matrix.imag.magnitude) == 0.:
+    if np.abs(n_matrix.imag) == 0.:
         cabs_total = Quantity(0.0, 'um^2')
 
     if form_type == 'polydisperse':

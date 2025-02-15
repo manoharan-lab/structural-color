@@ -76,11 +76,11 @@ def test_structure_factor_percus_yevick_core_shell():
 
     wavelen = Quantity('400.0 nm')
     angles = Quantity(np.pi, 'rad')
-    n_matrix = Quantity(1.0, '')
+    n_matrix = 1.0
 
     # Structure factor for non-core-shell particles
     radius = Quantity('100.0 nm')
-    n_particle = Quantity(1.5, '')
+    n_particle = 1.5
     volume_fraction = Quantity(0.0001, '')         # IS VF TOO LOW?
     n_sample = ri.n_eff(n_particle, n_matrix, volume_fraction)
     x = size_parameter(wavelen, n_sample, radius)
@@ -90,7 +90,7 @@ def test_structure_factor_percus_yevick_core_shell():
     # Structure factor for core-shell particles with core size equal to radius
     # of non-core-shell particle
     radius_cs = Quantity(np.array([100.0, 105.0]), 'nm')
-    n_particle_cs = Quantity(np.array([1.5, 1.0]), '')
+    n_particle_cs = np.array([1.5, 1.0])
     volume_fraction_shell = volume_fraction * (radius_cs[1]**3 / radius_cs[0]**3 -1)
     volume_fraction_cs = Quantity(np.array([volume_fraction.magnitude, volume_fraction_shell.magnitude]), '')
 

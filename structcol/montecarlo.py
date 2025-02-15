@@ -31,7 +31,7 @@ Radiation Transfer” (July 2013).
 .. moduleauthor:: Vinothan N. Manoharan <vnm@seas.harvard.edu>
 
 """
-from pymie import mie, size_parameter, index_ratio
+from pymie import mie, size_parameter
 from . import model
 from . import refraction
 from . import normalize
@@ -332,9 +332,9 @@ class Trajectory:
             Electric field vector for each trajectory and event
             in global coordinates
         """
-        m = index_ratio(n_particle, n_sample)
+        m = n_particle/n_sample
         x = size_parameter(wavelen, n_sample, radius)
-        k = 2 * np.pi * n_sample.magnitude / wavelen.magnitude
+        k = 2 * np.pi * n_sample / wavelen.magnitude
         step = step.magnitude
         ntraj = theta.shape[1]
 
@@ -689,9 +689,9 @@ def initialize(nevents, ntraj, n_medium, n_sample, boundary, rng=None,
 
     # strip units from dimensionless quantities
     if isinstance(n_medium, sc.Quantity):
-        n_medium = n_medium.magnitude
+        n_medium = n_medium
     if isinstance(n_sample, sc.Quantity):
-        n_sample = n_sample.magnitude
+        n_sample = n_sample
 
     # Initial position. The position array has one more row than the direction
     # and weight arrays because it includes the starting positions on the x-y
@@ -983,7 +983,7 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
         n_sample = n_matrix
 
     k = 2 * np.pi * n_sample / wavelen
-    m = index_ratio(n_particle, n_sample)
+    m = n_particle/n_sample
     x = size_parameter(wavelen, n_sample, radius)
 
     # radius and radius2 should be in the same units (for polydisperse samples)
@@ -1073,7 +1073,7 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
     if fine_roughness > 0.:
         if n_matrix is None:
             raise ValueError('need to specify n_matrix if fine_roughness > 0')
-        m = index_ratio(n_particle, n_matrix)
+        m = n_particle/n_matrix
         x = size_parameter(wavelen, n_matrix, radius)
         k = 2 * np.pi * n_matrix / wavelen
 
@@ -1495,9 +1495,9 @@ def coarse_roughness_enter(k, n_medium, n_sample, coarse_roughness, boundary,
 
     # strip units from dimensionless quantities
     if isinstance(n_medium, sc.Quantity):
-        n_medium = n_medium.magnitude
+        n_medium = n_medium
     if isinstance(n_sample, sc.Quantity):
-        n_sample = n_sample.magnitude
+        n_sample = n_sample
 
     ntraj = k.shape[2]
 

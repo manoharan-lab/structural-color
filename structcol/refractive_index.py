@@ -191,25 +191,20 @@ class Index:
             return fit(wavelen.to_preferred().magnitude)
         return cls(index_func)
 
-@ureg.check('um')
-def _water_sellmeier(wavelen):
-    return n_dict['water'](wavelen)
-
-water = Index(_water_sellmeier)
-
-
-# dictionary of refractive index dispersion formulas. This is used by the 'n'
-# function below; it's outside the function definition so that it doesn't have
-# to be initialized on every function call (see stackoverflow 60208).
+# Refractive index dispersion formulas and Index objects.
 #
-# NOTE: If you add a material to the dictionary, you need to add a test
-# function to structcol/tests/test_refractive_index.py that will test to make
-# sure the dispersion relation returns the proper values of the refractive
-# index at two or more points.
+# NOTE: If you add a material to this module, add a test function to
+# structcol/tests/test_refractive_index.py that will test to make sure the
+# dispersion relation returns the proper values of the refractive index at two
+# or more points.
 #
 # np.power doesn't seem to be supported by pint -- hence the w*w... or
 # /w/w/w/w... syntax
-n_dict = {
+
+vacuum = Index.constant(1.0)
+
+@ureg.check('um')
+def _water_sellmeier(wavelen):
     # water data from M. Daimon and A. Masumura. Measurement of the refractive
     # index of distilled water from the near-infrared region to the ultraviolet
     # region, Appl. Opt. 46, 3811-3820 (2007).
@@ -217,97 +212,152 @@ n_dict = {
     # refractiveindex.info
     # data for high performance liquid chromatography (HPLC) distilled water at
     # 20.0 °C
-    'water': lambda w: np.sqrt(5.684027565e-1*w*w/
-                                    (w*w - Quantity('5.101829712e-3 um^2')) +
-                                    1.726177391e-1*w*w/
-                                    (w*w - Quantity('1.821153936e-2 um^2')) +
-                                    2.086189578e-2*w*w/
-                                    (w*w - Quantity('2.620722293e-2 um^2')) +
-                                    1.130748688e-1*w*w/
-                                    (w*w - Quantity('1.069792721e1 um^2'))
-                               + 1),
 
+    index = np.sqrt(5.684027565e-1 * wavelen**2
+                    / (wavelen**2 - Quantity('5.101829712e-3 um^2'))
+                    + 1.726177391e-1 * wavelen**2
+                    / (wavelen**2 - Quantity('1.821153936e-2 um^2'))
+                    + 2.086189578e-2 * wavelen**2
+                    / (wavelen**2 - Quantity('2.620722293e-2 um^2'))
+                    + 1.130748688e-1 * wavelen**2
+                    / (wavelen**2 - Quantity('1.069792721e1 um^2'))
+                    + 1)
+    return index
 
+water = Index(_water_sellmeier)
+
+def _polystyrene_sellmeier(wavelen):
     # polystyrene data from N. Sultanova, S. Kasarova and I. Nikolov.
     # Dispersion properties of optical polymers, Acta Physica Polonica A 116,
     # 585-587 (2009).
     # Fit of the experimental data with the Sellmeier dispersion formula:
     # refractiveindex.info
     # data for 20 degrees C, 0.4368-1.052 micrometers
-    'polystyrene': lambda w: np.sqrt(1.4435*w*w/
-                                     (w*w-Quantity("0.020216 um^2"))+1),
+    index =  np.sqrt(1.4435 * wavelen**2
+                     / (wavelen**2 - Quantity("0.020216 um^2"))
+                     + 1)
+    return index
 
+polystyrene = Index(_polystyrene_sellmeier)
+
+def _pmma_sellmeier(wavelen):
     # pmma data from G. Beadie, M. Brindza, R. A. Flynn, A. Rosenberg, and J.
     # S. Shirk. Refractive index measurements of poly(methyl methacrylate)
     # (PMMA) from 0.4-1.6 micrometers, Appl. Opt. 54, F139-F143 (2015)
     # refractiveindex.info
     # data for 20.1 degrees C, 0.42-1.62 micrometers
-    'pmma': lambda w: np.sqrt(2.1778 + Quantity('6.1209e-3 um^-2')*w*w -
-                              Quantity('1.5004e-3 um^-4')*w*w*w*w +
-                              Quantity('2.3678e-2 um^2')/w/w -
-                              Quantity('4.2137e-3 um^4')/w/w/w/w +
-                              Quantity('7.3417e-4 um^6')/w/w/w/w/w/w -
-                              Quantity('4.5042e-5 um^8')/w/w/w/w/w/w/w/w),
+    index = np.sqrt(2.1778
+                    + Quantity('6.1209e-3 um^-2') * wavelen**2
+                    - Quantity('1.5004e-3 um^-4') * wavelen**4
+                    + Quantity('2.3678e-2 um^2') / wavelen**2
+                    - Quantity('4.2137e-3 um^4') / wavelen**4
+                    + Quantity('7.3417e-4 um^6') / wavelen**6
+                    - Quantity('4.5042e-5 um^8') / wavelen**8)
 
+    return index
+
+pmma = Index(_pmma_sellmeier)
+
+def _rutile_sellmeier(wavelen):
     # rutile TiO2 from J. R. Devore. Refractive Indices of Rutile and
     # Sphalerite, J. Opt. Soc. Am. 41, 416-419 (1951)
     # refractiveindex.info
     # data for rutile TiO2, ordinary ray, 0.43-1.53 micrometers
-    'rutile': lambda w: np.sqrt(5.913 +
-                                Quantity('0.2441 um^2')/
-                                (w*w - Quantity('0.0803 um^2'))),
+    index = np.sqrt(5.913
+                    + Quantity('0.2441 um^2')
+                    / (wavelen**2 - Quantity('0.0803 um^2')))
+    return index
 
-    # fused silica (amorphous quartz) data from I. H. Malitson. Interspecimen
-    # Comparison of the Refractive Index of Fused Silica, J. Opt. Soc. Am. 55,
-    # 1205-1208 (1965)
-    # refractiveindex.info
-    # data for "room temperature", 0.21-3.71 micrometers
-    'fused silica': lambda w: np.sqrt(1 + 0.6961663*w*w/
-                                      (w*w - Quantity('0.0684043**2 um^2')) +
-                                      0.4079426*w*w/
-                                      (w*w - Quantity('0.1162414**2 um^2')) +
-                                      0.8974794*w*w/
-                                      (w*w - Quantity('9.896161**2 um^2'))),
-    # soda lime glass data from M. Rubin. Optical properties of soda lime
-    # silica glasses, Solar Energy Materials 12, 275-288 (1985)
-    # refractiveindex.info
-    # data for "room temperature", 0.31-4.6 micrometers
-    'soda lime glass': lambda w: (1.5130 - Quantity('0.003169 um^-2')*w*w
-                                  + Quantity('0.003962 um^2')/(w*w)),
+rutile = Index(_rutile_sellmeier)
 
-
-    # zirconia (ZrO2) data from I. Bodurov, I. Vlaeva, A. Viraneva,
-    # T. Yovcheva, S. Sainov. Modified design of a laser refractometer,
-    # Nanoscience & Nanotechnology 16, 31-33 (2016).
-    # data for 24 degrees C, 0.405 - 0.635 micrometers
-    'zirconia': lambda w: np.sqrt(1 + 3.3037*w*w/
-                                  (w*w - Quantity('0.1987971**2 um**2'))),
-
-    # ethanol data from J. Rheims, J Köser and T Wriedt. Refractive-index
-    # measurements in the near-IR using an Abbe refractometer,
-    # Meas. Sci. Technol. 8, 601-605 (1997)
-    # refractiveindex.info
-    'ethanol': lambda w: (1.35265 + Quantity('0.00306 um^2')/(w**2)
-                          + Quantity('0.00002 um^4')/(w**4)),
-
-    # the w/w is a crude hack to make the function output an array when the
-    # input is an array
-    'vacuum': lambda w: Quantity('1.0')*w/w,
-
+def _brookite_sellmeier(wavelen):
     # brookite TiO2 from Radhakrishnan. "The Optical Properties of titanium
     # dioxide". Proceedings of the Indian Academy of Sciences-Mathematical
     # Sciences March 1982, 35:117. Note that this is for n_alpha. However,
     # n_alpha is almost identical to n_beta, which in turn is very similar to
     # rutile. However n_gamma is a bit different, but is not considered
     # data for rutile TiO2, ordinary ray, 0.43-0.71 micrometers
-    'brookite': lambda w: np.sqrt(2.9858 + 2.1036*w*w
-                                    /(w*w - Quantity('0.287**2 um^2'))
-                                  -Quantity('0.18 um^-2')*w*w+1.),
+    index = np.sqrt(2.9858 + 2.1036 * wavelen**2
+                    / (wavelen**2 - Quantity('0.287**2 um^2'))
+                    - Quantity('0.18 um^-2') * wavelen**2
+                    +1.)
+    return index
 
+brookite = Index(_brookite_sellmeier)
+
+def _anatase_cauchy(wavelen):
     # anatase TiO2 from Wang et al. Think Solid Films. 405, 2002, 50-54
     # measured from 500-1700 nm
-    'anatase': lambda w: 2.1526 + Quantity('4.1155e-2 um^2')/(w*w)+
-                                  Quantity('2.1798e-3 um^4')/(w*w*w*w)
+    index = (2.1526 + Quantity('4.1155e-2 um^2') / (wavelen**2)
+             + Quantity('2.1798e-3 um^4') / (wavelen**4))
+    return index
+
+anatase = Index(_anatase_cauchy)
+
+def _fused_silica_sellmeier(wavelen):
+    # fused silica (amorphous quartz) data from I. H. Malitson. Interspecimen
+    # Comparison of the Refractive Index of Fused Silica, J. Opt. Soc. Am. 55,
+    # 1205-1208 (1965)
+    # refractiveindex.info
+    # data for "room temperature", 0.21-3.71 micrometers
+    index = np.sqrt(1 + 0.6961663 * wavelen**2
+                    / (wavelen**2 - Quantity('0.0684043**2 um^2'))
+                    + 0.4079426 * wavelen**2
+                    / (wavelen**2 - Quantity('0.1162414**2 um^2'))
+                    + 0.8974794 * wavelen**2
+                    / (wavelen**2 - Quantity('9.896161**2 um^2')))
+
+    return index
+
+fused_silica = Index(_fused_silica_sellmeier)
+
+def _soda_lime_glass_cauchy(wavelen):
+    # soda lime glass data from M. Rubin. Optical properties of soda lime
+    # silica glasses, Solar Energy Materials 12, 275-288 (1985)
+    # refractiveindex.info
+    # data for "room temperature", 0.31-4.6 micrometers
+    index = (1.5130 - Quantity('0.003169 um^-2') * wavelen**2
+             + Quantity('0.003962 um^2')/(wavelen**2))
+
+    return index
+
+soda_lime_glass = Index(_soda_lime_glass_cauchy)
+
+def _zirconia_sellmeier(wavelen):
+    # zirconia (ZrO2) data from I. Bodurov, I. Vlaeva, A. Viraneva,
+    # T. Yovcheva, S. Sainov. Modified design of a laser refractometer,
+    # Nanoscience & Nanotechnology 16, 31-33 (2016).
+    # data for 24 degrees C, 0.405 - 0.635 micrometers
+    index = np.sqrt(1 + 3.3037 * wavelen**2
+                    / (wavelen**2 - Quantity('0.1987971**2 um**2')))
+    return index
+
+zirconia = Index(_zirconia_sellmeier)
+
+def _ethanol_cauchy(wavelen):
+    # ethanol data from J. Rheims, J Köser and T Wriedt. Refractive-index
+    # measurements in the near-IR using an Abbe refractometer,
+    # Meas. Sci. Technol. 8, 601-605 (1997)
+    # refractiveindex.info
+    index = (1.35265 + Quantity('0.00306 um^2') / (wavelen**2)
+             + Quantity('0.00002 um^4') / (wavelen**4))
+    return index
+
+ethanol = Index(_ethanol_cauchy)
+
+
+n_dict = {
+    'water': water,
+    'polystyrene': polystyrene,
+    'pmma': pmma,
+    'rutile': rutile,
+    'fused silica': fused_silica,
+    'soda lime glass': soda_lime_glass,
+    'zirconia': zirconia,
+    'ethanol': ethanol,
+    'vacuum': vacuum,
+    'brookite': brookite,
+    'anatase': anatase
 }
 
 # ensures wavelen has units of length
@@ -579,7 +629,7 @@ def n_cargille(i,series,w):
         raise ValueError("""An oil of this series was not found.
             Check your series and make sure it is valid. """)
 
-    return Quantity(n)
+    return n
 
 #------------------------------------------------------------------------------
 # EFFECTIVE INDEX CALCULATION
@@ -627,8 +677,8 @@ def n_eff(n_particle, n_matrix, volume_fraction, maxwell_garnett=False):
 
     if maxwell_garnett:
         # check that the particle and matrix indices have the same length
-        if (len(np.array([n_particle.magnitude]).flatten())
-            != len(np.array([n_matrix.magnitude]).flatten())):
+        if (len(np.array([n_particle]).flatten())
+            != len(np.array([n_matrix]).flatten())):
             raise ValueError('Maxwell-Garnett requires particle and '
                              'matrix index arrays to have the same length')
         ni = n_particle
@@ -638,13 +688,13 @@ def n_eff(n_particle, n_matrix, volume_fraction, maxwell_garnett=False):
                          (2*nm**2 + ni**2 - phi*((ni**2)-(nm**2))))
 
         if neff.imag == 0:
-            return Quantity(neff.real)
+            return neff.real
         else:
-            return Quantity(neff)
+            return neff
 
     else:
         # convert the particle index and volume fractions into 1D arrays
-        n_particle = np.array([n_particle.magnitude]).flatten()
+        n_particle = np.array([n_particle]).flatten()
         volume_fraction = np.array([volume_fraction]).flatten()
 
         # check that the number of volume fractions and of indices is the same
@@ -656,7 +706,7 @@ def n_eff(n_particle, n_matrix, volume_fraction, maxwell_garnett=False):
 
         # create arrays combining the particle and the matrix' indices and vf
         n_particle_list = n_particle.tolist()
-        n_particle_list.append(n_matrix.magnitude)
+        n_particle_list.append(n_matrix)
         n_array = np.array(n_particle_list)
 
         vf_list = volume_fraction.tolist()
@@ -680,9 +730,9 @@ def n_eff(n_particle, n_matrix, volume_fraction, maxwell_garnett=False):
                                                                    n_array))
 
         if n_bg_imag == 0:
-            return Quantity(n_bg_real)
+            return n_bg_real
         elif n_bg_imag < 0:
             raise ValueError('Cannot find positive imaginary root for the '
                              'effective index')
         else:
-            return Quantity(n_bg_real + n_bg_imag*1j)
+            return n_bg_real + n_bg_imag*1j
