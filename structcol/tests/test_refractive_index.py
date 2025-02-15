@@ -30,39 +30,104 @@ from pint.errors import DimensionalityError
 import numpy as np
 import pytest
 
-def test_index_from_function():
-    # test that making an index object from a function works
-    def fake_index_relation(wavelen, fake_index=None):
-        if fake_index is None:
-            return np.ones_like(wavelen) * 1.0
-        else:
-            return np.ones_like(wavelen) * fake_index
+class TestIndex:
+    """Tests for the Index class"""
     wavelen = sc.Quantity(np.linspace(400, 800, 100), 'nm')
 
-    my_index = sc.Index(fake_index_relation)
-    assert_equal(my_index(wavelen), np.ones_like(wavelen) * 1.0)
+    def test_index_from_function(self):
+        # test that making an Index object from a function works
+        def fake_index_relation(wavelen, fake_index=None):
+            if fake_index is None:
+                return np.ones_like(wavelen) * 1.0
+            else:
+                return np.ones_like(wavelen) * fake_index
 
-    # check that scalar wavelength works
-    assert_equal(my_index(sc.Quantity('400.0 nm')), 1.0)
+        my_index = sc.Index(fake_index_relation)
+        assert_equal(my_index(self.wavelen), np.ones_like(self.wavelen) * 1.0)
 
-    # check that keyword is set when creating Index object
-    my_index = sc.Index(fake_index_relation, fake_index=3.33)
-    assert_equal(my_index(wavelen), np.ones_like(wavelen) * 3.33)
+        # check that scalar wavelength works
+        assert_equal(my_index(sc.Quantity('400.0 nm')), 1.0)
 
-    # check that wavelengths with no units give error
-    with pytest.raises(DimensionalityError):
-        my_index(np.linspace(400, 800, 100))
+        # check that keyword is set when creating Index object
+        my_index = sc.Index(fake_index_relation, fake_index=3.33)
+        assert_equal(my_index(self.wavelen), np.ones_like(self.wavelen) * 3.33)
 
-def test_index_from_constant():
-    # test that making an index object from a constant works
-    wavelen = sc.Quantity(np.linspace(400, 800, 10), 'nm')
+        # check that wavelengths with no units give error
+        with pytest.raises(DimensionalityError):
+            my_index(np.linspace(400, 800, 100))
 
-    my_index = sc.Index.constant(1.888)
-    assert_equal(my_index(wavelen), np.ones_like(wavelen) * 1.888)
+    def test_index_from_constant(self):
+        # test that making an index object from a constant works
+        my_index = sc.Index.constant(1.88)
+        assert_equal(my_index(self.wavelen), np.ones_like(self.wavelen) * 1.88)
 
-    # check that wavelengths with wrong units gives error
-    with pytest.raises(DimensionalityError):
-        my_index(sc.Quantity('400 kg'))
+        # check that giving dimensional constant gives error
+        with pytest.raises(ValueError):
+            my_index = sc.Index.constant(sc.Quantity(1.45, 'um'))
+            my_index(self.wavelen)
+
+        # check that wavelengths with wrong units gives error
+        with pytest.raises(DimensionalityError):
+            my_index(sc.Quantity('400 kg'))
+
+        # test that dimensions of index are stripped
+        my_index = sc.Index.constant(sc.Quantity(1.33, ''))
+        assert not isinstance(my_index(sc.Quantity('400 nm')), Quantity)
+
+    def test_index_from_data(self):
+        # test that making an index object from a data works as expected
+
+        wavelength_data = sc.Quantity(np.linspace(400, 800, 10), 'nm')
+        index_data = sc.index.water(wavelength_data)
+
+        # next construct interpolating function
+        interpolated_index_linear = sc.Index.from_data(wavelength_data,
+                                                       index_data,
+                                                       kind="linear")
+        interpolated_index_cubic = sc.Index.from_data(wavelength_data,
+                                                      index_data, kind='cubic')
+
+        # linear should roughly agree; cubic should have better agreement
+        assert_almost_equal(interpolated_index_linear(self.wavelen),
+                            sc.index.water(self.wavelen), decimal=3)
+        assert_almost_equal(interpolated_index_cubic(self.wavelen),
+                            sc.index.water(self.wavelen), decimal=5)
+
+        # test that specifying wavelength in the wrong units gives error
+        with pytest.raises(ValueError):
+            index_data = sc.index.water(wavelength_data) * sc.Quantity('kg')
+            index = sc.Index.from_data(wavelength_data, index_data)
+
+        # test that dimensions of index are stripped
+        index_data = sc.Quantity(sc.index.water(wavelength_data), '')
+        interpolated_index = sc.Index.from_data(wavelength_data, index_data)
+        assert not isinstance(interpolated_index(sc.Quantity('400 nm')),
+                              Quantity)
+
+        # test that exception is thrown if lengths of arrays are not identical
+        index_data = index_data[1:]
+        with pytest.raises(ValueError):
+            interpolated_index = sc.Index.from_data(wavelength_data,
+                                                    index_data)
+
+    def test_dimensions(self):
+        # try inputs with various dimensions to make sure the appropriate
+        # exceptions are thrown and the index is always dimensionless
+        with pytest.raises(ValueError):
+            def fake_index_func(wavelen):
+                return 1.4 * sc.Quantity(500, 'nm')/(wavelen*wavelen)
+            my_index = sc.Index(fake_index_func)
+            my_index(sc.Quantity('400 nm'))
+
+        # test with weird but OK units
+        def fake_index_func(wavelen):
+            return 1.4 + sc.Quantity(0.5, 'nm*um')/(wavelen*wavelen)
+        my_index = sc.Index(fake_index_func)
+        assert_equal(my_index(sc.Quantity('400 nm')), 1.403125)
+
+        def fake_index_func(wavelen):
+            return 1.4 + sc.Quantity(0.000005, 'nm*m')/(wavelen*wavelen)
+        assert_equal(my_index(sc.Quantity('400 nm')), 1.403125)
 
 def test_n():
     # make sure that a material not in the dictionary raises a KeyError

@@ -70,12 +70,26 @@ def _constant_index(index, wavelen):
 class Index:
     """Class describing index of refraction as a function of wavelength.
 
+    An instance of this class will have a function `index_func` that can
+    calculate the (possibly complex) index as a function of wavelength. The
+    wavelength must be a `sc.Quantity` object (can be a Quantity-wrapped
+    ndarray) with units of length. For convenience, the function can be called
+    just by calling the class instance (see Examples)
+
     Attributes
     ----------
     index_func : Function
         Returns index as a function of wavelength and other parameters
     kwargs : dict
         Keyword arguments to pass to `index_func`.
+
+    Examples
+    --------
+    >>> def index_func(wavelen):
+    >>>     return 1.4 + sc.Quantity(500, 'nm^2')/(wavelen*wavelen)
+    >>> my_index = Index(index_func)
+    >>> my_index(sc.Quantity('400 nm'))
+    1.403125
 
     """
     def __init__(self, index_func, **kwargs):
@@ -90,18 +104,33 @@ class Index:
         "myindex(wavelen)" where myindex is an Index object and wavelen is the
         array over which to calculate the index.
 
+        Notes
+        -----
+        The returned index will be a pure ndarray (not a wrapped dimensionless
+        sc.Quantity object). We return a pure ndarray so that other functions
+        and classes that use this class do not need to strip units.
+
         Parameters
         ----------
-        wavelen: structcol.Quantity [length] or array thereof
+        wavelen: array-like of structcol.Quantity[length]
             Wavelengths at which to calculate index
 
         Returns
         -------
-        index: float/complex or array of float/complex
+        index: array-like of loat/complex
             Refractive indices (possibly complex) at specified wavelengths
 
         """
-        return self.n(wavelen)
+        index = self.n(wavelen)
+        if isinstance(index, Quantity):
+            if index.to_base_units().units != '':
+                raise ValueError("Dispersion formula returned index with "
+                                 f"units {index.units}.  Check that "
+                                 "coefficients of the formula have the "
+                                 "correct units.")
+            # the "to_base_units()" converts units like nm/m to dimensionless
+            index = index.to_base_units().magnitude
+        return index
 
     @classmethod
     def constant(cls, index):
@@ -114,12 +143,18 @@ class Index:
             Index of refraction
 
         """
-        # TODO: check to make sure index is float or complex
+        if isinstance(index, Quantity):
+            if index.to_base_units().units != '':
+                raise ValueError("Specified constant index has units "
+                                 f"{index.units}.  Should be dimensionless "
+                                 "or not a Quantity object")
+            index = index.to_base_units().magnitude
+
         return cls(partial(_constant_index, index))
 
     @classmethod
     @ureg.check(None, '[length]', None, None)
-    def from_data(cls, wavelen, index_data, kind=None):
+    def from_data(cls, wavelength_data, index_data, kind=None):
         """Make an Index object that interpolates from data to calculate
         indices of refraction.
 
@@ -128,18 +163,40 @@ class Index:
         index_data : array_like (float or complex)
             Refractive index data from literature or experiment. The index data
             can be real or complex.
-        wavelength_data : array_like (sc.Quantity)
+        wavelength_data : array_like (sc.Quantity[length])
             Wavelength data corresponding to index_data. Must be specified as
             pint Quantity so that units are .
         kind : string (optional)
-            Type of interpolation. The options are: 'linear', 'nearest',
-            'zero', 'slinear', 'quadratic', 'cubic', 'previous', 'next', where
-            'zero', 'slinear', 'quadratic' and 'cubic' refer to a spline
-            interpolation of zeroth, first, second or third order; 'previous'
-            and 'next' simply return the previous or next value of the point.
-            The default is 'linear'.
+            Type of interpolation. Options are given in the documentation for
+            `scipy.interpolate.interp1d()`. The default is 'linear'.
+
         """
-        pass
+        if kind is None:
+            kind = 'linear'
+
+        if wavelength_data.shape != index_data.shape:
+            raise ValueError("Lengths of the wavelength data and index data "
+                             "arrays must be the same.")
+        if isinstance(index_data, Quantity):
+            if index_data.to_base_units().units != '':
+                raise ValueError("Index data must be specified in "
+                                 "nondimensional units or as plain array. "
+                                 f"Given units were {index_data.units}.")
+            index_data = index_data.to_base_units().magnitude
+        # convert wavelength to default units so that interpolation
+        # coefficients are standardized
+        wavelen = wavelength_data.to_preferred().magnitude
+        fit = interp1d(wavelen, index_data, kind=kind)
+        def index_func(wavelen):
+            return fit(wavelen.to_preferred().magnitude)
+        return cls(index_func)
+
+@ureg.check('um')
+def _water_sellmeier(wavelen):
+    return n_dict['water'](wavelen)
+
+water = Index(_water_sellmeier)
+
 
 # dictionary of refractive index dispersion formulas. This is used by the 'n'
 # function below; it's outside the function definition so that it doesn't have
