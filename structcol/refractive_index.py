@@ -54,18 +54,17 @@ def _constant_index(index, wavelen):
 
     Parameters
     ----------
-    wavelen : structcol.Quantity [length] or array thereof
-        Wavelengths at which to calculate index
+    wavelen : array-like of structcol.Quantity[length]
+        Wavelengths (in vacuum) at which to calculate index
     index : float or complex
         Index to return
 
     Returns
     -------
-    n: float or complex
+    float or complex
         Index of refraction (same at all wavelengths)
     """
-    n = np.ones_like(wavelen.magnitude) * index
-    return n
+    return np.ones_like(wavelen.magnitude) * index
 
 class Index:
     """Class describing index of refraction as a function of wavelength.
@@ -73,13 +72,15 @@ class Index:
     An instance of this class will have a function `index_func` that can
     calculate the (possibly complex) index as a function of wavelength. The
     wavelength must be a `sc.Quantity` object (can be a Quantity-wrapped
-    ndarray) with units of length. For convenience, the function can be called
-    just by calling the class instance (see Examples)
+    ndarray) with units of length. The function should be called by calling the
+    class instance (see Examples), which does unit checking, rather than by
+    calling the function itself, which may not do any unit checking.
 
     Attributes
     ----------
     index_func : Function
-        Returns index as a function of wavelength and other parameters
+        Returns index as a function of wavelength in vacuum and other
+        parameters
     kwargs : dict
         Keyword arguments to pass to `index_func`.
 
@@ -93,16 +94,17 @@ class Index:
 
     """
     def __init__(self, index_func, **kwargs):
-        self.n = partial(index_func, **kwargs)
-        self.n_args = kwargs
+        self._n = partial(index_func, **kwargs)
+        self._n_args = kwargs
 
     @ureg.check(None, '[length]')
     def __call__(self, wavelen):
         """Calculate index of refraction over a set of wavelengths.
 
-        This is a convenience method, enabling one to call (for example)
-        "myindex(wavelen)" where myindex is an Index object and wavelen is the
-        array over which to calculate the index.
+        This method enables the user to call "myindex(wavelen)" where myindex
+        is an Index object and wavelen is the array over which to calculate the
+        index.  It does some unit checking to ensure that the `_n()` function
+        returns the correct index for any units of length.
 
         Notes
         -----
@@ -112,16 +114,16 @@ class Index:
 
         Parameters
         ----------
-        wavelen: array-like of structcol.Quantity[length]
-            Wavelengths at which to calculate index
+        wavelen : array-like of structcol.Quantity[length]
+            Wavelengths (in vacuum) at which to calculate index
 
         Returns
         -------
-        index: array-like of loat/complex
+        array-like of float/complex
             Refractive indices (possibly complex) at specified wavelengths
 
         """
-        index = self.n(wavelen)
+        index = self._n(wavelen)
         if isinstance(index, Quantity):
             if index.to_base_units().units != '':
                 raise ValueError("Dispersion formula returned index with "
@@ -183,6 +185,7 @@ class Index:
                                  "nondimensional units or as plain array. "
                                  f"Given units were {index_data.units}.")
             index_data = index_data.to_base_units().magnitude
+
         # convert wavelength to default units so that interpolation
         # coefficients are standardized
         wavelen = wavelength_data.to_preferred().magnitude
@@ -197,13 +200,9 @@ class Index:
 # structcol/tests/test_refractive_index.py that will test to make sure the
 # dispersion relation returns the proper values of the refractive index at two
 # or more points.
-#
-# np.power doesn't seem to be supported by pint -- hence the w*w... or
-# /w/w/w/w... syntax
 
 vacuum = Index.constant(1.0)
 
-@ureg.check('um')
 def _water_sellmeier(wavelen):
     # water data from M. Daimon and A. Masumura. Measurement of the refractive
     # index of distilled water from the near-infrared region to the ultraviolet
@@ -345,90 +344,19 @@ def _ethanol_cauchy(wavelen):
 
 ethanol = Index(_ethanol_cauchy)
 
-
-n_dict = {
-    'water': water,
-    'polystyrene': polystyrene,
-    'pmma': pmma,
-    'rutile': rutile,
-    'fused silica': fused_silica,
-    'soda lime glass': soda_lime_glass,
-    'zirconia': zirconia,
-    'ethanol': ethanol,
-    'vacuum': vacuum,
-    'brookite': brookite,
-    'anatase': anatase
-}
-
-# ensures wavelen has units of length
-@ureg.check(None, '[length]', None, None, None)
-def n(material, wavelen, index_data=None, wavelength_data=None, kind='linear'):
-    """
-    Refractive index of various materials.
-
-    Parameters
-    ----------
-    material: string
-        Material type; if not found in dictionary, assumes vacuum
-    w: structcol.Quantity [length]
-        Wavelength in vacuum.
-    index_data: array (optional)
-        Refractive index data from literature or experiment that the user can
-        input if desired. The data is interpolated, so that the user can call
-        specific values of the index. The index data can be real or complex.
-    wavelength_data: Quantity array (optional)
-        Wavelength data corresponding to index_data. Must be specified as pint
-        Quantity.
-    kind: string (optional)
-        Type of interpolation. The options are: ‘linear’, ‘nearest’, ‘zero’,
-        ‘slinear’, ‘quadratic’, ‘cubic’, ‘previous’, ‘next',
-        where ‘zero’, ‘slinear’, ‘quadratic’ and ‘cubic’ refer to a spline
-        interpolation of zeroth, first, second or third order; ‘previous’ and
-        ‘next’ simply return the previous or next value of the point.
-        The default is 'linear'.
-
-    Returns
-    -------
-    structcol.Quantity (dimensionless)
-        refractive index
-
-    Dispersion formulas from M. N. Polyanskiy. "Refractive index database,"
-    http://refractiveindex.info (accessed August 14, 2016).
-    """
-    if material == 'data':
-        if index_data is None or wavelength_data is None:
-            raise KeyError("'data' material requires input of index "
-                           "and corresponding wavelength data.")
-
-        if isinstance(index_data, Quantity):
-            index_data = index_data.magnitude
-        fit = interp1d(wavelength_data.magnitude, index_data, kind=kind)
-        wavelen = wavelen.to(wavelength_data.units).round(2)
-        return Quantity(fit(wavelen.magnitude), '')
-
-    else:
-        if index_data is not None or wavelength_data is not None:
-            warnings.warn("No need to specify the index or wavelength data. "
-                          "No material except for 'data' requires input data.")
-        try:
-            return n_dict[material](wavelen)
-        except KeyError:
-            print("Material \""+material+"\" not implemented. Perhaps a typo?")
-            raise
-
 #------------------------------------------------------------------------------
 # OTHER MATERIALS
 # for the rest of these materials, need to find dispersion relations and
 # implement the functions in the dictionary.
-def n_silica_colloidal(w):
-    return 1.40
 
-def n_keratin(w):
-    return 1.532
+silica_colloidal = Index.constant(1.40)
 
-def n_ptbma(w):
-    # from http://www.sigmaaldrich.com/catalog/product/aldrich/181587?lang=en&region=US
-    return 1.46
+keratin = Index.constant(1.532)
+
+# from
+# http://www.sigmaaldrich.com/catalog/product/aldrich/181587?lang=en&region=US
+ptmba = Index.constant(1.46)
+
 
 #------------------------------------------------------------------------------
 # CARGILLE OILS
