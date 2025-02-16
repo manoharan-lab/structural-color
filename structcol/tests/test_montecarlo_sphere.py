@@ -25,7 +25,6 @@ Tests for the montecarlo model for sphere geometry (in structcol/montecarlo.py)
 
 import structcol as sc
 from .. import montecarlo as mc
-from .. import refractive_index as ri
 import numpy as np
 
 # Define a system to be used for the tests
@@ -36,7 +35,7 @@ assembly_radius = 5
 volume_fraction = 0.5
 n_particle = 1.5
 n_matrix = 1.0
-n_sample = ri.n_eff(n_particle, n_matrix, volume_fraction)
+n_sample = sc.index.n_eff(n_particle, n_matrix, volume_fraction)
 angles = sc.Quantity(np.linspace(0.01,np.pi, 200), 'rad')
 wavelen = sc.Quantity('400.0 nm')
 

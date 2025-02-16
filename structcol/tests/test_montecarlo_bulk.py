@@ -23,7 +23,6 @@ Tests for the montecarlo bulk model
 
 import numpy as np
 import structcol as sc
-import structcol.refractive_index as ri
 from structcol import montecarlo as mc
 from structcol import detector as det
 from structcol import phase_func_sphere as pfs
@@ -51,13 +50,13 @@ boundary_bulk = 'film'
 # Refractive indices
 #
 # refractive index of particle
-n_particle = ri.n('vacuum', wavelength)
+n_particle = sc.index.vacuum(wavelength)
 # refractive index of matrix
-n_matrix = ri.n('polystyrene', wavelength)
+n_matrix = sc.index.polystyrene(wavelength)
 # refractive index of the bulk matrix
-n_matrix_bulk = ri.n('vacuum', wavelength)
+n_matrix_bulk = sc.index.vacuum(wavelength)
 # refractive index of medium outside the bulk sample.
-n_medium = ri.n('vacuum', wavelength)
+n_medium = sc.index.vacuum(wavelength)
 
 # Monte Carlo parameters
 #
@@ -75,7 +74,7 @@ def calc_sphere_mc():
 
 
     # caculate the effective index of the sample
-    n_sample = ri.n_eff(n_particle, n_matrix, volume_fraction_particles)
+    n_sample = sc.index.n_eff(n_particle, n_matrix, volume_fraction_particles)
 
     # Calculate the phase function and scattering and absorption coefficients
     #from the single scattering model

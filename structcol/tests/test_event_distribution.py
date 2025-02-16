@@ -23,7 +23,6 @@ Tests for the montecarlo model (in structcol/montecarlo.py)
 
 import structcol as sc
 from structcol import montecarlo as mc
-from structcol import refractive_index as ri
 from structcol import event_distribution as ed
 from structcol import detector as det
 import numpy as np
@@ -51,12 +50,12 @@ boundary = 'film'
 # Refractive indices can be specified as pint quantities or called from the
 # refractive_index module. n_matrix is the # space within sample. n_medium is
 # outside the sample.
-n_particle = ri.n('polystyrene', wavelength)
-n_matrix = ri.n('vacuum', wavelength)
-n_medium = ri.n('vacuum', wavelength)
+n_particle = sc.index.polystyrene(wavelength)
+n_matrix = sc.index.vacuum(wavelength)
+n_medium = sc.index.vacuum(wavelength)
 
 # Calculate the effective refractive index of the sample
-n_sample = ri.n_eff(n_particle, n_matrix, volume_fraction)
+n_sample = sc.index.n_eff(n_particle, n_matrix, volume_fraction)
 
 # Calculate the phase function and scattering and absorption coefficients from
 # the single scattering model (this absorption coefficient is of the scatterer,
@@ -414,9 +413,9 @@ def test_event_distribution_wavelength_mc():
     boundary = 'film'
 
     # indices of refraction
-    n_particle = ri.n('polystyrene', wavelengths)
-    n_matrix = ri.n('vacuum', wavelengths)
-    n_medium = ri.n('vacuum', wavelengths)
+    n_particle = sc.index.polystyrene(wavelengths)
+    n_matrix = sc.index.vacuum(wavelengths)
+    n_medium = sc.index.vacuum(wavelengths)
 
     # initialize arrays for quantities we want to look at later
     refl_events = np.zeros((wavelengths.size, 2*nevents+1))
@@ -431,7 +430,7 @@ def test_event_distribution_wavelength_mc():
 
     # run monte carlo, reflectance, and event_distribution
     for i in range(wavelengths.size):
-        n_sample = ri.n_eff(n_particle[i], n_matrix[i], volume_fraction)
+        n_sample = sc.index.n_eff(n_particle[i], n_matrix[i], volume_fraction)
 
         p[i,:], mu_scat, mu_abs = mc.calc_scat(particle_radius, n_particle[i],
                                                n_sample, volume_fraction,

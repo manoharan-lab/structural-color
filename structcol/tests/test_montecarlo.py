@@ -27,7 +27,6 @@ calculated reflectance are in test_detector.py
 
 import structcol as sc
 from .. import montecarlo as mc
-from .. import refractive_index as ri
 from .. import size_parameter, model
 import numpy as np
 from numpy.testing import assert_equal, assert_almost_equal
@@ -40,7 +39,7 @@ volume_fraction = 0.5
 n_particle = 1.5
 n_matrix = 1.0
 n_medium = 1.0
-n_sample = ri.n_eff(n_particle, n_matrix, volume_fraction)
+n_sample = sc.index.n_eff(n_particle, n_matrix, volume_fraction)
 angles = sc.Quantity(np.linspace(0.01, np.pi, 200), 'rad')
 wavelen = sc.Quantity('400.0 nm')
 

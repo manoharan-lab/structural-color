@@ -36,9 +36,9 @@ from pymie import multilayer_sphere_lib as msl
 from pymie import size_parameter
 from scipy.special import factorial
 from scipy.integrate import trapezoid
+import structcol as sc
 
 from . import Quantity
-from . import refractive_index as ri
 from . import structure, ureg
 
 
@@ -242,11 +242,11 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius,
     n_sample_eff = None
 
     if effective_medium_form and effective_medium_struct:
-        n_sample = ri.n_eff(n_particle, n_matrix, vf_array,
-                            maxwell_garnett=maxwell_garnett)
+        n_sample = sc.index.n_eff(n_particle, n_matrix, vf_array,
+                                  maxwell_garnett=maxwell_garnett)
     if effective_medium_struct and not effective_medium_form:
-        n_sample_eff = ri.n_eff(n_particle, n_matrix, vf_array,
-                                maxwell_garnett=maxwell_garnett)
+        n_sample_eff = sc.index.n_eff(n_particle, n_matrix, vf_array,
+                                      maxwell_garnett=maxwell_garnett)
         n_sample = n_matrix
     if not effective_medium_form and not effective_medium_struct:
         n_sample = n_matrix

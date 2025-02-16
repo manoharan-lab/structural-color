@@ -22,11 +22,10 @@ Tests for the single-scattering model (in structcol/model.py)
 """
 
 from .. import Quantity, size_parameter, np, mie, model
-from .. import refractive_index as ri
 from pytest import raises
 from numpy.testing import assert_equal, assert_almost_equal, assert_array_almost_equal
 import pytest
-
+import structcol as sc
 
 def test_fresnel():
     # test the fresnel reflection and transmission coefficients
@@ -107,7 +106,7 @@ def test_theta_refraction():
                                          structure_type=None)
 
     # the reflection should be zero plus the fresnel reflection term
-    n_sample = ri.n_eff(n_particle, n_matrix, volume_fraction)
+    n_sample = sc.index.n_eff(n_particle, n_matrix, volume_fraction)
     r_fresnel = model.fresnel_reflection(n_medium, n_sample, incident_angle)
     r_fresnel_avg = (r_fresnel[0] + r_fresnel[1]) / 2
     assert_almost_equal(refl1.magnitude, r_fresnel_avg)
@@ -130,7 +129,7 @@ def test_differential_cross_section():
     radius = Quantity('100.0 nm')
     n_particle = 1.5
     volume_fraction = Quantity(0.0001, '')              # IS VF TOO LOW?
-    n_sample = ri.n_eff(n_particle, n_matrix, volume_fraction)
+    n_sample = sc.index.n_eff(n_particle, n_matrix, volume_fraction)
     m = n_particle/n_sample
     x = size_parameter(wavelen, n_sample, radius)
     diff = model.differential_cross_section(m, x, angles, volume_fraction)
@@ -144,7 +143,7 @@ def test_differential_cross_section():
     volume_fraction_cs = Quantity(np.array([volume_fraction.magnitude,
                                             volume_fraction_shell.magnitude]), '')
 
-    n_sample_cs = ri.n_eff(n_particle_cs, n_matrix, volume_fraction_cs)
+    n_sample_cs = sc.index.n_eff(n_particle_cs, n_matrix, volume_fraction_cs)
     m_cs = (n_particle_cs/n_sample_cs).flatten()
     x_cs = size_parameter(wavelen, n_sample_cs, radius_cs).flatten()
     diff_cs = model.differential_cross_section(m_cs, x_cs, angles,
@@ -366,7 +365,7 @@ def test_calc_g():
         vf_array[r] = ((r_array[r+1]**3-r_array[r]**3) / (r_array[-1]**3) *
                        volume_fraction.magnitude)
 
-    n_sample = ri.n_eff(n_particle, n_matrix, vf_array)
+    n_sample = sc.index.n_eff(n_particle, n_matrix, vf_array)
     m = (n_particle/n_sample).flatten()
     x = size_parameter(wavelength, n_sample, radius).flatten()
     qscat, qext, qback = mie.calc_efficiencies(m, x)
@@ -397,7 +396,7 @@ def test_transport_length_dilute():
                                             maxwell_garnett=False)
 
     # transport length from Mie theory
-    n_sample = ri.n_eff(n_particle, n_matrix, volume_fraction)
+    n_sample = sc.index.n_eff(n_particle, n_matrix, volume_fraction)
     m = n_particle/n_sample
     x = size_parameter(wavelength, n_sample, radius)
     g = mie.calc_g(m,x)

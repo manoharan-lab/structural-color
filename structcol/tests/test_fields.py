@@ -26,7 +26,6 @@ import structcol as sc
 from .. import montecarlo as mc
 from .. import detector as det
 from .. import detector_polarization_phase as detp
-from .. import refractive_index as ri
 import numpy as np
 from numpy.testing import assert_almost_equal
 import pytest
@@ -43,10 +42,10 @@ def test_2pi_shift():
     radius = sc.Quantity('0.140 um')
     volume_fraction = sc.Quantity(0.55, '')
     n_imag = 2.1e-4
-    n_particle = ri.n('polystyrene', wavelength) + n_imag
-    n_matrix = ri.n('vacuum', wavelength)
-    n_medium = ri.n('vacuum', wavelength)
-    n_sample = ri.n_eff(n_particle,
+    n_particle = sc.index.polystyrene(wavelength) + n_imag
+    n_matrix = sc.index.vacuum(wavelength)
+    n_medium = sc.index.vacuum(wavelength)
+    n_sample = sc.index.n_eff(n_particle,
                         n_matrix,
                         volume_fraction)
     thickness = sc.Quantity('50.0 um')
@@ -199,10 +198,10 @@ def test_field_normalized():
     radius = sc.Quantity('0.140 um')
     volume_fraction = sc.Quantity(0.55, '')
     n_imag = 2.1e-4
-    n_particle = ri.n('polystyrene', wavelength) + n_imag*1j
-    n_matrix = ri.n('vacuum', wavelength)
-    n_medium = ri.n('vacuum', wavelength)
-    n_sample = ri.n_eff(n_particle,
+    n_particle = sc.index.polystyrene(wavelength) + n_imag*1j
+    n_matrix = sc.index.vacuum(wavelength)
+    n_medium = sc.index.vacuum(wavelength)
+    n_sample = sc.index.n_eff(n_particle,
                         n_matrix,
                         volume_fraction)
     boundary = 'film'
@@ -266,10 +265,10 @@ def test_field_perp_direction():
     radius = sc.Quantity('0.140 um')
     volume_fraction = sc.Quantity(0.55, '')
     n_imag = 2.1e-4
-    n_particle = ri.n('polystyrene', wavelength) + n_imag*1j
-    n_matrix = ri.n('vacuum', wavelength)
-    n_medium = ri.n('vacuum', wavelength)
-    n_sample = ri.n_eff(n_particle,
+    n_particle = sc.index.polystyrene(wavelength) + n_imag*1j
+    n_matrix = sc.index.vacuum(wavelength)
+    n_medium = sc.index.vacuum(wavelength)
+    n_sample = sc.index.n_eff(n_particle,
                         n_matrix,
                         volume_fraction)
     boundary = 'film'
@@ -334,10 +333,10 @@ def test_field_reflectance_mc():
     radius = sc.Quantity('0.140 um')
     volume_fraction = sc.Quantity(0.55, '')
     n_imag = 2.1e-4
-    n_particle = ri.n('polystyrene', wavelength) + n_imag*1j
-    n_matrix = ri.n('vacuum', wavelength)
-    n_medium = ri.n('vacuum', wavelength)
-    n_sample = ri.n_eff(n_particle,
+    n_particle = sc.index.polystyrene(wavelength) + n_imag*1j
+    n_matrix = sc.index.vacuum(wavelength)
+    n_medium = sc.index.vacuum(wavelength)
+    n_sample = sc.index.n_eff(n_particle,
                         n_matrix,
                         volume_fraction)
     thickness = sc.Quantity('800 um')
@@ -421,9 +420,9 @@ def test_field_co_cross_mc():
     radius = sc.Quantity('0.140 um')
     volume_fraction = sc.Quantity(0.55, '')
     n_imag = 2.1e-5
-    n_particle = ri.n('polystyrene', wavelengths) + n_imag*1j
-    n_matrix = ri.n('vacuum', wavelengths)
-    n_medium = ri.n('vacuum', wavelengths)
+    n_particle = sc.index.polystyrene(wavelengths) + n_imag*1j
+    n_matrix = sc.index.vacuum(wavelengths)
+    n_medium = sc.index.vacuum(wavelengths)
 
     thickness = sc.Quantity('80 um')
     boundary = 'film'
@@ -444,7 +443,7 @@ def test_field_co_cross_mc():
 
     for i in range(wavelengths.size):
         # calculate n_sample
-        n_sample = ri.n_eff(n_particle[i], n_matrix[i], volume_fraction)
+        n_sample = sc.index.n_eff(n_particle[i], n_matrix[i], volume_fraction)
 
         # Calculate scattering quantities
         p, mu_scat, mu_abs = mc.calc_scat(radius, n_particle[i], n_sample,

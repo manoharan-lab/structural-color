@@ -27,7 +27,7 @@ from structcol import montecarlo as mc
 from structcol import detector as det
 from .. import Quantity, np, structure
 from .. import size_parameter
-from .. import refractive_index as ri
+
 from numpy.testing import assert_equal, assert_almost_equal
 import pytest
 from pint.errors import DimensionalityError
@@ -82,7 +82,7 @@ def test_structure_factor_percus_yevick_core_shell():
     radius = Quantity('100.0 nm')
     n_particle = 1.5
     volume_fraction = Quantity(0.0001, '')         # IS VF TOO LOW?
-    n_sample = ri.n_eff(n_particle, n_matrix, volume_fraction)
+    n_sample = sc.index.n_eff(n_particle, n_matrix, volume_fraction)
     x = size_parameter(wavelen, n_sample, radius)
     qd = 4*x*np.sin(angles/2)
     s = structure.factor_py(qd, volume_fraction)
@@ -94,7 +94,7 @@ def test_structure_factor_percus_yevick_core_shell():
     volume_fraction_shell = volume_fraction * (radius_cs[1]**3 / radius_cs[0]**3 -1)
     volume_fraction_cs = Quantity(np.array([volume_fraction.magnitude, volume_fraction_shell.magnitude]), '')
 
-    n_sample_cs = ri.n_eff(n_particle_cs, n_matrix, volume_fraction_cs)
+    n_sample_cs = sc.index.n_eff(n_particle_cs, n_matrix, volume_fraction_cs)
     x_cs = size_parameter(wavelen, n_sample_cs, radius_cs[1]).flatten()
     qd_cs = 4*x_cs*np.sin(angles/2)
     s_cs = structure.factor_py(qd_cs, np.sum(volume_fraction_cs))
@@ -143,9 +143,9 @@ def test_structure_factor_data_reflectances():
     wavelengths = Quantity(np.arange(400, 800, 20), 'nm')
     radius = Quantity('0.5 um')
     volume_fraction = Quantity(0.5, '')
-    n_particle = ri.n('fused silica', wavelengths)
-    n_matrix = ri.n('vacuum', wavelengths)
-    n_medium = ri.n('vacuum', wavelengths)
+    n_particle = sc.index.fused_silica(wavelengths)
+    n_matrix = sc.index.vacuum(wavelengths)
+    n_medium = sc.index.vacuum(wavelengths)
     thickness = Quantity('50 um')
 
     # generate structure factor "data" from Percus-Yevick model
@@ -192,9 +192,9 @@ def test_structure_factor_data_reflectances():
     wavelengths = sc.Quantity(np.arange(400, 800, 20), 'nm')
     radius = sc.Quantity('0.5 um')
     volume_fraction = sc.Quantity(0.5, '')
-    n_particle = ri.n('fused silica', wavelengths)
-    n_matrix = ri.n('vacuum', wavelengths)
-    n_medium = ri.n('vacuum', wavelengths)
+    n_particle = sc.index.fused_silica(wavelengths)
+    n_matrix = sc.index.vacuum(wavelengths)
+    n_medium = sc.index.vacuum(wavelengths)
     boundary = 'film'
     thickness = sc.Quantity('50 um')
 
@@ -203,7 +203,7 @@ def test_structure_factor_data_reflectances():
 
     reflectance = np.zeros(wavelengths.size)
     for i in range(wavelengths.size):
-        n_sample = ri.n_eff(n_particle[i], n_matrix[i], volume_fraction)
+        n_sample = sc.index.n_eff(n_particle[i], n_matrix[i], volume_fraction)
 
         p, mu_scat, mu_abs = mc.calc_scat(radius, n_particle[i], n_sample,
                                           volume_fraction.magnitude,
