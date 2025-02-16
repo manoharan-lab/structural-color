@@ -361,10 +361,9 @@ ptmba = Index.constant(1.46)
 #------------------------------------------------------------------------------
 # CARGILLE OILS
 
-def n_cargille(i,series,w):
-    """
-    Refractive index of cargille index-matching oils
-    available at:
+@ureg.check('[length]', None, None)
+def n_cargille(wavelen, i, series):
+    """Refractive index of cargille index-matching oils from 
     http://www.cargille.com/refractivestandards.shtml
 
     Parameters
@@ -388,6 +387,13 @@ def n_cargille(i,series,w):
     -------
     structcol.Quantity (dimensionless)
         refractive index
+
+    Examples
+    --------
+    To create an Index object for a particular oil (for example, series AA
+    number 1) use
+    >>> cargille = sc.Index(sc.index.n_cargille, i=1, series="AA")
+
     """
     cs = {}
     ds = {}
@@ -396,7 +402,7 @@ def n_cargille(i,series,w):
     # convert wavelength to micrometers to make units compatible for given oil
     # coefficients
 
-    w = w.to('um')
+    wavelen = wavelen.to('um')
 
     ## Series AAA ##
 
@@ -547,8 +553,8 @@ def n_cargille(i,series,w):
     es['acrylic'] = np.array([-8.637338E+10]) * 10**(-16)
 
     try:
-        n = cs[str(series)][i]+(ds[str(series)][i]/w.magnitude**2)
-        + (es[str(series)][i]/w.magnitude**4)
+        n = cs[str(series)][i] + (ds[str(series)][i] / wavelen.magnitude**2) \
+            + (es[str(series)][i] / wavelen.magnitude**4)
     except IndexError:
         raise ValueError("""An oil with this cardinal number was not found.
             Check your cardinal number and make sure it is valid for the
@@ -572,10 +578,10 @@ def n_eff(n_particle, n_matrix, volume_fraction, maxwell_garnett=False):
 
     Parameters
     ----------
-    n_particle: float or structcol.Quantity (dimensionless)
+    n_particle: float
         refractive indices of the inclusion. If it's a core-shell particle,
         must be an array of indices from innermost to outermost layer.
-    n_matrix: float or structcol.Quantity(dimensionless)
+    n_matrix: float
         refractive index of the matrix.
     volume_fraction: float or structcol.Quantity (dimensionless)
         volume fraction of inclusion. If it's a core-shell particle,

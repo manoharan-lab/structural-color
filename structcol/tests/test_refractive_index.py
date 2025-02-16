@@ -200,30 +200,29 @@ def test_vacuum():
     assert_equal(sc.index.vacuum(Quantity('0.800 um')), 1.0)
 
 def test_cargille():
-    assert_almost_equal(sc.index.n_cargille(1,'AAA',Quantity('0.400 um')),
-                        1.3101597437500001)
-    assert_almost_equal(sc.index.n_cargille(1,'AAA',Quantity('0.700 um')),
-                        1.303526242857143)
-    assert_almost_equal(sc.index.n_cargille(1,'AA',Quantity('0.400 um')),
-                        1.4169400062500002)
-    assert_almost_equal(sc.index.n_cargille(1,'AA',Quantity('0.700 um')),
-                        1.3987172673469388)
-    assert_almost_equal(sc.index.n_cargille(1,'A',Quantity('0.400 um')),
-                        1.4755715625000001)
-    assert_almost_equal(sc.index.n_cargille(1,'A',Quantity('0.700 um')),
-                        1.458145836734694)
-    assert_almost_equal(sc.index.n_cargille(1,'B',Quantity('0.400 um')),
-                        1.6720350625)
-    assert_almost_equal(sc.index.n_cargille(1,'B',Quantity('0.700 um')),
-                        1.6283854489795917)
-    assert_almost_equal(sc.index.n_cargille(1,'E',Quantity('0.400 um')),
-                        1.5190772875)
-    assert_almost_equal(sc.index.n_cargille(1,'E',Quantity('0.700 um')),
-                        1.4945156653061225)
-    assert_almost_equal(sc.index.n_cargille(0,'acrylic',Quantity('0.400 um')),
-                        1.50736788125)
-    assert_almost_equal(sc.index.n_cargille(0,'acrylic',Quantity('0.700 um')),
-                        1.4878716959183673)
+    cargille = sc.Index(sc.index.n_cargille, i=1, series="AAA")
+    assert_almost_equal(cargille(Quantity('0.400 um')), 1.31088240)
+    assert_almost_equal(cargille(Quantity('0.700 um')), 1.30360329)
+
+    cargille = sc.Index(sc.index.n_cargille, i=1, series="AA")
+    assert_almost_equal(cargille(Quantity('0.400 um')), 1.415307193)
+    assert_almost_equal(cargille(Quantity('0.700 um')), 1.398543173)
+
+    cargille = sc.Index(sc.index.n_cargille, i=1, series="A")
+    assert_almost_equal(cargille(Quantity('0.400 um')), 1.47737625)
+    assert_almost_equal(cargille(Quantity('0.700 um')), 1.45833825)
+
+    cargille = sc.Index(sc.index.n_cargille, i=1, series="B")
+    assert_almost_equal(cargille(Quantity('0.400 um')), 1.70461318)
+    assert_almost_equal(cargille(Quantity('0.700 um')), 1.63185900)
+
+    cargille = sc.Index(sc.index.n_cargille, i=1, series="E")
+    assert_almost_equal(cargille(Quantity('0.400 um')), 1.54540541)
+    assert_almost_equal(cargille(Quantity('0.700 um')), 1.4973228289)
+
+    cargille = sc.Index(sc.index.n_cargille, i=0, series="acrylic")
+    assert_almost_equal(cargille(Quantity('0.400 um')), 1.50703048)
+    assert_almost_equal(cargille(Quantity('0.700 um')), 1.48783572)
 
 def test_neff():
     # test that at low volume fractions, Maxwell-Garnett and Bruggeman roughly
