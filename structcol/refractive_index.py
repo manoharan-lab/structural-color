@@ -45,7 +45,6 @@ from . import ureg, Quantity
 from scipy.optimize import fsolve
 from scipy.interpolate import interp1d
 from functools import partial
-import warnings
 
 @ureg.check(None, '[length]')
 def _constant_index(index, wavelen):
@@ -363,7 +362,7 @@ ptmba = Index.constant(1.46)
 
 @ureg.check('[length]', None, None)
 def n_cargille(wavelen, i, series):
-    """Refractive index of cargille index-matching oils from 
+    """Refractive index of cargille index-matching oils from
     http://www.cargille.com/refractivestandards.shtml
 
     Parameters
