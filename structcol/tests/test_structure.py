@@ -32,6 +32,83 @@ from numpy.testing import assert_equal, assert_almost_equal
 import pytest
 from pint.errors import DimensionalityError
 
+class TestStructureFactor():
+    """Tests for the StructureFactor class and derived classes.
+    """
+    qd = np.arange(0.1, 20, 0.01)
+    phi = np.array([0.15, 0.3, 0.45])
+
+    def test_structure_factor_base_class(self):
+        structure_factor = sc.structure.StructureFactor()
+        with pytest.raises(NotImplementedError):
+            structure_factor.calculate(self.qd)
+        # test that __call__ method works
+        with pytest.raises(NotImplementedError):
+            structure_factor(self.qd)
+
+    def test_percus_yevick(self):
+        """Tests the object version of the Percus-Yevick structure factor
+        """
+        structure_factor = sc.structure.PercusYevick(self.phi)
+        s = structure_factor(self.qd)
+
+        # ensure that we are broadcasting correctly
+        assert s.shape == (self.qd.shape[0], self.phi.shape[0])
+
+        # compare to values from Cipelletti, Trappe, and Pine, "Scattering
+        # Techniques", in "Fluids, Colloids and Soft Materials: An Introduction
+        # to Soft Matter Physics", 2016 (plot on page 137) (I extracted values
+        # from the plot using a digitizer
+        # (http://arohatgi.info/WebPlotDigitizer/app/). They are probably good
+        # to only one decimal place, so this is a fairly crude test.)
+
+        # max values of S(qd) at different phi
+        max_vals = s.max(dim="qd")
+        # values of qd at which S(qd) has max
+        max_qds = s.idxmax(dim="qd")
+        assert_almost_equal(max_vals[0], 1.17, decimal=1)
+        assert_almost_equal(max_vals[1], 1.52, decimal=1)
+        assert_almost_equal(max_vals[2], 2.52, decimal=1)
+        assert_almost_equal(max_qds[0], 6.00, decimal=1)
+        assert_almost_equal(max_qds[1], 6.37, decimal=1)
+        assert_almost_equal(max_qds[2], 6.84, decimal=1)
+
+        # compare to values from before refactoring
+        qd = np.linspace(0.1, 20, 20)
+        phi = 0.6
+
+        structure_factor = sc.structure.PercusYevick(phi)
+        s = structure_factor(qd)
+
+        s_expected = [0.005292811521054822, 0.005782178319680089,
+                      0.007377121990596123, 0.01122581884358338,
+                      0.02133597659701994, 0.056320860137596386,
+                      0.2842109080529606, 6.548734687715668, 0.655686067757609,
+                      0.34078069018365464, 0.37117597252527373,
+                      0.6743611932043811, 1.6508200842297407,
+                      1.5730675915964172, 0.8423480630021749,
+                      0.6431921078170443, 0.706599972588693,
+                      1.0009844486818578, 1.3548268525788216,
+                      1.2077694027197434]
+
+        assert_almost_equal(s.squeeze(), s_expected)
+
+        # test that structure factor converges to low-qd approximation at small
+        # qd (but not so small that solution becomes numerically unstable).
+        # Use a variety of volume fractions to test
+        phi = np.linspace(0.05, 0.6, 10)
+        structure_factor = sc.structure.PercusYevick(phi, qd_cutoff=0.01)
+        s = structure_factor(qd)
+
+        # generate structure factor with higher cutoff, so that below
+        # qd_cutoff, the structure factor should be using the approximate
+        # solution to the direct correlation function
+        structure_factor_approx = sc.structure.PercusYevick(phi, qd_cutoff=0.2)
+        s_approx = structure_factor_approx(qd)
+        assert_almost_equal(s.sel(qd=0.1).to_numpy(),
+                            s_approx.sel(qd=0.1).to_numpy())
+
+
 
 def test_structure_factor_percus_yevick():
     # Test structure factor as calculated by solution of Ornstein-Zernike
@@ -142,7 +219,7 @@ def test_structure_factor_data_reflectances():
 
     wavelengths = Quantity(np.arange(400, 800, 20), 'nm')
     radius = Quantity('0.5 um')
-    volume_fraction = Quantity(0.5, '')
+    volume_fraction = 0.5
     n_particle = sc.index.fused_silica(wavelengths)
     n_matrix = sc.index.vacuum(wavelengths)
     n_medium = sc.index.vacuum(wavelengths)
@@ -150,7 +227,8 @@ def test_structure_factor_data_reflectances():
 
     # generate structure factor "data" from Percus-Yevick model
     qd_data = np.arange(0.001, 75, 0.1)
-    s_data = structure.factor_py(qd_data, volume_fraction.magnitude)
+    structure_factor = sc.structure.PercusYevick(volume_fraction)
+    s_data = structure_factor(qd_data)
 
     # make interpolation function
     qd = np.arange(0, 70, 0.1)
@@ -165,7 +243,7 @@ def test_structure_factor_data_reflectances():
                                 n_medium[i],
                                 wavelengths[i],
                                 radius,
-                                volume_fraction,
+                                sc.Quantity(volume_fraction, ''),
                                 thickness=thickness,
                                 structure_type='data',
                                 structure_s_data=s_data,
@@ -191,7 +269,7 @@ def test_structure_factor_data_reflectances():
     nevents = 500
     wavelengths = sc.Quantity(np.arange(400, 800, 20), 'nm')
     radius = sc.Quantity('0.5 um')
-    volume_fraction = sc.Quantity(0.5, '')
+    volume_fraction = 0.5
     n_particle = sc.index.fused_silica(wavelengths)
     n_matrix = sc.index.vacuum(wavelengths)
     n_medium = sc.index.vacuum(wavelengths)
@@ -199,14 +277,15 @@ def test_structure_factor_data_reflectances():
     thickness = sc.Quantity('50 um')
 
     qd_data = np.arange(0.001, 75, 0.1)
-    s_data = structure.factor_py(qd_data, volume_fraction.magnitude)
+    structure_factor = sc.structure.PercusYevick(volume_fraction)
+    s_data = structure_factor(qd_data)
 
     reflectance = np.zeros(wavelengths.size)
     for i in range(wavelengths.size):
         n_sample = sc.index.n_eff(n_particle[i], n_matrix[i], volume_fraction)
 
         p, mu_scat, mu_abs = mc.calc_scat(radius, n_particle[i], n_sample,
-                                          volume_fraction.magnitude,
+                                          volume_fraction,
                                           wavelengths[i],
                                           structure_type = 'data',
                                           structure_s_data = s_data,

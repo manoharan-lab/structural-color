@@ -30,8 +30,214 @@ import numpy as np
 from . import ureg, Quantity
 import scipy as sp
 import scipy
+import xarray as xr
 import os
 import structcol as sc
+
+class StructureFactor:
+    """Base class for different types of structure factors.
+
+    In general, a structure factor is a function S(q), where q is the
+    wavevector. The value of S(q) depends also on the details of the structure
+    of the material, but not on its scattering properties. This class
+    encapsulates the structural details and uses them in the calculation of
+    S(q). We use a class instead of a series of functions because some
+    parameters may need to be precomputed and stored, so that they aren't
+    computed each time a structure factor is calculated.
+
+    """
+
+    def __init__(self):
+        pass
+
+    def __call__(self, qd):
+        return self.calculate(qd)
+
+    def calculate(self, qd):
+        """
+        Virtual method to calculate the structure factor at nondimensional
+        wavevector qd
+        """
+        raise NotImplementedError("The StructureFactor class is an abstract "
+                                  "base class. Use a derived class such as "
+                                  "PercusYevick.")
+
+class PercusYevick(StructureFactor):
+    """Analytical structure factor for monodisperse hard-sphere liquids.
+
+    The calculation is based on the Ornstein-Zernike equation and Percus-Yevick
+    approximation. The analytical formula is derived in [1]_, though this is
+    far from the first reference on the subject.
+
+    Attributes
+    ----------
+    volume_fraction : array-like
+        volume fraction of particles or voids in matrix
+    qd_cutoff : float (optional)
+        qd below which an approximate solution is used
+
+    Notes
+    -----
+    Might not be accurate for volume fractions above 0.5. Also, for small q,
+    the analytical solution is numerically unstable, so we use a Taylor
+    expansion of the direct correlation function to calculate the structure
+    factor at qd values below `qd_cutoff`. The derivation of the approximate
+    solution is in the docstring for the `approximate_dcf()` method.
+
+    This code is fully vectorized, so you can feed it arrays for
+    both qd and phi and it will produce a 2D output (see Examples).
+
+    Examples
+    --------
+    >>>  qd = np.arange(0.1, 20, 0.01)
+    >>>  volume_fraction = np.array([0.15, 0.3, 0.45])
+    >>>  structure_factor = PercusYevick(volume_fraction)
+    >>>  s_of_q = structure_factor(qd)
+
+    References
+    ----------
+    [1] Xiao, Ming, Anna B. Stephenson, Andreas Neophytou, Victoria Hwang,
+    Dwaipayan Chakrabarti, and Vinothan N. Manoharan. “Investigating the
+    Trade-off between Color Saturation and Angle-Independence in Photonic
+    Glasses.” Optics Express 29, no. 14 (July 5, 2021): 21212–24.
+    https://doi.org/10.1364/OE.425399.
+
+    """
+
+    def __init__(self, volume_fraction, qd_cutoff=0.01):
+        # convert volume fraction to DataArray so that calculations will
+        # vectorize easily
+        phi = np.atleast_1d(volume_fraction)
+        self.volume_fraction = xr.DataArray(phi, coords={"volfrac": phi})
+        self.qd_cutoff = qd_cutoff
+
+    def calculate(self, qd):
+        """Calculates structure factor using the Percus-Yevick analytical
+        approximation for hard-sphere liquids.
+
+        Parameters
+        ----------
+        qd : array-like
+            dimensionless product of wavevector (in vacuum) and diameter
+
+        Returns:
+        -------
+        array-like
+            The structure factor as a function of qd.
+
+        """
+        # convert qd to one-dimensional DataArray so that we can
+        # generate results for all combinations of qd and phi
+        phi = self.volume_fraction
+        qd = xr.DataArray(qd, coords={"qd": qd})
+
+        # constants in the direct correlation function (eqs. 3-5 of [1]_)
+        alpha = (1 + 2*phi)**2 / (1 - phi)**4
+        beta = -6*phi*(1 + phi/2)**2 / (1 - phi)**4
+        gamma = 0.5*phi*(1 + 2*phi)**2 / (1 - phi)**4
+
+        # Fourier transform of the direct correlation function multiplied by
+        # the number density (eq. 6 of [1]_)
+        rho_c = ((-24*phi/qd**6)
+                 * (qd*np.sin(qd) * (qd**2 * (alpha + 2*beta + 4*gamma)
+                                     - 24*gamma)
+                    - 2*(qd**2)*beta
+                    - np.cos(qd) * (qd**4 * (alpha + beta + gamma)
+                                    - 2*qd**2 * (beta + 6*gamma) + 24*gamma)
+                    + 24*gamma))
+
+        # the above expression is not numerically stable near low qd.  We
+        # replace the values with a small-qd approximation
+        rho_c_low = self.approximate_dcf(qd, phi, alpha, beta, gamma)
+        rho_c = xr.where(rho_c.qd < self.qd_cutoff, rho_c_low, rho_c)
+
+        # Structure factor at qd (eq. 1 of [1]_)
+        s = 1.0/(1-rho_c)
+
+        # squeeze but keeps coordinates as scalar values so that the returned
+        # DataArray still has the value of the volume fraction recorded
+        return s.squeeze()
+
+    def approximate_dcf(self, qd, phi, alpha, beta, gamma):
+        r"""Calculates an approximation to the direct correlation function
+        valid for small qd (qd << 1), where the analytical solution may be
+        numerically unstable.
+
+        Notes
+        -----
+
+        Derivation is below.  See also SasView's hardsphere.c, which makes a
+        similar approximation [1]_.
+
+        Let :math:`x = qd`.
+
+        Then the dimensionless direct correlation function is
+
+        .. math::
+
+            \rho c(x) = -\frac{24\phi}{x^6} \Big\{&x\sin(x)\left[x^2(\alpha +
+            2\beta + 4\gamma) - 24\gamma\right] - 2x^2\beta \\
+            &- \cos(x)\left[x^4(\alpha + \beta + \gamma)
+             - 2x^2(\beta + 6\gamma) + 24\gamma\right] + 24\gamma\Big\}
+
+        We expand the sine and cosine to a sufficient number of terms such that
+        we capture terms of up to :math:`x^2`:
+
+        .. math::
+
+            \rho c(x) = -\frac{24\phi}{x^6} \Bigg\{&x\left(x-\frac{x^3}{6}
+             +\frac{x^5}{120}-\frac{x^7}{5040}\right)\left[x^2(\alpha + 2\beta
+             + 4\gamma) - 24\gamma\right] - 2x^2\beta \\
+            &- \left(1-\frac{x^2}{2}+\frac{x^4}{24}-\frac{x^6}{720}+
+             \frac{x^8}{40320}\right)\left[x^4(\alpha + \beta + \gamma)
+             - 2x^2(\beta + 6\gamma) + 24\gamma\right] + 24\gamma\Bigg\}
+
+        Distributing:
+
+        .. math::
+
+            \rho c(x) = \phi \Bigg\{&\left(-24x^{-4}+4x^{-2}-\frac{1}{5}
+             +\frac{x^2}{210}\right)\left[x^2(\alpha + 2\beta + 4\gamma)
+             - 24\gamma\right] - 2x^{-4}\beta \\
+            &+ \left(24x^{-6}-12x^{-4}+x^{-2}-\frac{1}{30}
+             +\frac{1}{1680}x^2\right)\left[x^4(\alpha + \beta + \gamma)
+             - 2x^2(\beta + 6\gamma) + 24\gamma\right] + 24x^{-6}\gamma\Bigg\}
+
+        We need only keep the terms of order :math:`x^0` and higher. Terms with
+        negative powers of :math:`x` should all cancel one another (if they
+        didn't, the direct correlation function would go to :math:`-\infty` and
+        :math:`S(q)` would go to 0 at small :math:`q` instead of a finite
+        value, which is required by thermodynamics). After dropping terms with
+        negative powers of $x$, we have
+
+        .. math::
+
+            \rho c(x) = \phi \Bigg\{&\left[(4\alpha + 8\beta + 16\gamma)
+            + \frac{24\gamma}{5}\right] \\
+            &+ x^2\left[\left(-\frac{\alpha}{5} - \frac{2\beta}{5}
+            - \frac{4\gamma}{5}\right) - \frac{4\gamma}{35}\right] \\
+            &+ \left[-\left(12\alpha + 12\beta + 12\gamma)
+             - (2\beta + 12\gamma) - \frac{4\gamma}{5}\right)\right]  \\
+            &+ x^2\left[(\alpha + \beta + \gamma) + \left(\frac{\beta}{15}
+             + \frac{2\gamma}{5}\right) + \frac{\gamma}{70}\right]\Bigg\}
+
+        Simplifying, we arrive at
+
+        .. math::
+
+            \rho c(x) = \phi \left[\left(-8\alpha - 6\beta - 4\gamma\right)
+            + x^2\left(\frac{4\alpha}{5} + \frac{2\beta}{3}
+                       + \frac{\gamma}{2}\right)\right]
+
+        References
+        ----------
+
+        [1] https://www.sasview.org/docs/user/models/hardsphere.html
+
+        """
+        return phi * ((-8*alpha -6*beta -4*gamma)
+                      + qd**2 *(4*alpha/5 + 2*beta/3 + gamma/2))
+
 
 @ureg.check('[]', '[]')    # inputs should be dimensionless
 def factor_py(qd, phi):
