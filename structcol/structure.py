@@ -28,8 +28,8 @@ structure factors
 import numpy as np
 # unit registry and Quantity constructor from pint
 from . import Quantity
-import scipy as sp
-import scipy
+from scipy.interpolate import interp1d, InterpolatedUnivariateSpline
+from scipy.special import jv
 import xarray as xr
 import os
 import structcol as sc
@@ -540,9 +540,8 @@ class Interpolated(StructureFactor):
             qd values from data
         """
         self.data = xr.DataArray(s_data, coords={"qd": qd_data})
-        func = sp.interpolate.interp1d(qd_data, s_data, kind = 'linear',
-                                       bounds_error=False,
-                                       fill_value=s_data[0])
+        func = interp1d(qd_data, s_data, kind = 'linear', bounds_error=False,
+                        fill_value=s_data[0])
         self.interpolation_func = func
 
     def calculate(self, qd):
@@ -556,9 +555,9 @@ def field_phase_data(qd, filename='spf.dat'):
     s_phase_data=np.loadtxt(s_file)
     qd_data = s_phase_data[:,0]
     s_phase = s_phase_data[:,1]
-    s_phase_func = sp.interpolate.interp1d(qd_data, s_phase, kind = 'linear',
-                                           bounds_error=False,
-                                           fill_value=s_phase_data[0,1])
+    s_phase_func = interp1d(qd_data, s_phase, kind = 'linear',
+                            bounds_error=False,
+                            fill_value=s_phase_data[0,1])
     return s_phase_func(qd)
 
 def phase_factor(qd, phi, n=1000):
@@ -573,7 +572,7 @@ def phase_factor(qd, phi, n=1000):
     # calculate the integral for each qd
     for i in range(qd.shape[0]):
         for j in range(qd.shape[1]):
-            bessel = rho*4*np.pi*r_d**2*np.pi*scipy.special.jv(0, qd[i,j]*r_d)
+            bessel = rho*4*np.pi*r_d**2*np.pi*jv(0, qd[i,j]*r_d)
             integral[i,j] = np.trapz(bessel*g, x=r_d)
 
     return integral
@@ -685,7 +684,7 @@ def radial_dist_py(phi, x=np.arange(1,5,0.005)):
     g[r>=1]=gg[r>=1]
 
     # make g function from interpolation
-    g_fcn=sp.interpolate.InterpolatedUnivariateSpline(r, g)
+    g_fcn=InterpolatedUnivariateSpline(r, g)
 
     return g_fcn(x)
 
