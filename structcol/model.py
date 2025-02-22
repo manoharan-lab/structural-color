@@ -39,7 +39,7 @@ from scipy.integrate import trapezoid
 import structcol as sc
 
 from . import Quantity
-from . import structure, ureg
+from . import ureg
 
 
 @ureg.check('[]', '[]', '[]', '[length]', '[length]', '[]', None, None, None,
@@ -233,7 +233,7 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius,
     r_array = np.array([0] + np.atleast_1d(radius.magnitude).tolist())
     for r in np.arange(len(r_array)-1):
         vf_array[r] = ((r_array[r+1]**3-r_array[r]**3)
-                       / (r_array[-1]**3) * volume_fraction.magnitude)
+                       / (r_array[-1]**3) * volume_fraction)
     if len(vf_array) == 1:
         vf_array = float(vf_array[0])
 
@@ -657,6 +657,8 @@ def differential_cross_section(m, x, angles, volume_fraction,
         k = k.to('1/um')
     if isinstance(distance, Quantity):
         distance = distance.to('um')
+    if isinstance(volume_fraction, Quantity):
+        volume_fraction = volume_fraction.magnitude
 
     # calculate form factor
     if form_type == 'sphere':
@@ -705,23 +707,33 @@ def differential_cross_section(m, x, angles, volume_fraction,
     else:
         # TODO: should it be x.real or x.abs?
         qd = 4*np.array(np.abs(x)).max()*np.sin(angles/2)
+    if isinstance(qd, Quantity):
+        qd = qd.magnitude
 
     if isinstance(structure_type, dict):
         if structure_type['name'] == 'paracrystal':
-            s = structure.factor_para(qd, volume_fraction,
-                                      sigma = structure_type['sigma'])
+            structure_factor = sc.structure.Paracrystal(volume_fraction,
+                                            sigma = structure_type['sigma'])
+            s = structure_factor(qd)
         else:
             raise ValueError('structure factor type not recognized!')
 
     elif isinstance(structure_type, str):
         if structure_type == 'glass':
-            s = structure.factor_py(qd, volume_fraction)
+            structure_factor = sc.structure.PercusYevick(volume_fraction)
+            if len(qd.shape) == 2:
+                s = structure_factor(qd[:,0]).to_numpy()
+            else:
+                s = structure_factor(qd).to_numpy()
 
         elif structure_type == 'paracrystal':
-            s = structure.factor_para(qd, volume_fraction)
+            structure_factor = sc.structure.Paracrystal(volume_fraction)
+            s = structure_factor(qd)
 
         elif structure_type == 'data':
-            s = structure.factor_data(qd, structure_s_data, structure_qd_data)
+            structure_factor = sc.structure.Interpolated(structure_s_data,
+                                                         structure_qd_data)
+            s = structure_factor(qd)
 
         elif structure_type == 'polydisperse':
             if diameters is None or concentration is None or pdi is None:
@@ -734,8 +746,10 @@ def differential_cross_section(m, x, angles, volume_fraction,
             # I think it's okay to divide by the first
             # radius because it cancels out the radius dependence from qd
             q = qd / diameters[0]
-            s = structure.factor_poly(q, volume_fraction, diameters,
-                                      concentration, pdi)
+            structure_factor = sc.structure.Polydisperse(volume_fraction,
+                                                         diameters,
+                                                         concentration, pdi)
+            s = structure_factor(q)
 
         else:
             raise ValueError('structure factor type not recognized!')
@@ -745,8 +759,12 @@ def differential_cross_section(m, x, angles, volume_fraction,
     else:
         raise ValueError('structure factor type not recognized!')
 
-    scat_par = s * f_par
-    scat_perp = s * f_perp
+    if len(qd.shape) == 2:
+        scat_par = s[:, np.newaxis] * f_par
+        scat_perp = s[:, np.newaxis] * f_perp
+    else:
+        scat_par = s * f_par
+        scat_perp = s * f_perp
 
     return scat_par, scat_perp
 

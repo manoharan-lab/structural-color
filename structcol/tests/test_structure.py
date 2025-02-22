@@ -25,12 +25,13 @@ Tests for the structure module
 import structcol as sc
 from structcol import montecarlo as mc
 from structcol import detector as det
-from .. import Quantity, np, structure
+from .. import Quantity, np
 from .. import size_parameter
+import xarray as xr
 
 from numpy.testing import assert_equal, assert_almost_equal
 import pytest
-from pint.errors import DimensionalityError
+from pint.errors import UnitStrippedWarning
 
 class TestStructureFactor():
     """Tests for the StructureFactor class and derived classes.
@@ -49,10 +50,27 @@ class TestStructureFactor():
     def test_percus_yevick(self):
         """Tests the object version of the Percus-Yevick structure factor
         """
+
+        # test how function handles dimensionless arguments
+        with pytest.warns(UnitStrippedWarning):
+            structure_factor = sc.structure.PercusYevick(Quantity('0.4'))
+        # specifying quantities is not allowed when calculating
+        with pytest.raises(AttributeError):
+            s = structure_factor(Quantity('0.1'))
+        # but scalars should work
+        structure_factor = sc.structure.PercusYevick(0.4)
+        s = structure_factor(0.1)
+
+        # now calculate for arrays of phi and qd
         structure_factor = sc.structure.PercusYevick(self.phi)
         s = structure_factor(self.qd)
 
         # ensure that we are broadcasting correctly
+        assert s.shape == (self.qd.shape[0], self.phi.shape[0])
+
+        # make sure that calculation works with qd specified as DataArray
+        qd = xr.DataArray(self.qd, coords = {"qd": self.qd})
+        s = structure_factor(qd)
         assert s.shape == (self.qd.shape[0], self.phi.shape[0])
 
         # compare to values from Cipelletti, Trappe, and Pine, "Scattering
@@ -108,103 +126,125 @@ class TestStructureFactor():
         assert_almost_equal(s.sel(qd=0.1).to_numpy(),
                             s_approx.sel(qd=0.1).to_numpy())
 
+    def test_paracrystal(self):
+        """Tests the object version of the paracrystalline structure factor
+        """
+        volfrac = np.arange(0.1, 0.7, 0.1)
+        sigma = np.arange(0, 0.5, 0.05)
 
+        structure_factor = sc.structure.Paracrystal(volfrac, sigma=sigma)
+        qd = np.linspace(0.05, 0.6, 10)
+        s = structure_factor(qd)
+        # TODO add tests to check that we are getting the right values
 
-def test_structure_factor_percus_yevick():
-    # Test structure factor as calculated by solution of Ornstein-Zernike
-    # integral equation and Percus-Yevick closure approximation
+    def test_percus_yevick_polydisperse(self):
+        """Tests the object version of the polydisperse structure factor.
+        """
+        # first test that the analytical structure factor for polydisperse
+        # systems matches Percus-Yevick in the monodisperse limit
+        qd = 5.0
+        phi = 0.5
 
-    # test that function handles dimensionless arguments, and only
-    # dimensionless arguments
-    structure.factor_py(Quantity('0.1'), Quantity('0.4'))
-    structure.factor_py(0.1, 0.4)
-    pytest.raises(DimensionalityError, structure.factor_py, Quantity('0.1'),
-                  Quantity('0.1 m'))
-    pytest.raises(DimensionalityError, structure.factor_py, Quantity('0.1 m'),
-                  Quantity('0.1'))
+        # Percus-Yevick monodisperse
+        monodisperse_structure_factor = sc.structure.PercusYevick(phi)
+        s_py = monodisperse_structure_factor(qd)
 
-    # test vectorization by doing calculation over range of qd and phi
-    qd = np.arange(0.1, 20, 0.01)
-    phi = np.array([0.15, 0.3, 0.45])
-    # this little trick allows us to calculate the structure factor on a 2d
-    # grid of points (turns qd into a column vector and phi into a row vector).
-    # Could also use np.ogrid
-    s = structure.factor_py(qd.reshape(-1,1), phi.reshape(1,-1))
+        # Polydisperse Percus-Yevick
+        d = Quantity('100.0 nm')
+        c = 1.0
+        pdi = 1e-5
+        q2 = qd / d
 
-    # compare to values from Cipelletti, Trappe, and Pine, "Scattering
-    # Techniques", in "Fluids, Colloids and Soft Materials: An Introduction to
-    # Soft Matter Physics", 2016 (plot on page 137)
-    # (I extracted values from the plot using a digitizer
-    # (http://arohatgi.info/WebPlotDigitizer/app/). They are probably good to
-    # only one decimal place, so this is a fairly crude test.)
-    max_vals = np.max(s, axis=0)    # max values of S(qd) at different phi
-    max_qds = qd[np.argmax(s, axis=0)]  # values of qd at which S(qd) has max
-    assert_almost_equal(max_vals[0], 1.17, decimal=1)
-    assert_almost_equal(max_vals[1], 1.52, decimal=1)
-    assert_almost_equal(max_vals[2], 2.52, decimal=1)
-    assert_almost_equal(max_qds[0], 6.00, decimal=1)
-    assert_almost_equal(max_qds[1], 6.37, decimal=1)
-    assert_almost_equal(max_qds[2], 6.84, decimal=1)
+        polydisperse_structure_factor = sc.structure.Polydisperse(phi, d, c,
+                                                                  pdi)
+        s_poly = polydisperse_structure_factor(q2)
 
-def test_structure_factor_percus_yevick_core_shell():
-    # Test that the structure factor is the same for core-shell particles and
-    # non-core-shell particles at low volume fraction (assuming the core diameter
-    # is the same as the particle diameter for the non-core-shell case)
+        assert_almost_equal(s_py, s_poly.magnitude)
 
-    wavelen = Quantity('400.0 nm')
-    angles = Quantity(np.pi, 'rad')
-    n_matrix = 1.0
+        # test that structure factor matches the calculations in Figure 1 of
+        # Ginoza and Yasutomi, Journal of the Physical Society of Japan 1999.
 
-    # Structure factor for non-core-shell particles
-    radius = Quantity('100.0 nm')
-    n_particle = 1.5
-    volume_fraction = Quantity(0.0001, '')         # IS VF TOO LOW?
-    n_sample = sc.index.n_eff(n_particle, n_matrix, volume_fraction)
-    x = size_parameter(wavelen, n_sample, radius)
-    qd = 4*x*np.sin(angles/2)
-    s = structure.factor_py(qd, volume_fraction)
+        # Figure 1 curve A peaks and valleys, from digitized figure 1 (includes
+        # the spurious peaks)
+        qd = np.array([0.2909090909090909, 3.2, 5.03030303030303,
+                       5.721212121212122, 6.484848484848484, 7.430303030303031,
+                       8.824242424242424, 8.993939393939394, 9.078787878787878,
+                       9.163636363636364, 9.515151515151516,
+                       12.533333333333333, 15.078787878787878,
+                       15.454545454545455, 15.89090909090909,
+                       18.921212121212122])
+        s_expected = np.array([0.09974380871050384, 0.20905209222886423,
+                               0.7405636208368915, 1.2064901793339027,
+                               1.5125533731853118, 1.2092228864218617,
+                               0.869000853970965, 0.9209222886421862,
+                               0.9960717335610589, 0.9209222886421862,
+                               0.8321093082835184, 1.1081127241673783,
+                               0.9468830059777967, 0.9947053800170794,
+                               0.9359521776259607, 1.042527754056362])
 
-    # Structure factor for core-shell particles with core size equal to radius
-    # of non-core-shell particle
-    radius_cs = Quantity(np.array([100.0, 105.0]), 'nm')
-    n_particle_cs = np.array([1.5, 1.0])
-    volume_fraction_shell = volume_fraction * (radius_cs[1]**3 / radius_cs[0]**3 -1)
-    volume_fraction_cs = Quantity(np.array([volume_fraction.magnitude, volume_fraction_shell.magnitude]), '')
+        # results shouldn't depend on d but we need to input anyway
+        d = Quantity('100.0 nm')
+        c = 1.0
+        phi = 0.3
+        # in the paper, D_sigma is the square of the relative deviation, so
+        # D_sigma=1e-4 corresponds to pdi=1e-2
+        pdi = 1e-2
+        q2 = qd / d
 
-    n_sample_cs = sc.index.n_eff(n_particle_cs, n_matrix, volume_fraction_cs)
-    x_cs = size_parameter(wavelen, n_sample_cs, radius_cs[1]).flatten()
-    qd_cs = 4*x_cs*np.sin(angles/2)
-    s_cs = structure.factor_py(qd_cs, np.sum(volume_fraction_cs))
+        polydisperse_structure_factor = sc.structure.Polydisperse(phi, d, c,
+                                                                  pdi)
+        s_poly = polydisperse_structure_factor(q2)
+        # since plot is digitized, we expect agreement only to 1 decimal place
+        assert_almost_equal(s_poly.magnitude, s_expected, decimal=1)
 
-    assert_almost_equal(s.magnitude, s_cs.magnitude, decimal=5)
+    def test_structure_factor_percus_yevick_core_shell(self):
+        """Test that the structure factor is the same for core-shell particles
+        and non-core-shell particles at low volume fraction (assuming the core
+        diameter is the same as the particle diameter for the non-core-shell
+        case)
 
+        """
+        wavelen = Quantity('400.0 nm')
+        angles = Quantity(np.pi, 'rad')
+        n_matrix = 1.0
 
-def test_structure_factor_polydisperse():
-    # test that the analytical structure factor for polydisperse systems matches
-    # Percus-Yevick in the monodisperse limit
+        # Structure factor for non-core-shell particles
+        radius = Quantity('100.0 nm')
+        n_particle = 1.5
+        volume_fraction = Quantity(0.0001, '')         # IS VF TOO LOW?
+        n_sample = sc.index.n_eff(n_particle, n_matrix, volume_fraction)
+        x = size_parameter(wavelen, n_sample, radius)
+        qd = 4*x*np.sin(angles/2)
+        with pytest.warns(UnitStrippedWarning):
+            structure_factor = sc.structure.PercusYevick(volume_fraction)
+        #s = structure.factor_py(qd, volume_fraction)
+        s = structure_factor(qd)
 
-    # Percus-Yevick
-    qd = Quantity(5.0, '')
-    phi = Quantity(0.5, '')
-    S_py = structure.factor_py(qd, phi)
+        # Structure factor for core-shell particles with core size equal to
+        # radius of non-core-shell particle
+        radius_cs = Quantity(np.array([100.0, 105.0]), 'nm')
+        n_particle_cs = np.array([1.5, 1.0])
+        volume_fraction_shell = volume_fraction * (radius_cs[1]**3 / radius_cs[0]**3 -1)
+        volume_fraction_cs = Quantity(np.array([volume_fraction.magnitude, volume_fraction_shell.magnitude]), '')
 
-    # Polydisperse S
-    d = Quantity('100.0 nm')
-    c = Quantity(1.0, '')
-    pdi = Quantity(1e-5, '')
-    q2 = qd / d
+        n_sample_cs = sc.index.n_eff(n_particle_cs, n_matrix, volume_fraction_cs)
+        x_cs = size_parameter(wavelen, n_sample_cs, radius_cs[1]).flatten()
+        qd_cs = 4*x_cs*np.sin(angles/2)
+        with pytest.warns(UnitStrippedWarning):
+            structure_factor_cs = sc.structure.PercusYevick(
+                                            np.sum(volume_fraction_cs))
+            s_cs = structure_factor_cs(qd_cs)
+        #s_cs = structure.factor_py(qd_cs, np.sum(volume_fraction_cs))
 
-    S_poly = structure.factor_poly(q2, phi, d, c, pdi)
+        assert_almost_equal(s, s_cs, decimal=5)
 
-    assert_almost_equal(S_py.magnitude, S_poly.magnitude)
-
-
-def test_structure_factor_data():
-    qd = np.array([1, 2])
-    qd_data = np.array([0.5, 2.5])
-    s_data = np.array([1, 1])
-    s = structure.factor_data(qd, s_data, qd_data)
-    assert_equal(s[0], 1)
+    def test_structure_factor_interpolated(self):
+        qd = np.array([1, 2])
+        qd_data = np.array([0.5, 2.5])
+        s_data = np.array([1, 1])
+        structure_factor = sc.structure.Interpolated(s_data, qd_data)
+        s = structure_factor(qd)
+        assert_equal(s[0], 1)
 
 @pytest.mark.slow
 def test_structure_factor_data_reflectances():
@@ -232,7 +272,8 @@ def test_structure_factor_data_reflectances():
 
     # make interpolation function
     qd = np.arange(0, 70, 0.1)
-    s = structure.factor_data(qd, s_data, qd_data)
+    structure_factor_interpolated = sc.structure.Interpolated(s_data, qd_data)
+    s = structure_factor_interpolated(qd)
 
     # calculate reflectance from single-scattering model
     reflectance = np.zeros(len(wavelengths))
@@ -243,7 +284,7 @@ def test_structure_factor_data_reflectances():
                                 n_medium[i],
                                 wavelengths[i],
                                 radius,
-                                sc.Quantity(volume_fraction, ''),
+                                volume_fraction,
                                 thickness=thickness,
                                 structure_type='data',
                                 structure_s_data=s_data,

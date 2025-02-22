@@ -149,8 +149,8 @@ def test_differential_cross_section():
     diff_cs = model.differential_cross_section(m_cs, x_cs, angles,
                                                np.sum(volume_fraction_cs))
 
-    assert_array_almost_equal(diff[0].magnitude, diff_cs[0].magnitude, decimal=5)
-    assert_array_almost_equal(diff[1].magnitude, diff_cs[1].magnitude, decimal=5)
+    assert_array_almost_equal(diff[0], diff_cs[0], decimal=5)
+    assert_array_almost_equal(diff[1], diff_cs[1], decimal=5)
 
 
 def test_reflection_core_shell():
