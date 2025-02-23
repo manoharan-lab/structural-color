@@ -154,6 +154,11 @@ class TestDetector():
         assert detector.phi_min == phi_min.to('rad').magnitude
         assert detector.phi_max == phi_max.to('rad').magnitude
 
+        # make sure stored angles have no units
+        for param in [detector.theta_min, detector.theta_max,
+                      detector.phi_min, detector.phi_max]:
+            assert not isinstance(param, sc.Quantity)
+
         # specifying no dimensions should give radians
         theta_min, theta_max = sc.Quantity(np.pi/2), sc.Quantity(np.pi)
         phi_min, phi_max = sc.Quantity(0), sc.Quantity(np.pi)
@@ -171,6 +176,13 @@ class TestDetector():
         assert detector.theta_max == theta_max.to('rad').magnitude
         assert detector.phi_min == phi_min.to('rad').magnitude
         assert detector.phi_max == phi_max.to('rad').magnitude
+
+        # not specifying dimensions should fail
+        theta_min, theta_max = np.pi/2, np.pi
+        phi_min, phi_max = 0, np.pi
+        with pytest.raises(AttributeError):
+            detector = sc.model.Detector(theta_min, theta_max, phi_min,
+                                         phi_max)
 
     def test_hemispherical_reflectance_detector(self):
         """Test the integrating sphere-type detector"""
