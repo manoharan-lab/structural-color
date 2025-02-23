@@ -41,6 +41,96 @@ import structcol as sc
 from . import Quantity
 from . import ureg
 
+
+class Particle:
+    """Base class for specifying geometry and optical properties of a particle.
+
+    Attributes
+    ----------
+    n : array-like[Index]
+        Refractive index of particle.  If array-like, specifies multiple
+        refractive indices for different parts of the particle.
+    size : array-like[sc.Quantity]
+        Size of particle. If array-like, specifies length scales corresponding
+        to structure of particle. For example, for a multilayer sphere, the
+        sizes are the radii of the different layers. For a (hypothetical)
+        ellipsoid,the sizes might be the major and minor axes.
+
+    """
+    @ureg.check(None, None, '[length]')
+    def __init__(self, index, size):
+        self.n = index
+        # store sizes in internal units and strip units after saving them
+        self.original_units = size.units
+        self.size = size.to_preferred().magnitude
+        self.current_units = size.to_preferred().units
+
+    @property
+    def size_q(self):
+        """Dimensions of particle, reported with units"""
+        return self.size * self.current_units
+
+
+class Sphere(Particle):
+    """Spherical homogeneous or layered particle.
+
+    Notes
+    -----
+    Radii will be reported when you query the size of the particle.  If you
+    want diameters, use the `Sphere.diameter` property.
+
+    n: list of Index objects
+        Refractive index of particles or voids.  If specified as an array-like
+        object, the refractive indices correspond to each layer in a multilayer
+        sphere, from the innermost to the outermost layer.
+    radii: list of sc.Quantity objects
+        Radii of particles or voids, defined from the innermost to the
+        outermost layer.
+    """
+    @ureg.check(None, None, '[length]')
+    def __init__(self, index, radius):
+        n = np.atleast_1d(index)
+        size = np.atleast_1d(radius)
+
+        if len(n) > 1:
+            self.layered = True
+
+            # check to make sure radii are sorted
+            if not np.all(size[:-1] < size[1:]):
+                raise ValueError("For a multilayer sphere, radii must be "
+                                 "specified from smallest to largest.")
+            # check to make sure we have the same number of elements in both
+            # arrays
+            if size.shape != n.shape:
+                raise ValueError("Must specify index for each layer; got "
+                                 f"{n.shape} indexes, {size.shape} radii")
+        else:
+            self.layered = False
+            n = n.item()
+            size = size.item()
+
+        # store internal structure of sphere
+        super().__init__(n, size)
+
+    @property
+    def radius(self):
+        return self.size
+
+    @property
+    def diameter(self):
+        return self.size*2
+
+    @property
+    def radius_q(self):
+        """Radius with units"""
+        return self.size_q
+
+    @property
+    def diameter_q(self):
+        """Diameter with units"""
+        return self.size_q * 2
+
+
 class Model:
     """Base class for different types of single-scattering models.
 

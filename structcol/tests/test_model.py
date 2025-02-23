@@ -26,13 +26,86 @@ from pytest import raises
 from numpy.testing import assert_equal, assert_almost_equal, assert_array_almost_equal
 import pytest
 import structcol as sc
+from pint.errors import DimensionalityError
+
+class TestParticle():
+    """Tests for the Particle class and derived classes
+    """
+    wavelen = sc.Quantity(np.linspace(400, 800, 100), 'nm')
+    def test_particle_construction(self):
+        index = 1.445
+        size = sc.Quantity(150, 'nm')
+
+        # particle construction without units or with wrong units should fail
+        with pytest.raises(DimensionalityError):
+            my_particle = sc.model.Particle(sc.Index.constant(index),
+                                                0.15)
+        with pytest.raises(DimensionalityError):
+            my_particle = sc.model.Particle(sc.Index.constant(index),
+                                                sc.Quantity(0.15, 'kg'))
+
+        my_particle = sc.model.Particle(sc.Index.constant(index), size)
+        assert_equal(my_particle.n(self.wavelen),
+                     np.ones_like(self.wavelen)*index)
+
+        # make sure units are correct
+        assert_equal(size.to_preferred(), my_particle.size_q)
+
+    def test_sphere_construction(self):
+        radius = sc.Quantity(150, 'nm')
+
+        # test that both index and radius must be specified:
+        with pytest.raises(KeyError):
+            my_sphere = sc.model.Sphere(sc.index.polystyrene)
+        with pytest.raises(DimensionalityError):
+            my_sphere = sc.model.Sphere(sc.index.polystyrene, 0.15)
+
+        my_sphere = sc.model.Sphere(sc.index.polystyrene, radius)
+
+        # test that index works as expected
+        assert_equal(my_sphere.n(self.wavelen),
+                     sc.index.polystyrene(self.wavelen))
+
+        # make sure diameter is correct
+        assert_equal(radius.to_preferred() * 2, my_sphere.diameter_q)
+        assert_equal(radius.to_preferred(), my_sphere.radius_q)
+        assert_equal(radius.to_preferred().magnitude * 2, my_sphere.diameter)
+        assert_equal(radius.to_preferred().magnitude, my_sphere.radius)
+        assert not my_sphere.layered
+
+    def test_layered_sphere(self):
+        index = [sc.index.vacuum, sc.index.polystyrene, sc.index.water]
+        radii = sc.Quantity([0.15, 0.16, 0.18], 'um')
+        radii_wrong_order = sc.Quantity([0.15, 0.17, 0.14], 'um')
+        radii_too_many = sc.Quantity([0.15, 0.16, 0.17, 0.18], 'um')
+        radii_too_few = sc.Quantity(0.15, 'um')
+
+        with pytest.raises(ValueError):
+            my_layered_sphere = sc.model.Sphere(index, radii_wrong_order)
+        with pytest.raises(ValueError):
+            my_layered_sphere = sc.model.Sphere(index, radii_too_many)
+        with pytest.raises(ValueError):
+            my_layered_sphere = sc.model.Sphere(index, radii_too_few)
+
+        my_layered_sphere = sc.model.Sphere(index, radii)
+        assert_equal(radii.to_preferred().magnitude, my_layered_sphere.size)
+        assert_equal((radii.to_preferred() * 2).magnitude,
+                     my_layered_sphere.diameter_q.magnitude)
+        assert_equal((radii.to_preferred() * 2).units,
+                     my_layered_sphere.diameter_q.units)
+        assert my_layered_sphere.layered
+
+        # check indexes of refraction
+        for layer, n in enumerate(my_layered_sphere.n):
+            assert_equal(n(self.wavelen), index[layer](self.wavelen))
+
 
 class TestModel():
     """Tests for the Model class and derived classes.
     """
-    ps_sphere = sc.structure.Sphere(sc.index.polystyrene,
+    ps_sphere = sc.model.Sphere(sc.index.polystyrene,
                                     sc.Quantity('0.125 um'))
-    hollow_sphere = sc.structure.Sphere([sc.index.vacuum,
+    hollow_sphere = sc.model.Sphere([sc.index.vacuum,
                                          sc.index.polystyrene],
                                         sc.Quantity([125, 135], 'nm'))
     qd = np.arange(0.1, 20, 0.01)
