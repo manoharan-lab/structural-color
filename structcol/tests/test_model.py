@@ -138,6 +138,49 @@ class TestModel():
         assert_equal(s_hollow.to_numpy(), structure_factor(self.qd).to_numpy())
 
 
+class TestDetector():
+    """Tests for the Detector class and derived classes.
+    """
+    def test_detector(self):
+        """Test standard Detector object"""
+
+        # make sure angles are accepted and stored correctly
+        theta_min, theta_max = sc.Quantity('90 deg'), sc.Quantity('180 deg')
+        phi_min, phi_max = sc.Quantity('0 deg'), sc.Quantity('360 deg')
+        detector = sc.model.Detector(theta_min, theta_max, phi_min, phi_max)
+
+        assert detector.theta_min == theta_min.to('rad').magnitude
+        assert detector.theta_max == theta_max.to('rad').magnitude
+        assert detector.phi_min == phi_min.to('rad').magnitude
+        assert detector.phi_max == phi_max.to('rad').magnitude
+
+        # specifying no dimensions should give radians
+        theta_min, theta_max = sc.Quantity(np.pi/2), sc.Quantity(np.pi)
+        phi_min, phi_max = sc.Quantity(0), sc.Quantity(np.pi)
+        detector = sc.model.Detector(theta_min, theta_max, phi_min, phi_max)
+        assert detector.theta_min == theta_min.to('rad').magnitude
+        assert detector.theta_max == theta_max.to('rad').magnitude
+        assert detector.phi_min == phi_min.to('rad').magnitude
+        assert detector.phi_max == phi_max.to('rad').magnitude
+
+        # specifying mix of dimensions should work
+        theta_min, theta_max = sc.Quantity(np.pi/2), sc.Quantity(np.pi, 'rad')
+        phi_min, phi_max = sc.Quantity(0, 'deg'), sc.Quantity(np.pi, '')
+        detector = sc.model.Detector(theta_min, theta_max, phi_min, phi_max)
+        assert detector.theta_min == theta_min.to('rad').magnitude
+        assert detector.theta_max == theta_max.to('rad').magnitude
+        assert detector.phi_min == phi_min.to('rad').magnitude
+        assert detector.phi_max == phi_max.to('rad').magnitude
+
+    def test_hemispherical_reflectance_detector(self):
+        """Test the integrating sphere-type detector"""
+        detector = sc.model.HemisphericalReflectanceDetector()
+        assert detector.theta_min == sc.Quantity('90 deg').to('rad').magnitude
+        assert detector.theta_max == sc.Quantity('180 deg').to('rad').magnitude
+        assert detector.phi_min == sc.Quantity('0 deg').to('rad').magnitude
+        assert detector.phi_max == sc.Quantity('360 deg').to('rad').magnitude
+
+
 def test_fresnel():
     # test the fresnel reflection and transmission coefficients
     n1 = 1.00

@@ -190,6 +190,54 @@ class HardSpheres(Model):
                                                               qd_cutoff)
         super().__init__(n_medium, thickness)
 
+class Detector:
+    """Class to describe detector used in the single-scattering model.
+
+    Attributes
+    ----------
+    theta_min, theta_max : structcol.Quantity [dimensionless]
+        Specifies the angular range over which to integrate the scattered
+        signal. The angles are the scattering angles (polar angle, measured
+        from the incident light direction) after the light exits into the
+        medium. The model will correct for refraction at the interface to
+        map this range of exit angles onto the range of scattering angles from
+        the particles. Usually one would set theta_min to correspond to the
+        numerical aperture of the detector. Setting theta_max to a value less
+        than 180 degrees corresponds to dark-field detection. Both theta_min
+        and theta_max can carry explicit units of radians or degrees.
+    phi_min, phi_max : structcol.Quantity [dimensionless]
+        Specifies the azimuthal angular range over which to integrate the
+        scattered signal. The angles are the azimuthal angles (measured from
+        the incident light direction) after the light exits into the medium.
+        The function will correct for refraction at the interface to map this
+        range of exit angles onto the range of scattering angles from the
+        particles.
+
+    """
+    @ureg.check(None, "[]", "[]", "[]", "[]")
+    def __init__(self, theta_min, theta_max, phi_min, phi_max):
+        # store in radians
+        self.theta_min = theta_min.to('rad').magnitude
+        self.theta_max = theta_max.to('rad').magnitude
+        self.phi_min = phi_min.to('rad').magnitude
+        self.phi_max = phi_max.to('rad').magnitude
+
+
+class HemisphericalReflectanceDetector(Detector):
+    """A Detector that captures all light scattered into the reflection
+    hemisphere.
+
+    Attributes
+    ----------
+    None
+
+    """
+    def __init__(self):
+        super().__init__(theta_min=Quantity('90.0 deg'),
+                         theta_max=Quantity('180.0 deg'),
+                         phi_min=Quantity('0.0 deg'),
+                         phi_max=Quantity('360.0 deg'))
+
 
 @ureg.check('[]', '[]', '[]', '[length]', '[length]', '[]', None, None, None,
             None, None, None, None, None, None, None, None, None, None, None,
