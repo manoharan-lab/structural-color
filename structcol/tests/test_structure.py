@@ -218,7 +218,6 @@ class TestStructureFactor():
         qd = 4*x*np.sin(angles/2)
         with pytest.warns(UnitStrippedWarning):
             structure_factor = sc.structure.PercusYevick(volume_fraction)
-        #s = structure.factor_py(qd, volume_fraction)
         s = structure_factor(qd)
 
         # Structure factor for core-shell particles with core size equal to
@@ -235,7 +234,6 @@ class TestStructureFactor():
             structure_factor_cs = sc.structure.PercusYevick(
                                             np.sum(volume_fraction_cs))
             s_cs = structure_factor_cs(qd_cs)
-        #s_cs = structure.factor_py(qd_cs, np.sum(volume_fraction_cs))
 
         assert_almost_equal(s, s_cs, decimal=5)
 

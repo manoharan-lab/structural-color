@@ -110,10 +110,18 @@ class TestModel():
                                         sc.Quantity([125, 135], 'nm'))
     qd = np.arange(0.1, 20, 0.01)
     phi = np.array([0.15, 0.3, 0.45])
+    my_units = sc.ureg.millimeter
+    thickness = 0.050 * sc.ureg.millimeter
 
     def test_hardsphere_structure(self):
-        glass = sc.model.HardSpheres(self.ps_sphere, self.phi,
-                                     sc.index.water, sc.index.vacuum)
+        glass = sc.model.HardSpheres(self.ps_sphere, self.phi, sc.index.water,
+                                     sc.index.vacuum, self.thickness)
+
+        # make sure thickness is correctly stored
+        assert_equal(glass.thickness_q, self.thickness.to_preferred())
+
+        # make sure original units are correctly stored
+        assert glass.original_units == self.my_units
 
         s_ps = glass.structure_factor(self.qd)
         structure_factor = sc.structure.PercusYevick(self.phi)
@@ -124,7 +132,8 @@ class TestModel():
         # make sure structure factor is the same for layered spheres as for
         # solid spheres
         glass = sc.model.HardSpheres(self.hollow_sphere, self.phi,
-                                     sc.index.water, sc.index.vacuum)
+                                     sc.index.water, sc.index.vacuum,
+                                     self.thickness)
         s_hollow = glass.structure_factor(self.qd)
         assert_equal(s_hollow.to_numpy(), structure_factor(self.qd).to_numpy())
 

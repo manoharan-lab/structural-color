@@ -141,10 +141,21 @@ class Model:
     ----------
     n_medium : sc.Index object
         index of refraction of medium around structure
+    thickness : sc.Quantity[length]
+        thickness of sample
 
     """
-    def __init__(self, n_medium):
+    @ureg.check(None, None, "[length]")
+    def __init__(self, n_medium, thickness):
         self.n_medium = n_medium
+        self.thickness = thickness.to_preferred().magnitude
+        self.original_units = thickness.units
+        self.current_units = thickness.to_preferred().units
+
+    @property
+    def thickness_q(self):
+        """Return thickness with units"""
+        return self.thickness * self.current_units
 
 
 class HardSpheres(Model):
@@ -165,7 +176,7 @@ class HardSpheres(Model):
         qd below which to use approximate solution to structure factor
 
     """
-    def __init__(self, sphere, volume_fraction, n_matrix, n_medium,
+    def __init__(self, sphere, volume_fraction, n_matrix, n_medium, thickness,
                  qd_cutoff=None):
         self.sphere = sphere
         self.volume_fraction = volume_fraction
@@ -177,7 +188,7 @@ class HardSpheres(Model):
             self.structure_factor = sc.structure.PercusYevick(volume_fraction,
                                                               qd_cutoff =
                                                               qd_cutoff)
-        super().__init__(n_medium)
+        super().__init__(n_medium, thickness)
 
 
 @ureg.check('[]', '[]', '[]', '[length]', '[length]', '[]', None, None, None,
