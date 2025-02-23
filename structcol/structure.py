@@ -26,8 +26,8 @@ structure factors
 """
 
 import numpy as np
-# unit registry and Quantity constructor from pint
-from . import ureg, Quantity
+# Quantity constructor from pint
+from . import Quantity
 from scipy.interpolate import interp1d, InterpolatedUnivariateSpline
 from scipy.special import jv
 import xarray as xr
@@ -50,34 +50,35 @@ class StructureFactor:
     def __init__(self):
         pass
 
-    def __call__(self, qd):
-        # ensure qd is one-dimensional DataArray so that we can
-        # generate results for all combinations of qd and structural
+    def __call__(self, ql):
+        # ensure ql is one-dimensional DataArray so that we can
+        # generate results for all combinations of ql and structural
         # parameters.
-        if not isinstance(qd, xr.DataArray):
-            qd = xr.DataArray(qd, coords={"qd": qd})
+        if not isinstance(ql, xr.DataArray):
+            ql = xr.DataArray(ql, coords={"ql": ql})
 
-        return self.calculate(qd)
+        return self.calculate(ql)
 
-    def calculate(self, qd):
+    def calculate(self, ql):
         """
         Virtual method to calculate the structure factor at nondimensional
-        wavevector qd
+        wavevector ql
 
         Parameters
         ----------
-        qd : xr.DataArray
-            dimensionless product of wavevector (in vacuum) and diameter. Must
-            be specified as a labeled DataArray if you call the
-            `structure_factor.calculate(qd)` method directly, where
-            `structure_factor` is an instance of the StructureFactor class. If
-            you use the convenience method `structure_factor(qd)`, you can
-            specify `qd` as a numpy array or xarray DataArray.
+        ql : xr.DataArray
+            dimensionless product of wavevector (in vacuum) and some length
+            scale (usually diameter of particles. Must be specified as a
+            labeled DataArray if you call the `structure_factor.calculate(ql)`
+            method directly, where `structure_factor` is an instance of the
+            StructureFactor class. If you use the convenience method
+            `structure_factor(ql)`, you can specify `ql` as a numpy array or
+            xarray DataArray.
 
         Returns:
         -------
         xr.DataArray
-            The structure factor as a function of qd and the other structural
+            The structure factor as a function of ql and the other structural
             parameters specified in the derived class (for example, volume
             fraction).
 
@@ -97,27 +98,27 @@ class PercusYevick(StructureFactor):
     ----------
     volume_fraction : array-like
         volume fraction of particles or voids in matrix
-    qd_cutoff : float (optional)
-        qd below which an approximate solution is used
+    ql_cutoff : float (optional)
+        ql below which an approximate solution is used
 
     Notes
     -----
     Might not be accurate for volume fractions above 0.5 (see discussion in
     [2]_). Also, for small q, the analytical solution is numerically unstable,
     so we use a Taylor expansion of the direct correlation function to
-    calculate the structure factor at qd values below `qd_cutoff`. The
+    calculate the structure factor at ql values below `ql_cutoff`. The
     derivation of the approximate solution is in the docstring for the
     `approximate_dcf()` method.
 
     This code is fully vectorized, so you can feed it arrays for
-    both qd and phi and it will produce a 2D output (see Examples).
+    both ql and phi and it will produce a 2D output (see Examples).
 
     Examples
     --------
-    >>>  qd = np.arange(0.1, 20, 0.01)
+    >>>  ql = np.arange(0.1, 20, 0.01)
     >>>  volume_fraction = np.array([0.15, 0.3, 0.45])
     >>>  structure_factor = PercusYevick(volume_fraction)
-    >>>  s_of_q = structure_factor(qd)
+    >>>  s_of_q = structure_factor(ql)
 
     References
     ----------
@@ -127,20 +128,20 @@ class PercusYevick(StructureFactor):
     Glasses.” Optics Express 29, no. 14 (July 5, 2021): 21212–24.
     https://doi.org/10.1364/OE.425399.
 
-    [2] Scheffold, F, and T G Mason. “Scattering from Highly Packed Disordered
+    [2] Scheffold, F., and T. G. Mason. “Scattering from Highly Packed Disordered
     Colloids.” Journal of Physics: Condensed Matter 21, no. 33 (July 2009):
     332102. https://doi.org/10.1088/0953-8984/21/33/332102.
 
     """
 
-    def __init__(self, volume_fraction, qd_cutoff=0.01):
+    def __init__(self, volume_fraction, ql_cutoff=0.01):
         # convert volume fraction to DataArray so that calculations will
         # vectorize easily
         phi = np.atleast_1d(volume_fraction)
         self.volume_fraction = xr.DataArray(phi, coords={"volfrac": phi})
-        self.qd_cutoff = qd_cutoff
+        self.ql_cutoff = ql_cutoff
 
-    def calculate(self, qd):
+    def calculate(self, ql):
         """Calculates structure factor using the Percus-Yevick analytical
         approximation for hard-sphere liquids.
 
@@ -154,29 +155,29 @@ class PercusYevick(StructureFactor):
 
         # Fourier transform of the direct correlation function multiplied by
         # the number density (eq. 6 of [1]_)
-        rho_c = ((-24*phi/qd**6)
-                 * (qd*np.sin(qd) * (qd**2 * (alpha + 2*beta + 4*gamma)
+        rho_c = ((-24*phi/ql**6)
+                 * (ql*np.sin(ql) * (ql**2 * (alpha + 2*beta + 4*gamma)
                                      - 24*gamma)
-                    - 2*(qd**2)*beta
-                    - np.cos(qd) * (qd**4 * (alpha + beta + gamma)
-                                    - 2*qd**2 * (beta + 6*gamma) + 24*gamma)
+                    - 2*(ql**2)*beta
+                    - np.cos(ql) * (ql**4 * (alpha + beta + gamma)
+                                    - 2*ql**2 * (beta + 6*gamma) + 24*gamma)
                     + 24*gamma))
 
-        # the above expression is not numerically stable near low qd.  We
-        # replace the values with a small-qd approximation
-        rho_c_low = self.approximate_dcf(qd, phi, alpha, beta, gamma)
-        rho_c = xr.where(rho_c.qd < self.qd_cutoff, rho_c_low, rho_c)
+        # the above expression is not numerically stable near low ql.  We
+        # replace the values with a small-ql approximation
+        rho_c_low = self.approximate_dcf(ql, phi, alpha, beta, gamma)
+        rho_c = xr.where(rho_c.ql < self.ql_cutoff, rho_c_low, rho_c)
 
-        # Structure factor at qd (eq. 1 of [1]_)
+        # Structure factor at ql (eq. 1 of [1]_)
         s = 1.0/(1-rho_c)
 
         # squeeze but keeps coordinates as scalar values so that the returned
         # DataArray still has the value of the volume fraction recorded
         return s.squeeze()
 
-    def approximate_dcf(self, qd, phi, alpha, beta, gamma):
+    def approximate_dcf(self, ql, phi, alpha, beta, gamma):
         r"""Calculates an approximation to the direct correlation function
-        valid for small qd (qd << 1), where the analytical solution may be
+        valid for small ql (ql << 1), where the analytical solution may be
         numerically unstable.
 
         Notes
@@ -185,7 +186,7 @@ class PercusYevick(StructureFactor):
         Derivation is below.  See also SasView's hardsphere.c, which makes a
         similar approximation [1]_.
 
-        Let :math:`x = qd`.
+        Let :math:`x = ql`.
 
         Then the dimensionless direct correlation function is
 
@@ -252,7 +253,7 @@ class PercusYevick(StructureFactor):
 
         """
         return phi * ((-8*alpha -6*beta -4*gamma)
-                      + qd**2 *(4*alpha/5 + 2*beta/3 + gamma/2))
+                      + ql**2 *(4*alpha/5 + 2*beta/3 + gamma/2))
 
 class Paracrystal(StructureFactor):
     """Calculate structure factor of a structure characterized by disorder of
@@ -275,7 +276,7 @@ class Paracrystal(StructureFactor):
     Returns:
     -------
     1D numpy array:
-        The structure factor as a function of qd.
+        The structure factor as a function of ql.
 
     Notes
     -----
@@ -302,14 +303,14 @@ class Paracrystal(StructureFactor):
         sigma = np.atleast_1d(sigma)
         self.sigma = xr.DataArray(sigma, coords={"sigma": sigma})
 
-    def calculate(self, qd):
+    def calculate(self, ql):
         """Calculates paracrystalline structure factor.
 
         """
         phi = self.volume_fraction
 
-        r = np.exp(-(qd*phi**(-1/3) * self.sigma)**2/2)
-        s = (1 - r**2) / (1 + r**2 - 2*r*np.cos(qd*phi**(-1/3)))
+        r = np.exp(-(ql*phi**(-1/3) * self.sigma)**2/2)
+        s = (1 - r**2) / (1 + r**2 - 2*r*np.cos(ql*phi**(-1/3)))
 
         return s.squeeze()
 
@@ -529,26 +530,26 @@ class Interpolated(StructureFactor):
         data used to generate interpolation function
     """
 
-    def __init__(self, s_data, qd_data):
+    def __init__(self, s_data, ql_data):
         """Construct interpolation for a structure factor from data
 
         Parameters
         ----------
         s_data: 1D numpy array
             structure factor values from data
-        qd_data: 1D numpy array
-            qd values from data
+        ql_data: 1D numpy array
+            ql values from data
         """
-        self.data = xr.DataArray(s_data, coords={"qd": qd_data})
-        func = interp1d(qd_data, s_data, kind = 'linear', bounds_error=False,
+        self.data = xr.DataArray(s_data, coords={"ql": ql_data})
+        func = interp1d(ql_data, s_data, kind = 'linear', bounds_error=False,
                         fill_value=s_data[0])
         self.interpolation_func = func
 
-    def calculate(self, qd):
+    def calculate(self, ql):
         """Calculates paracrystalline structure factor.
 
         """
-        return self.interpolation_func(qd).squeeze()
+        return self.interpolation_func(ql).squeeze()
 
 def field_phase_data(qd, filename='spf.dat'):
     s_file = os.path.join(os.getcwd(),filename)

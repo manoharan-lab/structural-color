@@ -37,16 +37,16 @@ from pint.errors import UnitStrippedWarning
 class TestStructureFactor():
     """Tests for the StructureFactor class and derived classes.
     """
-    qd = np.arange(0.1, 20, 0.01)
+    ql = np.arange(0.1, 20, 0.01)
     phi = np.array([0.15, 0.3, 0.45])
 
     def test_structure_factor_base_class(self):
         structure_factor = sc.structure.StructureFactor()
         with pytest.raises(NotImplementedError):
-            structure_factor.calculate(self.qd)
+            structure_factor.calculate(self.ql)
         # test that __call__ method works
         with pytest.raises(NotImplementedError):
-            structure_factor(self.qd)
+            structure_factor(self.ql)
 
     def test_percus_yevick(self):
         """Tests the object version of the Percus-Yevick structure factor
@@ -62,17 +62,17 @@ class TestStructureFactor():
         structure_factor = sc.structure.PercusYevick(0.4)
         s = structure_factor(0.1)
 
-        # now calculate for arrays of phi and qd
+        # now calculate for arrays of phi and ql
         structure_factor = sc.structure.PercusYevick(self.phi)
-        s = structure_factor(self.qd)
+        s = structure_factor(self.ql)
 
         # ensure that we are broadcasting correctly
-        assert s.shape == (self.qd.shape[0], self.phi.shape[0])
+        assert s.shape == (self.ql.shape[0], self.phi.shape[0])
 
-        # make sure that calculation works with qd specified as DataArray
-        qd = xr.DataArray(self.qd, coords = {"qd": self.qd})
-        s = structure_factor(qd)
-        assert s.shape == (self.qd.shape[0], self.phi.shape[0])
+        # make sure that calculation works with ql specified as DataArray
+        ql = xr.DataArray(self.ql, coords = {"ql": self.ql})
+        s = structure_factor(ql)
+        assert s.shape == (self.ql.shape[0], self.phi.shape[0])
 
         # compare to values from Cipelletti, Trappe, and Pine, "Scattering
         # Techniques", in "Fluids, Colloids and Soft Materials: An Introduction
@@ -81,23 +81,23 @@ class TestStructureFactor():
         # (http://arohatgi.info/WebPlotDigitizer/app/). They are probably good
         # to only one decimal place, so this is a fairly crude test.)
 
-        # max values of S(qd) at different phi
-        max_vals = s.max(dim="qd")
-        # values of qd at which S(qd) has max
-        max_qds = s.idxmax(dim="qd")
+        # max values of S(ql) at different phi
+        max_vals = s.max(dim="ql")
+        # values of ql at which S(ql) has max
+        max_qls = s.idxmax(dim="ql")
         assert_almost_equal(max_vals[0], 1.17, decimal=1)
         assert_almost_equal(max_vals[1], 1.52, decimal=1)
         assert_almost_equal(max_vals[2], 2.52, decimal=1)
-        assert_almost_equal(max_qds[0], 6.00, decimal=1)
-        assert_almost_equal(max_qds[1], 6.37, decimal=1)
-        assert_almost_equal(max_qds[2], 6.84, decimal=1)
+        assert_almost_equal(max_qls[0], 6.00, decimal=1)
+        assert_almost_equal(max_qls[1], 6.37, decimal=1)
+        assert_almost_equal(max_qls[2], 6.84, decimal=1)
 
         # compare to values from before refactoring
-        qd = np.linspace(0.1, 20, 20)
+        ql = np.linspace(0.1, 20, 20)
         phi = 0.6
 
         structure_factor = sc.structure.PercusYevick(phi)
-        s = structure_factor(qd)
+        s = structure_factor(ql)
 
         s_expected = [0.005292811521054822, 0.005782178319680089,
                       0.007377121990596123, 0.01122581884358338,
@@ -112,20 +112,20 @@ class TestStructureFactor():
 
         assert_almost_equal(s.squeeze(), s_expected)
 
-        # test that structure factor converges to low-qd approximation at small
-        # qd (but not so small that solution becomes numerically unstable).
+        # test that structure factor converges to low-ql approximation at small
+        # ql (but not so small that solution becomes numerically unstable).
         # Use a variety of volume fractions to test
         phi = np.linspace(0.05, 0.6, 10)
-        structure_factor = sc.structure.PercusYevick(phi, qd_cutoff=0.01)
-        s = structure_factor(qd)
+        structure_factor = sc.structure.PercusYevick(phi, ql_cutoff=0.01)
+        s = structure_factor(ql)
 
         # generate structure factor with higher cutoff, so that below
-        # qd_cutoff, the structure factor should be using the approximate
+        # ql_cutoff, the structure factor should be using the approximate
         # solution to the direct correlation function
-        structure_factor_approx = sc.structure.PercusYevick(phi, qd_cutoff=0.2)
-        s_approx = structure_factor_approx(qd)
-        assert_almost_equal(s.sel(qd=0.1).to_numpy(),
-                            s_approx.sel(qd=0.1).to_numpy())
+        structure_factor_approx = sc.structure.PercusYevick(phi, ql_cutoff=0.2)
+        s_approx = structure_factor_approx(ql)
+        assert_almost_equal(s.sel(ql=0.1).to_numpy(),
+                            s_approx.sel(ql=0.1).to_numpy())
 
     def test_paracrystal(self):
         """Tests the object version of the paracrystalline structure factor
@@ -134,8 +134,8 @@ class TestStructureFactor():
         sigma = np.arange(0, 0.5, 0.05)
 
         structure_factor = sc.structure.Paracrystal(volfrac, sigma=sigma)
-        qd = np.linspace(0.05, 0.6, 10)
-        s = structure_factor(qd)
+        ql = np.linspace(0.05, 0.6, 10)
+        s = structure_factor(ql)
         # TODO add tests to check that we are getting the right values
 
     def test_percus_yevick_polydisperse(self):
@@ -143,18 +143,18 @@ class TestStructureFactor():
         """
         # first test that the analytical structure factor for polydisperse
         # systems matches Percus-Yevick in the monodisperse limit
-        qd = 5.0
+        ql = 5.0
         phi = 0.5
 
         # Percus-Yevick monodisperse
         monodisperse_structure_factor = sc.structure.PercusYevick(phi)
-        s_py = monodisperse_structure_factor(qd)
+        s_py = monodisperse_structure_factor(ql)
 
         # Polydisperse Percus-Yevick
         d = Quantity('100.0 nm')
         c = 1.0
         pdi = 1e-5
-        q2 = qd / d
+        q2 = ql / d
 
         polydisperse_structure_factor = sc.structure.Polydisperse(phi, d, c,
                                                                   pdi)
@@ -167,7 +167,7 @@ class TestStructureFactor():
 
         # Figure 1 curve A peaks and valleys, from digitized figure 1 (includes
         # the spurious peaks)
-        qd = np.array([0.2909090909090909, 3.2, 5.03030303030303,
+        ql = np.array([0.2909090909090909, 3.2, 5.03030303030303,
                        5.721212121212122, 6.484848484848484, 7.430303030303031,
                        8.824242424242424, 8.993939393939394, 9.078787878787878,
                        9.163636363636364, 9.515151515151516,
@@ -190,7 +190,7 @@ class TestStructureFactor():
         # in the paper, D_sigma is the square of the relative deviation, so
         # D_sigma=1e-4 corresponds to pdi=1e-2
         pdi = 1e-2
-        q2 = qd / d
+        q2 = ql / d
 
         polydisperse_structure_factor = sc.structure.Polydisperse(phi, d, c,
                                                                   pdi)
@@ -215,10 +215,10 @@ class TestStructureFactor():
         volume_fraction = Quantity(0.0001, '')         # IS VF TOO LOW?
         n_sample = sc.index.n_eff(n_particle, n_matrix, volume_fraction)
         x = size_parameter(wavelen, n_sample, radius)
-        qd = 4*x*np.sin(angles/2)
+        qa = 4*x*np.sin(angles/2)
         with pytest.warns(UnitStrippedWarning):
             structure_factor = sc.structure.PercusYevick(volume_fraction)
-        s = structure_factor(qd)
+        s = structure_factor(qa)
 
         # Structure factor for core-shell particles with core size equal to
         # radius of non-core-shell particle
@@ -229,20 +229,20 @@ class TestStructureFactor():
 
         n_sample_cs = sc.index.n_eff(n_particle_cs, n_matrix, volume_fraction_cs)
         x_cs = size_parameter(wavelen, n_sample_cs, radius_cs[1]).flatten()
-        qd_cs = 4*x_cs*np.sin(angles/2)
+        qa_cs = 4*x_cs*np.sin(angles/2)
         with pytest.warns(UnitStrippedWarning):
             structure_factor_cs = sc.structure.PercusYevick(
                                             np.sum(volume_fraction_cs))
-            s_cs = structure_factor_cs(qd_cs)
+            s_cs = structure_factor_cs(qa_cs)
 
         assert_almost_equal(s, s_cs, decimal=5)
 
     def test_structure_factor_interpolated(self):
-        qd = np.array([1, 2])
-        qd_data = np.array([0.5, 2.5])
+        ql = np.array([1, 2])
+        ql_data = np.array([0.5, 2.5])
         s_data = np.array([1, 1])
-        structure_factor = sc.structure.Interpolated(s_data, qd_data)
-        s = structure_factor(qd)
+        structure_factor = sc.structure.Interpolated(s_data, ql_data)
+        s = structure_factor(ql)
         assert_equal(s[0], 1)
 
 @pytest.mark.slow
@@ -265,14 +265,14 @@ def test_structure_factor_data_reflectances():
     thickness = Quantity('50 um')
 
     # generate structure factor "data" from Percus-Yevick model
-    qd_data = np.arange(0.001, 75, 0.1)
+    ql_data = np.arange(0.001, 75, 0.1)
     structure_factor = sc.structure.PercusYevick(volume_fraction)
-    s_data = structure_factor(qd_data)
+    s_data = structure_factor(ql_data)
 
     # make interpolation function
-    qd = np.arange(0, 70, 0.1)
-    structure_factor_interpolated = sc.structure.Interpolated(s_data, qd_data)
-    s = structure_factor_interpolated(qd)
+    ql = np.arange(0, 70, 0.1)
+    structure_factor_interpolated = sc.structure.Interpolated(s_data, ql_data)
+    s = structure_factor_interpolated(ql)
 
     # calculate reflectance from single-scattering model
     reflectance = np.zeros(len(wavelengths))
@@ -287,7 +287,7 @@ def test_structure_factor_data_reflectances():
                                 thickness=thickness,
                                 structure_type='data',
                                 structure_s_data=s_data,
-                                structure_qd_data=qd_data)
+                                structure_qd_data=ql_data)
 
     reflectance_expected = [0.02776632370015263, 0.025862410582306178,
                             0.02804132579281817, 0.029567824927529483,
@@ -316,9 +316,9 @@ def test_structure_factor_data_reflectances():
     boundary = 'film'
     thickness = sc.Quantity('50 um')
 
-    qd_data = np.arange(0.001, 75, 0.1)
+    ql_data = np.arange(0.001, 75, 0.1)
     structure_factor = sc.structure.PercusYevick(volume_fraction)
-    s_data = structure_factor(qd_data)
+    s_data = structure_factor(ql_data)
 
     reflectance = np.zeros(wavelengths.size)
     for i in range(wavelengths.size):
@@ -329,7 +329,7 @@ def test_structure_factor_data_reflectances():
                                           wavelengths[i],
                                           structure_type = 'data',
                                           structure_s_data = s_data,
-                                          structure_qd_data = qd_data)
+                                          structure_qd_data = ql_data)
 
         r0, k0, W0 = mc.initialize(nevents, ntrajectories, n_medium[i],
                                    n_sample, boundary, rng=rng)

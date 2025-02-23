@@ -172,22 +172,22 @@ class HardSpheres(Model):
         volume fraction of spheres that make up the structure
     n_matrix : sc.Index object
         Index of matrix material between the spheres
-    qd_cutoff : float (optional)
-        qd below which to use approximate solution to structure factor
+    ql_cutoff : float (optional)
+        ql below which to use approximate solution to structure factor
 
     """
     def __init__(self, sphere, volume_fraction, n_matrix, n_medium, thickness,
-                 qd_cutoff=None):
+                 ql_cutoff=None):
         self.sphere = sphere
         self.volume_fraction = volume_fraction
         self.n_matrix = n_matrix
 
-        if qd_cutoff is None:
+        if ql_cutoff is None:
             self.structure_factor = sc.structure.PercusYevick(volume_fraction)
         else:
             self.structure_factor = sc.structure.PercusYevick(volume_fraction,
-                                                              qd_cutoff =
-                                                              qd_cutoff)
+                                                              ql_cutoff =
+                                                              ql_cutoff)
         super().__init__(n_medium, thickness)
 
 class Detector:
