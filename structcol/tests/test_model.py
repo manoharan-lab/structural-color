@@ -27,6 +27,35 @@ from numpy.testing import assert_equal, assert_almost_equal, assert_array_almost
 import pytest
 import structcol as sc
 
+class TestModel():
+    """Tests for the Model class and derived classes.
+    """
+    ps_sphere = sc.structure.Sphere(sc.index.polystyrene,
+                                    sc.Quantity('0.125 um'))
+    hollow_sphere = sc.structure.Sphere([sc.index.vacuum,
+                                         sc.index.polystyrene],
+                                        sc.Quantity([125, 135], 'nm'))
+    qd = np.arange(0.1, 20, 0.01)
+    phi = np.array([0.15, 0.3, 0.45])
+
+    def test_hardsphere_structure(self):
+        glass = sc.model.HardSpheres(self.ps_sphere, self.phi,
+                                     sc.index.water, sc.index.vacuum)
+
+        s_ps = glass.structure_factor(self.qd)
+        structure_factor = sc.structure.PercusYevick(self.phi)
+
+        # make sure structure factor is calculated correctly
+        assert_equal(s_ps.to_numpy(), structure_factor(self.qd).to_numpy())
+
+        # make sure structure factor is the same for layered spheres as for
+        # solid spheres
+        glass = sc.model.HardSpheres(self.hollow_sphere, self.phi,
+                                     sc.index.water, sc.index.vacuum)
+        s_hollow = glass.structure_factor(self.qd)
+        assert_equal(s_hollow.to_numpy(), structure_factor(self.qd).to_numpy())
+
+
 def test_fresnel():
     # test the fresnel reflection and transmission coefficients
     n1 = 1.00

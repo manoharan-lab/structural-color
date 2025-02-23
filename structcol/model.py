@@ -41,6 +41,54 @@ import structcol as sc
 from . import Quantity
 from . import ureg
 
+class Model:
+    """Base class for different types of single-scattering models.
+
+    A Model object specifies the arrangement of components with different
+    refractive indices.
+
+    Attributes
+    ----------
+    n_medium : sc.Index object
+        index of refraction of medium around structure
+
+    """
+    def __init__(self, n_medium):
+        self.n_medium = n_medium
+
+
+class HardSpheres(Model):
+    """Hard-sphere liquid or glass.
+
+    Models scattering using the product of the Mie form factor and the
+    Percus-Yevick structure factor for hard spheres.
+
+    Attributes
+    ----------
+    sphere : sc.Sphere object
+        Particles that make up the structure
+    volume_fraction : float
+        volume fraction of spheres that make up the structure
+    n_matrix : sc.Index object
+        Index of matrix material between the spheres
+    qd_cutoff : float (optional)
+        qd below which to use approximate solution to structure factor
+
+    """
+    def __init__(self, sphere, volume_fraction, n_matrix, n_medium,
+                 qd_cutoff=None):
+        self.sphere = sphere
+        self.volume_fraction = volume_fraction
+        self.n_matrix = n_matrix
+
+        if qd_cutoff is None:
+            self.structure_factor = sc.structure.PercusYevick(volume_fraction)
+        else:
+            self.structure_factor = sc.structure.PercusYevick(volume_fraction,
+                                                              qd_cutoff =
+                                                              qd_cutoff)
+        super().__init__(n_medium)
+
 
 @ureg.check('[]', '[]', '[]', '[length]', '[length]', '[]', None, None, None,
             None, None, None, None, None, None, None, None, None, None, None,
