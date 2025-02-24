@@ -45,10 +45,13 @@ class TestParticle():
                                                 sc.Quantity(0.15, 'kg'))
 
         my_particle = sc.model.Particle(sc.Index.constant(index), size)
-        assert_equal(my_particle.n(self.wavelen),
-                     np.ones_like(self.wavelen)*index)
+        # make sure index is stored and calculated correctly
+        n = my_particle.n(self.wavelen)
+        assert_equal(n, np.ones_like(self.wavelen)*index)
+        # check stored units
+        assert n.attrs["wavelength unit"] == size.to_preferred().units
 
-        # make sure units are correct
+        # make sure reported units of size are correct
         assert_equal(size.to_preferred(), my_particle.size_q)
 
     def test_sphere_construction(self):
@@ -63,8 +66,9 @@ class TestParticle():
         my_sphere = sc.model.Sphere(sc.index.polystyrene, radius)
 
         # test that index works as expected
-        assert_equal(my_sphere.n(self.wavelen),
-                     sc.index.polystyrene(self.wavelen))
+        n = my_sphere.n(self.wavelen)
+        assert_equal(n, sc.index.polystyrene(self.wavelen))
+        assert n.attrs["wavelength unit"] == radius.to_preferred().units
 
         # make sure diameter is correct
         assert_equal(radius.to_preferred() * 2, my_sphere.diameter_q)
@@ -95,10 +99,15 @@ class TestParticle():
                      my_layered_sphere.diameter_q.units)
         assert my_layered_sphere.layered
 
-        # check indexes of refraction
-        for layer, n in enumerate(my_layered_sphere.n):
-            assert_equal(n(self.wavelen), index[layer](self.wavelen))
+        # test that index works as expected
+        n = my_layered_sphere.n(self.wavelen)
+        assert_equal(n.sel(layer=0), sc.index.vacuum(self.wavelen))
+        assert_equal(n.sel(layer=1), sc.index.polystyrene(self.wavelen))
+        assert_equal(n.sel(layer=2), sc.index.water(self.wavelen))
+        assert n.attrs["wavelength unit"] == radii.to_preferred().units
 
+        # test number of layers
+        assert my_layered_sphere.layers == len(radii)
 
 class TestModel():
     """Tests for the Model class and derived classes.

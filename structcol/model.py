@@ -31,6 +31,7 @@ Physical Review E 90, no. 6 (2014): 62302. doi:10.1103/PhysRevE.90.062302
 """
 
 import numpy as np
+import xarray as xr
 from pymie import mie
 from pymie import multilayer_sphere_lib as msl
 from pymie import size_parameter
@@ -59,7 +60,7 @@ class Particle:
     """
     @ureg.check(None, None, '[length]')
     def __init__(self, index, size):
-        self.n = index
+        self.index = index
         # store sizes in internal units and strip units after saving them
         self.original_units = size.units
         self.size = size.to_preferred().magnitude
@@ -69,6 +70,25 @@ class Particle:
     def size_q(self):
         """Dimensions of particle, reported with units"""
         return self.size * self.current_units
+
+    @ureg.check(None, '[length]')
+    def n(self, wavelen):
+        """Calculate index as a function of vacuum wavelength
+
+        Parameters
+        ----------
+        wavelen : array-like [sc.Quantity]
+            wavelengths at which to calculate index of refraction
+
+        Returns
+        -------
+        xr.DataArray
+            Index of refraction at each specified wavelength
+        """
+        coord = {"wavelength": wavelen.to_preferred().magnitude}
+        index = xr.DataArray(self.index(wavelen), coords=coord)
+        index.attrs["wavelength unit"] = wavelen.to_preferred().units
+        return index.squeeze()
 
 
 class Sphere(Particle):
@@ -106,6 +126,7 @@ class Sphere(Particle):
                                  f"{n.shape} indexes, {size.shape} radii")
         else:
             self.layered = False
+            # use scalars instead of arrays
             n = n.item()
             size = size.item()
 
@@ -121,6 +142,15 @@ class Sphere(Particle):
         return self.size*2
 
     @property
+    def outer_diameter(self):
+        """Outer diameter of the particle.  Used for calculating, for example,
+        concentration of a layered sphere species"""
+        if self.layered:
+            return self.diameter[-1]*2
+        else:
+            return self.diameter*2
+
+    @property
     def radius_q(self):
         """Radius with units"""
         return self.size_q
@@ -129,6 +159,36 @@ class Sphere(Particle):
     def diameter_q(self):
         """Diameter with units"""
         return self.size_q * 2
+
+    @property
+    def layers(self):
+        """Number of layers in sphere"""
+        return len(np.atleast_1d(self.index))
+
+    def n(self, wavelen):
+        """Calculate index as a function of vacuum wavelength
+
+        Parameters
+        ----------
+        wavelen : array-like [sc.Quantity]
+            wavelengths at which to calculate index of refraction
+
+        Returns
+        -------
+        xr.DataArray
+            Index of refraction at each specified wavelength for each layer in
+            the particle (if layered)
+        """
+        if self.layered:
+            coords = {"wavelength": wavelen.to_preferred().magnitude,
+                      "layer": np.arange(self.layers)}
+            index = xr.DataArray([n(wavelen) for n in self.index],
+                                 dims=("layer", "wavelength"),
+                                 coords = coords)
+            index.attrs["wavelength unit"] = wavelen.to_preferred().units
+            return index.squeeze()
+        else:
+            return super().n(wavelen)
 
 
 class Model:
