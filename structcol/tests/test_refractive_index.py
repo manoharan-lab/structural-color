@@ -289,3 +289,24 @@ def test_neff():
                                          vf3_cs, maxwell_garnett=False)
 
     assert_almost_equal(neff_bg3_complex, neff_bg3_cs_complex)
+
+def test_multimaterial_bruggeman():
+    """Tests the Bruggeman approximation for three or more materials
+    """
+    # five layers, all same index.  Total volume fraction is 1, so result
+    # should not depend on volume fraction of matrix
+    index = 1.33
+    layers = 5
+    n_particle = np.ones(layers)*index
+    vf = np.ones(layers) * 1/layers
+    n_matrix = 1.0
+    assert_equal(sc.index.n_eff(n_particle, n_matrix, vf), index)
+
+    # three layers, outer layer same as matrix.  Should return same as two
+    # layers
+    n_matrix = 1.33
+    n_threelayer = np.array([1.0, 1.59, 1.33])
+    vf = np.array([0.2, 0.2, 0.2])
+    n_threelayer_eff = sc.index.n_eff(n_threelayer, n_matrix, vf)
+    n_twolayer_eff = sc.index.n_eff(n_threelayer[:-1], n_matrix, vf[:-1])
+    assert_almost_equal(n_threelayer_eff, n_twolayer_eff)
