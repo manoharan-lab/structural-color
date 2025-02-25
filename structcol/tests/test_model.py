@@ -67,7 +67,8 @@ class TestParticle():
 
         # test that index works as expected
         n = my_sphere.n(self.wavelen)
-        assert_equal(n, sc.index.polystyrene(self.wavelen))
+        assert_equal(n.to_numpy(),
+                     sc.index.polystyrene(self.wavelen).to_numpy())
         assert n.attrs["wavelength unit"] == radius.to_preferred().units
 
         # make sure diameter is correct
@@ -101,9 +102,11 @@ class TestParticle():
 
         # test that index works as expected
         n = my_layered_sphere.n(self.wavelen)
-        assert_equal(n.sel(layer=0), sc.index.vacuum(self.wavelen))
-        assert_equal(n.sel(layer=1), sc.index.polystyrene(self.wavelen))
-        assert_equal(n.sel(layer=2), sc.index.water(self.wavelen))
+        print(my_layered_sphere)
+        assert_equal(n.sel(layer=0).to_numpy(), sc.index.vacuum(self.wavelen))
+        assert_equal(n.sel(layer=1).to_numpy(),
+                     sc.index.polystyrene(self.wavelen))
+        assert_equal(n.sel(layer=2).to_numpy(), sc.index.water(self.wavelen))
         assert n.attrs["wavelength unit"] == radii.to_preferred().units
 
         # test number of layers

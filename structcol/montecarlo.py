@@ -332,6 +332,13 @@ class Trajectory:
             Electric field vector for each trajectory and event
             in global coordinates
         """
+
+        # until refactoring, convert DataArrays to numpy
+        if isinstance(n_particle, xr.DataArray):
+            n_particle = n_particle.to_numpy()
+        if isinstance(n_sample, xr.DataArray):
+            n_sample = n_sample.to_numpy()
+
         m = n_particle/n_sample
         x = size_parameter(wavelen, n_sample, radius)
         k = 2 * np.pi * n_sample / wavelen.magnitude
@@ -677,6 +684,12 @@ def initialize(nevents, ntraj, n_medium, n_sample, boundary, rng=None,
     definition of rsm slope of the surface).
 
     """
+    # until refactoring, convert index DataArrays to numpy
+    if isinstance(n_medium, xr.DataArray):
+        n_medium = n_medium.to_numpy()
+    if isinstance(n_sample, xr.DataArray):
+        n_sample = n_sample.to_numpy()
+
     if rng is None:
         rng = sc.rng
 
@@ -983,7 +996,9 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
         n_sample = n_matrix
 
     k = 2 * np.pi * n_sample / wavelen
-    m = n_particle/n_sample
+    m = (n_particle/n_sample)
+    if isinstance(m, xr.DataArray):
+        m = m.to_numpy()
     x = size_parameter(wavelen, n_sample, radius)
 
     # radius and radius2 should be in the same units (for polydisperse samples)

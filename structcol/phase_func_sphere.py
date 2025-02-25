@@ -23,6 +23,7 @@ Created on Thu Feb  8 12:34:06 2018
 """
 
 import numpy as np
+import xarray as xr
 import matplotlib.pyplot as plt
 import seaborn as sns
 from scipy.stats import gaussian_kde
@@ -675,6 +676,10 @@ def calc_scat_bulk(refl_per_traj,
         absorption coefficient for bulk film
 
     '''
+    # until refactoring, convert back to numpy
+    if isinstance(n_sample, xr.DataArray):
+        n_sample = n_sample.to_numpy()
+
     # get radius from diameter
     radius = diameter / 2
 

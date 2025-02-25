@@ -40,6 +40,7 @@ http://refractiveindex.info (accessed August 14, 2016).
 """
 
 import numpy as np
+import xarray as xr
 # unit registry and Quantity constructor from pint
 from . import ureg, Quantity
 from scipy.optimize import fsolve
@@ -107,9 +108,9 @@ class Index:
 
         Notes
         -----
-        The returned index will be a pure ndarray (not a wrapped dimensionless
-        sc.Quantity object). We return a pure ndarray so that other functions
-        and classes that use this class do not need to strip units.
+        The returned index is *not* returned as an pint Quantity object so that
+        other functions and classes that use this class do not need to strip
+        units.
 
         Parameters
         ----------
@@ -118,8 +119,10 @@ class Index:
 
         Returns
         -------
-        array-like of float/complex
-            Refractive indices (possibly complex) at specified wavelengths
+        xr.DataArray [float/complex]
+            Refractive indices (possibly complex) at specified wavelengths.
+            The wavelength is stored as a coordinate in the DataArray, with its
+            units stored as the attribute "wavelength.unit"
 
         """
         index = self._n(wavelen)
@@ -131,7 +134,16 @@ class Index:
                                  "correct units.")
             # the "to_base_units()" converts units like nm/m to dimensionless
             index = index.to_base_units().magnitude
-        return index
+
+        if np.isscalar(index):
+            return index
+        else:
+            # set up DataArray to return
+            coords={"wavelength": wavelen.to_preferred().magnitude}
+            index_array = xr.DataArray(index, coords=coords)
+            index_array.attrs["wavelength unit"] = wavelen.to_preferred().units
+
+            return index_array.squeeze()
 
     @classmethod
     def constant(cls, index):

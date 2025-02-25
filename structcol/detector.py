@@ -36,6 +36,7 @@ import warnings
 
 import matplotlib.pyplot as plt
 import numpy as np
+import xarray as xr
 from numpy.random import random as random
 
 import structcol as sc
@@ -1785,6 +1786,13 @@ def calc_refl_trans(trajectories, thickness, n_medium, n_sample, boundary,
         transmittance
 
     """
+
+    # until this function is refactored to use xarray, convert all indices to
+    # numpy arrays
+    if isinstance(n_medium, xr.DataArray):
+        n_medium = n_medium.to_numpy()
+    if isinstance(n_sample, xr.DataArray):
+        n_sample = n_sample.to_numpy()
 
     # make sure roughness-related values make sense
     if ((kz0_rot is None and kz0_refl is not None)

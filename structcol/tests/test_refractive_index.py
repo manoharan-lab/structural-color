@@ -97,18 +97,20 @@ class TestIndex:
                                                       index_data, kind='cubic')
 
         # linear should roughly agree; cubic should have better agreement
-        assert_almost_equal(interpolated_index_linear(self.wavelen),
-                            sc.index.water(self.wavelen), decimal=3)
-        assert_almost_equal(interpolated_index_cubic(self.wavelen),
-                            sc.index.water(self.wavelen), decimal=5)
+        assert_almost_equal(interpolated_index_linear(self.wavelen).to_numpy(),
+                            sc.index.water(self.wavelen).to_numpy(), decimal=3)
+        assert_almost_equal(interpolated_index_cubic(self.wavelen).to_numpy(),
+                            sc.index.water(self.wavelen).to_numpy(), decimal=5)
 
         # test that specifying wavelength in the wrong units gives error
-        with pytest.raises(ValueError):
-            index_data = sc.index.water(wavelength_data) * sc.Quantity('kg')
-            index = sc.Index.from_data(wavelength_data, index_data)
+        with pytest.raises(DimensionalityError):
+            index_data = sc.index.water(wavelength_data)
+            wavelength_wrong = wavelength_data.magnitude *  sc.Quantity('kg')
+            index = sc.Index.from_data(wavelength_wrong, index_data)
 
         # test that dimensions of index are stripped
-        index_data = sc.Quantity(sc.index.water(wavelength_data), '')
+        index_data = sc.Quantity(sc.index.water(wavelength_data).to_numpy(),
+                                 '')
         interpolated_index = sc.Index.from_data(wavelength_data, index_data)
         assert not isinstance(interpolated_index(sc.Quantity('400 nm')),
                               Quantity)

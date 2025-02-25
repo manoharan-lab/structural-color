@@ -128,9 +128,9 @@ class PercusYevick(StructureFactor):
     Glasses.” Optics Express 29, no. 14 (July 5, 2021): 21212–24.
     https://doi.org/10.1364/OE.425399.
 
-    [2] Scheffold, F., and T. G. Mason. “Scattering from Highly Packed Disordered
-    Colloids.” Journal of Physics: Condensed Matter 21, no. 33 (July 2009):
-    332102. https://doi.org/10.1088/0953-8984/21/33/332102.
+    [2] Scheffold, F., and T. G. Mason. “Scattering from Highly Packed
+    Disordered Colloids.” Journal of Physics: Condensed Matter 21, no. 33 (July
+    2009): 332102. https://doi.org/10.1088/0953-8984/21/33/332102.
 
     """
 

@@ -85,10 +85,7 @@ class Particle:
         xr.DataArray
             Index of refraction at each specified wavelength
         """
-        coord = {"wavelength": wavelen.to_preferred().magnitude}
-        index = xr.DataArray(self.index(wavelen), coords=coord)
-        index.attrs["wavelength unit"] = wavelen.to_preferred().units
-        return index.squeeze()
+        return self.index(wavelen)
 
 
 class Sphere(Particle):
@@ -299,7 +296,7 @@ class HemisphericalReflectanceDetector(Detector):
                          phi_max=Quantity('360.0 deg'))
 
 
-@ureg.check('[]', '[]', '[]', '[length]', '[length]', '[]', None, None, None,
+@ureg.check(None, None, None, '[length]', '[length]', '[]', None, None, None,
             None, None, None, None, None, None, None, None, None, None, None,
             None, None, None, None)
 def reflection(n_particle, n_matrix, n_medium, wavelen, radius,
@@ -454,6 +451,14 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius,
     Beetles” Physical Review E 90, no. 6 (2014): 62302.
     doi:10.1103/PhysRevE.90.062302
     """
+
+    # until refactoring, convert index DataArrays to numpy
+    if isinstance(n_particle, xr.DataArray):
+        n_particle = n_particle.to_numpy()
+    if isinstance(n_matrix, xr.DataArray):
+        n_matrix = n_matrix.to_numpy()
+    if isinstance(n_medium, xr.DataArray):
+        n_medium = n_medium.to_numpy()
 
     # radius and radius2 should be in the same units (for polydisperse samples)
     if radius2 is not None:
@@ -802,7 +807,7 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius,
            transport_length
 
 
-@ureg.check('[]', '[]', '[]', '[]', None, None, None, None, None,None, None,
+@ureg.check(None, '[]', '[]', '[]', None, None, None, None, None,None, None,
             None, None, None, None, None, None, None, None)
 def differential_cross_section(m, x, angles, volume_fraction,
                                structure_type = 'glass',
@@ -909,7 +914,6 @@ def differential_cross_section(m, x, angles, volume_fraction,
         parallel and perpendicular components of the differential scattering
         cross section.
     """
-
     if isinstance(k, Quantity):
         k = k.to('1/um')
     if isinstance(distance, Quantity):
@@ -1418,7 +1422,7 @@ def _integrate_cross_section(cross_section, factor, angles,
     return sigma
 
 
-@ureg.check('[]', '[]', '[]')
+@ureg.check(None, None, '[]')
 def fresnel_reflection(n1, n2, incident_angle):
     """
     Calculates Fresnel coefficients for the reflected intensity of parallel
@@ -1484,7 +1488,7 @@ def fresnel_reflection(n1, n2, incident_angle):
 
     return np.squeeze(r_par), np.squeeze(r_perp)
 
-@ureg.check('[]', '[]', '[]')
+@ureg.check(None, None, '[]')
 def fresnel_transmission(index1, index2, incident_angle):
     """
     Calculates Fresnel coefficients for the transmitted intensity of parallel

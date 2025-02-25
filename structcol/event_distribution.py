@@ -6,6 +6,7 @@ Created on Wed Jan 31 17:38:47 2018
 """
 
 import numpy as np
+import xarray as xr
 import matplotlib.pyplot as plt
 import structcol as sc
 from . import select_events
@@ -280,7 +281,11 @@ def calc_tir(tir_refl_bool, refl_indices, trans_indices, inc_refl_per_traj,
         The event indices of trajectories that are totally internally reflected
         after a single scattering event.
     '''
-
+    # until refactoring, convert DataArrays to numpy
+    if isinstance(n_sample, xr.DataArray):
+        n_sample = n_sample.to_numpy()
+    if isinstance(n_medium, xr.DataArray):
+        n_medium = n_medium.to_numpy()
     weights = trajectories.weight
     nevents = trajectories.nevents
     ntraj = trajectories.direction.shape[2]
