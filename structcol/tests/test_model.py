@@ -102,7 +102,6 @@ class TestParticle():
 
         # test that index works as expected
         n = my_layered_sphere.n(self.wavelen)
-        print(my_layered_sphere)
         assert_equal(n.sel(layer=0).to_numpy(), sc.index.vacuum(self.wavelen))
         assert_equal(n.sel(layer=1).to_numpy(),
                      sc.index.polystyrene(self.wavelen))
@@ -260,7 +259,7 @@ def test_theta_refraction():
     incident_angle = Quantity('0.0 deg')
     wavelength = Quantity(500.0, 'nm')
     radius = Quantity('100.0 nm')
-    volume_fraction = Quantity(0.5, '')
+    volume_fraction = 0.5
     n_particle = 1.0
     n_matrix = 1.0
     n_medium = 2.0
@@ -306,7 +305,7 @@ def test_differential_cross_section():
     # Differential cross section for non-core-shells
     radius = Quantity('100.0 nm')
     n_particle = 1.5
-    volume_fraction = Quantity(0.0001, '')              # IS VF TOO LOW?
+    volume_fraction = 0.0001              # IS VF TOO LOW?
     n_sample = sc.index.n_eff(n_particle, n_matrix, volume_fraction)
     m = n_particle/n_sample
     x = size_parameter(wavelen, n_sample, radius)
@@ -318,8 +317,7 @@ def test_differential_cross_section():
     n_particle_cs = np.array([1.5, 1.0])
 
     volume_fraction_shell = volume_fraction * (radius_cs[1]**3 / radius_cs[0]**3-1)
-    volume_fraction_cs = Quantity(np.array([volume_fraction.magnitude,
-                                            volume_fraction_shell.magnitude]), '')
+    volume_fraction_cs = np.array([volume_fraction, volume_fraction_shell])
 
     n_sample_cs = sc.index.n_eff(n_particle_cs, n_matrix, volume_fraction_cs)
     m_cs = (n_particle_cs/n_sample_cs).flatten()
@@ -339,7 +337,7 @@ def test_reflection_core_shell():
     thickness = Quantity(15.0, 'um')
 
     # Non core-shell particles with Maxwell-Garnett effective index
-    volume_fraction = Quantity(0.5, '')
+    volume_fraction = 0.5
     radius = Quantity('120.0 nm')
     n_particle = 1.5
     n_matrix = 1.0
@@ -354,7 +352,7 @@ def test_reflection_core_shell():
                                             maxwell_garnett=True)
 
     # Non core-shell particles with Bruggeman effective index
-    volume_fraction2 = Quantity(0.00001, '')
+    volume_fraction2 = 0.00001
     refl2, _, _, g2, lstar2 = model.reflection(n_particle, n_matrix, n_medium,
                                                wavelength, radius,
                                                volume_fraction2,
@@ -435,7 +433,7 @@ def test_reflection_absorbing_particle():
     # test that the reflections with a real n_particle and with a complex
     # n_particle with a 0 imaginary component are the same
     wavelength = Quantity(500.0, 'nm')
-    volume_fraction = Quantity(0.5, '')
+    volume_fraction = 0.5
     radius = Quantity('120.0 nm')
     n_matrix = 1.0
     n_medium = n_matrix
@@ -541,7 +539,7 @@ def test_calc_g():
     r_array = np.array([0] + np.atleast_1d(radius.magnitude).tolist())
     for r in np.arange(len(r_array)-1):
         vf_array[r] = ((r_array[r+1]**3-r_array[r]**3) / (r_array[-1]**3) *
-                       volume_fraction.magnitude)
+                       volume_fraction)
 
     n_sample = sc.index.n_eff(n_particle, n_matrix, vf_array)
     m = (n_particle/n_sample).flatten()

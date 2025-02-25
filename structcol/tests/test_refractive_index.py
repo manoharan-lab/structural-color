@@ -230,7 +230,7 @@ def test_neff():
     # match for a non-core-shell particle
     n_particle = 2.7
     n_matrix = 2.2
-    vf = Quantity(0.001, '')
+    vf = 0.001
 
     neff_mg = sc.index.n_eff(n_particle, n_matrix, vf, maxwell_garnett=True)
     neff_bg = sc.index.n_eff(n_particle, n_matrix, vf, maxwell_garnett=False)
@@ -241,7 +241,7 @@ def test_neff():
     # the core-shell of shell index of air with Bruggeman at low volume
     # fractions
     n_particle2 = np.array([2.7, 2.2])
-    vf2 = Quantity(np.array([0.001, 0.1]), '')
+    vf2 = np.array([0.001, 0.1])
     neff_bg2 = sc.index.n_eff(n_particle2, n_matrix, vf2,
                               maxwell_garnett=False)
 
@@ -250,10 +250,10 @@ def test_neff():
 
     # test that the effective indices for a non-core-shell and a core-shell of
     # shell index of air match using Bruggeman at intermediate volume fractions
-    vf3 = Quantity(0.5, '')
+    vf3 = 0.5
     neff_bg3 = sc.index.n_eff(n_particle, n_matrix, vf3, maxwell_garnett=False)
 
-    vf3_cs = Quantity(np.array([0.5, 0.1]), '')
+    vf3_cs = np.array([0.5, 0.1])
     neff_bg3_cs = sc.index.n_eff(n_particle2, n_matrix, vf3_cs,
                                  maxwell_garnett=False)
 

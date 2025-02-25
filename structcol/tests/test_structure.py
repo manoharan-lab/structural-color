@@ -212,12 +212,11 @@ class TestStructureFactor():
         # Structure factor for non-core-shell particles
         radius = Quantity('100.0 nm')
         n_particle = 1.5
-        volume_fraction = Quantity(0.0001, '')         # IS VF TOO LOW?
+        volume_fraction = 0.0001         # IS VF TOO LOW?
         n_sample = sc.index.n_eff(n_particle, n_matrix, volume_fraction)
         x = size_parameter(wavelen, n_sample, radius)
         qa = 4*x*np.sin(angles/2)
-        with pytest.warns(UnitStrippedWarning):
-            structure_factor = sc.structure.PercusYevick(volume_fraction)
+        structure_factor = sc.structure.PercusYevick(volume_fraction)
         s = structure_factor(qa)
 
         # Structure factor for core-shell particles with core size equal to
@@ -225,7 +224,7 @@ class TestStructureFactor():
         radius_cs = Quantity(np.array([100.0, 105.0]), 'nm')
         n_particle_cs = np.array([1.5, 1.0])
         volume_fraction_shell = volume_fraction * (radius_cs[1]**3 / radius_cs[0]**3 -1)
-        volume_fraction_cs = Quantity(np.array([volume_fraction.magnitude, volume_fraction_shell.magnitude]), '')
+        volume_fraction_cs = np.array([volume_fraction, volume_fraction_shell])
 
         n_sample_cs = sc.index.n_eff(n_particle_cs, n_matrix, volume_fraction_cs)
         x_cs = size_parameter(wavelen, n_sample_cs, radius_cs[1]).flatten()

@@ -617,9 +617,6 @@ def n_eff(n_particle, n_matrix, volume_fraction, maxwell_garnett=False):
         Maxwell-Garnett relation in Eq. 18.
 
     """
-    if isinstance(volume_fraction, Quantity):
-        volume_fraction = volume_fraction.magnitude
-
     if maxwell_garnett:
         # check that the particle and matrix indices have the same length
         if (len(np.array([n_particle]).flatten())
