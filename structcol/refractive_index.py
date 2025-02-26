@@ -152,6 +152,19 @@ n_dict = {
                                     /(w*w - Quantity('0.287**2 um^2'))
                                   -Quantity('0.18 um^-2')*w*w+1.),
 
+    #ethyl acetate from X. Li, C. Wang, L. Ma, L. Liu. Infrared Phys. 
+    # Technol. 125, 104313 (2022)
+    #measured from 200 to 1700 nm
+    'ethyl acetate': lambda w: 1.3587 + Quantity('5.269e-3 um^2')/(w**2)- 
+                                    Quantity('6.492e-5 um^4')/(w**4) +
+                                    Quantity('3.906e-6 um^6')/(w**6),
+
+    #polyvinyl alcohol from M. J. Schnepf, M. Mayer, C. Kuttner, M. Tebbe, 
+    # D. Wolf, M. Dulle, T. Altantzis, P. Formanek, S. Förster, S. Bals, 
+    # T. A. F. König, A. Fery. Nanoscale 9, 9376-9385 (2017) 
+    #measured from 300 to 1500 nm
+    'pva': lambda w: 1.460 + Quantity('0.00665 um^2')/(w*w),
+
     # anatase TiO2 from Wang et al. Think Solid Films. 405, 2002, 50-54
     # measured from 500-1700 nm
     'anatase': lambda w: 2.1526 + Quantity('4.1155e-2 um^2')/(w*w)+
