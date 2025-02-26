@@ -310,3 +310,16 @@ def test_multimaterial_bruggeman():
     n_threelayer_eff = sc.index.n_eff(n_threelayer, n_matrix, vf)
     n_twolayer_eff = sc.index.n_eff(n_threelayer[:-1], n_matrix, vf[:-1])
     assert_almost_equal(n_threelayer_eff, n_twolayer_eff)
+
+def test_vectorized_maxwell_garnett():
+    """Tests whether Maxwell-Garnett works on multiple wavelengths at once
+
+    """
+    n_particle = np.ones(7)*1.33
+    n_matrix = np.ones(7)*1.00
+    vf = 0.5
+    n_mg_vector = sc.index.n_eff(n_particle, n_matrix, vf,
+                                 maxwell_garnett=True)
+    n_mg_single = sc.index.n_eff(1.33, 1.00, vf, maxwell_garnett=True)
+    assert_equal(n_mg_vector, n_mg_single*np.ones(7))
+

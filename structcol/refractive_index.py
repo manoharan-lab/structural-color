@@ -623,14 +623,15 @@ def n_eff(n_particle, n_matrix, volume_fraction, maxwell_garnett=False):
             != len(np.array([n_matrix]).flatten())):
             raise ValueError('Maxwell-Garnett requires particle and '
                              'matrix index arrays to have the same length')
-        ni = n_particle
-        nm = n_matrix
+
+        ni = np.atleast_1d(n_particle)
+        nm = np.atleast_1d(n_matrix)
         phi = volume_fraction
         neff =  nm * np.sqrt((2*nm**2 + ni**2 + 2*phi*((ni**2)-(nm**2))) /
                          (2*nm**2 + ni**2 - phi*((ni**2)-(nm**2))))
 
-        if neff.imag == 0:
-            return neff.real
+        if np.isscalar(n_particle):
+            return neff.item()
         else:
             return neff
 

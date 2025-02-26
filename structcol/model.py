@@ -1463,7 +1463,7 @@ def fresnel_reflection(n1, n2, incident_angle):
         r_perp = np.zeros(theta.size)
         ms = (n2/n1)
 
-        if ms < 1:
+        if ms.real < 1:
             # handle case of total internal reflection; this code is written
             # using index arrays so that theta can be input as an array
             tir_vals = theta >= np.arcsin(ms)
