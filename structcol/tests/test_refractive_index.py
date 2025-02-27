@@ -23,7 +23,7 @@ Tests for the refractive_index module of structcol
 
 import structcol as sc
 from .. import Quantity
-from numpy.testing import assert_equal, assert_almost_equal
+from numpy.testing import assert_equal, assert_almost_equal, assert_allclose
 from pint.errors import DimensionalityError
 import numpy as np
 import pytest
@@ -323,3 +323,43 @@ def test_vectorized_maxwell_garnett():
     n_mg_single = sc.index.n_eff(1.33, 1.00, vf, maxwell_garnett=True)
     assert_equal(n_mg_vector, n_mg_single*np.ones(7))
 
+def test_vectorized_bruggeman():
+    """Tests that Bruggeman effective index works on multiple wavelengths at
+    once.
+
+    """
+    n_wavelengths = 10
+    n_layers = 5
+    n_particle = np.ones((n_wavelengths, n_layers)) * 1.33
+    n_matrix = 1.00
+    vf = np.ones(n_layers)* 1/n_layers
+    n_eff = sc.index.n_eff(n_particle, n_matrix, vf, maxwell_garnett=False)
+    # ensure that result is purely real
+    assert np.issubdtype(n_eff.dtype, np.floating)
+    # test that we get the right values; since the matrix volume fraciton is
+    # zero, the effective index should be 1.33
+    assert_equal(n_eff, np.ones(n_wavelengths)*1.33)
+
+    # now test that this works with an actual dispersion relation
+    wavelen = sc.Quantity(np.linspace(400, 800, 10), 'nm')
+
+    # need to add a leading dimension of length 1 for the number of layers.
+    # Also we add a small imaginary part to the particle index
+    n_particle = (sc.index.polystyrene(wavelen).to_numpy().reshape(-1,1)
+                  + 0.0001j)
+    n_matrix = sc.index.water(wavelen).to_numpy().reshape(-1,1)
+    vf = 0.5
+    n_eff_vectorized = sc.index.n_eff(n_particle, n_matrix, vf,
+                                      maxwell_garnett=False)
+    # ensure that result is complex
+    assert np.issubdtype(n_eff_vectorized.dtype, np.complexfloating)
+
+    # do same calculation using a for loop
+    n_particle = n_particle.squeeze()
+    n_matrix = n_matrix.squeeze()
+    n_eff = [sc.index.n_eff(n_particle[i], n_matrix[i], vf,
+                            maxwell_garnett=False)
+             for i in range(len(n_particle))]
+
+    # agreement shouldn't necessarily be exact because of tolerance of fsolve
+    assert_allclose(n_eff_vectorized, np.array(n_eff))

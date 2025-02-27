@@ -39,9 +39,9 @@ wavelength = sc.Quantity('600.0 nm') # wavelengths at which to calculate reflect
 # radius of the sphere particles
 particle_radius = sc.Quantity('0.130 um')
 # volume fraction of the particles in the sphere boundary
-volume_fraction_particles = sc.Quantity(0.6, '')
+volume_fraction_particles = 0.6
 # volume fraction of the spheres in the bulk film
-volume_fraction_bulk = sc.Quantity(0.55,'')
+volume_fraction_bulk = 0.55
 # diameter of the sphere boundary
 sphere_boundary_diameter = sc.Quantity(10.0,'um')
 boundary = 'sphere'
@@ -178,7 +178,7 @@ def test_mu_scat_abs_bulk():
                                                         n_matrix_bulk,
                                                         wavelength)
 
-    number_density = volume_fraction_bulk.magnitude/(4/3*np.pi*
+    number_density = volume_fraction_bulk/(4/3*np.pi*
                                         (sphere_boundary_diameter.magnitude/2)**3)
     mu_abs_max = number_density*np.pi*(sphere_boundary_diameter.magnitude/2)**2
 
@@ -206,7 +206,7 @@ def test_mu_scat_abs_bulk():
                                             n_matrix_bulk,
                                             wavelength)
 
-    number_density = volume_fraction_bulk.magnitude/(4/3*np.pi*
+    number_density = volume_fraction_bulk/(4/3*np.pi*
                                         (sphere_boundary_diameter.magnitude/2)**3)
     mu_scat_max = number_density*2*np.pi*(sphere_boundary_diameter.magnitude/2)**2
 

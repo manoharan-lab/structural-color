@@ -203,7 +203,7 @@ def test_reflection_sphere_mc():
     wavelen = sc.Quantity('600 nm')
     radius = sc.Quantity('0.125 um')
     assembly_diameter = sc.Quantity('10 um')
-    volume_fraction = sc.Quantity(0.5, '')
+    volume_fraction = 0.5
     n_particle = 1.54
     n_matrix = sc.index.vacuum(wavelen)
     n_medium = sc.index.vacuum(wavelen)
@@ -282,8 +282,8 @@ def test_multiscale_mc():
 
     # Geometric properties of sample
     particle_radius = sc.Quantity('0.110 um')
-    volume_fraction_particles = sc.Quantity(0.5, '')
-    volume_fraction_bulk = sc.Quantity(0.55,'')
+    volume_fraction_particles = 0.5
+    volume_fraction_bulk = 0.55
     sphere_boundary_diameter = sc.Quantity(10,'um')
     bulk_thickness = sc.Quantity('50 um')
     boundary = 'sphere'
@@ -487,8 +487,8 @@ def test_multiscale_polydispersity_mc():
     sphere_boundary_diam_mean = sc.Quantity(10,'um')
     pdi = 0.2
     particle_radius = sc.Quantity(160,'nm')
-    volume_fraction_bulk = sc.Quantity(0.63,'')
-    volume_fraction_particles = sc.Quantity(0.55, '')
+    volume_fraction_bulk = 0.63
+    volume_fraction_particles = 0.55
     bulk_thickness = sc.Quantity('50 um')
     boundary = 'sphere'
     boundary_bulk = 'film'
@@ -671,9 +671,9 @@ def test_multiscale_color_mixing_mc():
     # radii of the two species of particles
     particle_radii = sc.Quantity([130, 160],'nm')
     # volume fraction of the spheres in the bulk film
-    volume_fraction_bulk = sc.Quantity(0.63,'')
+    volume_fraction_bulk = 0.63
     # volume fraction of the particles in the sphere boundary
-    volume_fraction_particles = sc.Quantity(0.55, '')
+    volume_fraction_particles = 0.55
     # diameter of sphere boundary in bulk film
     sphere_boundary_diameter = sc.Quantity('10 um')
     bulk_thickness = sc.Quantity('50 um')

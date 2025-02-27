@@ -169,7 +169,7 @@ def test_reflection_mc():
     nevents = 100
     wavelen = sc.Quantity('600 nm')
     radius = sc.Quantity('0.125 um')
-    volume_fraction = sc.Quantity(0.5, '')
+    volume_fraction = 0.5
     n_particle = 1.54
     n_matrix = sc.index.vacuum(wavelen)
     n_medium = sc.index.vacuum(wavelen)
@@ -201,7 +201,7 @@ def test_surface_roughness_mc():
     nevents = 100
     wavelen = sc.Quantity('600 nm')
     radius = sc.Quantity('0.125 um')
-    volume_fraction = sc.Quantity(0.5, '')
+    volume_fraction = 0.5
     n_particle = 1.54
     n_matrix = sc.index.vacuum(wavelen)
     n_medium = sc.index.vacuum(wavelen)
@@ -393,14 +393,14 @@ def test_reflection_core_shell_mc():
     n_particle = np.array([1.54,1.33])
     n_matrix = sc.index.vacuum(wavelen)
     n_medium = sc.index.vacuum(wavelen)
-    volume_fraction = sc.Quantity(0.5, '')
+    volume_fraction = 0.5
 
     # Calculate the volume fractions of each layer
     vf_array = np.empty(len(radius))
     r_array = np.array([0] + radius.magnitude.tolist())
     for r in np.arange(len(r_array)-1):
         vf_array[r] = ((r_array[r+1]**3-r_array[r]**3) / (r_array[-1:]**3)
-                       * volume_fraction.magnitude)[0]
+                       * volume_fraction)[0]
     n_sample = sc.index.n_eff(n_particle, n_matrix, vf_array)
 
     R, T = calc_montecarlo(nevents, ntrajectories, radius, n_particle,
@@ -491,7 +491,7 @@ def test_reflection_absorption_mc():
     nevents = 100
     wavelen = sc.Quantity('600 nm')
     radius = sc.Quantity('0.125 um')
-    volume_fraction = sc.Quantity(0.5, '')
+    volume_fraction = 0.5
     n_particle = 1.54 + 0.001j
     n_matrix = sc.index.vacuum(wavelen) + 0.0001j
     n_sample = sc.index.n_eff(n_particle, n_matrix, volume_fraction)
@@ -693,7 +693,7 @@ def test_reflection_polydispersity_mc():
     nevents = 100
     wavelen = sc.Quantity('600 nm')
     radius = sc.Quantity('0.125 um')
-    volume_fraction = sc.Quantity(0.5, '')
+    volume_fraction = 0.5
     n_particle = 1.54
     n_matrix = sc.index.vacuum(wavelen)
     n_sample = sc.index.n_eff(n_particle, n_matrix, volume_fraction)
@@ -731,7 +731,7 @@ def test_detectors_mc():
     wavelength = sc.Quantity('600 nm')
 
     radius = sc.Quantity('0.140 um')
-    volume_fraction = sc.Quantity(0.55, '')
+    volume_fraction = 0.55
     n_imag = 2.1e-4 * 1j
     n_particle = sc.index.polystyrene(wavelength) + n_imag
     n_matrix = sc.index.vacuum(wavelength)

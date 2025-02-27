@@ -617,6 +617,11 @@ def n_eff(n_particle, n_matrix, volume_fraction, maxwell_garnett=False):
         Maxwell-Garnett relation in Eq. 18.
 
     """
+    if isinstance(n_matrix, xr.DataArray):
+        n_matrix = n_matrix.to_numpy()
+
+    # Maxwell-Garnett calculation is vectorized over wavelengths but currently
+    # cannot handle multicomponent particles -- it is limited to two indices
     if maxwell_garnett:
         # check that the particle and matrix indices have the same length
         if (len(np.array([n_particle]).flatten())
@@ -633,49 +638,71 @@ def n_eff(n_particle, n_matrix, volume_fraction, maxwell_garnett=False):
         if np.isscalar(n_particle):
             return neff.item()
         else:
-            return neff
+            return neff.squeeze()
 
+    # Bruggeman calculation is vectorized over both wavelengths and components
+    # of particles.  Can handle multilayer spheres.
     else:
-        # convert the particle index and volume fractions into 1D arrays
-        n_particle = np.array([n_particle]).flatten()
-        volume_fraction = np.array([volume_fraction]).flatten()
+        # n_particle has shape [num_wavelengths, num_layers]
+        n_particle = np.atleast_2d(n_particle)
+        num_wavelengths = n_particle.shape[0]
+
+        # volume_fraction has shape [num_layers]
+        volume_fraction = np.atleast_1d(volume_fraction)
 
         # check that the number of volume fractions and of indices is the same
-        if len(n_particle) != len(volume_fraction):
+        if n_particle.shape[1] != volume_fraction.shape[0]:
             raise ValueError('Arrays of indices and volume fractions '
                              'must be the same length')
 
-        volume_fraction_matrix = Quantity(1 - np.sum(volume_fraction), '')
+        volume_fraction_matrix = 1 - np.sum(volume_fraction)
 
-        # create arrays combining the particle and the matrix' indices and vf
-        n_particle_list = n_particle.tolist()
-        n_particle_list.append(n_matrix)
-        n_array = np.array(n_particle_list)
-
-        vf_list = volume_fraction.tolist()
-        vf_list.append(volume_fraction_matrix.magnitude)
-        vf_array = np.array(vf_list)
+        # the following will stack n_matrix on the end of the n_particle array,
+        # so that it has shape [num_wavelengths, num_layers + 1]
+        n_array = np.hstack((n_particle,
+                             np.ones((n_particle.shape[0],1)) * n_matrix))
+        # same for vf_array, so that it has shape [num_layers + 1]
+        vf_array = np.append(volume_fraction, volume_fraction_matrix)
 
         # define a function for Bruggeman's equation
+        # scipy.fsolve looks only for real solutions, so we solve
+        # simultaneously for the real and imaginary parts at each wavelength.
         def sum_bg(n_bg, vf, n_array):
-            N = len(n_array.flatten())
-            a, b = n_bg
-            S = sum((vf[n]*(n_array[n]**2 - (a+b*1j)**2)
-                     /(n_array[n]**2 + 2*(a+b*1j)**2))
-                    for n in np.arange(0, N))
-            return (S.real, S.imag)
+            n_bg = n_bg.reshape(num_wavelengths, 2)
+            # real part: shape [num_wavelength, 1]
+            a = n_bg[:, 0].reshape(-1,1)
+            # imaginary part: shape [num_wavelengths, 1]
+            b = n_bg[:, 1].reshape(-1,1)
+            # sum S has shape [num_wavelengths] and is complex
+            S = np.sum((vf[np.newaxis, :]*(n_array**2 - (a+b*1j)**2)
+                        / (n_array**2 + 2*(a+b*1j)**2)), axis=1).squeeze()
+            # fsolve requires a 1-d array, so we return an array with
+            # 2*num_wavelength components
+            return np.array([S.real, S.imag]).flatten()
 
         # set an initial guess and solve for Bruggeman's refractive index of
         # the composite
         # most refractive indices range between 1 and 3
-        initial_guess = [1.5, 0]
-        n_bg_real, n_bg_imag = fsolve(sum_bg, initial_guess, args=(vf_array,
-                                                                   n_array))
+        # fsolve requires a 1-d real array as input, so we split the initial
+        # guess 1.5 + 0j into two components [1.5, 0], stack by
+        # num_wavelengths, and then flatten
+        initial_guess = (np.ones((num_wavelengths, 2))
+                         * np.array([1.5, 0])).flatten()
 
-        if n_bg_imag == 0:
-            return n_bg_real
-        elif n_bg_imag < 0:
+        n_bg = fsolve(sum_bg, initial_guess.squeeze(),
+                                      args=(vf_array, n_array))
+        n_bg_real = n_bg.reshape((num_wavelengths, 2))[:,0]
+        n_bg_imag = n_bg.reshape((num_wavelengths, 2))[:,1]
+
+        if n_bg_imag.all() == 0:
+            n_bg = n_bg_real
+        elif n_bg_imag.any() < 0:
             raise ValueError('Cannot find positive imaginary root for the '
                              'effective index')
         else:
-            return n_bg_real + n_bg_imag*1j
+            n_bg = n_bg_real + n_bg_imag*1j
+
+        if num_wavelengths == 1:
+            return n_bg.item()
+        else:
+            return n_bg.squeeze()

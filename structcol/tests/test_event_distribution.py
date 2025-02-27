@@ -39,10 +39,8 @@ wavelength = sc.Quantity(np.array(550.0),'nm')
 
 # sample properties
 particle_radius = sc.Quantity('140.0 nm')
-volume_fraction = sc.Quantity(0.56, '')
+volume_fraction = 0.56
 thickness = sc.Quantity('10.0 um')
-particle = 'ps'
-matrix = 'air'
 boundary = 'film'
 
 # indices of refraction
@@ -408,7 +406,7 @@ def test_event_distribution_wavelength_mc():
     wavelengths = sc.Quantity(np.arange(400,810,20),'nm')
 
     particle_radius = sc.Quantity('140 nm')
-    volume_fraction = sc.Quantity(0.56, '')
+    volume_fraction = 0.56
     thickness = sc.Quantity('10 um')
     boundary = 'film'
 

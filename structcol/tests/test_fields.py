@@ -40,7 +40,7 @@ def test_2pi_shift():
 
     # sample parameters
     radius = sc.Quantity('0.140 um')
-    volume_fraction = sc.Quantity(0.55, '')
+    volume_fraction = 0.55
     n_imag = 2.1e-4
     n_particle = sc.index.polystyrene(wavelength) + n_imag
     n_matrix = sc.index.vacuum(wavelength)
@@ -196,7 +196,7 @@ def test_field_normalized():
 
     # sample parameters
     radius = sc.Quantity('0.140 um')
-    volume_fraction = sc.Quantity(0.55, '')
+    volume_fraction = 0.55
     n_imag = 2.1e-4
     n_particle = sc.index.polystyrene(wavelength) + n_imag*1j
     n_matrix = sc.index.vacuum(wavelength)
@@ -263,7 +263,7 @@ def test_field_perp_direction():
 
     # sample parameters
     radius = sc.Quantity('0.140 um')
-    volume_fraction = sc.Quantity(0.55, '')
+    volume_fraction = 0.55
     n_imag = 2.1e-4
     n_particle = sc.index.polystyrene(wavelength) + n_imag*1j
     n_matrix = sc.index.vacuum(wavelength)
@@ -331,7 +331,7 @@ def test_field_reflectance_mc():
 
     # sample parameters
     radius = sc.Quantity('0.140 um')
-    volume_fraction = sc.Quantity(0.55, '')
+    volume_fraction = 0.55
     n_imag = 2.1e-4
     n_particle = sc.index.polystyrene(wavelength) + n_imag*1j
     n_matrix = sc.index.vacuum(wavelength)
@@ -418,7 +418,7 @@ def test_field_co_cross_mc():
     wavelengths = sc.Quantity(np.arange(440, 780, 20), 'nm')
 
     radius = sc.Quantity('0.140 um')
-    volume_fraction = sc.Quantity(0.55, '')
+    volume_fraction = 0.55
     n_imag = 2.1e-5
     n_particle = sc.index.polystyrene(wavelengths) + n_imag*1j
     n_matrix = sc.index.vacuum(wavelengths)

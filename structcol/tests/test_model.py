@@ -562,7 +562,7 @@ def test_transport_length_dilute():
 
     # transport length from single scattering model for a dilute system
     wavelength = Quantity(500.0, 'nm')
-    volume_fraction = Quantity(0.0000001, '')
+    volume_fraction = 0.0000001
     radius = Quantity('120.0 nm')
     n_matrix = 1.0
     n_medium = n_matrix
