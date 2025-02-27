@@ -48,9 +48,10 @@ class Particle:
 
     Attributes
     ----------
-    n : array-like[Index]
-        Refractive index of particle.  If array-like, specifies multiple
-        refractive indices for different parts of the particle.
+    index : array-like[Index]
+        Index object that returns index of particle at specified wavelengths.
+        If array-like, specifies multiple refractive indices for different
+        parts of the particle.
     size : array-like[sc.Quantity]
         Size of particle. If array-like, specifies length scales corresponding
         to structure of particle. For example, for a multilayer sphere, the
@@ -96,7 +97,7 @@ class Sphere(Particle):
     Radii will be reported when you query the size of the particle.  If you
     want diameters, use the `Sphere.diameter` property.
 
-    n: list of Index objects
+    index: list of Index objects
         Refractive index of particles or voids.  If specified as an array-like
         object, the refractive indices correspond to each layer in a multilayer
         sphere, from the innermost to the outermost layer.
@@ -106,10 +107,10 @@ class Sphere(Particle):
     """
     @ureg.check(None, None, '[length]')
     def __init__(self, index, radius):
-        n = np.atleast_1d(index)
+        index = np.atleast_1d(index)
         size = np.atleast_1d(radius)
 
-        if len(n) > 1:
+        if len(index) > 1:
             self.layered = True
 
             # check to make sure radii are sorted
@@ -118,17 +119,17 @@ class Sphere(Particle):
                                  "specified from smallest to largest.")
             # check to make sure we have the same number of elements in both
             # arrays
-            if size.shape != n.shape:
+            if size.shape != index.shape:
                 raise ValueError("Must specify index for each layer; got "
-                                 f"{n.shape} indexes, {size.shape} radii")
+                                 f"{index.shape} indexes, {size.shape} radii")
         else:
             self.layered = False
             # use scalars instead of arrays
-            n = n.item()
+            index = index.item()
             size = size.item()
 
         # store internal structure of sphere
-        super().__init__(n, size)
+        super().__init__(index, size)
 
     @property
     def radius(self):
@@ -179,8 +180,12 @@ class Sphere(Particle):
         if self.layered:
             coords = {"wavelength": wavelen.to_preferred().magnitude,
                       "layer": np.arange(self.layers)}
-            index = xr.DataArray([n(wavelen) for n in self.index],
-                                 dims=("layer", "wavelength"),
+            n_values = np.array([n(wavelen) for n in self.index])
+            # if only one wavelength is specified, ensure that we can store
+            # that wavelength in the resulting xarray
+            if n_values.ndim == 1:
+                n_values = n_values[:, np.newaxis]
+            index = xr.DataArray(n_values, dims=("layer", "wavelength"),
                                  coords = coords)
             index.attrs["wavelength unit"] = wavelen.to_preferred().units
             return index.squeeze()

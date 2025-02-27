@@ -78,6 +78,18 @@ class TestParticle():
         assert_equal(radius.to_preferred().magnitude, my_sphere.radius)
         assert not my_sphere.layered
 
+    def test_core_shell_single_wavelength(self):
+        index = [sc.index.vacuum, sc.index.polystyrene]
+        radii = sc.Quantity([0.15, 0.16], 'um')
+
+        my_core_shell = sc.model.Sphere(index, radii)
+        assert my_core_shell.layered
+
+        # test that index works as expected
+        wavelen = sc.Quantity(400, 'nm')
+        n = my_core_shell.n(wavelen)
+        assert_equal(n.sel(layer=0).to_numpy(), sc.index.vacuum(wavelen))
+
     def test_layered_sphere(self):
         index = [sc.index.vacuum, sc.index.polystyrene, sc.index.water]
         radii = sc.Quantity([0.15, 0.16, 0.18], 'um')
@@ -260,9 +272,9 @@ def test_theta_refraction():
     wavelength = Quantity(500.0, 'nm')
     radius = Quantity('100.0 nm')
     volume_fraction = 0.5
-    n_particle = 1.0
-    n_matrix = 1.0
-    n_medium = 2.0
+    n_particle = sc.Index.constant(1.0)(wavelength)
+    n_matrix = sc.Index.constant(1.0)(wavelength)
+    n_medium = sc.Index.constant(2.0)(wavelength)
     theta_min = Quantity(np.pi/2, 'deg')
 
     # set theta_max to be slightly smaller than the theta corresponding to
@@ -297,14 +309,15 @@ def test_differential_cross_section():
     # particle diameter of the non-core-shells is the same as the core
     # diameter in the core-shells
 
-    #n_sample = Quantity(1.5, '')
-    n_matrix = 1.0
     wavelen = Quantity('500.0 nm')
+    n_matrix = sc.Index.constant(1.0)(wavelen)
+
     angles = Quantity(np.linspace(np.pi/2, np.pi, 200), 'rad')
 
     # Differential cross section for non-core-shells
     radius = Quantity('100.0 nm')
-    n_particle = 1.5
+    sphere = sc.model.Sphere(sc.Index.constant(1.5), radius)
+    n_particle = sphere.n(wavelen)
     volume_fraction = 0.0001              # IS VF TOO LOW?
     n_sample = sc.index.n_eff(n_particle, n_matrix, volume_fraction)
     m = n_particle/n_sample
@@ -314,14 +327,16 @@ def test_differential_cross_section():
     # Differential cross section for core-shells. Core is equal to
     # non-core-shell particle, and shell is made of vacuum
     radius_cs = Quantity(np.array([100.0, 110.0]), 'nm')
-    n_particle_cs = np.array([1.5, 1.0])
+    index_cs = [sc.Index.constant(1.5), sc.Index.constant(1.0)]
+    sphere_cs = sc.model.Sphere(index_cs, radius_cs)
+    n_particle_cs = sphere_cs.n(wavelen)
 
     volume_fraction_shell = volume_fraction * (radius_cs[1]**3 / radius_cs[0]**3-1)
     volume_fraction_cs = np.array([volume_fraction, volume_fraction_shell])
 
     n_sample_cs = sc.index.n_eff(n_particle_cs, n_matrix, volume_fraction_cs)
-    m_cs = (n_particle_cs/n_sample_cs).flatten()
-    x_cs = size_parameter(wavelen, n_sample_cs, radius_cs).flatten()
+    m_cs = (n_particle_cs/n_sample_cs).to_numpy()
+    x_cs = size_parameter(wavelen, n_sample_cs, radius_cs)
     diff_cs = model.differential_cross_section(m_cs, x_cs, angles,
                                                np.sum(volume_fraction_cs))
 
@@ -339,8 +354,9 @@ def test_reflection_core_shell():
     # Non core-shell particles with Maxwell-Garnett effective index
     volume_fraction = 0.5
     radius = Quantity('120.0 nm')
-    n_particle = 1.5
-    n_matrix = 1.0
+    sphere = sc.model.Sphere(sc.Index.constant(1.5), radius)
+    n_particle = sphere.n(wavelength)
+    n_matrix = sc.Index.constant(1.0)(wavelength)
     n_medium = n_matrix
 
     refl1, _, _, g1, lstar1 = model.reflection(n_particle, n_matrix, n_medium,
@@ -363,8 +379,10 @@ def test_reflection_core_shell():
 
     # Core-shell particles of core diameter equal to non core shell particles,
     # and shell index of air. With Bruggeman effective index
-    n_particle3 = np.array([1.5, 1.0])
     radius3 = Quantity(np.array([120.0, 130.0]), 'nm')
+    index3 = [sc.Index.constant(1.5), sc.Index.constant(1.0)]
+    sphere_cs = sc.model.Sphere(index3, radius3)
+    n_particle3 = sphere_cs.n(wavelength).to_numpy()
     volume_fraction3 = volume_fraction2 * (radius3[1]**3 / radius3[0]**3)
 
     refl3, _, _, g3, lstar3 = model.reflection(n_particle3, n_matrix, n_medium,
@@ -399,13 +417,16 @@ def test_reflection_core_shell():
 
     # Absorbing non-core-shell
     radius4 = Quantity('120.0 nm')
-    n_particle4 = 1.5+0.001j
+    sphere = sc.model.Sphere(sc.Index.constant(1.5+0.001j), radius4)
+    n_particle4 = sphere.n(wavelength)
     refl4 = model.reflection(n_particle4, n_matrix, n_medium, wavelength,
                              radius4, volume_fraction, thickness=thickness)[0]
 
     # Absorbing core-shell
-    n_particle5 = np.array([1.5+0.001j, 1.5+0.001j])
     radius5 = Quantity(np.array([110.0, 120.0]), 'nm')
+    index5 = [sc.Index.constant(1.5+0.001j), sc.Index.constant(1.5+0.001j)]
+    sphere_cs = sc.model.Sphere(index5, radius5)
+    n_particle5 = sphere_cs.n(wavelength)
     refl5 = model.reflection(n_particle5, n_matrix, n_medium, wavelength,
                              radius5, volume_fraction, thickness=thickness)[0]
 
@@ -414,15 +435,18 @@ def test_reflection_core_shell():
     # Same as previous test but with absorbing matrix
     # Non-core-shell
     radius6 = Quantity('120.0 nm')
-    n_particle6 = 1.5+0.001j
-    n_matrix6 = 1.0+0.001j
+    sphere = sc.model.Sphere(sc.Index.constant(1.5+0.001j), radius6)
+    n_particle6 = sphere.n(wavelength)
+    n_matrix6 = sc.Index.constant(1.0+0.001j)(wavelength)
     refl6 = model.reflection(n_particle6, n_matrix6, n_medium, wavelength,
                              radius6, volume_fraction, thickness=thickness)[0]
 
     # Core-shell
-    n_particle7 = np.array([1.5+0.001j, 1.5+0.001j])
+    index7 = [sc.Index.constant(1.5+0.001j), sc.Index.constant(1.5+0.001j)]
     radius7 = Quantity(np.array([110.0, 120.0]), 'nm')
-    n_matrix7 = 1.0+0.001j
+    sphere_cs = sc.model.Sphere(index7, radius7)
+    n_particle7 = sphere_cs.n(wavelength).to_numpy()
+    n_matrix7 = sc.Index.constant(1.0+0.001j)(wavelength)
     refl7 = model.reflection(n_particle7, n_matrix7, n_medium, wavelength,
                              radius7, volume_fraction, thickness=thickness)[0]
 
@@ -437,15 +461,17 @@ def test_reflection_absorbing_particle():
     radius = Quantity('120.0 nm')
     n_matrix = 1.0
     n_medium = n_matrix
-    n_particle_real = 1.5
-    n_particle_imag = 1.5 + 0j
+    sphere_real = sc.model.Sphere(sc.Index.constant(1.5), radius)
+    sphere_complex = sc.model.Sphere(sc.Index.constant(1.5 + 0j), radius)
+    n_particle_real = sphere_real.n(wavelength)
+    n_particle_complex = sphere_complex.n(wavelength)
 
     # With Maxwell-Garnett
     refl_mg1, _, _, g_mg1, lstar_mg1 = model.reflection(n_particle_real, n_matrix,
                                                         n_medium, wavelength,
                                                         radius, volume_fraction,
                                                         maxwell_garnett=True)
-    refl_mg2, _, _, g_mg2, lstar_mg2 = model.reflection(n_particle_imag, n_matrix,
+    refl_mg2, _, _, g_mg2, lstar_mg2 = model.reflection(n_particle_complex, n_matrix,
                                                         n_medium, wavelength,
                                                         radius, volume_fraction,
                                                         maxwell_garnett=True)
@@ -476,7 +502,7 @@ def test_reflection_absorbing_particle():
                                                         n_medium, wavelength,
                                                         radius, volume_fraction,
                                                         maxwell_garnett=False)
-    refl_bg2, _, _, g_bg2, lstar_bg2 = model.reflection(n_particle_imag, n_matrix,
+    refl_bg2, _, _, g_bg2, lstar_bg2 = model.reflection(n_particle_complex, n_matrix,
                                                         n_medium, wavelength,
                                                         radius, volume_fraction,
                                                         maxwell_garnett=False)
@@ -502,11 +528,12 @@ def test_reflection_absorbing_particle():
 
     # test that the reflectance is (almost) the same when using an
     # almost-non-absorbing index vs a non-absorbing index
-    n_particle_imag2 = 1.5+1e-8j
+    sphere_complex2 = sc.model.Sphere(sc.Index.constant(1.5+1e-8j), radius)
+    n_particle_complex2 = sphere_complex2.n(wavelength)
     thickness = Quantity('100.0 um')
 
     # With Bruggeman
-    refl_bg3, _, _, g_bg3, lstar_bg3 = model.reflection(n_particle_imag2, n_matrix,
+    refl_bg3, _, _, g_bg3, lstar_bg3 = model.reflection(n_particle_complex2, n_matrix,
                                                         n_medium, wavelength,
                                                         radius, volume_fraction,
                                                         thickness=thickness,
@@ -522,10 +549,13 @@ def test_calc_g():
     wavelength = Quantity(500.0, 'nm')
 
     # calculate g using the model
-    n_particle = np.array([1.5, 1.0])
     radius = Quantity(np.array([120.0, 130.0]), 'nm')
+    index = [sc.Index.constant(1.5), sc.Index.constant(1.0)]
+    sphere = sc.model.Sphere(index, radius)
+    n_particle = sphere.n(wavelength)
+
     volume_fraction = Quantity(0.01, '')
-    n_matrix = 1.0
+    n_matrix = sc.Index.constant(1.0)(wavelength)
     n_medium = n_matrix
 
     _, _, _, g1, _= model.reflection(n_particle, n_matrix, n_medium,
@@ -542,8 +572,8 @@ def test_calc_g():
                        volume_fraction)
 
     n_sample = sc.index.n_eff(n_particle, n_matrix, vf_array)
-    m = (n_particle/n_sample).flatten()
-    x = size_parameter(wavelength, n_sample, radius).flatten()
+    m = (n_particle/n_sample)
+    x = size_parameter(wavelength, n_sample, radius)
     qscat, qext, qback = mie.calc_efficiencies(m, x)
     g2 = mie.calc_g(m,x)
 
@@ -564,9 +594,10 @@ def test_transport_length_dilute():
     wavelength = Quantity(500.0, 'nm')
     volume_fraction = 0.0000001
     radius = Quantity('120.0 nm')
-    n_matrix = 1.0
+    sphere = sc.model.Sphere(sc.Index.constant(1.5), radius)
+    n_particle = sphere.n(wavelength)
+    n_matrix = sc.Index.constant(1.0)(wavelength)
     n_medium = n_matrix
-    n_particle = 1.5
     _, _, _, _, lstar_model = model.reflection(n_particle, n_matrix, n_medium,
                                             wavelength, radius, volume_fraction,
                                             maxwell_garnett=False)
@@ -590,10 +621,11 @@ def test_reflection_absorbing_matrix():
     wavelength = Quantity(500.0, 'nm')
     volume_fraction = Quantity(0.5, '')
     radius = Quantity('120.0 nm')
-    n_matrix_real = 1.0
-    n_matrix_imag = 1.0 + 0j
-    n_medium = 1.0
-    n_particle = 1.5
+    n_matrix_real = sc.Index.constant(1.0)(wavelength)
+    n_matrix_imag = sc.Index.constant(1.0 + 0j)(wavelength)
+    n_medium = sc.Index.constant(1.0)(wavelength)
+    sphere = sc.model.Sphere(sc.Index.constant(1.5), radius)
+    n_particle = sphere.n(wavelength)
 
     # With Maxwell-Garnett
     refl_mg1, _, _, g_mg1, lstar_mg1 = model.reflection(n_particle, n_matrix_real,
@@ -626,7 +658,7 @@ def test_reflection_absorbing_matrix():
     # test that the reflectance is (almost) the same when using an
     # almost-non-absorbing index vs a non-absorbing index
     thickness = Quantity('100.0 um')
-    n_matrix_imag2 = 1.0 + 1e-8j
+    n_matrix_imag2 = sc.Index.constant(1.0 + 1e-8j)(wavelength)
 
     # With Bruggeman
     refl_bg3, _, _, g_bg3, lstar_bg3 = model.reflection(n_particle, n_matrix_imag2,
@@ -644,9 +676,10 @@ def test_reflection_polydispersity():
     wavelength = Quantity(500.0, 'nm')
     volume_fraction = Quantity(0.5, '')
     radius = Quantity('120.0 nm')
-    n_matrix = 1.0
-    n_medium = 1.0
-    n_particle = 1.5
+    n_matrix = sc.Index.constant(1.0)(wavelength)
+    n_medium = sc.Index.constant(1.0)(wavelength)
+    sphere = sc.model.Sphere(sc.Index.constant(1.5), radius)
+    n_particle = sphere.n(wavelength)
     radius2 = Quantity('120.0 nm')
     concentration = Quantity(np.array([0.9,0.1]), '')
     pdi = Quantity(np.array([1e-7, 1e-7]), '')  # monodisperse limit
@@ -810,11 +843,12 @@ def test_reflection_polydispersity():
 
 def test_reflection_polydispersity_with_absorption():
     wavelength = Quantity(500.0, 'nm')
-    volume_fraction = Quantity(0.5, '')
+    volume_fraction = 0.5
     radius = Quantity('120.0 nm')
-    n_matrix = 1.0+0.0003j
-    n_medium = 1.0
-    n_particle = 1.5+0.0005j
+    n_matrix = sc.Index.constant(1.0+0.0003j)(wavelength)
+    n_medium = sc.Index.constant(1.0)(wavelength)
+    sphere = sc.model.Sphere(sc.Index.constant(1.5+0.0005j), radius)
+    n_particle = sphere.n(wavelength)
     radius2 = Quantity('120.0 nm')
     concentration = Quantity(np.array([0.9,0.1]), '')
     pdi = Quantity(np.array([1e-7, 1e-7]), '')  # monodisperse limit
@@ -933,8 +967,9 @@ def test_reflection_polydispersity_with_absorption():
     # test that the reflectances are (almost) the same when using an
     # almost-non-absorbing vs an non-absorbing polydisperse system
     ## When there is 1 mean diameter
-    n_matrix2 = 1.0+1e-20j
-    n_particle2 = 1.5+1e-20j
+    n_matrix2 = sc.Index.constant(1.0+1e-20j)(wavelength)
+    sphere2 = sc.model.Sphere(sc.Index.constant(1.5+1e-20j), radius)
+    n_particle2 = sphere2.n(wavelength)
     radius2 = Quantity('150.0 nm')
     pdi2 = Quantity(np.array([0.33, 0.33]), '')
     refl7, _, _, g7, lstar7 = model.reflection(n_particle2.real, n_matrix2.real,
@@ -999,9 +1034,10 @@ def test_g_transport_length():
     wavelength = Quantity(600.0, 'nm')
     volume_fraction = Quantity(0.55, '')
     radius = Quantity('100.0 nm')
-    n_matrix = 1.0+0.0004j
-    n_medium = 1.0
-    n_particle = 1.5+0.0006j
+    n_matrix = sc.Index.constant(1.0+0.0004j)(wavelength)
+    n_medium = sc.Index.constant(1.0)(wavelength)
+    sphere = sc.model.Sphere(sc.Index.constant(1.5+0.0006j), radius)
+    n_particle = sphere.n(wavelength)
     thickness1 = Quantity('10.0 um')
     thickness2 = Quantity('100.0 um')
 
@@ -1020,20 +1056,22 @@ def test_g_transport_length():
 
 def test_reflection_throws_valueerror_for_polydisperse_core_shells():
     # test that a valueerror is raised when trying to run polydisperse core-shells
+    wavelength = Quantity(500.0, 'nm')
+    volume_fraction = Quantity(0.5, '')
+    radius = Quantity(np.array([110.0, 120.0]), 'nm')
+    index = [sc.Index.constant(1.5), sc.Index.constant(1.5)]
+    sphere = sc.model.Sphere(index, radius)
+    n_matrix = sc.Index.constant(1.0)(wavelength)
+    n_medium = sc.Index.constant(1.0)(wavelength)
+    n_particle = sphere.n(wavelength)
+    volume_fraction2 = volume_fraction * (radius[1]**3 / radius[0]**3)
+    thickness = Quantity('10.0 um')
+
+    radius2 = Quantity('120.0 nm')
+    concentration = Quantity(np.array([0.9,0.1]), '')
+    pdi = Quantity(np.array([1e-7, 1e-7]), '')
+
     with pytest.raises(ValueError):
-        wavelength = Quantity(500.0, 'nm')
-        volume_fraction = Quantity(0.5, '')
-        radius = Quantity(np.array([110.0, 120.0]), 'nm')
-        n_matrix = 1.0
-        n_medium = 1.0
-        n_particle = np.array([1.5,1.5])
-        volume_fraction2 = Quantity(volume_fraction * (radius[1]**3 / radius[0]**3), '')
-        thickness = Quantity('10.0 um')
-
-        radius2 = Quantity('120.0 nm')
-        concentration = Quantity(np.array([0.9,0.1]), '')
-        pdi = Quantity(np.array([1e-7, 1e-7]), '')
-
         # when running polydisperse core-shells, without absorption
         refl, _, _, _, _ = model.reflection(n_particle, n_matrix, n_medium,
                                             wavelength, radius, volume_fraction2,
@@ -1041,24 +1079,28 @@ def test_reflection_throws_valueerror_for_polydisperse_core_shells():
                                             concentration = concentration,
                                             pdi = pdi, structure_type='polydisperse',
                                             form_type='polydisperse')
+    with pytest.raises(ValueError):
         refl2, _, _, _, _ = model.reflection(n_particle, n_matrix, n_medium,
                                             wavelength, radius, volume_fraction2,
                                             radius2 = radius2,
                                             concentration = concentration,
                                             pdi = pdi, structure_type='glass',
                                             form_type='polydisperse')
+    with pytest.raises(ValueError):
         refl3, _, _, _, _ = model.reflection(n_particle, n_matrix, n_medium,
                                             wavelength, radius, volume_fraction2,
                                             radius2 = radius2,
                                             concentration = concentration,
                                             pdi = pdi, structure_type=None,
                                             form_type='polydisperse')
+    with pytest.raises(ValueError):
         refl4, _, _, _, _ = model.reflection(n_particle, n_matrix, n_medium,
                                             wavelength, radius, volume_fraction2,
                                             radius2 = radius2,
                                             concentration = concentration,
                                             pdi = pdi, structure_type='polydisperse',
                                             form_type='sphere')
+    with pytest.raises(ValueError):
         refl5, _, _, _, _ = model.reflection(n_particle, n_matrix, n_medium,
                                             wavelength, radius, volume_fraction2,
                                             radius2 = radius2,
@@ -1066,6 +1108,7 @@ def test_reflection_throws_valueerror_for_polydisperse_core_shells():
                                             pdi = pdi, structure_type='polydisperse',
                                             form_type=None)
 
+    with pytest.raises(ValueError):
         # when running polydisperse core-shells, with absorption
         refl6, _, _, _, _ = model.reflection(n_particle, n_matrix, n_medium,
                                             wavelength, radius, volume_fraction2,
@@ -1074,6 +1117,7 @@ def test_reflection_throws_valueerror_for_polydisperse_core_shells():
                                             pdi = pdi, structure_type='polydisperse',
                                             form_type='polydisperse',
                                             thickness=thickness)
+    with pytest.raises(ValueError):
         refl7, _, _, _, _ = model.reflection(n_particle, n_matrix, n_medium,
                                             wavelength, radius, volume_fraction2,
                                             radius2 = radius2,
@@ -1081,6 +1125,7 @@ def test_reflection_throws_valueerror_for_polydisperse_core_shells():
                                             pdi = pdi, structure_type='glass',
                                             form_type='polydisperse',
                                             thickness=thickness)
+    with pytest.raises(ValueError):
         refl8, _, _, _, _ = model.reflection(n_particle, n_matrix, n_medium,
                                             wavelength, radius, volume_fraction2,
                                             radius2 = radius2,
@@ -1088,12 +1133,14 @@ def test_reflection_throws_valueerror_for_polydisperse_core_shells():
                                             pdi = pdi, structure_type=None,
                                             form_type='polydisperse',
                                             thickness=thickness)
+    with pytest.raises(ValueError):
         refl9, _, _, _, _ = model.reflection(n_particle, n_matrix, n_medium,
                                             wavelength, radius, volume_fraction2,
                                             radius2 = radius2,
                                             concentration = concentration,
                                             pdi = pdi, structure_type='polydisperse',
                                             form_type='sphere', thickness=thickness)
+    with pytest.raises(ValueError):
         refl10, _, _, _, _ = model.reflection(n_particle, n_matrix, n_medium,
                                             wavelength, radius, volume_fraction2,
                                             radius2 = radius2,
@@ -1103,18 +1150,21 @@ def test_reflection_throws_valueerror_for_polydisperse_core_shells():
 
 def test_reflection_throws_valueerror_for_polydisperse_unspecified_parameters():
     # test that a valueerror is raised when trying to run polydisperse core-shells
+    wavelength = Quantity(500.0, 'nm')
+    volume_fraction = Quantity(0.5, '')
+    radius = Quantity(np.array([110.0, 120.0]), 'nm')
+    index = [sc.Index.constant(1.5), sc.Index.constant(1.5)]
+    sphere = sc.model.Sphere(index, radius)
+    n_matrix = sc.Index.constant(1.0)(wavelength)
+    n_medium = sc.Index.constant(1.0)(wavelength)
+    n_particle = sphere.n(wavelength)
+
+    volume_fraction2 = Quantity(volume_fraction * (radius[1]**3 / radius[0]**3), '')
+
+    concentration = Quantity(np.array([0.9,0.1]), '')
+    pdi = Quantity(np.array([1e-7, 1e-7]), '')
+
     with pytest.raises(ValueError):
-        wavelength = Quantity(500.0, 'nm')
-        volume_fraction = Quantity(0.5, '')
-        radius = Quantity(np.array([110.0, 120.0]), 'nm')
-        n_matrix = 1.0
-        n_medium = 1.0
-        n_particle = np.array([1.5,1.5])
-        volume_fraction2 = Quantity(volume_fraction * (radius[1]**3 / radius[0]**3), '')
-
-        concentration = Quantity(np.array([0.9,0.1]), '')
-        pdi = Quantity(np.array([1e-7, 1e-7]), '')
-
         # when running polydisperse core-shells, without absorption,
         # and unspecified radius2
         refl, _, _, _, _ = model.reflection(n_particle, n_matrix, n_medium,
@@ -1123,6 +1173,7 @@ def test_reflection_throws_valueerror_for_polydisperse_unspecified_parameters():
                                             pdi = pdi, structure_type='polydisperse',
                                             form_type='polydisperse')
 
+    with pytest.raises(ValueError):
         # when running polydisperse core-shells, with absorption,
         # and unspecified radius2
         refl, _, _, _, _ = model.reflection(n_particle+0.01j, n_matrix+0.01j, n_medium,
