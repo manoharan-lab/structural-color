@@ -88,6 +88,14 @@ class Particle:
         """
         return self.index(wavelen)
 
+    def form_factor(self, wavelen, angles, n_external, distance=None):
+        """Calculates form factor of the particle in a matrix with index of
+        refraction `n_external`. Because the form factor depends on the
+        particle, this method must be implemented in derived classes.
+
+        """
+        raise NotImplementedError
+
 
 class Sphere(Particle):
     """Spherical homogeneous or layered particle.
@@ -191,6 +199,48 @@ class Sphere(Particle):
             return index.squeeze()
         else:
             return super().n(wavelen)
+
+    def form_factor(self, wavelen, angles, n_external, distance=None):
+        """Calculate form factor from Mie theory.
+
+        Parameters
+        ----------
+        wavelen : array-like [sc.Quantity]
+            wavelengths at which to calculate form factor
+        angles : array-like
+            scattering angles at which to calculate form factor.  Specified in
+            radians.
+        n_external : `sc.Index` object
+            Index of refraction of the medium around the particle.  Can be an
+            effective index.
+        distance: sc.Quantity [length] (optional)
+            distance at which to integrate the differential cross section to
+            get the total cross section. Needed only if n_external is complex.
+            Ignored otherwise.
+
+        """
+        wavelen = wavelen.to_preferred()
+        if distance is not None:
+            distance = distance.to_preferred()
+
+        n_ext = n_external(wavelen)
+        n_particle = self.n(wavelen)
+
+        m = n_particle/n_ext
+        if self.layered:
+            m = m.to_numpy()
+        x = size_parameter(wavelen, n_ext, self.radius_q)
+
+        if np.any(n_ext.imag > 0):
+            if distance is None:
+                raise ValueError("must specify distance for absorbing systems")
+            k = 2 * np.pi * n_ext / wavelen
+            form_factor = mie.diff_scat_intensity_complex_medium(m, x, angles,
+                                        k*distance)
+        else:
+            form_factor = mie.calc_ang_dist(m, x, angles)
+
+        return form_factor
 
 
 class Model:

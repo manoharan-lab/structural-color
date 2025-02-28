@@ -123,6 +123,96 @@ class TestParticle():
         # test number of layers
         assert my_layered_sphere.layers == len(radii)
 
+    def test_form_factor(self):
+        """Test that we get the same results from calling the
+        Sphere.form_factor() method as we do from calling pymie directly.
+
+        """
+        # The pymie/tests/test_mie.py::test_form_factor test checks that the
+        # Mie calculation gives the correct results for these parameters. Here
+        # we just check to see if we get the same results as pymie
+        wavelen = Quantity('658.0 nm')
+        radius = Quantity('0.85 um')
+        n_matrix = sc.Index.constant(1.00)
+        sphere = sc.model.Sphere(sc.Index.constant(1.59 + 1e-4 * 1.0j), radius)
+        angles = Quantity(np.linspace(0, 180., 19), 'deg')
+        ipar_sphere, iperp_sphere = sphere.form_factor(wavelen, angles,
+                                                       n_matrix)
+
+        m = sphere.n(wavelen)/n_matrix(wavelen)
+        x = mie.size_parameter(wavelen, n_matrix(wavelen), radius)
+        ipar_mie, iperp_mie = mie.calc_ang_dist(m, x, angles)
+
+        assert_equal(ipar_sphere, ipar_mie)
+        assert_equal(iperp_sphere, iperp_mie)
+
+        # test calculations for gold, which has a high imaginary refractive
+        # index.  Again, pymie/tests/test_mie.py::test_absorbing_materials()
+        # checks that the Mie calculation gives the correct results for these
+        # parameters. Here we just check to see if we get the same results as
+        # pymie
+        wavelen = Quantity('658.0 nm')
+        x = 10.0
+        radius = x/(2*np.pi/wavelen)
+        n_matrix = sc.Index.constant(1.00)
+        gold_index = sc.Index.constant(0.1425812 + 3.6813284 * 1.0j)
+        sphere = sc.model.Sphere(gold_index, radius)
+        angles = Quantity(np.linspace(0, 90., 10), 'deg')
+        ipar_sphere, iperp_sphere = sphere.form_factor(wavelen, angles,
+                                                       n_matrix)
+
+        m = sphere.n(wavelen)/n_matrix(wavelen)
+        ipar_mie, iperp_mie = mie.calc_ang_dist(m, x, angles)
+
+        assert_equal(ipar_sphere, ipar_mie)
+        assert_equal(iperp_sphere, iperp_mie)
+
+        # Test absorbing matrix.
+        # Although Sphere.form_factor() calls the same function
+        # (diff_scat_intensity_complex_medium) used here, the results may not
+        # be equal if units are converted in different ways.  So to test for
+        # equality, we first convert radius and distance to preferred units.
+        radius = Quantity('120.0 nm').to_preferred()
+        sphere = sc.model.Sphere(sc.Index.constant(1.5+0.001j), radius)
+        distance = Quantity(10000.0,'nm').to_preferred()
+        n_matrix = sc.Index.constant(1.0+0.001j)
+        angles = Quantity(np.linspace(0, 90., 10), 'deg')
+
+        # not specifying distance should throw exception
+        with pytest.raises(ValueError):
+            _ = sphere.form_factor(wavelen, angles, n_matrix)
+
+        ipar_sphere, iperp_sphere = sphere.form_factor(wavelen, angles,
+                                                       n_matrix,
+                                                       distance=distance)
+
+        m = sphere.n(wavelen)/n_matrix(wavelen)
+        x = mie.size_parameter(wavelen, n_matrix(wavelen), radius)
+        k = 2 * np.pi * n_matrix(wavelen) / wavelen
+        ipar_mie, iperp_mie = mie.diff_scat_intensity_complex_medium(
+            m, x, angles, k*distance)
+
+        assert_equal(ipar_sphere.magnitude, ipar_mie.magnitude)
+        assert_equal(iperp_sphere.magnitude, iperp_mie.magnitude)
+
+        # test layered particle
+        index = [sc.index.vacuum, sc.index.polystyrene, sc.index.pmma]
+        wavelen = Quantity('658.0 nm').to_preferred()
+        radii = sc.Quantity([0.10, 0.16, 0.25], 'um').to_preferred()
+        sphere = sc.model.Sphere(index, radii)
+        angles = Quantity(np.linspace(0, 180., 19), 'deg')
+        n_matrix = sc.index.water
+
+        ipar_sphere, iperp_sphere = sphere.form_factor(wavelen, angles,
+                                                       n_matrix)
+
+        m = (sphere.n(wavelen)/n_matrix(wavelen)).to_numpy()
+        x = mie.size_parameter(wavelen, n_matrix(wavelen), radii)
+        ipar_mie, iperp_mie = mie.calc_ang_dist(m, x, angles)
+
+        assert_equal(ipar_sphere, ipar_mie)
+        assert_equal(iperp_sphere, iperp_mie)
+
 class TestModel():
     """Tests for the Model class and derived classes.
     """
