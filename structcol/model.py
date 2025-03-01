@@ -226,7 +226,7 @@ class Sphere(Particle):
         n_particle = self.n(wavelen)
 
         m = sc.index.ratio(n_particle, n_ext)
-        x = sc.size_parameter(wavelen, n_ext, self.radius_q)
+        x = sc.size_parameter(n_ext, self.radius_q)
 
         if np.any(n_ext.imag > 0):
             if distance is None:
@@ -563,21 +563,21 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius,
 
     if len(np.atleast_1d(radius)) > 1:
         m = sc.index.ratio(n_particle, n_sample).flatten()
-        x = sc.size_parameter(wavelen, n_sample, radius).flatten()
+        x = sc.size_parameter(n_sample, radius).flatten()
         if effective_medium_struct and not effective_medium_form:
-            x_eff = sc.size_parameter(wavelen, n_sample_eff, radius).flatten()
+            x_eff = sc.size_parameter(n_sample_eff, radius).flatten()
         else:
             x_eff = None
     else:
         m = sc.index.ratio(n_particle, n_sample)
-        x = sc.size_parameter(wavelen, n_sample, radius)
+        x = sc.size_parameter(n_sample, radius)
         if effective_medium_struct and not effective_medium_form:
-            x_eff = sc.size_parameter(wavelen, n_sample_eff, radius)
+            x_eff = sc.size_parameter(n_sample_eff, radius)
         else:
             x_eff = None
 
     k = 2 * np.pi * n_sample.to_numpy() / wavelen
-    #k = sc.wavevector(n_sample)
+    #k = sc.wavevector(n_sample).to_preferred()
     # calculate transmission and reflection coefficients at first interface
     # between medium and sample
     # (TODO: include correction for reflection off the back interface of the
@@ -1175,7 +1175,7 @@ def polydisperse_form_factor(m, angles, diameters, concentration, pdi, wavelen,
             distr_array = np.tile(distr, [len(angles),1])
         angles_array = np.tile(angles, [len(diameter_range),1])
 
-        x_poly = sc.size_parameter(wavelen, n_matrix, diameter_range/2)
+        x_poly = sc.size_parameter(n_matrix, diameter_range/2)
 
         form_factor = {}
         integrand = {}
@@ -1344,12 +1344,12 @@ def absorption_cross_section(form_type, m, diameters, n_matrix, x,
             distr = size_distribution(diameter_range,
                                       np.atleast_1d(diameters)[d],
                                       np.atleast_1d(t)[d])
-            x_poly = sc.size_parameter(wavelen, n_matrix,
+            x_poly = sc.size_parameter(n_matrix,
                                        Quantity(diameter_range/2,
                                                 diameters.units))
 
             # for polydisperse mu_abs calculation
-            x_scat = sc.size_parameter(wavelen, n_particle, diameters[d]/2)
+            x_scat = sc.size_parameter(n_particle, diameters[d]/2)
 
             cabs_magn = np.empty(len(diameter_range))
 
@@ -1399,7 +1399,7 @@ def absorption_cross_section(form_type, m, diameters, n_matrix, x,
         else:
             coeffs = mie._scatcoeffs(m, x, nstop)
             internal_coeffs = mie._internal_coeffs(m, x, nstop)
-            x_scat = sc.size_parameter(wavelen, n_particle, radius)
+            x_scat = sc.size_parameter(n_particle, radius)
 
             cabs_total = mie._cross_sections_complex_medium_fu(
                                                         coeffs[0], coeffs[1],

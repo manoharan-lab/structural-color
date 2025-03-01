@@ -998,14 +998,14 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
         n_sample = n_sample
     if effective_medium_struct and not effective_medium_form:
         n_sample_eff = n_sample
-        x_eff = sc.size_parameter(wavelen, n_sample_eff, radius)
+        x_eff = sc.size_parameter(n_sample_eff, radius)
         n_sample = n_matrix
     if not effective_medium_form and not effective_medium_struct:
         n_sample = n_matrix
 
     k = sc.wavevector(n_sample)
     m = sc.index.ratio(n_particle, n_sample)
-    x = sc.size_parameter(wavelen, n_sample, radius)
+    x = sc.size_parameter(n_sample, radius)
 
     # radius and radius2 should be in the same units (for polydisperse samples)
     if radius2 is not None:
@@ -1095,7 +1095,7 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
         if n_matrix is None:
             raise ValueError('need to specify n_matrix if fine_roughness > 0')
         m = sc.index.ratio(n_particle, n_matrix)
-        x = sc.size_parameter(wavelen, n_matrix, radius)
+        x = sc.size_parameter(n_matrix, radius)
         k = sc.wavevector(n_matrix)
 
         _, cscat_total_mie = phase_function(m, x, thetas, volume_fraction,

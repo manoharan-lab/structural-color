@@ -21,7 +21,7 @@ Tests for the single-scattering model (in structcol/model.py)
 .. moduleauthor:: Victoria Hwang <vhwang@g.harvard.edu>
 """
 
-from .. import Quantity, size_parameter, np, mie, model
+from .. import Quantity, np, mie, model
 from pytest import raises
 from numpy.testing import assert_equal, assert_almost_equal, assert_array_almost_equal
 import pytest
@@ -140,7 +140,7 @@ class TestParticle():
                                                        n_matrix)
 
         m = sc.index.ratio(sphere.n(wavelen), n_matrix(wavelen))
-        x = sc.size_parameter(wavelen, n_matrix(wavelen), radius)
+        x = sc.size_parameter(n_matrix(wavelen), radius)
         ipar_mie, iperp_mie = mie.calc_ang_dist(m, x, angles)
 
         assert_equal(ipar_sphere, ipar_mie)
@@ -187,7 +187,7 @@ class TestParticle():
                                                        distance=distance)
 
         m = sc.index.ratio(sphere.n(wavelen), n_matrix(wavelen))
-        x = sc.size_parameter(wavelen, n_matrix(wavelen), radius)
+        x = sc.size_parameter(n_matrix(wavelen), radius)
         k = 2 * np.pi * n_matrix(wavelen).to_numpy() / wavelen
         ipar_mie, iperp_mie = mie.diff_scat_intensity_complex_medium(
             m, x, angles, k*distance)
@@ -207,7 +207,7 @@ class TestParticle():
                                                        n_matrix)
 
         m = sc.index.ratio(sphere.n(wavelen), n_matrix(wavelen))
-        x = sc.size_parameter(wavelen, n_matrix(wavelen), radii)
+        x = sc.size_parameter(n_matrix(wavelen), radii)
         ipar_mie, iperp_mie = mie.calc_ang_dist(m, x, angles)
 
         assert_equal(ipar_sphere, ipar_mie)
@@ -412,7 +412,7 @@ def test_differential_cross_section():
     volume_fraction = 0.0001              # IS VF TOO LOW?
     n_sample = sc.index.n_eff(n_particle, n_matrix, volume_fraction)
     m = sc.index.ratio(n_particle, n_sample)
-    x = size_parameter(wavelen, n_sample, radius)
+    x = mie.size_parameter(wavelen, n_sample.to_numpy(), radius)
     diff = model.differential_cross_section(m, x, angles, volume_fraction)
 
     # Differential cross section for core-shells. Core is equal to
@@ -427,7 +427,7 @@ def test_differential_cross_section():
 
     n_sample_cs = sc.index.n_eff(n_particle_cs, n_matrix, volume_fraction_cs)
     m_cs = (n_particle_cs/n_sample_cs).to_numpy()
-    x_cs = size_parameter(wavelen, n_sample_cs, radius_cs)
+    x_cs = mie.size_parameter(wavelen, n_sample_cs.to_numpy(), radius_cs)
     diff_cs = model.differential_cross_section(m_cs, x_cs, angles,
                                                np.sum(volume_fraction_cs))
 
@@ -664,7 +664,7 @@ def test_calc_g():
 
     n_sample = sc.index.n_eff(n_particle, n_matrix, vf_array)
     m = sc.index.ratio(n_particle, n_sample)
-    x = size_parameter(wavelength, n_sample, radius)
+    x = mie.size_parameter(wavelength, n_sample.to_numpy(), radius)
     qscat, qext, qback = mie.calc_efficiencies(m, x)
     g2 = mie.calc_g(m,x)
 
@@ -696,7 +696,7 @@ def test_transport_length_dilute():
     # transport length from Mie theory
     n_sample = sc.index.n_eff(n_particle, n_matrix, volume_fraction)
     m = sc.index.ratio(n_particle, n_sample)
-    x = size_parameter(wavelength, n_sample, radius)
+    x = mie.size_parameter(wavelength, n_sample.to_numpy(), radius)
     g = mie.calc_g(m,x)
 
     number_density = model._number_density(volume_fraction, radius)

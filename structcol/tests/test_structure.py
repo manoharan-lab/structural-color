@@ -213,7 +213,7 @@ class TestStructureFactor():
         n_particle = sc.Index.constant(1.5)(wavelen)
         volume_fraction = 0.0001         # IS VF TOO LOW?
         n_sample = sc.index.n_eff(n_particle, n_matrix, volume_fraction)
-        x = sc.size_parameter(wavelen, n_sample, radius)
+        x = sc.size_parameter(n_sample, radius)
         qa = 4*x*np.sin(angles/2)
         structure_factor = sc.structure.PercusYevick(volume_fraction)
         s = structure_factor(qa)
@@ -226,7 +226,7 @@ class TestStructureFactor():
         volume_fraction_cs = np.array([volume_fraction, volume_fraction_shell])
 
         n_sample_cs = sc.index.n_eff(n_particle_cs, n_matrix, volume_fraction_cs)
-        x_cs = sc.size_parameter(wavelen, n_sample_cs, radius_cs[1])
+        x_cs = sc.size_parameter(n_sample_cs, radius_cs[1])
         qa_cs = 4*x_cs*np.sin(angles/2)
         structure_factor_cs = sc.structure.PercusYevick(
                                             np.sum(volume_fraction_cs))

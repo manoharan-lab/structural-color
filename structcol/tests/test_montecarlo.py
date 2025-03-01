@@ -129,7 +129,7 @@ def test_phase_function_absorbing_medium():
     n_matrix = sc.Index.constant(1.47 + 0.001j)(wavelen)
     n_particle = sc.Index.constant(1.5 + 1e-1 * 1.0j)(wavelen)
     m = sc.index.ratio(n_particle, n_matrix)
-    x = sc.size_parameter(wavelen, n_matrix, radius)
+    x = sc.size_parameter(n_matrix, radius)
     k = sc.wavevector(n_matrix)
     ksquared = np.abs(k)**2
 

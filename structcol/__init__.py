@@ -166,7 +166,7 @@ def select_events(inarray, events):
     return outarray
 
 
-def size_parameter(wavelen, n_medium, radius):
+def size_parameter(n_medium, radius):
     """
     Calculates the size parameter x=k_medium*a needed for Mie calculations.
 
@@ -175,11 +175,9 @@ def size_parameter(wavelen, n_medium, radius):
 
     Parameters
     ----------
-    wavelen : structcol.Quantity [length]
-        wavelength in vacuum
     n_medium : `xr.DataArray`
         refractive index of medium at various wavelengths, as calculated by an
-        `sc.Index` object
+        `sc.Index` object.
     radius : structcol.Quantity [length]
         radius of particle
 
@@ -193,6 +191,8 @@ def size_parameter(wavelen, n_medium, radius):
                          "Ensure that you are using the output from an Index "
                          "object as input to this function.")
 
+    wavelen = Quantity(n_medium.coords["wavelength"].to_numpy(),
+                       n_medium.attrs["wavelength unit"])
     sp = mie.size_parameter(wavelen, n_medium.to_numpy(), radius)
     if np.isscalar(sp):
         return sp.item()
