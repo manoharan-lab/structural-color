@@ -231,9 +231,9 @@ class Sphere(Particle):
         if np.any(n_ext.imag > 0):
             if distance is None:
                 raise ValueError("must specify distance for absorbing systems")
-            k = 2 * np.pi * n_ext.to_numpy() / wavelen
+            kd = (sc.wavevector(n_ext)*distance).to('')
             form_factor = mie.diff_scat_intensity_complex_medium(m, x, angles,
-                                        k*distance)
+                                                                 kd)
         else:
             form_factor = mie.calc_ang_dist(m, x, angles)
 
@@ -505,8 +505,8 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius,
     """
 
     # make sure we're working in the same units
-    #wavelen = wavelen.to_preferred()
-    #radius = radius.to_preferred()
+    wavelen = wavelen.to_preferred()
+    radius = radius.to_preferred()
 
     # radius and radius2 should be in the same units (for polydisperse samples)
     if radius2 is not None:
@@ -576,8 +576,7 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius,
         else:
             x_eff = None
 
-    k = 2 * np.pi * n_sample.to_numpy() / wavelen
-    #k = sc.wavevector(n_sample).to_preferred()
+    k = sc.wavevector(n_sample)
     # calculate transmission and reflection coefficients at first interface
     # between medium and sample
     # (TODO: include correction for reflection off the back interface of the
@@ -969,9 +968,9 @@ def differential_cross_section(m, x, angles, volume_fraction,
         cross section.
     """
     if isinstance(k, Quantity):
-        k = k.to('1/um')
+        k = k.to_preferred()
     if isinstance(distance, Quantity):
-        distance = distance.to('um')
+        distance = distance.to_preferred()
     if isinstance(volume_fraction, Quantity):
         volume_fraction = volume_fraction.magnitude
 

@@ -215,7 +215,7 @@ def wavevector(n_medium):
 
     Returns
     -------
-    ndarray : float or complex with shape [num_wavelengths]
+    ndarray : sc.Quantity [float or complex] with shape [num_wavelengths]
     """
 
     if not isinstance(n_medium, xr.DataArray):

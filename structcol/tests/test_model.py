@@ -576,6 +576,7 @@ def test_reflection_absorbing_particle():
     refl_mg2_before = 0.29639647096173255
     g_mg1_before = -0.18774057969370997
     g_mg2_before = -0.18774057969370903
+    # this is in nm
     lstar_mg1_before = 10810.069633192961
     # lstar_mg2_before = 10810.069633193001
     # lstar_mg2 and lstar_mg1 are now equal, so we don't need to compare to
@@ -585,7 +586,8 @@ def test_reflection_absorbing_particle():
     assert_array_almost_equal(refl_mg2.magnitude, refl_mg2_before, decimal=9)
     assert_array_almost_equal(g_mg1.magnitude, g_mg1_before, decimal=10)
     assert_array_almost_equal(g_mg2.magnitude, g_mg2_before, decimal=10)
-    assert_array_almost_equal(lstar_mg1.magnitude, lstar_mg1_before, decimal=10)
+    assert_array_almost_equal(lstar_mg1.to('nm').magnitude,
+                              lstar_mg1_before, decimal=10)
     assert_array_almost_equal(lstar_mg1.magnitude, lstar_mg2.magnitude, decimal=10)
 
     # With Bruggeman
@@ -607,6 +609,7 @@ def test_reflection_absorbing_particle():
     refl_bg2_before = 0.2685710414987676
     g_bg1_before = -0.17681566915117486
     g_bg2_before = -0.17681566915117486
+    # these are in nm
     lstar_bg1_before = 11593.280877304634
     lstar_bg2_before = 11593.280877304634
 
@@ -614,8 +617,10 @@ def test_reflection_absorbing_particle():
     assert_array_almost_equal(refl_bg2.magnitude, refl_bg2_before, decimal=10)
     assert_array_almost_equal(g_bg1.magnitude, g_bg1_before, decimal=10)
     assert_array_almost_equal(g_bg2.magnitude, g_bg2_before, decimal=10)
-    assert_array_almost_equal(lstar_bg1.magnitude, lstar_bg1_before, decimal=10)
-    assert_array_almost_equal(lstar_bg2.magnitude, lstar_bg2_before, decimal=10)
+    assert_array_almost_equal(lstar_bg1.to('nm').magnitude,
+                              lstar_bg1_before, decimal=10)
+    assert_array_almost_equal(lstar_bg2.to('nm').magnitude,
+                              lstar_bg2_before, decimal=10)
 
     # test that the reflectance is (almost) the same when using an
     # almost-non-absorbing index vs a non-absorbing index
