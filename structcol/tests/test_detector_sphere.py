@@ -40,11 +40,11 @@ ntrajectories = 4
 radius = sc.Quantity('150.0 nm')
 assembly_radius = 5
 volume_fraction = 0.5
-n_particle = 1.5
-n_matrix = 1.0
-n_sample = sc.index.n_eff(n_particle, n_matrix, volume_fraction)
 angles = sc.Quantity(np.linspace(0.01,np.pi, 200), 'rad')
 wavelen = sc.Quantity('400.0 nm')
+n_particle = sc.Index.constant(1.5)(wavelen)
+n_matrix = sc.Index.constant(1.0)(wavelen)
+n_sample = sc.index.n_eff(n_particle, n_matrix, volume_fraction)
 
 # Index of the scattering event and trajectory corresponding to the reflected
 # photons
@@ -52,8 +52,8 @@ refl_index = np.array([2,0,2])
 
 def test_calc_refl_trans():
     # this test should give deterministic results
-    small_n = 1.0
-    large_n = 2.0
+    small_n = sc.Index.constant(1.0)(wavelen)
+    large_n = sc.Index.constant(2.0)(wavelen)
 
     # test absoprtion and stuck without fresnel
     z_pos = np.array([[0,0,0,0],[1,1,1,1],[-1,11,2,11],[-2,12,4,12]])
@@ -135,10 +135,10 @@ def test_index_match():
     radius = sc.Quantity('0.140 um')
     microsphere_radius = sc.Quantity('10.0 um')
     volume_fraction = sc.Quantity(0.55,'')
-    n_particle = 1.6
-    n_matrix = 1.6
+    n_particle = sc.Index.constant(1.6)(wavelen)
+    n_matrix = sc.Index.constant(1.6)(wavelen)
     n_sample = n_matrix
-    n_medium = 1.0
+    n_medium = sc.Index.constant(1.0)(wavelen)
 
     p, mu_scat, mu_abs = mc.calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen)
 
@@ -204,7 +204,7 @@ def test_reflection_sphere_mc():
     radius = sc.Quantity('0.125 um')
     assembly_diameter = sc.Quantity('10 um')
     volume_fraction = 0.5
-    n_particle = 1.54
+    n_particle = sc.Index.constant(1.54)(wavelen)
     n_matrix = sc.index.vacuum(wavelen)
     n_medium = sc.index.vacuum(wavelen)
     n_sample = sc.index.n_eff(n_particle, n_matrix, volume_fraction)

@@ -45,10 +45,14 @@ Physical Review E 90, no. 6 (2014): 62302. doi:10.1103/PhysRevE.90.062302
 # Using the unit registry (and wrapping all functions) ensures that we don't
 # make unit mistakes.
 # Also load commonly used functions from pymie package
-from pymie import Quantity, ureg, q, index_ratio, size_parameter, np, mie
+from pymie import Quantity, ureg, q, np, mie
 from . import refractive_index as index
 from .refractive_index import Index
 from . import structure, model
+import xarray as xr
+
+# make sure attributes are preserved during arithmetic operations
+xr.set_options(keep_attrs=True)
 
 # Global variable speed of light
 # get this from Pint in a somewhat indirect way:
@@ -160,6 +164,74 @@ def select_events(inarray, events):
     if isinstance(inarray, Quantity):
         outarray = Quantity(outarray, inarray.units)
     return outarray
+
+
+def size_parameter(wavelen, n_medium, radius):
+    """
+    Calculates the size parameter x=k_medium*a needed for Mie calculations.
+
+    This function expects n_medium to be a DataArray returned by an Index
+    object, which will consist of index of refraction at various wavelengths.
+
+    Parameters
+    ----------
+    wavelen : structcol.Quantity [length]
+        wavelength in vacuum
+    n_medium : `xr.DataArray`
+        refractive index of medium at various wavelengths, as calculated by an
+        `sc.Index` object
+    radius : structcol.Quantity [length]
+        radius of particle
+
+    Returns
+    -------
+    ndarray : float or complex with shape [num_wavelengths]
+    """
+
+    if not isinstance(n_medium, xr.DataArray):
+        raise ValueError("Index of medium must be a DataArray. "
+                         "Ensure that you are using the output from an Index "
+                         "object as input to this function.")
+
+    sp = mie.size_parameter(wavelen, n_medium.to_numpy(), radius)
+    if np.isscalar(sp):
+        return sp.item()
+    else:
+        return sp
+
+
+def wavevector(n_medium):
+    """
+    Calculates the wavevector in medium for Mie calculations.
+
+    This function expects n_medium to be a DataArray returned by an Index
+    object, which will consist of index of refraction at various wavelengths.
+
+    Parameters
+    ----------
+    n_medium : `xr.DataArray`
+        refractive index of medium at various wavelengths, as calculated by an
+        `sc.Index` object.  Wavelengths are given in the coordinates.
+
+    Returns
+    -------
+    ndarray : float or complex with shape [num_wavelengths]
+    """
+
+    if not isinstance(n_medium, xr.DataArray):
+        raise ValueError("Index of medium must be a DataArray. "
+                         "Ensure that you are using the output from an Index "
+                         "object as input to this function.")
+
+    wavelen = n_medium.coords["wavelength"]
+    units = n_medium.attrs["wavelength unit"]
+
+    k = Quantity((2 * np.pi * n_medium/wavelen).to_numpy(), 1/units)
+
+    if np.isscalar(k):
+        return k.item()
+    else:
+        return k
 
 # Create a module-wide random number generator object that will be used by
 # default in any functions that do random sampling. Users can override the

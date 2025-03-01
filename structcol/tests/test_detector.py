@@ -38,12 +38,13 @@ nevents = 3
 ntrajectories = 4
 radius = sc.Quantity('150.0 nm')
 volume_fraction = 0.5
-n_particle = 1.5
-n_matrix = 1.0
-n_medium = 1.0
-n_sample = sc.index.n_eff(n_particle, n_matrix, volume_fraction)
 angles = sc.Quantity(np.linspace(0.01,np.pi, 200), 'rad')
 wavelen = sc.Quantity('400.0 nm')
+n_particle = sc.Index.constant(1.5)(wavelen)
+n_matrix = sc.Index.constant(1.0)(wavelen)
+n_medium = sc.Index.constant(1.0)(wavelen)
+n_sample = sc.index.n_eff(n_particle, n_matrix, volume_fraction)
+
 
 # Index of the scattering event and trajectory corresponding to the reflected
 # photons
@@ -170,7 +171,7 @@ def test_reflection_mc():
     wavelen = sc.Quantity('600 nm')
     radius = sc.Quantity('0.125 um')
     volume_fraction = 0.5
-    n_particle = 1.54
+    n_particle = sc.Index.constant(1.54)(wavelen)
     n_matrix = sc.index.vacuum(wavelen)
     n_medium = sc.index.vacuum(wavelen)
     n_sample = sc.index.n_eff(n_particle, n_matrix, volume_fraction)
@@ -202,7 +203,7 @@ def test_surface_roughness_mc():
     wavelen = sc.Quantity('600 nm')
     radius = sc.Quantity('0.125 um')
     volume_fraction = 0.5
-    n_particle = 1.54
+    n_particle = sc.Index.constant(1.54)(wavelen)
     n_matrix = sc.index.vacuum(wavelen)
     n_medium = sc.index.vacuum(wavelen)
     boundary = 'film'
@@ -280,7 +281,9 @@ def test_reflection_core_shell():
     ## specify the radii from innermost to outermost layer
     radius_cs = sc.Quantity(np.array([100.0, 150.0]), 'nm')
     ## specify the index from innermost to outermost layer
-    n_particle_cs = np.array([1.5,1.5])
+    index_cs = [sc.Index.constant(1.5), sc.Index.constant(1.5)]
+    sphere_cs = sc.model.Sphere(index_cs, radius_cs)
+    n_particle_cs = sphere_cs.n(wavelen)
 
     # calculate the volume fractions of each layer
     vf_array = np.empty(len(radius_cs))
@@ -312,7 +315,7 @@ def test_reflection_core_shell():
     # the same refractive indices for all layers) and a non-core-shell that
     # absorbs with the same index
     # Reflection using a non-core-shell absorbing system
-    n_particle_abs = 1.5+0.001j
+    n_particle_abs = sc.Index.constant(1.5+0.001j)(wavelen)
     n_sample_abs = sc.index.n_eff(n_particle_abs, n_matrix, volume_fraction)
 
     R_abs, T_abs = calc_montecarlo(nevents, ntrajectories, radius,
@@ -320,7 +323,10 @@ def test_reflection_core_shell():
                                    volume_fraction, wavelen, seed)
 
     # Reflection using core-shells with the shell index-matched to the core
-    n_particle_cs_abs = np.array([1.5+0.001j,1.5+0.001j])
+    index_cs_abs = [sc.Index.constant(1.5+0.001j),
+                    sc.Index.constant(1.5+0.001j)]
+    sphere_cs_abs = sc.model.Sphere(index_cs_abs, radius_cs)
+    n_particle_cs_abs = sphere_cs_abs.n(wavelen)
     n_sample_cs_abs = sc.index.n_eff(n_particle_cs_abs, n_matrix, vf_array)
 
     R_cs_abs, T_cs_abs = calc_montecarlo(nevents, ntrajectories, radius_cs,
@@ -349,8 +355,8 @@ def test_reflection_core_shell():
 
     # Same as previous test but with absorbing matrix as well
     # Reflection using a non-core-shell absorbing system
-    n_particle_abs = 1.5+0.001j
-    n_matrix_abs = 1.+0.001j
+    n_particle_abs = sc.Index.constant(1.5+0.001j)(wavelen)
+    n_matrix_abs = sc.Index.constant(1.+0.001j)(wavelen)
     n_sample_abs = sc.index.n_eff(n_particle_abs, n_matrix_abs, volume_fraction)
 
     R_abs, T_abs = calc_montecarlo(nevents, ntrajectories, radius,
@@ -358,7 +364,10 @@ def test_reflection_core_shell():
                            volume_fraction, wavelen, seed)
 
     # Reflection using core-shells with the shell index-matched to the core
-    n_particle_cs_abs = np.array([1.5+0.001j,1.5+0.001j])
+    index_cs_abs = [sc.Index.constant(1.5+0.001j),
+                    sc.Index.constant(1.5+0.001j)]
+    sphere_cs_abs = sc.model.Sphere(index_cs_abs, radius_cs)
+    n_particle_cs_abs = sphere_cs_abs.n(wavelen)
     n_sample_cs_abs = sc.index.n_eff(n_particle_cs_abs, n_matrix_abs, vf_array)
 
     R_cs_abs, T_cs_abs = calc_montecarlo(nevents, ntrajectories, radius_cs,
@@ -390,7 +399,9 @@ def test_reflection_core_shell_mc():
     nevents = 100
     wavelen = sc.Quantity('600 nm')
     radius = sc.Quantity(np.array([0.125, 0.13]), 'um')
-    n_particle = np.array([1.54,1.33])
+    index_particle = [sc.Index.constant(1.54), sc.Index.constant(1.33)]
+    sphere = sc.model.Sphere(index_particle, radius)
+    n_particle = sphere.n(wavelen)
     n_matrix = sc.index.vacuum(wavelen)
     n_medium = sc.index.vacuum(wavelen)
     volume_fraction = 0.5
@@ -426,7 +437,7 @@ def test_reflection_absorbing_particle_or_matrix():
                            n_sample, n_medium, volume_fraction, wavelen, seed)
 
     # Reflection using particle with an imaginary component of 0
-    n_particle_abs = 1.5 + 0j
+    n_particle_abs = sc.Index.constant(1.5 + 0j)(wavelen)
     R_abs, T_abs = calc_montecarlo(nevents, ntrajectories, radius,
                                    n_particle_abs, n_sample, n_medium,
                                    volume_fraction, wavelen, seed)
@@ -447,7 +458,7 @@ def test_reflection_absorbing_particle_or_matrix():
 
     # Same as previous test but with absorbing matrix
     # Reflection using matrix with an imaginary component of 0
-    n_matrix_abs = 1. + 0j
+    n_matrix_abs = sc.Index.constant(1. + 0j)(wavelen)
     n_sample_abs = sc.index.n_eff(n_particle, n_matrix_abs, volume_fraction)
     R_abs, T_abs = calc_montecarlo(nevents, ntrajectories, radius,
                                    n_particle, n_sample_abs, n_medium,
@@ -469,7 +480,7 @@ def test_reflection_absorbing_particle_or_matrix():
 
     # test that the reflection is essentially the same when the imaginary
     # index is 0 or very close to 0
-    n_matrix_abs = 1. + 1e-10j
+    n_matrix_abs = sc.Index.constant(1. + 1e-10j)(wavelen)
     n_sample_abs = sc.index.n_eff(n_particle, n_matrix_abs, volume_fraction)
     R_abs, T_abs = calc_montecarlo(nevents, ntrajectories, radius,
                                    n_particle, n_sample_abs, n_medium,
@@ -492,7 +503,7 @@ def test_reflection_absorption_mc():
     wavelen = sc.Quantity('600 nm')
     radius = sc.Quantity('0.125 um')
     volume_fraction = 0.5
-    n_particle = 1.54 + 0.001j
+    n_particle = sc.Index.constant(1.54 + 0.001j)(wavelen)
     n_matrix = sc.index.vacuum(wavelen) + 0.0001j
     n_sample = sc.index.n_eff(n_particle, n_matrix, volume_fraction)
 
@@ -544,8 +555,8 @@ def test_reflection_polydispersity():
 
     # With absorption: test that the reflectance using with very small
     # polydispersity is the same as the monodisperse case
-    n_particle_abs = 1.5+0.0001j
-    n_matrix_abs = 1.+0.0001j
+    n_particle_abs = sc.Index.constant(1.5+0.0001j)(wavelen)
+    n_matrix_abs = sc.Index.constant(1.+0.0001j)(wavelen)
     n_sample_abs = sc.index.n_eff(n_particle_abs, n_matrix_abs, volume_fraction)
 
     R_mono_abs, T_mono_abs = calc_montecarlo(nevents, ntrajectories, radius,
@@ -630,7 +641,7 @@ def test_reflection_polydispersity():
     ## When there's only 1 mean diameter
     radius1 = sc.Quantity('100.0 nm')
     radius2 = sc.Quantity('150.0 nm')
-    n_matrix_abs = 1. + 1e-40*1j
+    n_matrix_abs = sc.Index.constant(1. + 1e-40*1j)(wavelen)
     n_sample_abs = sc.index.n_eff(n_particle, n_matrix_abs, volume_fraction)
     pdi4 = sc.Quantity(np.array([0.2, 0.2]), '')
     concentration2 = sc.Quantity(np.array([0.1,0.9]), '')
@@ -694,7 +705,7 @@ def test_reflection_polydispersity_mc():
     wavelen = sc.Quantity('600 nm')
     radius = sc.Quantity('0.125 um')
     volume_fraction = 0.5
-    n_particle = 1.54
+    n_particle = sc.Index.constant(1.54)(wavelen)
     n_matrix = sc.index.vacuum(wavelen)
     n_sample = sc.index.n_eff(n_particle, n_matrix, volume_fraction)
 

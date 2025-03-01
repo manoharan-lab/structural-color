@@ -20,7 +20,8 @@ Tests for the mie module
 .. moduleauthor:: Vinothan N. Manoharan <vnm@seas.harvard.edu>
 """
 
-from .. import Quantity, index_ratio, size_parameter, np, mie
+from .. import Quantity, np, mie
+import structcol as sc
 from pytest import raises
 from numpy.testing import assert_almost_equal, assert_array_almost_equal
 from pint.errors import DimensionalityError
@@ -32,10 +33,10 @@ def test_cross_sections():
     # test case is PS sphere in water
     wavelen = Quantity('658.0 nm')
     radius = Quantity('0.85 um')
-    n_matrix = Quantity(1.33, '')
-    n_particle = Quantity(1.59 + 1e-4 * 1.0j, '')
-    m = index_ratio(n_particle, n_matrix)
-    x = size_parameter(wavelen, n_matrix, radius)
+    n_matrix = sc.Index.constant(1.33)(wavelen)
+    n_particle = sc.Index.constant(1.59 + 1e-4 * 1.0j)(wavelen)
+    m = sc.index.ratio(n_particle, n_matrix)
+    x = sc.size_parameter(wavelen, n_matrix, radius)
     qscat, qext, qback = mie.calc_efficiencies(m, x)
     g = mie.calc_g(m,x)   # asymmetry parameter
 
@@ -49,7 +50,7 @@ def test_cross_sections():
     cscat = qscat * np.pi * radius**2
     cext = qext * np.pi * radius**2
     cback  = qback * np.pi * radius**2
-    cscat2, cext2, _, cback2, g2 = mie.calc_cross_sections(m, x, wavelen/n_matrix)
+    cscat2, cext2, _, cback2, g2 = mie.calc_cross_sections(m, x, wavelen/n_matrix.to_numpy())
     assert_almost_equal(cscat.to('m^2').magnitude, cscat2.to('m^2').magnitude)
     assert_almost_equal(cext.to('m^2').magnitude, cext2.to('m^2').magnitude)
     assert_almost_equal(cback.to('m^2').magnitude, cback2.to('m^2').magnitude)
@@ -65,10 +66,10 @@ def test_cross_sections():
 def test_form_factor():
     wavelen = Quantity('658.0 nm')
     radius = Quantity('0.85 um')
-    n_matrix = Quantity(1.00, '')
-    n_particle = Quantity(1.59 + 1e-4 * 1.0j, '')
-    m = index_ratio(n_particle, n_matrix)
-    x = size_parameter(wavelen, n_matrix, radius)
+    n_matrix = sc.Index.constant(1.00)(wavelen)
+    n_particle = sc.Index.constant(1.59 + 1e-4 * 1.0j)(wavelen)
+    m = sc.index.ratio(n_particle, n_matrix)
+    x = sc.size_parameter(wavelen, n_matrix, radius)
 
     angles = Quantity(np.linspace(0, 180., 19), 'deg')
     # these values are calculated from MiePlot
@@ -123,9 +124,9 @@ def test_efficiencies():
                             0.331000402174976])
 
     wavelen = Quantity('658.0 nm')
-    n_matrix = Quantity(1.00, '')
-    n_particle = Quantity(1.59 + 1e-4 * 1.0j, '')
-    m = index_ratio(n_particle, n_matrix)
+    n_matrix = sc.Index.constant(1.00)(wavelen)
+    n_particle = sc.Index.constant(1.59 + 1e-4 * 1.0j)(wavelen)
+    m = sc.index.ratio(n_particle, n_matrix)
 
     effs = [mie.calc_efficiencies(m, x) for x in x]
     q_arr = np.asarray(effs)
@@ -150,9 +151,9 @@ def test_efficiencies():
 def test_absorbing_materials():
     # test calculations for gold, which has a high imaginary refractive index
     wavelen = Quantity('658.0 nm')
-    n_matrix = Quantity(1.00, '')
-    n_particle = Quantity(0.1425812 + 3.6813284 * 1.0j, '')
-    m = index_ratio(n_particle, n_matrix)
+    n_matrix = sc.Index.constant(1.00)(wavelen)
+    n_particle = sc.Index.constant(0.1425812 + 3.6813284 * 1.0j)(wavelen)
+    m = sc.index.ratio(n_particle, n_matrix)
     x = 10.0
 
     angles = Quantity(np.linspace(0, 90., 10), 'deg')

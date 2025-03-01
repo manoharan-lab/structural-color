@@ -343,6 +343,14 @@ class Trajectory:
         x = size_parameter(wavelen, n_sample, radius)
         k = 2 * np.pi * n_sample / wavelen.magnitude
         step = step.magnitude
+        # TODO: fix the bug in the above code.  If the step size and wavelength
+        # are specified in different units, the results will be off by a lot.
+        # test_fields uses different units.  The commented code below is how
+        # this should look:
+        # m = sc.index.ratio(n_particle, n_sample)
+        # x = sc.size_parameter(wavelen, n_sample, radius)
+        # k = sc.wavevector(n_sample).magnitude
+        # step = step.to_preferred().magnitude
         ntraj = theta.shape[1]
 
         # calculate the mie amplitude scattering matrix
@@ -990,16 +998,14 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
         n_sample = n_sample
     if effective_medium_struct and not effective_medium_form:
         n_sample_eff = n_sample
-        x_eff = size_parameter(wavelen, n_sample_eff, radius)
+        x_eff = sc.size_parameter(wavelen, n_sample_eff, radius)
         n_sample = n_matrix
     if not effective_medium_form and not effective_medium_struct:
         n_sample = n_matrix
 
-    k = 2 * np.pi * n_sample / wavelen
-    m = (n_particle/n_sample)
-    if isinstance(m, xr.DataArray):
-        m = m.to_numpy()
-    x = size_parameter(wavelen, n_sample, radius)
+    k = sc.wavevector(n_sample)
+    m = sc.index.ratio(n_particle, n_sample)
+    x = sc.size_parameter(wavelen, n_sample, radius)
 
     # radius and radius2 should be in the same units (for polydisperse samples)
     if radius2 is not None:
@@ -1040,7 +1046,7 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
                                            2*radius2.magnitude]), radius.units)
 
     # calculate the absorption coefficient
-    mu_abs = 4*np.pi*n_sample.imag/wavelen
+    mu_abs = 4*np.pi*n_sample.imag.to_numpy()/wavelen
 
     # Define angles at which phase function will be calculated, based on
     # whether light is polarized or unpolarized
@@ -1088,9 +1094,9 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
     if fine_roughness > 0.:
         if n_matrix is None:
             raise ValueError('need to specify n_matrix if fine_roughness > 0')
-        m = n_particle/n_matrix
-        x = size_parameter(wavelen, n_matrix, radius)
-        k = 2 * np.pi * n_matrix / wavelen
+        m = sc.index.ratio(n_particle, n_matrix)
+        x = sc.size_parameter(wavelen, n_matrix, radius)
+        k = sc.wavevector(n_matrix)
 
         _, cscat_total_mie = phase_function(m, x, thetas, volume_fraction,
                                             k, number_density,

@@ -139,8 +139,8 @@ class TestParticle():
         ipar_sphere, iperp_sphere = sphere.form_factor(wavelen, angles,
                                                        n_matrix)
 
-        m = sphere.n(wavelen)/n_matrix(wavelen)
-        x = mie.size_parameter(wavelen, n_matrix(wavelen), radius)
+        m = sc.index.ratio(sphere.n(wavelen), n_matrix(wavelen))
+        x = sc.size_parameter(wavelen, n_matrix(wavelen), radius)
         ipar_mie, iperp_mie = mie.calc_ang_dist(m, x, angles)
 
         assert_equal(ipar_sphere, ipar_mie)
@@ -161,7 +161,7 @@ class TestParticle():
         ipar_sphere, iperp_sphere = sphere.form_factor(wavelen, angles,
                                                        n_matrix)
 
-        m = sphere.n(wavelen)/n_matrix(wavelen)
+        m = sc.index.ratio(sphere.n(wavelen), n_matrix(wavelen))
         ipar_mie, iperp_mie = mie.calc_ang_dist(m, x, angles)
 
         assert_equal(ipar_sphere, ipar_mie)
@@ -186,9 +186,9 @@ class TestParticle():
                                                        n_matrix,
                                                        distance=distance)
 
-        m = sphere.n(wavelen)/n_matrix(wavelen)
-        x = mie.size_parameter(wavelen, n_matrix(wavelen), radius)
-        k = 2 * np.pi * n_matrix(wavelen) / wavelen
+        m = sc.index.ratio(sphere.n(wavelen), n_matrix(wavelen))
+        x = sc.size_parameter(wavelen, n_matrix(wavelen), radius)
+        k = 2 * np.pi * n_matrix(wavelen).to_numpy() / wavelen
         ipar_mie, iperp_mie = mie.diff_scat_intensity_complex_medium(
             m, x, angles, k*distance)
 
@@ -206,8 +206,8 @@ class TestParticle():
         ipar_sphere, iperp_sphere = sphere.form_factor(wavelen, angles,
                                                        n_matrix)
 
-        m = (sphere.n(wavelen)/n_matrix(wavelen)).to_numpy()
-        x = mie.size_parameter(wavelen, n_matrix(wavelen), radii)
+        m = sc.index.ratio(sphere.n(wavelen), n_matrix(wavelen))
+        x = sc.size_parameter(wavelen, n_matrix(wavelen), radii)
         ipar_mie, iperp_mie = mie.calc_ang_dist(m, x, angles)
 
         assert_equal(ipar_sphere, ipar_mie)
@@ -386,7 +386,8 @@ def test_theta_refraction():
 
     # the reflection should be zero plus the fresnel reflection term
     n_sample = sc.index.n_eff(n_particle, n_matrix, volume_fraction)
-    r_fresnel = model.fresnel_reflection(n_medium, n_sample, incident_angle)
+    r_fresnel = model.fresnel_reflection(n_medium.to_numpy(),
+                                         n_sample.to_numpy(), incident_angle)
     r_fresnel_avg = (r_fresnel[0] + r_fresnel[1]) / 2
     assert_almost_equal(refl1.magnitude, r_fresnel_avg)
     assert_almost_equal(refl2.magnitude, r_fresnel_avg)
@@ -410,7 +411,7 @@ def test_differential_cross_section():
     n_particle = sphere.n(wavelen)
     volume_fraction = 0.0001              # IS VF TOO LOW?
     n_sample = sc.index.n_eff(n_particle, n_matrix, volume_fraction)
-    m = n_particle/n_sample
+    m = sc.index.ratio(n_particle, n_sample)
     x = size_parameter(wavelen, n_sample, radius)
     diff = model.differential_cross_section(m, x, angles, volume_fraction)
 
@@ -472,7 +473,7 @@ def test_reflection_core_shell():
     radius3 = Quantity(np.array([120.0, 130.0]), 'nm')
     index3 = [sc.Index.constant(1.5), sc.Index.constant(1.0)]
     sphere_cs = sc.model.Sphere(index3, radius3)
-    n_particle3 = sphere_cs.n(wavelength).to_numpy()
+    n_particle3 = sphere_cs.n(wavelength)
     volume_fraction3 = volume_fraction2 * (radius3[1]**3 / radius3[0]**3)
 
     refl3, _, _, g3, lstar3 = model.reflection(n_particle3, n_matrix, n_medium,
@@ -492,7 +493,7 @@ def test_reflection_core_shell():
     # for a non-core-shell using Maxwell-Garnett
     assert_array_almost_equal(refl1.magnitude, refl.magnitude)
     assert_array_almost_equal(g1.magnitude, g.magnitude)
-    assert_array_almost_equal(lstar1.magnitude, lstar.magnitude)
+    assert_array_almost_equal(lstar1.to('nm').magnitude, lstar.magnitude)
 
     # Compare a non-core-shell and a core-shell with shell index of air using
     # Bruggeman
@@ -535,7 +536,7 @@ def test_reflection_core_shell():
     index7 = [sc.Index.constant(1.5+0.001j), sc.Index.constant(1.5+0.001j)]
     radius7 = Quantity(np.array([110.0, 120.0]), 'nm')
     sphere_cs = sc.model.Sphere(index7, radius7)
-    n_particle7 = sphere_cs.n(wavelength).to_numpy()
+    n_particle7 = sphere_cs.n(wavelength)
     n_matrix7 = sc.Index.constant(1.0+0.001j)(wavelength)
     refl7 = model.reflection(n_particle7, n_matrix7, n_medium, wavelength,
                              radius7, volume_fraction, thickness=thickness)[0]
@@ -549,7 +550,7 @@ def test_reflection_absorbing_particle():
     wavelength = Quantity(500.0, 'nm')
     volume_fraction = 0.5
     radius = Quantity('120.0 nm')
-    n_matrix = 1.0
+    n_matrix = sc.Index.constant(1.0)(wavelength)
     n_medium = n_matrix
     sphere_real = sc.model.Sphere(sc.Index.constant(1.5), radius)
     sphere_complex = sc.model.Sphere(sc.Index.constant(1.5 + 0j), radius)
@@ -662,7 +663,7 @@ def test_calc_g():
                        volume_fraction)
 
     n_sample = sc.index.n_eff(n_particle, n_matrix, vf_array)
-    m = (n_particle/n_sample)
+    m = sc.index.ratio(n_particle, n_sample)
     x = size_parameter(wavelength, n_sample, radius)
     qscat, qext, qback = mie.calc_efficiencies(m, x)
     g2 = mie.calc_g(m,x)
@@ -694,7 +695,7 @@ def test_transport_length_dilute():
 
     # transport length from Mie theory
     n_sample = sc.index.n_eff(n_particle, n_matrix, volume_fraction)
-    m = n_particle/n_sample
+    m = sc.index.ratio(n_particle, n_sample)
     x = size_parameter(wavelength, n_sample, radius)
     g = mie.calc_g(m,x)
 
@@ -709,7 +710,7 @@ def test_reflection_absorbing_matrix():
     # test that the reflections with a real n_matrix and with a complex
     # n_matrix with a 0 imaginary component are the same
     wavelength = Quantity(500.0, 'nm')
-    volume_fraction = Quantity(0.5, '')
+    volume_fraction = 0.5
     radius = Quantity('120.0 nm')
     n_matrix_real = sc.Index.constant(1.0)(wavelength)
     n_matrix_imag = sc.Index.constant(1.0 + 0j)(wavelength)
@@ -1122,7 +1123,7 @@ def test_g_transport_length():
     # test that the g and transport length do not depend on the thickness in the
     # presence of absorption
     wavelength = Quantity(600.0, 'nm')
-    volume_fraction = Quantity(0.55, '')
+    volume_fraction = 0.55
     radius = Quantity('100.0 nm')
     n_matrix = sc.Index.constant(1.0+0.0004j)(wavelength)
     n_medium = sc.Index.constant(1.0)(wavelength)
@@ -1147,7 +1148,7 @@ def test_g_transport_length():
 def test_reflection_throws_valueerror_for_polydisperse_core_shells():
     # test that a valueerror is raised when trying to run polydisperse core-shells
     wavelength = Quantity(500.0, 'nm')
-    volume_fraction = Quantity(0.5, '')
+    volume_fraction = 0.5
     radius = Quantity(np.array([110.0, 120.0]), 'nm')
     index = [sc.Index.constant(1.5), sc.Index.constant(1.5)]
     sphere = sc.model.Sphere(index, radius)

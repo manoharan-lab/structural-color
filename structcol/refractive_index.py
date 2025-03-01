@@ -135,15 +135,12 @@ class Index:
             # the "to_base_units()" converts units like nm/m to dimensionless
             index = index.to_base_units().magnitude
 
-        if np.isscalar(index):
-            return index
-        else:
-            # set up DataArray to return
-            coords={"wavelength": wavelen.to_preferred().magnitude}
-            index_array = xr.DataArray(index, coords=coords)
-            index_array.attrs["wavelength unit"] = wavelen.to_preferred().units
+        # set up DataArray to return
+        coords={"wavelength": wavelen.to_preferred().magnitude}
+        index_array = xr.DataArray(index, coords=coords)
+        index_array.attrs["wavelength unit"] = wavelen.to_preferred().units
 
-            return index_array.squeeze()
+        return index_array
 
     @classmethod
     def constant(cls, index):
@@ -589,10 +586,10 @@ def n_eff(n_particle, n_matrix, volume_fraction, maxwell_garnett=False):
 
     Parameters
     ----------
-    n_particle: float
+    n_particle: xr.DataArray
         refractive indices of the inclusion. If it's a core-shell particle,
         must be an array of indices from innermost to outermost layer.
-    n_matrix: float
+    n_matrix: xr.DataArray
         refractive index of the matrix.
     volume_fraction: float or structcol.Quantity (dimensionless)
         volume fraction of inclusion. If it's a core-shell particle,
@@ -617,8 +614,11 @@ def n_eff(n_particle, n_matrix, volume_fraction, maxwell_garnett=False):
         Maxwell-Garnett relation in Eq. 18.
 
     """
-    if isinstance(n_matrix, xr.DataArray):
-        n_matrix = n_matrix.to_numpy()
+    coords = n_matrix.coords
+    attrs = n_matrix.attrs
+    if isinstance(n_particle, xr.DataArray):
+        n_particle = n_particle.to_numpy()
+    n_matrix = n_matrix.to_numpy()
 
     # Maxwell-Garnett calculation is vectorized over wavelengths but currently
     # cannot handle multicomponent particles -- it is limited to two indices
@@ -636,15 +636,18 @@ def n_eff(n_particle, n_matrix, volume_fraction, maxwell_garnett=False):
                          (2*nm**2 + ni**2 - phi*((ni**2)-(nm**2))))
 
         if np.isscalar(n_particle):
-            return neff.item()
+            neff = neff.item()
         else:
-            return neff.squeeze()
+            neff = neff.squeeze()
+        return xr.DataArray(neff, coords=coords, attrs=attrs)
 
     # Bruggeman calculation is vectorized over both wavelengths and components
     # of particles.  Can handle multilayer spheres.
     else:
         # n_particle has shape [num_wavelengths, num_layers]
         n_particle = np.atleast_2d(n_particle)
+        # n_matrix has share [num_wavelengths]
+        n_matrix = np.atleast_1d(n_matrix)
         num_wavelengths = n_particle.shape[0]
 
         # volume_fraction has shape [num_layers]
@@ -659,8 +662,7 @@ def n_eff(n_particle, n_matrix, volume_fraction, maxwell_garnett=False):
 
         # the following will stack n_matrix on the end of the n_particle array,
         # so that it has shape [num_wavelengths, num_layers + 1]
-        n_array = np.hstack((n_particle,
-                             np.ones((n_particle.shape[0],1)) * n_matrix))
+        n_array = np.hstack((n_particle, n_matrix[:, np.newaxis]))
         # same for vf_array, so that it has shape [num_layers + 1]
         vf_array = np.append(volume_fraction, volume_fraction_matrix)
 
@@ -695,14 +697,47 @@ def n_eff(n_particle, n_matrix, volume_fraction, maxwell_garnett=False):
         n_bg_imag = n_bg.reshape((num_wavelengths, 2))[:,1]
 
         if n_bg_imag.all() == 0:
-            n_bg = n_bg_real
+            n_bg = n_bg_real.squeeze()
         elif n_bg_imag.any() < 0:
             raise ValueError('Cannot find positive imaginary root for the '
                              'effective index')
         else:
-            n_bg = n_bg_real + n_bg_imag*1j
+            n_bg = (n_bg_real + n_bg_imag*1j).squeeze()
 
-        if num_wavelengths == 1:
-            return n_bg.item()
-        else:
-            return n_bg.squeeze()
+        return xr.DataArray(n_bg, coords=coords, attrs=attrs)
+
+def ratio(n_particle, n_matrix):
+    """Calculates the ratio of refractive indices (m in Mie theory).
+
+    This function differs from the one in pymie in that it expects to receive
+    DataArrays as inputs -- specifically, it expects to receive the outputs of
+    an Index object evaluated at a set of wavelengths. It then checks to make
+    sure that both indexes are evaluated at the same set of wavelengths and, if
+    so, returns a plain numpy array, stripped of metadata, that can be input as
+    the m variable in Mie calculations.
+
+    Parameters
+    ----------
+    n_particle : `xr.DataArray`
+        Output from an Index object evaluation.  Contains calculated refractive
+        index of particle at a set of wavelengths.  May be float or complex.
+    n_matrix : `xr.DataArray`
+        As above, but for the matrix (media) surrounding the particle.
+
+    Returns
+    -------
+    ndarray : shape [num_wavelengths]
+        Index ratio at each wavelength
+
+    """
+    if (not isinstance(n_particle, xr.DataArray)
+        or not isinstance(n_matrix, xr.DataArray)):
+        raise ValueError("Index of particle and matrix must be DataArrays. "
+                         "Ensure that you are using the output from an Index "
+                         "object as input to this function.")
+    if not (np.array_equal(n_particle.coords["wavelength"].to_numpy(),
+                           n_matrix.coords["wavelength"].to_numpy())):
+        raise ValueError("Cannot calculate index ratio when Indexes of "
+                         "particle and matrix are evaluated at different "
+                         "wavelengths.")
+    return (n_particle/n_matrix).to_numpy()

@@ -26,7 +26,6 @@ import structcol as sc
 from structcol import montecarlo as mc
 from structcol import detector as det
 from .. import Quantity, np
-from .. import size_parameter
 import xarray as xr
 
 from numpy.testing import assert_equal, assert_almost_equal
@@ -207,14 +206,14 @@ class TestStructureFactor():
         """
         wavelen = Quantity('400.0 nm')
         angles = Quantity(np.pi, 'rad')
-        n_matrix = 1.0
+        n_matrix = sc.Index.constant(1.0)(wavelen)
 
         # Structure factor for non-core-shell particles
         radius = Quantity('100.0 nm')
-        n_particle = 1.5
+        n_particle = sc.Index.constant(1.5)(wavelen)
         volume_fraction = 0.0001         # IS VF TOO LOW?
         n_sample = sc.index.n_eff(n_particle, n_matrix, volume_fraction)
-        x = size_parameter(wavelen, n_sample, radius)
+        x = sc.size_parameter(wavelen, n_sample, radius)
         qa = 4*x*np.sin(angles/2)
         structure_factor = sc.structure.PercusYevick(volume_fraction)
         s = structure_factor(qa)
@@ -227,12 +226,11 @@ class TestStructureFactor():
         volume_fraction_cs = np.array([volume_fraction, volume_fraction_shell])
 
         n_sample_cs = sc.index.n_eff(n_particle_cs, n_matrix, volume_fraction_cs)
-        x_cs = size_parameter(wavelen, n_sample_cs, radius_cs[1]).flatten()
+        x_cs = sc.size_parameter(wavelen, n_sample_cs, radius_cs[1])
         qa_cs = 4*x_cs*np.sin(angles/2)
-        with pytest.warns(UnitStrippedWarning):
-            structure_factor_cs = sc.structure.PercusYevick(
+        structure_factor_cs = sc.structure.PercusYevick(
                                             np.sum(volume_fraction_cs))
-            s_cs = structure_factor_cs(qa_cs)
+        s_cs = structure_factor_cs(qa_cs)
 
         assert_almost_equal(s, s_cs, decimal=5)
 

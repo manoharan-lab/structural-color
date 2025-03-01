@@ -33,11 +33,12 @@ ntrajectories = 4
 radius = sc.Quantity('150.0 nm')
 assembly_radius = 5
 volume_fraction = 0.5
-n_particle = 1.5
-n_matrix = 1.0
-n_sample = sc.index.n_eff(n_particle, n_matrix, volume_fraction)
 angles = sc.Quantity(np.linspace(0.01,np.pi, 200), 'rad')
 wavelen = sc.Quantity('400.0 nm')
+n_particle = sc.Index.constant(1.5)(wavelen)
+n_matrix = sc.Index.constant(1.0)(wavelen)
+n_sample = sc.index.n_eff(n_particle, n_matrix, volume_fraction)
+
 
 # Index of the scattering event and trajectory corresponding to the reflected
 # photons
