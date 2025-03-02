@@ -88,7 +88,8 @@ class TestParticle():
         # test that index works as expected
         wavelen = sc.Quantity(400, 'nm')
         n = my_core_shell.n(wavelen)
-        assert_equal(n.sel(material=0).to_numpy(), sc.index.vacuum(wavelen))
+        assert_equal(n.sel(**{sc.Coord.LAYER: 0}).to_numpy(),
+                     sc.index.vacuum(wavelen))
 
     def test_layered_sphere(self):
         index = [sc.index.vacuum, sc.index.polystyrene, sc.index.water]
@@ -114,11 +115,11 @@ class TestParticle():
 
         # test that index works as expected
         n = my_layered_sphere.n(self.wavelen)
-        assert_equal(n.sel(material=0).to_numpy(),
+        assert_equal(n.sel(**{sc.Coord.LAYER: 0}).to_numpy(),
                      sc.index.vacuum(self.wavelen))
-        assert_equal(n.sel(material=1).to_numpy(),
+        assert_equal(n.sel(**{sc.Coord.LAYER: 1}).to_numpy(),
                      sc.index.polystyrene(self.wavelen))
-        assert_equal(n.sel(material=2).to_numpy(),
+        assert_equal(n.sel(**{sc.Coord.LAYER: 2}).to_numpy(),
                      sc.index.water(self.wavelen))
         assert n.attrs[sc.Attr.LENGTH_UNIT] == radii.to_preferred().units
 
