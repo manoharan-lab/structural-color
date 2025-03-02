@@ -49,7 +49,7 @@ class TestParticle():
         n = my_particle.n(self.wavelen)
         assert_equal(n, np.ones_like(self.wavelen)*index)
         # check stored units
-        assert n.attrs["wavelength unit"] == size.to_preferred().units
+        assert n.attrs[sc.Attr.LENGTH_UNIT] == size.to_preferred().units
 
         # make sure reported units of size are correct
         assert_equal(size.to_preferred(), my_particle.size_q)
@@ -69,7 +69,7 @@ class TestParticle():
         n = my_sphere.n(self.wavelen)
         assert_equal(n.to_numpy(),
                      sc.index.polystyrene(self.wavelen).to_numpy())
-        assert n.attrs["wavelength unit"] == radius.to_preferred().units
+        assert n.attrs[sc.Attr.LENGTH_UNIT] == radius.to_preferred().units
 
         # make sure diameter is correct
         assert_equal(radius.to_preferred() * 2, my_sphere.diameter_q)
@@ -88,7 +88,7 @@ class TestParticle():
         # test that index works as expected
         wavelen = sc.Quantity(400, 'nm')
         n = my_core_shell.n(wavelen)
-        assert_equal(n.sel(layer=0).to_numpy(), sc.index.vacuum(wavelen))
+        assert_equal(n.sel(material=0).to_numpy(), sc.index.vacuum(wavelen))
 
     def test_layered_sphere(self):
         index = [sc.index.vacuum, sc.index.polystyrene, sc.index.water]
@@ -114,11 +114,13 @@ class TestParticle():
 
         # test that index works as expected
         n = my_layered_sphere.n(self.wavelen)
-        assert_equal(n.sel(layer=0).to_numpy(), sc.index.vacuum(self.wavelen))
-        assert_equal(n.sel(layer=1).to_numpy(),
+        assert_equal(n.sel(material=0).to_numpy(),
+                     sc.index.vacuum(self.wavelen))
+        assert_equal(n.sel(material=1).to_numpy(),
                      sc.index.polystyrene(self.wavelen))
-        assert_equal(n.sel(layer=2).to_numpy(), sc.index.water(self.wavelen))
-        assert n.attrs["wavelength unit"] == radii.to_preferred().units
+        assert_equal(n.sel(material=2).to_numpy(),
+                     sc.index.water(self.wavelen))
+        assert n.attrs[sc.Attr.LENGTH_UNIT] == radii.to_preferred().units
 
         # test number of layers
         assert my_layered_sphere.layers == len(radii)

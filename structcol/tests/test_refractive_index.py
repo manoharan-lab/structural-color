@@ -50,9 +50,9 @@ class TestIndex:
         # and that we return an xarray DataArray object even for single
         # wavelength
         assert isinstance(single_wavelength_n, xr.DataArray)
-        assert (single_wavelength_n.attrs["wavelength unit"] ==
+        assert (single_wavelength_n.attrs[sc.Attr.LENGTH_UNIT] ==
                 Quantity(1, 'nm').to_preferred().units)
-        assert ("wavelength" in single_wavelength_n.coords.keys())
+        assert (sc.Coord.WAVELEN in single_wavelength_n.coords.keys())
 
         # check that keyword is set when creating Index object
         my_index = sc.Index(fake_index_relation, fake_index=3.33)
@@ -332,7 +332,7 @@ def test_multimaterial_bruggeman():
     wavelen = sc.Quantity(500, 'nm')
     index = sc.Index.constant(1.33)
     layers = 5
-    n_particle = index(wavelen).expand_dims(dim={"layer": layers})
+    n_particle = index(wavelen).expand_dims(dim={sc.Coord.LAYER: layers})
     vf = np.ones(layers) * 1/layers
     n_matrix = sc.Index.constant(1.0)(wavelen)
     assert_equal(sc.index.n_eff(n_particle, n_matrix, vf), index(wavelen))
@@ -375,7 +375,8 @@ def test_vectorized_bruggeman():
     wavelen = sc.Quantity(np.linspace(400, 800, num_wavelengths), 'nm')
     index_particle = sc.Index.constant(1.33)
     num_layers = 5
-    n_particle = index_particle(wavelen).expand_dims(dim={"layer": num_layers})
+    n_particle = index_particle(wavelen).expand_dims(dim={sc.Coord.LAYER:
+                                                          num_layers})
     n_particle = n_particle.transpose()
     n_matrix = sc.Index.constant(1.00)(wavelen)
     vf = np.ones(num_layers)* 1/num_layers
@@ -390,7 +391,7 @@ def test_vectorized_bruggeman():
     wavelen = sc.Quantity(np.linspace(400, 800, 10), 'nm')
     # we add a small imaginary part to the particle index
     index = sc.index.polystyrene
-    n_particle = (index(wavelen).expand_dims(dim={"layer": 1})
+    n_particle = (index(wavelen).expand_dims(dim={sc.Coord.LAYER: 1})
                    + 0.0001j).transpose()
     n_matrix = sc.index.water(wavelen)
     vf = 0.5

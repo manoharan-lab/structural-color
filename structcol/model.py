@@ -185,16 +185,17 @@ class Sphere(Particle):
             the particle (if layered)
         """
         if self.layered:
-            coords = {"wavelength": wavelen.to_preferred().magnitude,
-                      "layer": np.arange(self.layers)}
+            coords = {sc.Coord.WAVELEN: wavelen.to_preferred().magnitude,
+                      sc.Coord.LAYER: np.arange(self.layers)}
             n_values = np.array([n(wavelen) for n in self.index])
             # if only one wavelength is specified, ensure that we can store
             # that wavelength in the resulting xarray
             if n_values.ndim == 1:
                 n_values = n_values[:, np.newaxis]
-            index = xr.DataArray(n_values, dims=("layer", "wavelength"),
+            index = xr.DataArray(n_values,
+                                 dims=(sc.Coord.LAYER, sc.Coord.WAVELEN),
                                  coords = coords)
-            index.attrs["wavelength unit"] = wavelen.to_preferred().units
+            index.attrs[sc.Attr.LENGTH_UNIT] = wavelen.to_preferred().units
             return index.squeeze()
         else:
             return super().n(wavelen)

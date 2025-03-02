@@ -58,6 +58,28 @@ xr.set_options(keep_attrs=True)
 # get this from Pint in a somewhat indirect way:
 LIGHT_SPEED_VACUUM = Quantity(1.0, 'speed_of_light').to('m/s')
 
+class Coord():
+    """Simple class to standardize dimension/coordinate names that we use in
+    xarray objects.
+
+    """
+
+    WAVELEN = "wavelength"
+    VOLFRAC = "volume fraction"
+    # both LAYER and MAT map to the same name, so that we can describe the
+    # components of a multilayer sphere as layers and the components of a
+    # multimaterial matrix as materials, but we can calculate an effective
+    # index for both
+    LAYER = "material"
+    MAT = "material"
+
+class Attr():
+    """Simple class to standardize metadata (attributes) used in xarray
+    objects.
+
+    """
+    LENGTH_UNIT = "length unit"
+
 # Preferred unit for length. Because the package allows calculations as a
 # function of wavelength and radius, it's not always clear what length scale to
 # use for nondimensionalization. We specify a preferred length scale here for
@@ -191,8 +213,8 @@ def size_parameter(n_medium, radius):
                          "Ensure that you are using the output from an Index "
                          "object as input to this function.")
 
-    wavelen = Quantity(n_medium.coords["wavelength"].to_numpy(),
-                       n_medium.attrs["wavelength unit"])
+    wavelen = Quantity(n_medium.coords[Coord.WAVELEN].to_numpy(),
+                       n_medium.attrs[Attr.LENGTH_UNIT])
     sp = mie.size_parameter(wavelen, n_medium.to_numpy(), radius)
     if np.isscalar(sp):
         return sp.item()
@@ -223,8 +245,8 @@ def wavevector(n_medium):
                          "Ensure that you are using the output from an Index "
                          "object as input to this function.")
 
-    wavelen = n_medium.coords["wavelength"]
-    units = n_medium.attrs["wavelength unit"]
+    wavelen = n_medium.coords[Coord.WAVELEN]
+    units = n_medium.attrs[Attr.LENGTH_UNIT]
 
     k = Quantity((2 * np.pi * n_medium/wavelen).to_numpy(), 1/units)
 

@@ -41,13 +41,12 @@ http://refractiveindex.info (accessed August 14, 2016).
 
 import numpy as np
 import xarray as xr
-# unit registry and Quantity constructor from pint
-from . import ureg, Quantity
+import structcol as sc
 from scipy.optimize import fsolve
 from scipy.interpolate import interp1d
 from functools import partial
 
-@ureg.check(None, '[length]')
+@sc.ureg.check(None, '[length]')
 def _constant_index(index, wavelen):
     """
     Returns a constant index irrespective of the wavelength
@@ -97,7 +96,7 @@ class Index:
         self._n = partial(index_func, **kwargs)
         self._n_args = kwargs
 
-    @ureg.check(None, '[length]')
+    @sc.ureg.check(None, '[length]')
     def __call__(self, wavelen):
         """Calculate index of refraction over a set of wavelengths.
 
@@ -122,11 +121,11 @@ class Index:
         xr.DataArray [float/complex]
             Refractive indices (possibly complex) at specified wavelengths.
             The wavelength is stored as a coordinate in the DataArray, with its
-            units stored as the attribute "wavelength.unit"
+            units stored as an attribute
 
         """
         index = self._n(wavelen)
-        if isinstance(index, Quantity):
+        if isinstance(index, sc.Quantity):
             if index.to_base_units().units != '':
                 raise ValueError("Dispersion formula returned index with "
                                  f"units {index.units}.  Check that "
@@ -136,9 +135,9 @@ class Index:
             index = index.to_base_units().magnitude
 
         # set up DataArray to return
-        coords={"wavelength": wavelen.to_preferred().magnitude}
+        coords={sc.Coord.WAVELEN: wavelen.to_preferred().magnitude}
         index_array = xr.DataArray(index, coords=coords)
-        index_array.attrs["wavelength unit"] = wavelen.to_preferred().units
+        index_array.attrs[sc.Attr.LENGTH_UNIT] = wavelen.to_preferred().units
 
         return index_array
 
@@ -153,7 +152,7 @@ class Index:
             Index of refraction
 
         """
-        if isinstance(index, Quantity):
+        if isinstance(index, sc.Quantity):
             if index.to_base_units().units != '':
                 raise ValueError("Specified constant index has units "
                                  f"{index.units}.  Should be dimensionless "
@@ -163,7 +162,7 @@ class Index:
         return cls(partial(_constant_index, index))
 
     @classmethod
-    @ureg.check(None, '[length]', None, None)
+    @sc.ureg.check(None, '[length]', None, None)
     def from_data(cls, wavelength_data, index_data, kind=None):
         """Make an Index object that interpolates from data to calculate
         indices of refraction.
@@ -187,7 +186,7 @@ class Index:
         if wavelength_data.shape != index_data.shape:
             raise ValueError("Lengths of the wavelength data and index data "
                              "arrays must be the same.")
-        if isinstance(index_data, Quantity):
+        if isinstance(index_data, sc.Quantity):
             if index_data.to_base_units().units != '':
                 raise ValueError("Index data must be specified in "
                                  "nondimensional units or as plain array. "
@@ -221,13 +220,13 @@ def _water_sellmeier(wavelen):
     # 20.0 °C
 
     index = np.sqrt(5.684027565e-1 * wavelen**2
-                    / (wavelen**2 - Quantity('5.101829712e-3 um^2'))
+                    / (wavelen**2 - sc.Quantity('5.101829712e-3 um^2'))
                     + 1.726177391e-1 * wavelen**2
-                    / (wavelen**2 - Quantity('1.821153936e-2 um^2'))
+                    / (wavelen**2 - sc.Quantity('1.821153936e-2 um^2'))
                     + 2.086189578e-2 * wavelen**2
-                    / (wavelen**2 - Quantity('2.620722293e-2 um^2'))
+                    / (wavelen**2 - sc.Quantity('2.620722293e-2 um^2'))
                     + 1.130748688e-1 * wavelen**2
-                    / (wavelen**2 - Quantity('1.069792721e1 um^2'))
+                    / (wavelen**2 - sc.Quantity('1.069792721e1 um^2'))
                     + 1)
     return index
 
@@ -241,7 +240,7 @@ def _polystyrene_sellmeier(wavelen):
     # refractiveindex.info
     # data for 20 degrees C, 0.4368-1.052 micrometers
     index =  np.sqrt(1.4435 * wavelen**2
-                     / (wavelen**2 - Quantity("0.020216 um^2"))
+                     / (wavelen**2 - sc.Quantity("0.020216 um^2"))
                      + 1)
     return index
 
@@ -254,12 +253,12 @@ def _pmma_sellmeier(wavelen):
     # refractiveindex.info
     # data for 20.1 degrees C, 0.42-1.62 micrometers
     index = np.sqrt(2.1778
-                    + Quantity('6.1209e-3 um^-2') * wavelen**2
-                    - Quantity('1.5004e-3 um^-4') * wavelen**4
-                    + Quantity('2.3678e-2 um^2') / wavelen**2
-                    - Quantity('4.2137e-3 um^4') / wavelen**4
-                    + Quantity('7.3417e-4 um^6') / wavelen**6
-                    - Quantity('4.5042e-5 um^8') / wavelen**8)
+                    + sc.Quantity('6.1209e-3 um^-2') * wavelen**2
+                    - sc.Quantity('1.5004e-3 um^-4') * wavelen**4
+                    + sc.Quantity('2.3678e-2 um^2') / wavelen**2
+                    - sc.Quantity('4.2137e-3 um^4') / wavelen**4
+                    + sc.Quantity('7.3417e-4 um^6') / wavelen**6
+                    - sc.Quantity('4.5042e-5 um^8') / wavelen**8)
 
     return index
 
@@ -271,8 +270,8 @@ def _rutile_sellmeier(wavelen):
     # refractiveindex.info
     # data for rutile TiO2, ordinary ray, 0.43-1.53 micrometers
     index = np.sqrt(5.913
-                    + Quantity('0.2441 um^2')
-                    / (wavelen**2 - Quantity('0.0803 um^2')))
+                    + sc.Quantity('0.2441 um^2')
+                    / (wavelen**2 - sc.Quantity('0.0803 um^2')))
     return index
 
 rutile = Index(_rutile_sellmeier)
@@ -285,8 +284,8 @@ def _brookite_sellmeier(wavelen):
     # rutile. However n_gamma is a bit different, but is not considered
     # data for rutile TiO2, ordinary ray, 0.43-0.71 micrometers
     index = np.sqrt(2.9858 + 2.1036 * wavelen**2
-                    / (wavelen**2 - Quantity('0.287**2 um^2'))
-                    - Quantity('0.18 um^-2') * wavelen**2
+                    / (wavelen**2 - sc.Quantity('0.287**2 um^2'))
+                    - sc.Quantity('0.18 um^-2') * wavelen**2
                     +1.)
     return index
 
@@ -295,8 +294,8 @@ brookite = Index(_brookite_sellmeier)
 def _anatase_cauchy(wavelen):
     # anatase TiO2 from Wang et al. Think Solid Films. 405, 2002, 50-54
     # measured from 500-1700 nm
-    index = (2.1526 + Quantity('4.1155e-2 um^2') / (wavelen**2)
-             + Quantity('2.1798e-3 um^4') / (wavelen**4))
+    index = (2.1526 + sc.Quantity('4.1155e-2 um^2') / (wavelen**2)
+             + sc.Quantity('2.1798e-3 um^4') / (wavelen**4))
     return index
 
 anatase = Index(_anatase_cauchy)
@@ -308,11 +307,11 @@ def _fused_silica_sellmeier(wavelen):
     # refractiveindex.info
     # data for "room temperature", 0.21-3.71 micrometers
     index = np.sqrt(1 + 0.6961663 * wavelen**2
-                    / (wavelen**2 - Quantity('0.0684043**2 um^2'))
+                    / (wavelen**2 - sc.Quantity('0.0684043**2 um^2'))
                     + 0.4079426 * wavelen**2
-                    / (wavelen**2 - Quantity('0.1162414**2 um^2'))
+                    / (wavelen**2 - sc.Quantity('0.1162414**2 um^2'))
                     + 0.8974794 * wavelen**2
-                    / (wavelen**2 - Quantity('9.896161**2 um^2')))
+                    / (wavelen**2 - sc.Quantity('9.896161**2 um^2')))
 
     return index
 
@@ -323,8 +322,8 @@ def _soda_lime_glass_cauchy(wavelen):
     # silica glasses, Solar Energy Materials 12, 275-288 (1985)
     # refractiveindex.info
     # data for "room temperature", 0.31-4.6 micrometers
-    index = (1.5130 - Quantity('0.003169 um^-2') * wavelen**2
-             + Quantity('0.003962 um^2')/(wavelen**2))
+    index = (1.5130 - sc.Quantity('0.003169 um^-2') * wavelen**2
+             + sc.Quantity('0.003962 um^2')/(wavelen**2))
 
     return index
 
@@ -336,7 +335,7 @@ def _zirconia_sellmeier(wavelen):
     # Nanoscience & Nanotechnology 16, 31-33 (2016).
     # data for 24 degrees C, 0.405 - 0.635 micrometers
     index = np.sqrt(1 + 3.3037 * wavelen**2
-                    / (wavelen**2 - Quantity('0.1987971**2 um**2')))
+                    / (wavelen**2 - sc.Quantity('0.1987971**2 um**2')))
     return index
 
 zirconia = Index(_zirconia_sellmeier)
@@ -346,8 +345,8 @@ def _ethanol_cauchy(wavelen):
     # measurements in the near-IR using an Abbe refractometer,
     # Meas. Sci. Technol. 8, 601-605 (1997)
     # refractiveindex.info
-    index = (1.35265 + Quantity('0.00306 um^2') / (wavelen**2)
-             + Quantity('0.00002 um^4') / (wavelen**4))
+    index = (1.35265 + sc.Quantity('0.00306 um^2') / (wavelen**2)
+             + sc.Quantity('0.00002 um^4') / (wavelen**4))
     return index
 
 ethanol = Index(_ethanol_cauchy)
@@ -369,7 +368,7 @@ ptmba = Index.constant(1.46)
 #------------------------------------------------------------------------------
 # CARGILLE OILS
 
-@ureg.check('[length]', None, None)
+@sc.ureg.check('[length]', None, None)
 def n_cargille(wavelen, i, series):
     """Refractive index of cargille index-matching oils from
     http://www.cargille.com/refractivestandards.shtml
@@ -735,8 +734,8 @@ def ratio(n_particle, n_matrix):
         raise ValueError("Index of particle and matrix must be DataArrays. "
                          "Ensure that you are using the output from an Index "
                          "object as input to this function.")
-    if not (np.array_equal(n_particle.coords["wavelength"].to_numpy(),
-                           n_matrix.coords["wavelength"].to_numpy())):
+    if not (np.array_equal(n_particle.coords[sc.Coord.WAVELEN].to_numpy(),
+                           n_matrix.coords[sc.Coord.WAVELEN].to_numpy())):
         raise ValueError("Cannot calculate index ratio when Indexes of "
                          "particle and matrix are evaluated at different "
                          "wavelengths.")
