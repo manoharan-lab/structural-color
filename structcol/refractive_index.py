@@ -46,25 +46,6 @@ from scipy.optimize import fsolve
 from scipy.interpolate import interp1d
 from functools import partial
 
-@sc.ureg.check(None, '[length]')
-def _constant_index(index, wavelen):
-    """
-    Returns a constant index irrespective of the wavelength
-
-    Parameters
-    ----------
-    wavelen : array-like of structcol.Quantity[length]
-        Wavelengths (in vacuum) at which to calculate index
-    index : float or complex
-        Index to return
-
-    Returns
-    -------
-    float or complex
-        Index of refraction (same at all wavelengths)
-    """
-    return np.ones_like(wavelen.magnitude) * index
-
 class Index:
     """Class describing index of refraction as a function of wavelength.
 
@@ -200,6 +181,63 @@ class Index:
         def index_func(wavelen):
             return fit(wavelen.to_preferred().magnitude)
         return cls(index_func)
+
+
+@sc.ureg.check(None, '[length]')
+def _constant_index(index, wavelen):
+    """
+    Returns a constant index irrespective of the wavelength
+
+    Parameters
+    ----------
+    wavelen : array-like of structcol.Quantity[length]
+        Wavelengths (in vacuum) at which to calculate index
+    index : float or complex
+        Index to return
+
+    Returns
+    -------
+    float or complex
+        Index of refraction (same at all wavelengths)
+    """
+    return np.ones_like(wavelen.magnitude) * index
+
+
+@sc.ureg.check(None, '[length]')
+def _indexes_from_list(index_list, wavelen):
+    """Calculate indexes of refraction from a list of Index objects.
+
+    Used in the evaluation of indices of refraction for a layered sphere and in
+    the calculation of effective indices.  Ensures output is a correctly
+    labeled DataArray.
+
+    Parameters
+    ----------
+    index_list : list of `Index` objects
+        Refractive indices of component materials, specified as Index objects
+    wavelen : array-like of `sc.Quantity`[length]
+        Wavelengths at which to evaluate the indices of refraction
+
+    Returns
+    -------
+    xr.DataArray :
+        index of refraction at each wavelength for each material in
+        the index list
+
+    """
+    coords = {sc.Coord.WAVELEN: wavelen.to_preferred().magnitude,
+              sc.Coord.MAT: np.arange(len(index_list))}
+    n_values = np.array([n(wavelen) for n in index_list])
+    # if only one wavelength is specified, ensure that we can store
+    # that wavelength in the resulting xarray
+    if n_values.ndim == 1:
+        n_values = n_values[:, np.newaxis]
+    index = xr.DataArray(n_values,
+                         dims=(sc.Coord.LAYER, sc.Coord.WAVELEN),
+                         coords = coords)
+    index.attrs[sc.Attr.LENGTH_UNIT] = wavelen.to_preferred().units
+    return index.squeeze()
+
 
 # Refractive index dispersion formulas and Index objects.
 #
