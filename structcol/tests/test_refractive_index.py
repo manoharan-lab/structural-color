@@ -156,6 +156,54 @@ class TestIndex:
         assert_equal(my_index(sc.Quantity('5e-5 cm')),
                      my_index(sc.Quantity('5e-7 m')))
 
+    def test_add(self):
+        """Test that addition of Index objects and addition of scalars to Index
+        objects works correctly.
+
+        """
+        self.wavelen = sc.Quantity(np.linspace(400, 800, 5), 'nm')
+        def check_add_index(initial, constant):
+            index = initial + constant
+            if isinstance(constant, str):
+                expected = initial(self.wavelen) + float(constant)
+            else:
+                expected = initial(self.wavelen) + constant
+            xr.testing.assert_equal(index(self.wavelen), expected)
+            # make sure that computed indexes are not Quantity objects
+            assert not isinstance(index(self.wavelen).data, sc.Quantity)
+
+
+        # adding complex, float, string, int, Quantity should all work
+        check_add_index(sc.index.polystyrene, constant = 1.33 + 0.1j)
+        check_add_index(sc.index.water, constant = 0.1555)
+        check_add_index(sc.index.pmma, constant = "0.55")
+        check_add_index(sc.index.vacuum, constant = int(1))
+        check_add_index(sc.index.fused_silica, constant = sc.Quantity('0.1'))
+        check_add_index(sc.index.fused_silica,
+                        constant = sc.Quantity(0.1j, ''))
+
+        # test with Index object from dispersion relation
+        index = sc.index.polystyrene + sc.index.vacuum
+        expected = (sc.index.polystyrene(self.wavelen) +
+                    sc.index.vacuum(self.wavelen))
+        xr.testing.assert_equal(index(self.wavelen), expected)
+
+        # test with constant Index object
+        constant = sc.Index.constant(0.01j)
+        index = sc.index.fused_silica + constant
+        expected = (sc.index.fused_silica(self.wavelen) +
+                    constant(self.wavelen))
+        xr.testing.assert_equal(index(self.wavelen), expected)
+
+        # adding another type of object should not work
+        with pytest.raises(ValueError):
+            index = sc.index.polystyrene + np.ones(3)
+        with pytest.raises(ValueError):
+            index = sc.index.polystyrene + {}
+        with pytest.raises(ValueError):
+            index = sc.index.polystyrene + [1.3]
+
+
 def test_ratio():
     """Tests calculation of index ratios
 

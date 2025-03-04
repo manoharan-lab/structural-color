@@ -122,6 +122,37 @@ class Index:
 
         return index_array
 
+    def __add__(self, other_index):
+        """Add two Index objects together, or add a scalar to an existing Index
+        object.
+
+        Parameters
+        ----------
+        other_index : `sc.Index` or scalar that can be coerced to float/complex
+            The refractive index to add to the current index
+
+        """
+        # first check if can be converted to float (this will fail for complex
+        # but will work for integers, strings, sc.Quantity objects)
+        try:
+            constant = float(other_index)
+            return Index(lambda w : self(w) + constant)
+        except TypeError:
+            pass
+        try:
+            constant = complex(other_index)
+            return Index(lambda w : self(w) + constant)
+        except TypeError:
+            pass
+        if isinstance(other_index, Index):
+            def new_index_func(wavelen):
+                return self._n(wavelen) + other_index._n(wavelen)
+            return Index(new_index_func)
+        else:
+            raise ValueError("Can only add a constant or another Index "
+                             "object to an existing Index object, not "
+                             f"{type(other_index).__name__}")
+
     @classmethod
     def constant(cls, index):
         """Makes an Index object with a constant index of refraction for all
