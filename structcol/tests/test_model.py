@@ -26,6 +26,7 @@ from pytest import raises
 from numpy.testing import assert_equal, assert_almost_equal, assert_array_almost_equal
 import pytest
 import structcol as sc
+import xarray as xr
 from pint.errors import DimensionalityError
 
 class TestParticle():
@@ -125,6 +126,42 @@ class TestParticle():
 
         # test number of layers
         assert my_layered_sphere.layers == len(radii)
+
+    def test_volume_fraction(self):
+        """test that calculations of volume fraction for each layer work
+
+        """
+        index = [sc.index.vacuum, sc.index.polystyrene, sc.index.fused_silica,
+                 sc.index.water]
+        # can do the calculation by hand for the following radii
+        radii = sc.Quantity([0.1, 0.2, 0.3, 1.0], 'um')
+        my_layered_sphere = sc.model.Sphere(index, radii)
+        vf = my_layered_sphere.volume_fraction()
+        vf_expected = xr.DataArray([0.1**3, 0.2**3 - 0.1**3, 0.3**3 - 0.2**3,
+                                    1 - 0.3**3],
+                                   coords = {sc.Coord.MAT : range(4)})
+        xr.testing.assert_equal(vf, vf_expected)
+
+        # try with total volume fraction specified
+        vf = my_layered_sphere.volume_fraction(total_volume_fraction=1)
+        xr.testing.assert_equal(vf, vf_expected)
+
+        # try with a different value of total volume fraction
+        vf = my_layered_sphere.volume_fraction(total_volume_fraction=0.5)
+        xr.testing.assert_equal(vf, vf_expected*0.5)
+
+        # test with a nonlayered sphere
+        radius = sc.Quantity(150, 'nm')
+        sphere = sc.model.Sphere(sc.index.polystyrene, radius)
+
+        vf = sphere.volume_fraction()
+        vf_expected = xr.DataArray([1.0], coords={sc.Coord.MAT: range(1)})
+        xr.testing.assert_equal(vf, vf_expected)
+
+        phi = 0.3256687
+        vf = sphere.volume_fraction(total_volume_fraction=phi)
+        vf_expected = xr.DataArray([phi], coords={sc.Coord.MAT: range(1)})
+        xr.testing.assert_equal(vf, vf_expected)
 
     def test_form_factor(self):
         """Test that we get the same results from calling the

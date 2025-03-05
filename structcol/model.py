@@ -170,6 +170,33 @@ class Sphere(Particle):
         """Number of layers in sphere"""
         return len(np.atleast_1d(self.index))
 
+    def volume_fraction(self, total_volume_fraction=None):
+        """Volume fraction of each material in the sphere.
+
+        By default, returns volume fraciton of each layer relative to the total
+        volume of the sphere.  If `total_volume_fraction` is specified, the
+        volume fractions are multipled by this value, so that a different
+        reference basis can be applied.
+
+        Parameters
+        ----------
+        total_volume_fraction : float (optional)
+            if specified, volume fractions are multiplied by this value
+
+        Returns
+        -------
+        `xr.DataArray` :
+            Volume fraction of each layer
+
+        """
+        # must add zero to the list of radii for the volume calculation to work
+        radii = np.insert(np.atleast_1d(self.radius), 0, 0)
+        volumes = radii[1:]**3 - radii[:-1]**3
+        if total_volume_fraction is not None:
+            volumes = volumes * total_volume_fraction
+        return xr.DataArray(volumes / radii[-1]**3,
+                            coords = {sc.Coord.MAT : range(self.layers)})
+
     def n(self, wavelen):
         """Calculate index as a function of vacuum wavelength
 
