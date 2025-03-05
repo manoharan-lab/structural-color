@@ -1007,6 +1007,21 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
     m = sc.index.ratio(n_particle, n_sample)
     x = sc.size_parameter(n_sample, radius)
 
+    # if the system is polydisperse, use the polydisperse form and structure
+    # factors
+    if polydisperse:
+        if radius2 is None or concentration is None or pdi is None:
+            raise ValueError('must specify diameters, concentration, and '
+                             'pdi for polydisperperse systems')
+
+        if len(np.atleast_1d(m)) > 1:
+            raise ValueError('cannot handle polydispersity in '
+                             'core-shell particles')
+
+        form_type = 'polydisperse'
+        if structure_type!='data':
+            structure_type = 'polydisperse'
+
     # radius and radius2 should be in the same units (for polydisperse samples)
     if radius2 is not None:
         radius2 = radius2.to(radius.units)
@@ -1026,20 +1041,6 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
                    + radius.max()**3 * concentration[0]/concentration[1])
     np.seterr(divide='warn', invalid='warn')
     number_density = 3.0 * volume_fraction / (4.0 * np.pi) * (term1 + term2)
-    # if the system is polydisperse, use the polydisperse form and structure
-    # factors
-    if polydisperse:
-        if radius2 is None or concentration is None or pdi is None:
-            raise ValueError('must specify diameters, concentration, and '
-                             'pdi for polydisperperse systems')
-
-        if len(np.atleast_1d(m)) > 1:
-            raise ValueError('cannot handle polydispersity in '
-                             'core-shell particles')
-
-        form_type = 'polydisperse'
-        if structure_type!='data':
-            structure_type = 'polydisperse'
 
     # define the mean diameters in case the system is polydisperse
     mean_diameters = sc.Quantity(np.array([2*radius.magnitude,
