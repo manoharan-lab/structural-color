@@ -174,14 +174,19 @@ class Sphere(Particle):
         """Volume fraction of each material in the sphere.
 
         By default, returns volume fraciton of each layer relative to the total
-        volume of the sphere.  If `total_volume_fraction` is specified, the
+        volume of the sphere. If `total_volume_fraction` is specified, the
         volume fractions are multipled by this value, so that a different
-        reference basis can be applied.
+        reference basis can be applied. Then a final value of
+        (1-total_volume_fraction) is added to the output, so that the computed
+        volume fractions sum to 1. This method is useful for calculating
+        effective indices.
 
         Parameters
         ----------
         total_volume_fraction : float (optional)
-            if specified, volume fractions are multiplied by this value
+            if specified, volume fractions are multiplied by this value, and
+            the output is augmented to give the volume fraction of the medium
+            around the spheres as as well.
 
         Returns
         -------
@@ -191,11 +196,16 @@ class Sphere(Particle):
         """
         # must add zero to the list of radii for the volume calculation to work
         radii = np.insert(np.atleast_1d(self.radius), 0, 0)
-        volumes = radii[1:]**3 - radii[:-1]**3
+        # volume fractions relative to sphere volume
+        vf = (radii[1:]**3 - radii[:-1]**3) / radii[-1]**3
         if total_volume_fraction is not None:
-            volumes = volumes * total_volume_fraction
-        return xr.DataArray(volumes / radii[-1]**3,
-                            coords = {sc.Coord.MAT : range(self.layers)})
+            vf = np.append(vf * total_volume_fraction,
+                           1 - total_volume_fraction)
+            materials = self.layers + 1
+        else:
+            materials = self.layers
+        print(vf, radii[-1]**3)
+        return xr.DataArray(vf, coords = {sc.Coord.MAT : range(materials)})
 
     def n(self, wavelen):
         """Calculate index as a function of vacuum wavelength
