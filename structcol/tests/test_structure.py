@@ -206,13 +206,17 @@ class TestStructureFactor():
         """
         wavelen = Quantity('400.0 nm')
         angles = Quantity(np.pi, 'rad')
-        n_matrix = sc.Index.constant(1.0)(wavelen)
+        index_matrix = sc.Index.constant(1.0)
 
         # Structure factor for non-core-shell particles
         radius = Quantity('100.0 nm')
-        n_particle = sc.Index.constant(1.5)(wavelen)
+        index_particle = sc.Index.constant(1.5)
+        sphere = sc.model.Sphere(index_particle, radius)
         volume_fraction = 0.0001         # IS VF TOO LOW?
-        n_sample = sc.index.n_eff(n_particle, n_matrix, volume_fraction)
+        volume_fraction_da = sphere.volume_fraction(total_volume_fraction =
+                                                    volume_fraction)
+        n_sample = sc.index.effective_index([index_particle, index_matrix],
+                                            volume_fraction_da, wavelen)
         x = sc.size_parameter(n_sample, radius)
         qa = 4*x*np.sin(angles/2)
         structure_factor = sc.structure.PercusYevick(volume_fraction)
@@ -221,15 +225,16 @@ class TestStructureFactor():
         # Structure factor for core-shell particles with core size equal to
         # radius of non-core-shell particle
         radius_cs = Quantity(np.array([100.0, 105.0]), 'nm')
-        n_particle_cs = np.array([1.5, 1.0])
-        volume_fraction_shell = volume_fraction * (radius_cs[1]**3 / radius_cs[0]**3 -1)
-        volume_fraction_cs = np.array([volume_fraction, volume_fraction_shell])
+        index_particle = [sc.Index.constant(1.5), sc.Index.constant(1.0)]
+        sphere_cs = sc.model.Sphere(index_particle, radius_cs)
+        volume_fraction_da = sphere_cs.volume_fraction(total_volume_fraction =
+                                                       volume_fraction)
 
-        n_sample_cs = sc.index.n_eff(n_particle_cs, n_matrix, volume_fraction_cs)
+        n_sample_cs = sc.index.effective_index(index_particle + [index_matrix],
+                                               volume_fraction_da, wavelen)
         x_cs = sc.size_parameter(n_sample_cs, radius_cs[1])
         qa_cs = 4*x_cs*np.sin(angles/2)
-        structure_factor_cs = sc.structure.PercusYevick(
-                                            np.sum(volume_fraction_cs))
+        structure_factor_cs = sc.structure.PercusYevick(volume_fraction)
         s_cs = structure_factor_cs(qa_cs)
 
         assert_almost_equal(s, s_cs, decimal=5)
@@ -256,9 +261,9 @@ def test_structure_factor_data_reflectances():
     wavelengths = Quantity(np.arange(400, 800, 20), 'nm')
     radius = Quantity('0.5 um')
     volume_fraction = 0.5
-    n_particle = sc.index.fused_silica(wavelengths)
-    n_matrix = sc.index.vacuum(wavelengths)
-    n_medium = sc.index.vacuum(wavelengths)
+    index_particle = sc.index.fused_silica
+    index_matrix = sc.index.vacuum
+    index_medium = sc.index.vacuum
     thickness = Quantity('50 um')
 
     # generate structure factor "data" from Percus-Yevick model
@@ -275,9 +280,9 @@ def test_structure_factor_data_reflectances():
     reflectance = np.zeros(len(wavelengths))
     for i in range(len(wavelengths)):
         reflectance[i],_,_,_,_ = \
-            sc.model.reflection(n_particle[i],
-                                n_matrix[i],
-                                n_medium[i],
+            sc.model.reflection(index_particle,
+                                index_matrix,
+                                index_medium,
                                 wavelengths[i],
                                 radius,
                                 volume_fraction,
@@ -307,11 +312,17 @@ def test_structure_factor_data_reflectances():
     wavelengths = sc.Quantity(np.arange(400, 800, 20), 'nm')
     radius = sc.Quantity('0.5 um')
     volume_fraction = 0.5
-    n_particle = sc.index.fused_silica(wavelengths)
-    n_matrix = sc.index.vacuum(wavelengths)
-    n_medium = sc.index.vacuum(wavelengths)
+    sphere = sc.model.Sphere(index_particle, radius)
+    n_particle = sphere.n(wavelengths)
+    n_medium = index_medium(wavelengths)
     boundary = 'film'
     thickness = sc.Quantity('50 um')
+
+    vf_array = sphere.volume_fraction(volume_fraction)
+
+    n_sample_eff = sc.index.effective_index([index_particle, index_matrix],
+                                        vf_array, wavelengths)
+
 
     ql_data = np.arange(0.001, 75, 0.1)
     structure_factor = sc.structure.PercusYevick(volume_fraction)
@@ -319,8 +330,7 @@ def test_structure_factor_data_reflectances():
 
     reflectance = np.zeros(wavelengths.size)
     for i in range(wavelengths.size):
-        n_sample = sc.index.n_eff(n_particle[i], n_matrix[i], volume_fraction)
-
+        n_sample = n_sample_eff[i]
         p, mu_scat, mu_abs = mc.calc_scat(radius, n_particle[i], n_sample,
                                           volume_fraction,
                                           wavelengths[i],

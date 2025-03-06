@@ -105,6 +105,10 @@ class Index:
             units stored as an attribute
 
         """
+        # returned xarray will always have wavelength as an array (not scalar)
+        # coordinate, even if only a single wavelength is given
+        wavelen = np.atleast_1d(wavelen)
+
         index = self._n(wavelen)
         if isinstance(index, sc.Quantity):
             if index.to_base_units().units != '':
@@ -256,6 +260,7 @@ def _indexes_from_list(index_list, wavelen):
         the index list
 
     """
+    wavelen = np.atleast_1d(wavelen)
     coords = {sc.Coord.WAVELEN: wavelen.to_preferred().magnitude,
               sc.Coord.MAT: np.arange(len(index_list))}
     n_values = np.array([n(wavelen) for n in index_list])
@@ -264,10 +269,10 @@ def _indexes_from_list(index_list, wavelen):
     if n_values.ndim == 1:
         n_values = n_values[:, np.newaxis]
     index = xr.DataArray(n_values,
-                         dims=(sc.Coord.LAYER, sc.Coord.WAVELEN),
+                         dims=(sc.Coord.MAT, sc.Coord.WAVELEN),
                          coords = coords)
     index.attrs[sc.Attr.LENGTH_UNIT] = wavelen.to_preferred().units
-    return index.squeeze()
+    return index
 
 
 # Refractive index dispersion formulas and Index objects.
@@ -644,34 +649,39 @@ def n_cargille(wavelen, i, series):
 #------------------------------------------------------------------------------
 # EFFECTIVE INDEX CALCULATION
 
-def n_eff(n_particle, n_matrix, volume_fraction, maxwell_garnett=False):
-    """
-    Calculates Bruggeman effective refractive index for a composite of n
-    dielectric media. If maxwell_garnett is set to true and there are two
-    media, calculates the effective index using the Maxwell-Garnett
-    formulation. Both Maxwell-Garnett and Bruggeman formulas can handle complex
-    refractive indices.
+def effective_index(index_list, volume_fractions, wavelen,
+                    maxwell_garnett=False):
+    """Calculates effective refractive index for a composite of
+    dielectric media.
+
+    Uses Bruggeman formula by default. Can optionally use Maxwell_Garnett
+    method, but this approach is currently limited to two materials. Both
+    Maxwell-Garnett and Bruggeman formulas can handle complex refractive
+    indices.
 
     Parameters
     ----------
-    n_particle: xr.DataArray
-        refractive indices of the inclusion. If it's a core-shell particle,
-        must be an array of indices from innermost to outermost layer.
-    n_matrix: xr.DataArray
-        refractive index of the matrix.
-    volume_fraction: float or structcol.Quantity (dimensionless)
-        volume fraction of inclusion. If it's a core-shell particle,
-        must be an array of volume fractions from innermost to outermost layer.
-    maxwell_garnett: boolean
-        If true, the model uses Maxwell-Garnett's effective index for the
-        sample. In that case, the user must specify one refractive index for
-        the particle and one for the matrix. If false, the model uses
-        Bruggeman's formula, which can be used for multilayer particles.
+    index_list : list of `Index` objects
+        Refractive indices of the component materials.  For Maxwell-Garnett,
+        the first element is the index of the inclusion and the second is the
+        index of the host.  For Bruggeman, order need only be consistent with
+        the order in volume_fractions.
+    volume_fractions : xr.DataArray
+        Volume fractions of the component materials in index_list, with
+        dimension name `sc.Coord.MAT`. Volume fractions must sum to 1.
+    wavelen : array-like of `sc.Quantity`[length]
+        Wavelengths at which to calculate the indexes of refraction
+    maxwell_garnett: boolean (optional)
+        If True, uses Maxwell-Garnett effective index. Two refractive indexes
+        and two volume fractions must be specified, corresponding to
+        particle/inclusions (first elements) and matrix/host (second elements)
+        If False (default), uses Bruggeman's formula, which can be used for
+        multilayer particles.
 
     Returns
     -------
-    structcol.Quantity (dimensionless)
-        refractive index
+    xr.DataArray :
+        effective index as a function of wavelength
 
     References
     ----------
@@ -682,97 +692,87 @@ def n_eff(n_particle, n_matrix, volume_fraction, maxwell_garnett=False):
         Maxwell-Garnett relation in Eq. 18.
 
     """
-    coords = n_matrix.coords
-    attrs = n_matrix.attrs
-    if isinstance(n_particle, xr.DataArray):
-        n_particle = n_particle.to_numpy()
-    n_matrix = n_matrix.to_numpy()
+    if not np.isclose(volume_fractions.sum(dim=sc.Coord.MAT), 1):
+        raise ValueError("Volume fractions must sum to 1")
+
+    # check that the number of volume fractions and of indices is the same
+    if len(index_list) != len(volume_fractions.coords[sc.Coord.MAT]):
+        raise ValueError("Lists of indices and volume fractions "
+                         "must have the same length")
+
+    wavelen = np.atleast_1d(wavelen)
+    coords = {sc.Coord.WAVELEN: wavelen.to_preferred().magnitude}
+    attrs = {sc.Attr.LENGTH_UNIT: wavelen.to_preferred().units}
 
     # Maxwell-Garnett calculation is vectorized over wavelengths but currently
     # cannot handle multicomponent particles -- it is limited to two indices
     if maxwell_garnett:
         # check that the particle and matrix indices have the same length
-        if (len(np.array([n_particle]).flatten())
-            != len(np.array([n_matrix]).flatten())):
-            raise ValueError('Maxwell-Garnett requires particle and '
-                             'matrix index arrays to have the same length')
+        if len(index_list) != 2:
+            raise ValueError("Maxwell-Garnett requires exactly two indexes")
 
-        ni = np.atleast_1d(n_particle)
-        nm = np.atleast_1d(n_matrix)
-        phi = volume_fraction
+        ni = index_list[0](wavelen)
+        nm = index_list[1](wavelen)
+        # in MG, volume fraction is only for the inclusions
+        phi = volume_fractions[0]
         neff =  nm * np.sqrt((2*nm**2 + ni**2 + 2*phi*((ni**2)-(nm**2))) /
                          (2*nm**2 + ni**2 - phi*((ni**2)-(nm**2))))
 
-        if np.isscalar(n_particle):
-            neff = neff.item()
-        else:
-            neff = neff.squeeze()
         return xr.DataArray(neff, coords=coords, attrs=attrs)
 
     # Bruggeman calculation is vectorized over both wavelengths and components
     # of particles.  Can handle multilayer spheres.
+    indexes = _indexes_from_list(index_list, wavelen)
+
+    # Convert to numpy for numerical solution.  We use .transpose to ensure the
+    # labeled arrays are in the correct order for the subsequent numpy
+    # operations.
+    #
+    # index_arr should have shape [num_wavelengths, num_materials]
+    index_arr = indexes.transpose(sc.Coord.WAVELEN, ...).to_numpy()
+    # vf_arr should have shape [num_materials]
+    vf_arr = volume_fractions.transpose(sc.Coord.MAT, ...).to_numpy()
+    num_wavelengths = len(wavelen)
+
+    # define a function for Bruggeman's equation
+    # scipy.fsolve looks only for real solutions, so we solve
+    # simultaneously for the real and imaginary parts at each wavelength.
+    def sum_bg(n_bg, vf, n_array):
+        n_bg = n_bg.reshape(num_wavelengths, 2)
+        # real part: shape [num_wavelength, 1]
+        a = n_bg[:, 0].reshape(-1,1)
+        # imaginary part: shape [num_wavelengths, 1]
+        b = n_bg[:, 1].reshape(-1,1)
+        # sum S has shape [num_wavelengths] and is complex
+        S = np.sum((vf[np.newaxis, :]*(n_array**2 - (a+b*1j)**2)
+                    / (n_array**2 + 2*(a+b*1j)**2)), axis=1).squeeze()
+        # fsolve requires a 1-d array, so we return an array with
+        # 2*num_wavelength components
+        return np.array([S.real, S.imag]).flatten()
+
+    # set an initial guess and solve for Bruggeman's refractive index of
+    # the composite
+    # most refractive indices range between 1 and 3
+    # fsolve requires a 1-d real array as input, so we split the initial
+    # guess 1.5 + 0j into two components [1.5, 0], stack by
+    # num_wavelengths, and then flatten
+    initial_guess = (np.ones((num_wavelengths, 2))
+                     * np.array([1.5, 0])).flatten()
+
+    n_bg = fsolve(sum_bg, initial_guess.squeeze(),
+                  args=(vf_arr, index_arr))
+    n_bg_real = n_bg.reshape((num_wavelengths, 2))[:,0]
+    n_bg_imag = n_bg.reshape((num_wavelengths, 2))[:,1]
+
+    if n_bg_imag.all() == 0:
+        n_bg = n_bg_real
+    elif n_bg_imag.any() < 0:
+        raise ValueError('Cannot find positive imaginary root for the '
+                         'effective index')
     else:
-        # n_particle has shape [num_wavelengths, num_layers]
-        n_particle = np.atleast_2d(n_particle)
-        # n_matrix has share [num_wavelengths]
-        n_matrix = np.atleast_1d(n_matrix)
-        num_wavelengths = n_particle.shape[0]
+        n_bg = (n_bg_real + n_bg_imag*1j)
 
-        # volume_fraction has shape [num_layers]
-        volume_fraction = np.atleast_1d(volume_fraction)
-
-        # check that the number of volume fractions and of indices is the same
-        if n_particle.shape[1] != volume_fraction.shape[0]:
-            raise ValueError('Arrays of indices and volume fractions '
-                             'must be the same length')
-
-        volume_fraction_matrix = 1 - np.sum(volume_fraction)
-
-        # the following will stack n_matrix on the end of the n_particle array,
-        # so that it has shape [num_wavelengths, num_layers + 1]
-        n_array = np.hstack((n_particle, n_matrix[:, np.newaxis]))
-        # same for vf_array, so that it has shape [num_layers + 1]
-        vf_array = np.append(volume_fraction, volume_fraction_matrix)
-
-        # define a function for Bruggeman's equation
-        # scipy.fsolve looks only for real solutions, so we solve
-        # simultaneously for the real and imaginary parts at each wavelength.
-        def sum_bg(n_bg, vf, n_array):
-            n_bg = n_bg.reshape(num_wavelengths, 2)
-            # real part: shape [num_wavelength, 1]
-            a = n_bg[:, 0].reshape(-1,1)
-            # imaginary part: shape [num_wavelengths, 1]
-            b = n_bg[:, 1].reshape(-1,1)
-            # sum S has shape [num_wavelengths] and is complex
-            S = np.sum((vf[np.newaxis, :]*(n_array**2 - (a+b*1j)**2)
-                        / (n_array**2 + 2*(a+b*1j)**2)), axis=1).squeeze()
-            # fsolve requires a 1-d array, so we return an array with
-            # 2*num_wavelength components
-            return np.array([S.real, S.imag]).flatten()
-
-        # set an initial guess and solve for Bruggeman's refractive index of
-        # the composite
-        # most refractive indices range between 1 and 3
-        # fsolve requires a 1-d real array as input, so we split the initial
-        # guess 1.5 + 0j into two components [1.5, 0], stack by
-        # num_wavelengths, and then flatten
-        initial_guess = (np.ones((num_wavelengths, 2))
-                         * np.array([1.5, 0])).flatten()
-
-        n_bg = fsolve(sum_bg, initial_guess.squeeze(),
-                                      args=(vf_array, n_array))
-        n_bg_real = n_bg.reshape((num_wavelengths, 2))[:,0]
-        n_bg_imag = n_bg.reshape((num_wavelengths, 2))[:,1]
-
-        if n_bg_imag.all() == 0:
-            n_bg = n_bg_real.squeeze()
-        elif n_bg_imag.any() < 0:
-            raise ValueError('Cannot find positive imaginary root for the '
-                             'effective index')
-        else:
-            n_bg = (n_bg_real + n_bg_imag*1j).squeeze()
-
-        return xr.DataArray(n_bg, coords=coords, attrs=attrs)
+    return xr.DataArray(n_bg, coords=coords, attrs=attrs)
 
 def ratio(n_particle, n_matrix):
     """Calculates the ratio of refractive indices (m in Mie theory).
@@ -808,4 +808,9 @@ def ratio(n_particle, n_matrix):
         raise ValueError("Cannot calculate index ratio when Indexes of "
                          "particle and matrix are evaluated at different "
                          "wavelengths.")
-    return (n_particle/n_matrix).to_numpy()
+
+    m = (n_particle/n_matrix).to_numpy().squeeze()
+    if m.size == 1:
+        return m.item()
+    else:
+        return m

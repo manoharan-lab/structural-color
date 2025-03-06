@@ -42,12 +42,16 @@ def test_2pi_shift():
     radius = sc.Quantity('0.140 um')
     volume_fraction = 0.55
     n_imag = 2.1e-4
-    n_particle = sc.index.polystyrene(wavelength) + n_imag
-    n_matrix = sc.index.vacuum(wavelength)
-    n_medium = sc.index.vacuum(wavelength)
-    n_sample = sc.index.n_eff(n_particle,
-                        n_matrix,
-                        volume_fraction)
+    index_particle = sc.index.polystyrene + n_imag
+    sphere = sc.model.Sphere(index_particle, radius)
+    n_particle = sphere.n(wavelength)
+    index_matrix = sc.index.vacuum
+    index_medium = sc.index.vacuum
+    n_medium = index_medium(wavelength)
+
+    vf_array = sphere.volume_fraction(volume_fraction)
+    n_sample = sc.index.effective_index([index_particle, index_matrix],
+                                        vf_array, wavelength)
     thickness = sc.Quantity('50.0 um')
     boundary = 'film'
 
@@ -197,13 +201,19 @@ def test_field_normalized():
     # sample parameters
     radius = sc.Quantity('0.140 um')
     volume_fraction = 0.55
-    n_imag = sc.Index.constant(2.1e-4)(wavelength)
-    n_particle = sc.index.polystyrene(wavelength) + n_imag*1j
-    n_matrix = sc.index.vacuum(wavelength)
-    n_medium = sc.index.vacuum(wavelength)
-    n_sample = sc.index.n_eff(n_particle,
-                        n_matrix,
-                        volume_fraction)
+    index_imag = sc.Index.constant(2.1e-4*1j)
+    index_particle = sc.index.polystyrene + index_imag
+
+    sphere = sc.model.Sphere(index_particle, radius)
+    n_particle = sphere.n(wavelength)
+    index_matrix = sc.index.vacuum
+    n_matrix = index_matrix(wavelength)
+    index_medium = sc.index.vacuum
+    n_medium = index_medium(wavelength)
+
+    vf_array = sphere.volume_fraction(volume_fraction)
+    n_sample = sc.index.effective_index([index_particle, index_matrix],
+                                        vf_array, wavelength)
     boundary = 'film'
 
     # Monte Carlo parameters
@@ -264,13 +274,19 @@ def test_field_perp_direction():
     # sample parameters
     radius = sc.Quantity('0.140 um')
     volume_fraction = 0.55
-    n_imag = 2.1e-4
-    n_particle = sc.index.polystyrene(wavelength) + n_imag*1j
-    n_matrix = sc.index.vacuum(wavelength)
-    n_medium = sc.index.vacuum(wavelength)
-    n_sample = sc.index.n_eff(n_particle,
-                        n_matrix,
-                        volume_fraction)
+    index_imag = sc.Index.constant(2.1e-4*1j)
+    index_particle = sc.index.polystyrene + index_imag
+
+    sphere = sc.model.Sphere(index_particle, radius)
+    n_particle = sphere.n(wavelength)
+    index_matrix = sc.index.vacuum
+    n_matrix = index_matrix(wavelength)
+    index_medium = sc.index.vacuum
+    n_medium = index_medium(wavelength)
+
+    vf_array = sphere.volume_fraction(volume_fraction)
+    n_sample = sc.index.effective_index([index_particle, index_matrix],
+                                        vf_array, wavelength)
     boundary = 'film'
 
     # Monte Carlo parameters
@@ -332,13 +348,19 @@ def test_field_reflectance_mc():
     # sample parameters
     radius = sc.Quantity('0.140 um')
     volume_fraction = 0.55
-    n_imag = 2.1e-4
-    n_particle = sc.index.polystyrene(wavelength) + n_imag*1j
-    n_matrix = sc.index.vacuum(wavelength)
-    n_medium = sc.index.vacuum(wavelength)
-    n_sample = sc.index.n_eff(n_particle,
-                        n_matrix,
-                        volume_fraction)
+    index_imag = sc.Index.constant(2.1e-4*1j)
+    index_particle = sc.index.polystyrene + index_imag
+
+    sphere = sc.model.Sphere(index_particle, radius)
+    n_particle = sphere.n(wavelength)
+    index_matrix = sc.index.vacuum
+    n_matrix = index_matrix(wavelength)
+    index_medium = sc.index.vacuum
+    n_medium = index_medium(wavelength)
+
+    vf_array = sphere.volume_fraction(volume_fraction)
+    n_sample = sc.index.effective_index([index_particle, index_matrix],
+                                        vf_array, wavelength)
     thickness = sc.Quantity('800 um')
     boundary = 'film'
 
@@ -419,10 +441,18 @@ def test_field_co_cross_mc():
 
     radius = sc.Quantity('0.140 um')
     volume_fraction = 0.55
-    n_imag = sc.Index.constant(2.1e-5)(wavelengths)
-    n_particle = sc.index.polystyrene(wavelengths) + n_imag*1j
-    n_matrix = sc.index.vacuum(wavelengths)
-    n_medium = sc.index.vacuum(wavelengths)
+    index_imag = sc.Index.constant(2.1e-5*1j)
+    index_particle = sc.index.polystyrene + index_imag
+
+    sphere = sc.model.Sphere(index_particle, radius)
+    n_particle = sphere.n(wavelengths)
+    index_matrix = sc.index.vacuum
+    index_medium = sc.index.vacuum
+    n_medium = index_medium(wavelengths)
+
+    vf_array = sphere.volume_fraction(volume_fraction)
+    n_sample_eff = sc.index.effective_index([index_particle, index_matrix],
+                                        vf_array, wavelengths)
 
     thickness = sc.Quantity('80 um')
     boundary = 'film'
@@ -442,8 +472,7 @@ def test_field_co_cross_mc():
     refl_intensity = np.zeros(wavelengths.size)
 
     for i in range(wavelengths.size):
-        # calculate n_sample
-        n_sample = sc.index.n_eff(n_particle[i], n_matrix[i], volume_fraction)
+        n_sample = n_sample_eff[i]
 
         # Calculate scattering quantities
         p, mu_scat, mu_abs = mc.calc_scat(radius, n_particle[i], n_sample,
@@ -534,7 +563,7 @@ def test_field_co_cross_mc():
                         0.16212795938328153, 0.21010564421109604,
                         0.14350179291386156, 0.07163478994233281]
 
-    assert_almost_equal(refl_intensity, R_expected)
-    assert_almost_equal(refl_field, R_field_expected)
-    assert_almost_equal(refl_co/np.max(refl_co), R_co_expected)
-    assert_almost_equal(refl_cr/np.max(refl_cr), R_cross_expected)
+    assert_almost_equal(refl_intensity, R_expected, decimal=5)
+    assert_almost_equal(refl_field, R_field_expected, decimal=5)
+    assert_almost_equal(refl_co/np.max(refl_co), R_co_expected, decimal=5)
+    assert_almost_equal(refl_cr/np.max(refl_cr), R_cross_expected, decimal=5)

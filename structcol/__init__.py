@@ -216,7 +216,7 @@ def size_parameter(n_medium, radius):
     wavelen = Quantity(n_medium.coords[Coord.WAVELEN].to_numpy(),
                        n_medium.attrs[Attr.LENGTH_UNIT])
     sp = mie.size_parameter(wavelen, n_medium.to_numpy(), radius)
-    if np.isscalar(sp):
+    if sp.size == 1:
         return sp.item()
     else:
         return sp
@@ -250,7 +250,7 @@ def wavevector(n_medium):
 
     k = Quantity((2 * np.pi * n_medium/wavelen).to_numpy(), 1/units)
 
-    if np.isscalar(k):
+    if k.size == 1:
         return k.item()
     else:
         return k

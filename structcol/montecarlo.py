@@ -335,9 +335,9 @@ class Trajectory:
 
         # until refactoring, convert DataArrays to numpy
         if isinstance(n_particle, xr.DataArray):
-            n_particle = n_particle.to_numpy()
+            n_particle = n_particle.to_numpy().squeeze()
         if isinstance(n_sample, xr.DataArray):
-            n_sample = n_sample.to_numpy()
+            n_sample = n_sample.to_numpy().squeeze()
 
         m = n_particle/n_sample
         x = size_parameter(wavelen, n_sample, radius)

@@ -29,6 +29,7 @@ import structcol as sc
 from .. import montecarlo as mc
 from .. import model
 import numpy as np
+import xarray as xr
 from numpy.testing import assert_equal, assert_almost_equal
 
 # Define a system to be used for the tests
@@ -36,12 +37,18 @@ nevents = 3
 ntrajectories = 4
 radius = sc.Quantity('150.0 nm')
 volume_fraction = 0.5
+volume_fraction_da = xr.DataArray([0.5, 1-0.5],
+                                  coords = {sc.Coord.MAT: range(2)})
 angles = sc.Quantity(np.linspace(0.01, np.pi, 200), 'rad')
 wavelen = sc.Quantity('400.0 nm')
-n_particle = sc.Index.constant(1.5)(wavelen)
-n_matrix = sc.Index.constant(1.0)(wavelen)
-n_medium = sc.Index.constant(1.0)(wavelen)
-n_sample = sc.index.n_eff(n_particle, n_matrix, volume_fraction)
+index_particle = sc.Index.constant(1.5)
+n_particle = index_particle(wavelen)
+index_matrix = sc.Index.constant(1.0)
+n_matrix = index_matrix(wavelen)
+index_medium = sc.Index.constant(1.0)
+n_medium = index_medium(wavelen)
+n_sample = sc.index.effective_index([index_particle, index_matrix],
+                                    volume_fraction_da, wavelen)
 
 # Index of the scattering event and trajectory corresponding to the reflected
 # photons

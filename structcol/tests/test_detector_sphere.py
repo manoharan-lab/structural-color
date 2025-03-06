@@ -30,6 +30,7 @@ from structcol import phase_func_sphere as pfs
 from .. import montecarlo as mc
 from .. import detector as det
 import numpy as np
+import xarray as xr
 from numpy.testing import assert_almost_equal, assert_equal
 from pint.errors import UnitStrippedWarning
 import pytest
@@ -40,11 +41,16 @@ ntrajectories = 4
 radius = sc.Quantity('150.0 nm')
 assembly_radius = 5
 volume_fraction = 0.5
+volume_fraction_da = xr.DataArray([volume_fraction, 1-volume_fraction],
+                                  coords={sc.Coord.MAT: range(2)})
 angles = sc.Quantity(np.linspace(0.01,np.pi, 200), 'rad')
 wavelen = sc.Quantity('400.0 nm')
-n_particle = sc.Index.constant(1.5)(wavelen)
-n_matrix = sc.Index.constant(1.0)(wavelen)
-n_sample = sc.index.n_eff(n_particle, n_matrix, volume_fraction)
+index_particle = sc.Index.constant(1.5)
+n_particle = index_particle(wavelen)
+index_matrix = sc.Index.constant(1.0)
+n_matrix = index_matrix(wavelen)
+n_sample = sc.index.effective_index([index_particle, index_matrix],
+                                    volume_fraction_da, wavelen)
 
 # Index of the scattering event and trajectory corresponding to the reflected
 # photons
@@ -204,10 +210,15 @@ def test_reflection_sphere_mc():
     radius = sc.Quantity('0.125 um')
     assembly_diameter = sc.Quantity('10 um')
     volume_fraction = 0.5
-    n_particle = sc.Index.constant(1.54)(wavelen)
-    n_matrix = sc.index.vacuum(wavelen)
-    n_medium = sc.index.vacuum(wavelen)
-    n_sample = sc.index.n_eff(n_particle, n_matrix, volume_fraction)
+    volume_fraction_da = xr.DataArray([volume_fraction, 1-volume_fraction],
+                                  coords={sc.Coord.MAT: range(2)})
+    index_particle = sc.Index.constant(1.54)
+    n_particle = index_particle(wavelen)
+    index_matrix = sc.index.vacuum
+    index_medium = sc.index.vacuum
+    n_medium = index_medium(wavelen)
+    n_sample = sc.index.effective_index([index_particle, index_matrix],
+                                        volume_fraction_da, wavelen)
     boundary = 'sphere'
 
     p, mu_scat, mu_abs = mc.calc_scat(radius, n_particle, n_sample,
@@ -290,11 +301,21 @@ def test_multiscale_mc():
     boundary_bulk = 'film'
 
     # Refractive indices
-    n_particle = sc.index.vacuum(wavelengths)
-    n_matrix = (sc.index.fused_silica(wavelengths)
-                + 9e-4 * sc.index.vacuum(wavelengths) * 1j)
-    n_matrix_bulk = sc.index.vacuum(wavelengths)
-    n_medium = sc.index.vacuum(wavelengths)
+    index_particle = sc.index.vacuum
+    n_particle = index_particle(wavelengths)
+    index_matrix = sc.index.fused_silica + 9e-4*1j
+    index_matrix_bulk = sc.index.vacuum
+    n_matrix_bulk = index_matrix_bulk(wavelengths)
+    index_medium = sc.index.vacuum
+    n_medium = index_medium(wavelengths)
+
+    particle = sc.model.Sphere(index_particle, particle_radius)
+    vf_particles = particle.volume_fraction(volume_fraction_particles)
+
+    # caculate the effective index of the sample
+    n_sample_eff = sc.index.effective_index([index_particle, index_matrix],
+                                            vf_particles, wavelengths)
+
 
     # number of trajectories to run with a spherical boundary
     ntrajectories = 2000
@@ -313,10 +334,7 @@ def test_multiscale_mc():
 
     # loop through wavelengths
     for i in range(wavelengths.size):
-        # caculate the effective index of the sample
-        n_sample = sc.index.n_eff(n_particle[i], n_matrix[i],
-                                  volume_fraction_particles)
-
+        n_sample = n_sample_eff[i]
         p, mu_scat, mu_abs = mc.calc_scat(particle_radius, n_particle[i],
                                           n_sample, volume_fraction_particles,
                                           wavelengths[i])
@@ -479,7 +497,7 @@ def test_multiscale_polydispersity_mc():
     rng = np.random.RandomState([seed])
 
     # sphere simulation
-    wavelengths = sc.Quantity(np.arange(400., 801.,10),'nm')
+    wavelengths = sc.Quantity(np.arange(400., 801., 10),'nm')
 
     # Geometric properties of the sample
     num_diams = 3
@@ -493,10 +511,19 @@ def test_multiscale_polydispersity_mc():
     boundary = 'sphere'
     boundary_bulk = 'film'
 
-    n_particle = sc.index.vacuum(wavelengths)
-    n_matrix = sc.index.polystyrene(wavelengths) + 2e-5*1j
-    n_matrix_bulk = sc.index.vacuum(wavelengths)
-    n_medium = sc.index.vacuum(wavelengths)
+    index_particle = sc.index.vacuum
+    n_particle = index_particle(wavelengths)
+    index_matrix = sc.index.polystyrene + 2e-5*1j
+    n_matrix = index_matrix(wavelengths)
+    index_matrix_bulk = sc.index.vacuum
+    n_matrix_bulk = index_matrix_bulk(wavelengths)
+    index_medium = sc.index.vacuum
+    n_medium = index_medium(wavelengths)
+
+    particle = sc.model.Sphere(index_particle, particle_radius)
+    vf_particles = particle.volume_fraction(volume_fraction_particles)
+    n_sample_eff = sc.index.effective_index([index_particle, index_matrix],
+                                            vf_particles, wavelengths)
 
     ntrajectories = 500
     nevents = 300
@@ -526,9 +553,7 @@ def test_multiscale_polydispersity_mc():
 
     for j in range(sphere_boundary_diameters.size):
         for i in range(wavelengths.size):
-
-            n_sample = sc.index.n_eff(n_particle[i], n_matrix[i],
-                                      volume_fraction_particles)
+            n_sample = n_sample_eff[i]
 
             p, mu_scat, mu_abs = mc.calc_scat(particle_radius, n_particle[i],
                                               n_sample,
@@ -683,10 +708,14 @@ def test_multiscale_color_mixing_mc():
     boundary_bulk = 'film'
 
     # Refractive indices
-    n_particle = sc.index.vacuum(wavelengths)
-    n_matrix = sc.index.polystyrene(wavelengths) + 2e-5*1j
-    n_matrix_bulk = sc.index.vacuum(wavelengths)
-    n_medium = sc.index.vacuum(wavelengths)
+    index_particle = sc.index.vacuum
+    n_particle = index_particle(wavelengths)
+    index_matrix = sc.index.polystyrene + 2e-5*1j
+    n_matrix = index_matrix(wavelengths)
+    index_matrix_bulk = sc.index.vacuum
+    n_matrix_bulk = index_matrix_bulk(wavelengths)
+    index_medium = sc.index.vacuum
+    n_medium = index_medium(wavelengths)
 
     # Monte Carlo parameters
     ntrajectories = 2000
@@ -704,9 +733,12 @@ def test_multiscale_color_mixing_mc():
 
 
     for j in range(particle_radii.size):
+        particle = sc.model.Sphere(index_particle, particle_radii[j])
+        vf_array = particle.volume_fraction(volume_fraction_particles)
+        n_sample_eff = sc.index.effective_index([index_particle, index_matrix],
+                                            vf_array, wavelengths)
         for i in range(wavelengths.size):
-            n_sample = sc.index.n_eff(n_particle[i], n_matrix[i],
-                                      volume_fraction_particles)
+            n_sample = n_sample_eff[i]
 
             p, mu_scat, mu_abs = mc.calc_scat(particle_radii[j], n_particle[i],
                                               n_sample,

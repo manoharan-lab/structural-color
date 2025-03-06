@@ -204,7 +204,6 @@ class Sphere(Particle):
             materials = self.layers + 1
         else:
             materials = self.layers
-        print(vf, radii[-1]**3)
         return xr.DataArray(vf, coords = {sc.Coord.MAT : range(materials)})
 
     def n(self, wavelen):
@@ -378,7 +377,7 @@ class HemisphericalReflectanceDetector(Detector):
 @ureg.check(None, None, None, '[length]', '[length]', '[]', None, None, None,
             None, None, None, None, None, None, None, None, None, None, None,
             None, None, None, None)
-def reflection(n_particle, n_matrix, n_medium, wavelen, radius,
+def reflection(index_particle, index_matrix, index_medium, wavelen, radius,
                volume_fraction,
                radius2=None,
                concentration=None,
@@ -405,13 +404,12 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius,
 
     Parameters
     ----------
-    n_particle: array of structcol.Quantity [dimensionless]
-        refractive index of particles or voids at wavelength=wavelen. In case
-        of core-shell particles, define indices from the innermost to the
-        outermost layer.
-    n_matrix: structcol.Quantity [dimensionless]
-        refractive index of the matrix surrounding the particles (at wavelen)
-    n_medium: structcol.Quantity [dimensionless]
+    index_particle: `sc.Index` object or list of such
+        refractive index of particles or voids. In case of core-shell
+        particles, define indices from the innermost to the outermost layer.
+    index_matrix: `sc.Index` object
+        refractive index of the matrix surrounding the particles
+    index_medium: `sc.Index` object
         refractive index of the medium surrounding the sample.  This is
         usually air or vacuum
     wavelen: structcol.Quantity [length]
@@ -535,6 +533,11 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius,
     wavelen = wavelen.to_preferred()
     radius = radius.to_preferred()
 
+    particle = sc.model.Sphere(index_particle, radius)
+    n_particle = particle.n(wavelen)
+    n_matrix = index_matrix(wavelen)
+    n_medium = index_medium(wavelen)
+
     # radius and radius2 should be in the same units (for polydisperse samples)
     if radius2 is not None:
         radius2 = radius2.to(radius.units)
@@ -566,24 +569,24 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius,
 
     # calculate array of volume fractions of each layer in the particle. If
     # particle is not core-shell, volume fraction remains the same
-    vf_array = np.empty(len(np.atleast_1d(radius)))
-    r_array = np.array([0] + np.atleast_1d(radius.magnitude).tolist())
-    for r in np.arange(len(r_array)-1):
-        vf_array[r] = ((r_array[r+1]**3-r_array[r]**3)
-                       / (r_array[-1]**3) * volume_fraction)
-    if len(vf_array) == 1:
-        vf_array = float(vf_array[0])
+    vf_array = particle.volume_fraction(volume_fraction)
+
+    if isinstance(index_particle, list):
+        index_list = index_particle + [index_matrix]
+    else:
+        index_list = [index_particle, index_matrix]
 
     # use Bruggeman formula to calculate effective index of
     # particle-matrix composite
     n_sample_eff = None
 
     if effective_medium_form and effective_medium_struct:
-        n_sample = sc.index.n_eff(n_particle, n_matrix, vf_array,
-                                  maxwell_garnett=maxwell_garnett)
+        n_sample = sc.index.effective_index(index_list, vf_array, wavelen,
+                                            maxwell_garnett=maxwell_garnett)
     if effective_medium_struct and not effective_medium_form:
-        n_sample_eff = sc.index.n_eff(n_particle, n_matrix, vf_array,
-                                      maxwell_garnett=maxwell_garnett)
+        n_sample_eff = sc.index.effective_index(index_list, vf_array, wavelen,
+                                                maxwell_garnett =
+                                                maxwell_garnett)
         n_sample = n_matrix
     if not effective_medium_form and not effective_medium_struct:
         n_sample = n_matrix
@@ -608,10 +611,12 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius,
     # between medium and sample
     # (TODO: include correction for reflection off the back interface of the
     # sample)
-    t_medium_sample = fresnel_transmission(n_medium.to_numpy(),
-                                           n_sample.to_numpy(), incident_angle)
-    r_medium_sample = fresnel_reflection(n_medium.to_numpy(),
-                                         n_sample.to_numpy(), incident_angle)
+    t_medium_sample = fresnel_transmission(n_medium.to_numpy().squeeze(),
+                                           n_sample.to_numpy().squeeze(),
+                                           incident_angle)
+    r_medium_sample = fresnel_reflection(n_medium.to_numpy().squeeze(),
+                                         n_sample.to_numpy().squeeze(),
+                                         incident_angle)
 
     theta_min = theta_min.to('rad').magnitude
     theta_max = theta_max.to('rad').magnitude
@@ -625,11 +630,11 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius,
     # where alpha = pi - theta)
     # TODO: use n_sample.real or abs(n_sample)?
     sin_alpha_sample_theta_min = (np.sin(np.pi-theta_min)
-                                  * n_medium.to_numpy()
-                                  / np.abs(n_sample.to_numpy()))
+                                  * n_medium.to_numpy().squeeze()
+                                  / np.abs(n_sample.to_numpy().squeeze()))
     sin_alpha_sample_theta_max = (np.sin(np.pi-theta_max)
-                                  * n_medium.to_numpy()
-                                  / np.abs(n_sample.to_numpy()))
+                                  * n_medium.to_numpy().squeeze()
+                                  / np.abs(n_sample.to_numpy().squeeze()))
 
     if sin_alpha_sample_theta_min >= 1:
         # in this case, theta_min and the ratio of n_medium/n_sample are
@@ -658,18 +663,19 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius,
     azi_angle_range = Quantity(phi_max - phi_min,'rad')
     azi_angle_range_tot = Quantity(2 * np.pi, 'rad')
 
-    transmission = fresnel_transmission(n_sample.to_numpy(),
-                                        n_medium.to_numpy(), np.pi-angles)
+    transmission = fresnel_transmission(n_sample.to_numpy().squeeze(),
+                                        n_medium.to_numpy().squeeze(),
+                                        np.pi-angles)
 
     # calculate the absorption cross section
     if np.abs(n_sample.imag) > 0.0:
         # The absorption coefficient can be calculated from the imaginary
         # component of the samples's refractive index
-        mu_abs = 4 * np.pi * n_sample.imag.to_numpy() / wavelen
+        mu_abs = 4 * np.pi * n_sample.imag.to_numpy().squeeze() / wavelen
         cabs_total = mu_abs / rho
     else:
         cross_sections = mie.calc_cross_sections(m, x,
-                                                 wavelen/(n_sample.to_numpy()))
+                            (wavelen/(n_sample.to_numpy().squeeze())))
         cabs_total = cross_sections[2]
 
     # calculate the differential cross section in the detected range of angles

@@ -26,6 +26,7 @@ from structcol import montecarlo as mc
 from structcol import event_distribution as ed
 from structcol import detector as det
 import numpy as np
+import xarray as xr
 from numpy.testing import assert_equal, assert_almost_equal, assert_array_less
 import pytest
 
@@ -40,6 +41,8 @@ wavelength = sc.Quantity(np.array(550.0),'nm')
 # sample properties
 particle_radius = sc.Quantity('140.0 nm')
 volume_fraction = 0.56
+volume_fraction_da = xr.DataArray([volume_fraction, 1-volume_fraction],
+                                  coords={sc.Coord.MAT: range(2)})
 thickness = sc.Quantity('10.0 um')
 boundary = 'film'
 
@@ -48,12 +51,16 @@ boundary = 'film'
 # Refractive indices can be specified as pint quantities or called from the
 # refractive_index module. n_matrix is the # space within sample. n_medium is
 # outside the sample.
-n_particle = sc.index.polystyrene(wavelength)
-n_matrix = sc.index.vacuum(wavelength)
-n_medium = sc.index.vacuum(wavelength)
+index_particle = sc.index.polystyrene
+n_particle = index_particle(wavelength)
+index_matrix = sc.index.vacuum
+n_matrix = index_matrix(wavelength)
+index_medium = sc.index.vacuum
+n_medium = index_medium(wavelength)
 
 # Calculate the effective refractive index of the sample
-n_sample = sc.index.n_eff(n_particle, n_matrix, volume_fraction)
+n_sample = sc.index.effective_index([index_particle, index_matrix],
+                                    volume_fraction_da, wavelength)
 
 # Calculate the phase function and scattering and absorption coefficients from
 # the single scattering model (this absorption coefficient is of the scatterer,
@@ -411,9 +418,17 @@ def test_event_distribution_wavelength_mc():
     boundary = 'film'
 
     # indices of refraction
-    n_particle = sc.index.polystyrene(wavelengths)
-    n_matrix = sc.index.vacuum(wavelengths)
-    n_medium = sc.index.vacuum(wavelengths)
+    index_particle = sc.index.polystyrene
+    n_particle = index_particle(wavelengths)
+    index_matrix = sc.index.vacuum
+    n_matrix = index_matrix(wavelengths)
+    index_medium = sc.index.vacuum
+    n_medium = index_medium(wavelengths)
+
+    particle = sc.model.Sphere(index_particle, particle_radius)
+    vf_array = particle.volume_fraction(volume_fraction)
+    n_sample_eff = sc.index.effective_index([index_particle, index_matrix],
+                                            vf_array, wavelengths)
 
     # initialize arrays for quantities we want to look at later
     refl_events = np.zeros((wavelengths.size, 2*nevents+1))
@@ -428,7 +443,7 @@ def test_event_distribution_wavelength_mc():
 
     # run monte carlo, reflectance, and event_distribution
     for i in range(wavelengths.size):
-        n_sample = sc.index.n_eff(n_particle[i], n_matrix[i], volume_fraction)
+        n_sample = n_sample_eff[i]
 
         p[i,:], mu_scat, mu_abs = mc.calc_scat(particle_radius, n_particle[i],
                                                n_sample, volume_fraction,

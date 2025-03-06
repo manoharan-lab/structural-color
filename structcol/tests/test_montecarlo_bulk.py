@@ -50,13 +50,19 @@ boundary_bulk = 'film'
 # Refractive indices
 #
 # refractive index of particle
-n_particle = sc.index.vacuum(wavelength)
+index_particle = sc.index.vacuum
+n_particle = index_particle(wavelength)
+particle = sc.model.Sphere(index_particle, particle_radius)
+vf_particles = particle.volume_fraction(volume_fraction_particles)
 # refractive index of matrix
-n_matrix = sc.index.polystyrene(wavelength)
+index_matrix = sc.index.polystyrene
+n_matrix = index_matrix(wavelength)
 # refractive index of the bulk matrix
-n_matrix_bulk = sc.index.vacuum(wavelength)
+index_matrix_bulk = sc.index.vacuum
+n_matrix_bulk = index_matrix_bulk(wavelength)
 # refractive index of medium outside the bulk sample.
-n_medium = sc.index.vacuum(wavelength)
+index_medium = sc.index.vacuum
+n_medium = index_medium(wavelength)
 
 # Monte Carlo parameters
 #
@@ -74,7 +80,8 @@ def calc_sphere_mc():
 
 
     # caculate the effective index of the sample
-    n_sample = sc.index.n_eff(n_particle, n_matrix, volume_fraction_particles)
+    n_sample = sc.index.effective_index([index_particle, index_matrix],
+                                        vf_particles, wavelength)
 
     # Calculate the phase function and scattering and absorption coefficients
     #from the single scattering model

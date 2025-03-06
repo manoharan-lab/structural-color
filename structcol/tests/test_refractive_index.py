@@ -303,116 +303,146 @@ def test_cargille():
     assert_almost_equal(cargille(Quantity('0.400 um')), 1.50703048)
     assert_almost_equal(cargille(Quantity('0.700 um')), 1.48783572)
 
-def test_neff():
+def test_effective_index():
     # test that at low volume fractions, Maxwell-Garnett and Bruggeman roughly
     # match for a non-core-shell particle
-    wavelen = sc.Quantity(500, 'nm')
-    n_particle = sc.Index.constant(2.7)(wavelen)
-    n_matrix = sc.Index.constant(2.2)(wavelen)
-    vf = 0.001
+    wavelen = sc.Quantity(500.0, 'nm')
+    index_particle = sc.Index.constant(2.7)
+    index_matrix = sc.Index.constant(2.2)
+    vf = xr.DataArray(np.array([0.001, 1-0.001]),
+                      coords={sc.Coord.MAT: range(2)})
 
-    neff_mg = sc.index.n_eff(n_particle, n_matrix, vf, maxwell_garnett=True)
-    neff_bg = sc.index.n_eff(n_particle, n_matrix, vf, maxwell_garnett=False)
+    neff_mg = sc.index.effective_index([index_particle, index_matrix], vf,
+                                       wavelen, maxwell_garnett=True)
+    neff_bg = sc.index.effective_index([index_particle, index_matrix], vf,
+                                       wavelen, maxwell_garnett=False)
 
-    assert_almost_equal(neff_mg, neff_bg)
+    xr.testing.assert_allclose(neff_mg, neff_bg)
 
     # test that the non-core-shell particle with Maxwell-Garnett matches with
-    # the core-shell of shell index of air with Bruggeman at low volume
-    # fractions
-    indices = np.array([sc.Index.constant(2.7), sc.Index.constant(2.2)])
-    n_particle2 = np.array([index(wavelen) for index in indices])
-    vf2 = np.array([0.001, 0.1])
-    neff_bg2 = sc.index.n_eff(n_particle2, n_matrix, vf2,
-                              maxwell_garnett=False)
+    # core-shell (with shell index matched to matrix) with Bruggeman at low
+    # volume fractions
+    indices = np.array([index_particle, index_matrix, index_matrix])
+    vf2 = xr.DataArray(np.array([0.001, 0.1, (1-0.001-0.1)]),
+                       coords={sc.Coord.MAT: range(3)})
+    neff_bg2 = sc.index.effective_index(indices, vf2, wavelen,
+                                        maxwell_garnett=False)
 
-    assert_almost_equal(neff_mg, neff_bg2)
-    assert_almost_equal(neff_bg, neff_bg2)
+    xr.testing.assert_allclose(neff_mg, neff_bg2)
+    xr.testing.assert_allclose(neff_bg, neff_bg2)
 
     # test that the effective indices for a non-core-shell and a core-shell of
-    # shell index of air match using Bruggeman at intermediate volume fractions
-    vf3 = 0.5
-    neff_bg3 = sc.index.n_eff(n_particle, n_matrix, vf3, maxwell_garnett=False)
+    # shell index matched to matrix using Bruggeman at intermediate volume
+    # fractions
+    vf3 = xr.DataArray([0.5, 1-0.5],
+                       coords = {sc.Coord.MAT: range(2)})
+    neff_bg3 = sc.index.effective_index([index_particle, index_matrix], vf3,
+                                        wavelen, maxwell_garnett=False)
 
-    vf3_cs = np.array([0.5, 0.1])
-    neff_bg3_cs = sc.index.n_eff(n_particle2, n_matrix, vf3_cs,
-                                 maxwell_garnett=False)
+    vf3_cs = xr.DataArray(np.array([0.5, 0.1, (1-0.5-0.1)]),
+                          coords = {sc.Coord.MAT: range(3)})
+    neff_bg3_cs = sc.index.effective_index([index_particle, index_matrix,
+                                            index_matrix], vf3_cs, wavelen,
+                                           maxwell_garnett=False)
 
-    assert_almost_equal(neff_bg3, neff_bg3_cs)
+    xr.testing.assert_allclose(neff_bg3, neff_bg3_cs)
 
     # repeat the tests using complex indices
-    n_particle_complex = sc.Index.constant(2.7+0.001j)(wavelen)
-    n_matrix_complex = sc.Index.constant(2.2+0.001j)(wavelen)
+    index_particle_complex = sc.Index.constant(2.7+0.001j)
+    index_matrix_complex = sc.Index.constant(2.2+0.001j)
 
-    neff_mg_complex = sc.index.n_eff(n_particle_complex, n_matrix_complex, vf,
-                                     maxwell_garnett=True)
-    neff_bg_complex = sc.index.n_eff(n_particle_complex, n_matrix_complex, vf,
-                                     maxwell_garnett=False)
+    neff_mg_complex = sc.index.effective_index([index_particle_complex,
+                                                index_matrix_complex], vf,
+                                               wavelen, maxwell_garnett=True)
+    neff_bg_complex = sc.index.effective_index([index_particle_complex,
+                                                index_matrix_complex], vf,
+                                               wavelen, maxwell_garnett=False)
 
-    assert_almost_equal(neff_mg_complex, neff_bg_complex)
+    xr.testing.assert_allclose(neff_mg_complex, neff_bg_complex)
 
     # test that the non-core-shell particle with Maxwell-Garnett matches with
-    # the core-shell of shell index of air with Bruggeman at low volume
-    # fractions
-    indices = np.array([sc.Index.constant(2.7+0.001j),
-                        sc.Index.constant(2.2+0.001j)])
-    n_particle2_complex = np.array([index(wavelen) for index in indices])
-    neff_bg2_complex = sc.index.n_eff(n_particle2_complex, n_matrix_complex,
-                                      vf2, maxwell_garnett=False)
+    # the core-shell of shell index matched to matrix with Bruggeman at low
+    # volume fractions
+    indices = [sc.Index.constant(2.7+0.001j),
+               sc.Index.constant(2.2+0.001j)]
+    neff_bg2_complex = sc.index.effective_index(indices+[index_matrix_complex],
+                                                vf2, wavelen,
+                                                maxwell_garnett=False)
 
-    assert_almost_equal(neff_mg_complex, neff_bg2_complex)
-    assert_almost_equal(neff_bg_complex, neff_bg2_complex)
+    xr.testing.assert_allclose(neff_mg_complex, neff_bg2_complex)
+    xr.testing.assert_allclose(neff_bg_complex, neff_bg2_complex)
 
     # test that the effective indices for a non-core-shell and a core-shell of
-    # shell index of air match using Bruggeman at intermediate volume fractions
-    neff_bg3_complex = sc.index.n_eff(n_particle_complex, n_matrix_complex,
-                                      vf3, maxwell_garnett=False)
+    # shell index matched to matrix match using Bruggeman at intermediate
+    # volume fractions
+    neff_bg3_complex = sc.index.effective_index([index_particle_complex,
+                                                 index_matrix_complex], vf3,
+                                                wavelen,
+                                                maxwell_garnett=False)
 
-    neff_bg3_cs_complex = sc.index.n_eff(n_particle2_complex, n_matrix_complex,
-                                         vf3_cs, maxwell_garnett=False)
+    neff_bg3_cs_complex = sc.index.effective_index(indices +
+                                                   [index_matrix_complex],
+                                                   vf3_cs, wavelen,
+                                                   maxwell_garnett=False)
 
-    assert_almost_equal(neff_bg3_complex, neff_bg3_cs_complex)
+    xr.testing.assert_allclose(neff_bg3_complex, neff_bg3_cs_complex)
 
 def test_multimaterial_bruggeman():
     """Tests the Bruggeman approximation for three or more materials
     """
     # five layers, all same index.  Total volume fraction is 1, so result
-    # should not depend on volume fraction of matrix
-    wavelen = sc.Quantity(500, 'nm')
+    # should not depend on index of matrix
+    wavelen = sc.Quantity(500.0, 'nm')
     index = sc.Index.constant(1.33)
     layers = 5
-    n_particle = index(wavelen).expand_dims(dim={sc.Coord.LAYER: layers})
-    vf = np.ones(layers) * 1/layers
-    n_matrix = sc.Index.constant(1.0)(wavelen)
-    assert_equal(sc.index.n_eff(n_particle, n_matrix, vf), index(wavelen))
+    index_particle = [index]*layers
+    index_matrix = sc.Index.constant(1.0)
+    vf = xr.DataArray([1/layers]*layers + [0],
+                      coords={sc.Coord.MAT: range(layers+1)})
+    n_eff = sc.index.effective_index(index_particle + [index_matrix], vf,
+                                     wavelen)
+    xr.testing.assert_allclose(n_eff, index(wavelen))
 
+    wavelen = sc.Quantity(np.linspace(400, 800, 10), 'nm')
     # three layers, outer layer same as matrix.  Should return same as two
     # layers
-    n_matrix = sc.Index.constant(1.33)(wavelen)
-    indices = [sc.Index.constant(1.0), sc.Index.constant(1.59),
-               sc.Index.constant(1.33)]
-    n_threelayer = np.array([index(wavelen) for index in indices])
-    vf = np.array([0.2, 0.2, 0.2])
-    n_threelayer_eff = sc.index.n_eff(n_threelayer, n_matrix, vf)
-    n_twolayer_eff = sc.index.n_eff(n_threelayer[:-1], n_matrix, vf[:-1])
-    assert_almost_equal(n_threelayer_eff, n_twolayer_eff)
+    index_matrix = sc.Index.constant(1.33)
+    index_particle = [sc.Index.constant(1.0), sc.Index.constant(1.59),
+                      sc.Index.constant(1.33)]
+    vf = xr.DataArray(np.array([0.2, 0.2, 0.2, 1-0.6]),
+                      coords={sc.Coord.MAT: range(4)})
+    n_threelayer_eff = sc.index.effective_index(index_particle +
+                                                [index_matrix], vf,
+                                                wavelen)
+
+    # two layers
+    index_particle = [sc.Index.constant(1.0), sc.Index.constant(1.59)]
+    vf = xr.DataArray(np.array([0.2, 0.2, 1-0.4]),
+                      coords={sc.Coord.MAT: range(3)})
+    n_twolayer_eff = sc.index.effective_index(index_particle +
+                                              [index_matrix], vf,
+                                              wavelen)
+    xr.testing.assert_allclose(n_threelayer_eff, n_twolayer_eff)
 
 def test_vectorized_maxwell_garnett():
     """Tests whether Maxwell-Garnett works on multiple wavelengths at once
 
     """
-    wavelen = sc.Quantity(np.linspace(400, 800, 10), 'nm')
+    # since indices are constant, should get same result at all wavelengths as
+    # at a single wavelength
+    wavelen = sc.Quantity(np.linspace(400.0, 800.0, 10), 'nm')
     index_particle = sc.Index.constant(1.33)
     index_matrix = sc.Index.constant(1.00)
-    vf = 0.5
-    n_mg_vector = sc.index.n_eff(index_particle(wavelen),
-                                 index_matrix(wavelen), vf,
-                                 maxwell_garnett=True)
-    single_wavelen = sc.Quantity(400, 'nm')
-    n_mg_single = sc.index.n_eff(index_particle(single_wavelen),
-                                 index_matrix(single_wavelen), vf,
-                                 maxwell_garnett=True)
-    assert_equal(n_mg_vector.to_numpy(),
-                 n_mg_single.to_numpy()*np.ones(len(wavelen)))
+    vf = xr.DataArray(np.array([0.5, 0.5]),
+                      coords={sc.Coord.MAT: range(2)})
+    n_mg_vector = sc.index.effective_index([index_particle, index_matrix],
+                                           vf, wavelen, maxwell_garnett=True)
+    single_wavelen = sc.Quantity(400.0, 'nm')
+    n_mg_single = sc.index.effective_index([index_particle, index_matrix], vf,
+                                           single_wavelen,
+                                           maxwell_garnett=True)
+    xr.testing.assert_equal(n_mg_vector,
+                            n_mg_single.to_numpy()*xr.ones_like(n_mg_vector))
 
 def test_vectorized_bruggeman():
     """Tests that Bruggeman effective index works on multiple wavelengths at
@@ -423,37 +453,45 @@ def test_vectorized_bruggeman():
     wavelen = sc.Quantity(np.linspace(400, 800, num_wavelengths), 'nm')
     index_particle = sc.Index.constant(1.33)
     num_layers = 5
-    n_particle = index_particle(wavelen).expand_dims(dim={sc.Coord.LAYER:
-                                                          num_layers})
-    n_particle = n_particle.transpose()
-    n_matrix = sc.Index.constant(1.00)(wavelen)
-    vf = np.ones(num_layers)* 1/num_layers
-    n_eff = sc.index.n_eff(n_particle, n_matrix, vf, maxwell_garnett=False)
+    index_list = [index_particle] * num_layers
+    radius = sc.Quantity(np.array([100, 120, 140, 150, 160]), 'nm')
+    # radius shouldn't matter for this calculation
+    sphere = sc.model.Sphere(index_list, radius)
+    vf_array = sphere.volume_fraction(total_volume_fraction=1.0)
+    index_matrix = sc.Index.constant(1.00)
+
+    n_effective = sc.index.effective_index(index_list + [index_matrix],
+                                           vf_array, wavelen,
+                                           maxwell_garnett=False)
     # ensure that result is purely real
-    assert np.issubdtype(n_eff.dtype, np.floating)
-    # test that we get the right values; since the matrix volume fraciton is
-    # zero, the effective index should be 1.33
-    assert_equal(n_eff, np.ones(num_wavelengths)*1.33)
+    assert np.issubdtype(n_effective.dtype, np.floating)
+    # test that we get the right values; since the matrix volume fraction is
+    # zero, the effective index should be 1.33.  Test also that coords are
+    # correct.
+    coords = {sc.Coord.WAVELEN: wavelen.to_preferred().magnitude}
+    xr.testing.assert_equal(n_effective,
+                            xr.DataArray(np.ones(num_wavelengths)*1.33,
+                                         coords = coords))
 
     # now test that this works with an actual dispersion relation
     wavelen = sc.Quantity(np.linspace(400, 800, 10), 'nm')
     # we add a small imaginary part to the particle index
-    index = sc.index.polystyrene
-    n_particle = (index(wavelen).expand_dims(dim={sc.Coord.LAYER: 1})
-                   + 0.0001j).transpose()
-    n_matrix = sc.index.water(wavelen)
+    index = sc.index.polystyrene + 0.0001j
+    index_matrix = sc.index.water
     vf = 0.5
-    n_eff_vectorized = sc.index.n_eff(n_particle, n_matrix, vf,
-                                      maxwell_garnett=False)
+    sphere = sc.model.Sphere(index, sc.Quantity(100, 'nm'))
+    vf_array = sphere.volume_fraction(total_volume_fraction=vf)
+    n_effective_vectorized = sc.index.effective_index([index, index_matrix],
+                                                      vf_array, wavelen,
+                                                      maxwell_garnett=False)
     # ensure that result is complex
-    assert np.issubdtype(n_eff_vectorized.dtype, np.complexfloating)
+    assert np.issubdtype(n_effective_vectorized.dtype, np.complexfloating)
 
     # do same calculation using a for loop
-    n_particle = n_particle.squeeze()
-    n_matrix = n_matrix.squeeze()
-    n_eff = [sc.index.n_eff(n_particle[i], n_matrix[i], vf,
-                            maxwell_garnett=False)
-             for i in range(len(n_particle))]
+    n_effective = [sc.index.effective_index([index, index_matrix], vf_array,
+                                      wl, maxwell_garnett=False)
+                   for wl in wavelen]
 
     # agreement shouldn't necessarily be exact because of tolerance of fsolve
-    assert_allclose(n_eff_vectorized, np.array(n_eff))
+    xr.testing.assert_allclose(n_effective_vectorized,
+                               xr.concat(n_effective, dim=sc.Coord.WAVELEN))
