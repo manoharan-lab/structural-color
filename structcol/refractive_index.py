@@ -218,6 +218,39 @@ class Index:
         return cls(index_func)
 
 
+class EffectiveIndex(Index):
+    """Class describing an effective index of refraction.
+
+    Can calculate the (possibly complex) effective index as a medium as a
+    function of wavelength, given the volume fractions and indexes of the
+    components.  Uses either the Bruggeman or Maxwell-Garnett formulas to
+    calculate the effective index.
+
+    Attributes
+    ----------
+    index_list : list of `Index` objects
+        Refractive indices of the component materials.  For Maxwell-Garnett,
+        the first element is the index of the inclusion and the second is the
+        index of the host.  For Bruggeman, order need only be consistent with
+        the order in volume_fractions.
+    volume_fractions : xr.DataArray
+        Volume fractions of the component materials in index_list, with
+        dimension name `sc.Coord.MAT`. Volume fractions must sum to 1.
+    maxwell_garnett: boolean (optional)
+        If True, uses Maxwell-Garnett effective index. Two refractive indexes
+        and two volume fractions must be specified, corresponding to
+        particle/inclusions (first elements) and matrix/host (second elements)
+        If False (default), uses Bruggeman's formula, which can be used for
+        multilayer particles.
+
+    """
+
+    def __init__(self, index_list, volume_fractions, maxwell_garnett=False):
+        super().__init__(partial(effective_index, index_list,
+                                 volume_fractions,
+                                 maxwell_garnett=maxwell_garnett))
+
+
 @sc.ureg.check(None, '[length]')
 def _constant_index(index, wavelen):
     """
