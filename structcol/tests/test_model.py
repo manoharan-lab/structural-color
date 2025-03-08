@@ -261,6 +261,26 @@ class TestParticle():
         assert_equal(ipar_sphere, ipar_mie)
         assert_equal(iperp_sphere, iperp_mie)
 
+    @pytest.mark.xfail
+    def test_vectorized_form_factor(self):
+        # test that we can calculate the form factor for several wavelengths
+        # simultaneously.  This will fail until pymie is updated to allow a
+        # vector of m and x (currently pymie interprets a vector of m as a
+        # multilayer particle)
+        num_wavelengths = 10
+        num_angles = 19
+        wavelen = sc.Quantity(np.linspace(400, 800, num_wavelengths), 'nm')
+        sphere = sc.model.Sphere(sc.index.polystyrene,
+                                 sc.Quantity('0.125 um'))
+        index_matrix = sc.index.water
+        angles = Quantity(np.linspace(0, 180., num_angles), 'deg')
+        form_sphere = sphere.form_factor(wavelen, angles, index_matrix)
+
+        for i in range(2):
+            assert_equal(form_sphere[i].shape[0], (num_wavelengths))
+            assert_equal(form_sphere[i].shape[1], (num_angles))
+
+
 class TestModel():
     """Tests for the Model class and derived classes.
     """
