@@ -87,7 +87,7 @@ class Particle:
         """
         return self.index(wavelen)
 
-    def form_factor(self, wavelen, angles, n_external, distance=None):
+    def form_factor(self, wavelen, angles, index_external, distance=None):
         """Calculates form factor of the particle in a matrix with index of
         refraction `n_external`. Because the form factor depends on the
         particle, this method must be implemented in derived classes.
@@ -225,7 +225,7 @@ class Sphere(Particle):
         else:
             return super().n(wavelen)
 
-    def form_factor(self, wavelen, angles, n_external, distance=None):
+    def form_factor(self, wavelen, angles, index_external, distance=None):
         """Calculate form factor from Mie theory.
 
         Parameters
@@ -235,7 +235,7 @@ class Sphere(Particle):
         angles : array-like
             scattering angles at which to calculate form factor.  Specified in
             radians.
-        n_external : `sc.Index` object
+        index_external : `sc.Index` object
             Index of refraction of the medium around the particle.  Can be an
             effective index.
         distance: sc.Quantity [length] (optional)
@@ -248,7 +248,7 @@ class Sphere(Particle):
         if distance is not None:
             distance = distance.to_preferred()
 
-        n_ext = n_external(wavelen)
+        n_ext = index_external(wavelen)
         n_particle = self.n(wavelen)
 
         m = sc.index.ratio(n_particle, n_ext)
@@ -281,8 +281,8 @@ class Model:
 
     """
     @ureg.check(None, None, "[length]")
-    def __init__(self, n_medium, thickness):
-        self.n_medium = n_medium
+    def __init__(self, index_medium, thickness):
+        self.index_medium = index_medium
         self.thickness = thickness.to_preferred().magnitude
         self.original_units = thickness.units
         self.current_units = thickness.to_preferred().units
@@ -293,7 +293,30 @@ class Model:
         return self.thickness * self.current_units
 
 
-class HardSpheres(Model):
+class FormStructureModel(Model):
+    """Class for defining a model in which scattering is calculated from the
+    product of form factor and structure factor.
+
+    Attributes
+    ----------
+    form_factor : Function
+        Calculates the form factor as a function of wavelength, angles, and the
+        index external to the particle.
+    structure_factor : `sc.structure.StructureFactor` object
+        Structure factor used in the calculation
+    index_matrix : `sc.Index` object
+        Index of material surrounding the particles
+
+    """
+    def __init__(self, form_factor, structure_factor, index_matrix,
+                 index_medium, thickness):
+        self.index_matrix = index_matrix
+        self.form_factor = form_factor
+        self.structure_factor = structure_factor
+        super().__init__(index_medium, thickness)
+
+
+class HardSpheres(FormStructureModel):
     """Hard-sphere liquid or glass.
 
     Models scattering using the product of the Mie form factor and the
@@ -305,25 +328,26 @@ class HardSpheres(Model):
         Particles that make up the structure
     volume_fraction : float
         volume fraction of spheres that make up the structure
-    n_matrix : sc.Index object
+    index_matrix : sc.Index object
         Index of matrix material between the spheres
     ql_cutoff : float (optional)
         ql below which to use approximate solution to structure factor
 
     """
-    def __init__(self, sphere, volume_fraction, n_matrix, n_medium, thickness,
-                 ql_cutoff=None):
+    def __init__(self, sphere, volume_fraction, index_matrix, index_medium,
+                 thickness, ql_cutoff=None):
         self.sphere = sphere
         self.volume_fraction = volume_fraction
-        self.n_matrix = n_matrix
 
         if ql_cutoff is None:
-            self.structure_factor = sc.structure.PercusYevick(volume_fraction)
+            structure_factor = sc.structure.PercusYevick(volume_fraction)
         else:
-            self.structure_factor = sc.structure.PercusYevick(volume_fraction,
-                                                              ql_cutoff =
-                                                              ql_cutoff)
-        super().__init__(n_medium, thickness)
+            structure_factor = sc.structure.PercusYevick(volume_fraction,
+                                                         ql_cutoff = ql_cutoff)
+
+        form_factor = self.sphere.form_factor
+        super().__init__(form_factor, structure_factor, index_matrix,
+                         index_medium, thickness)
 
 class Detector:
     """Class to describe detector used in the single-scattering model.

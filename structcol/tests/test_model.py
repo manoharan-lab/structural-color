@@ -264,6 +264,7 @@ class TestParticle():
 class TestModel():
     """Tests for the Model class and derived classes.
     """
+    wavelen = sc.Quantity(np.linspace(400, 800, 10), 'nm')
     ps_sphere = sc.model.Sphere(sc.index.polystyrene,
                                     sc.Quantity('0.125 um'))
     hollow_sphere = sc.model.Sphere([sc.index.vacuum,
@@ -274,7 +275,8 @@ class TestModel():
     my_units = sc.ureg.millimeter
     thickness = 0.050 * sc.ureg.millimeter
 
-    def test_hardsphere_structure(self):
+    def test_hardsphere_model(self):
+        index_matrix = sc.index.water
         glass = sc.model.HardSpheres(self.ps_sphere, self.phi, sc.index.water,
                                      sc.index.vacuum, self.thickness)
 
@@ -284,10 +286,18 @@ class TestModel():
         # make sure original units are correctly stored
         assert glass.original_units == self.my_units
 
-        s_ps = glass.structure_factor(self.qd)
-        structure_factor = sc.structure.PercusYevick(self.phi)
+        # make sure form factor is calculated correctly
+        angles = Quantity(np.linspace(0, 180., 19), 'deg')
+        form_model = glass.form_factor(self.wavelen, angles,
+                                               index_matrix)
+        form_sphere = glass.sphere.form_factor(self.wavelen, angles,
+                                               index_matrix)
+        for i in range(2):
+            assert_equal(form_model[i], form_sphere[i])
 
         # make sure structure factor is calculated correctly
+        s_ps = glass.structure_factor(self.qd)
+        structure_factor = sc.structure.PercusYevick(self.phi)
         assert_equal(s_ps.to_numpy(), structure_factor(self.qd).to_numpy())
 
         # make sure structure factor is the same for layered spheres as for
@@ -296,7 +306,7 @@ class TestModel():
                                      sc.index.water, sc.index.vacuum,
                                      self.thickness)
         s_hollow = glass.structure_factor(self.qd)
-        assert_equal(s_hollow.to_numpy(), structure_factor(self.qd).to_numpy())
+        xr.testing.assert_equal(s_hollow, structure_factor(self.qd))
 
 
 class TestDetector():
