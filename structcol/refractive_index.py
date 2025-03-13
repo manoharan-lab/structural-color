@@ -815,7 +815,9 @@ def ratio(n_particle, n_matrix):
     an Index object evaluated at a set of wavelengths. It then checks to make
     sure that both indexes are evaluated at the same set of wavelengths and, if
     so, returns a plain numpy array, stripped of metadata, that can be input as
-    the m variable in Mie calculations.
+    the m variable in Mie calculations. The shape of the return value is chosen
+    to allow pymie to determine whether there are multiple layers in the
+    particle (see Returns).
 
     Parameters
     ----------
@@ -827,8 +829,13 @@ def ratio(n_particle, n_matrix):
 
     Returns
     -------
-    ndarray : shape [num_wavelengths]
-        Index ratio at each wavelength
+    float/complex or array-like : shape [num_wavelengths, num_layers]
+        Calculates the index ratio at each wavelength and for each layer in the
+        particle, and returns a scalar only when there is a single wavelength
+        and single layer. Otherwise returns an array of shape [num_wavelengths,
+        1] for multiple wavelengths, single layer; [1, num_layers] for single
+        wavelength, multiple layers; and [num_wavelengths, num_layers] in the
+        general case.
 
     """
     if (not isinstance(n_particle, xr.DataArray)
@@ -836,14 +843,32 @@ def ratio(n_particle, n_matrix):
         raise ValueError("Index of particle and matrix must be DataArrays. "
                          "Ensure that you are using the output from an Index "
                          "object as input to this function.")
-    if not (np.array_equal(n_particle.coords[sc.Coord.WAVELEN].to_numpy(),
-                           n_matrix.coords[sc.Coord.WAVELEN].to_numpy())):
+    n_particle_wl = n_particle.coords[sc.Coord.WAVELEN].to_numpy().squeeze()
+    n_matrix_wl = n_matrix.coords[sc.Coord.WAVELEN].to_numpy().squeeze()
+    if not (np.array_equal(n_particle_wl, n_matrix_wl)):
         raise ValueError("Cannot calculate index ratio when Indexes of "
                          "particle and matrix are evaluated at different "
                          "wavelengths.")
 
-    m = (n_particle/n_matrix).to_numpy().squeeze()
+    m = (n_particle/n_matrix)
+    # xarray selection methods can return a scalar variable as a coordinate
+    # and drop the associated dimension, which leads to issues when converting
+    # to numpy. To avoid this problem, we re-add the wavelength dimension.
+    if ((sc.Coord.WAVELEN not in m.dims)
+         and (sc.Coord.WAVELEN in m.coords.keys())):
+        m = m.expand_dims(sc.Coord.WAVELEN)
+    if sc.Coord.MAT in m.coords.keys():
+        # need to make sure we don't have a scalar coordinate
+        if m.coords[sc.Coord.MAT].size != 1:
+            # shape should be [num_wavelength, num_layers]. We make sure that
+            # dimensions are in the correct order before converting to numpy
+            m = m.transpose(sc.Coord.WAVELEN, sc.Coord.MAT)
+            m = m.to_numpy()
+    else:
+        # add a trailing dimension of 1 element if only wavelengths are present
+        m = m.expand_dims(sc.Coord.MAT, axis=-1).to_numpy()
     if m.size == 1:
+        # if only a single wavelength and single material, return scalar
         return m.item()
     else:
         return m

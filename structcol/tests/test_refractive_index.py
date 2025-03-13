@@ -447,7 +447,24 @@ def test_ratio():
     # make sure we get a plain numpy array
     assert isinstance(ratio, np.ndarray)
     assert not isinstance(ratio, xr.DataArray)
-    assert_equal(ratio, n_particle/n_matrix)
+
+    # multiple wavelengths, single layer should give shape
+    # [num_wavelengths, 1]
+    assert ratio.shape == (len(wavelen), 1)
+    assert_equal(ratio.squeeze(), n_particle/n_matrix)
+
+    # single wavelength, single layer should give scalar
+    ratio = sc.index.ratio(n_particle[0], n_matrix[0])
+    assert np.isscalar(ratio)
+    assert_equal(ratio, (n_particle[0]/n_matrix[0]).to_numpy().item())
+
+    # single wavelength, multiple layers should give shape
+    # [1, num_layers]
+    num_layers = 35
+    index_particle = num_layers*[sc.index.polystyrene]
+    n_particle = sc.index._indexes_from_list(index_particle, wavelen[0])
+    ratio = sc.index.ratio(n_particle.isel(wavelength=0), n_matrix[0])
+    assert ratio.shape == (1, num_layers)
 
     # make sure we get exceptions if we don't give the right inputs
     with pytest.raises(ValueError):

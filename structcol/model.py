@@ -1231,7 +1231,10 @@ def polydisperse_form_factor(m, angles, diameters, concentration, pdi, wavelen,
             distr_array = np.tile(distr, [len(angles),1])
         angles_array = np.tile(angles, [len(diameter_range),1])
 
-        x_poly = sc.size_parameter(n_matrix, diameter_range/2)
+        # size parameter will be a 2D array [1, num_diameters]. Because this
+        # would be interpreted as a layered particle by pymie, we convert to a
+        # 1D array before looping
+        x_poly = sc.size_parameter(n_matrix, diameter_range/2)[0]
 
         form_factor = {}
         integrand = {}

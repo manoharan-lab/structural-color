@@ -216,10 +216,7 @@ def size_parameter(n_medium, radius):
     wavelen = Quantity(n_medium.coords[Coord.WAVELEN].to_numpy(),
                        n_medium.attrs[Attr.LENGTH_UNIT])
     sp = mie.size_parameter(wavelen, n_medium.to_numpy(), radius)
-    if sp.size == 1:
-        return sp.item()
-    else:
-        return sp
+    return sp
 
 
 def wavevector(n_medium):

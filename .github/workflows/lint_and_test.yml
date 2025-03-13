@@ -50,7 +50,7 @@ jobs:
     - name: Check out python-mie and install
       shell: bash -el {0}
       run: |
-        git clone https://github.com/manoharan-lab/python-mie.git
+        git clone -b vectorized https://github.com/manoharan-lab/python-mie.git
         pip install ./python-mie
         rm -r ./python-mie
     - name: Install plugin to annotate test results
