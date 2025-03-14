@@ -261,7 +261,6 @@ class TestParticle():
         assert_equal(ipar_sphere, ipar_mie)
         assert_equal(iperp_sphere, iperp_mie)
 
-    @pytest.mark.xfail
     def test_vectorized_form_factor(self):
         # test that we can calculate the form factor for several wavelengths
         # simultaneously.  This will fail until pymie is updated to allow a
@@ -276,9 +275,19 @@ class TestParticle():
         angles = Quantity(np.linspace(0, 180., num_angles), 'deg')
         form_sphere = sphere.form_factor(wavelen, angles, index_matrix)
 
+        # make sure shape is correct
         for i in range(2):
-            assert_equal(form_sphere[i].shape[0], (num_wavelengths))
-            assert_equal(form_sphere[i].shape[1], (num_angles))
+            assert form_sphere[i].shape == (num_wavelengths, num_angles)
+
+        # test that we get same values from a loop
+        ipar = np.zeros((num_wavelengths, num_angles))
+        iperp = np.zeros((num_wavelengths, num_angles))
+        for i in range(num_wavelengths):
+            ipar[i], iperp[i] = sphere.form_factor(wavelen[i], angles,
+                                                   index_matrix)
+
+        assert_equal(form_sphere[0], ipar)
+        assert_equal(form_sphere[1], iperp)
 
 
 class TestModel():
