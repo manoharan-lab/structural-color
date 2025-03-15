@@ -33,7 +33,6 @@ Physical Review E 90, no. 6 (2014): 62302. doi:10.1103/PhysRevE.90.062302
 import numpy as np
 import xarray as xr
 from pymie import mie
-from pymie import multilayer_sphere_lib as msl
 from scipy.special import factorial
 from scipy.integrate import trapezoid
 import structcol as sc
@@ -1448,7 +1447,7 @@ def absorption_cross_section(form_type, m, diameters, n_matrix, x,
         # if the index ratio m is an array with more than 1 element, it's a
         # multilayer particle
         if len(np.atleast_1d(m)) > 1:
-            coeffs = msl.scatcoeffs_multi(m, x)
+            coeffs = mie._scatcoeffs_multi(m, x)
             cabs_total = mie._cross_sections_complex_medium_sudiarta(coeffs[0],
                                                                      coeffs[1],
                                                                      x,
