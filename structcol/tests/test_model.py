@@ -240,8 +240,8 @@ class TestParticle():
         ipar_mie, iperp_mie = mie.diff_scat_intensity_complex_medium(
             m, x, angles, k*distance)
 
-        assert_equal(ipar_sphere.magnitude, ipar_mie.magnitude)
-        assert_equal(iperp_sphere.magnitude, iperp_mie.magnitude)
+        assert_equal(ipar_sphere, ipar_mie)
+        assert_equal(iperp_sphere, iperp_mie)
 
         # test layered particle
         index = [sc.index.vacuum, sc.index.polystyrene, sc.index.pmma]
