@@ -30,7 +30,6 @@ import xarray as xr
 
 from numpy.testing import assert_equal, assert_almost_equal
 import pytest
-from pint.errors import UnitStrippedWarning
 
 
 class TestStructureFactor():
@@ -52,8 +51,7 @@ class TestStructureFactor():
         """
 
         # test how function handles dimensionless arguments
-        with pytest.warns(UnitStrippedWarning):
-            structure_factor = sc.structure.PercusYevick(Quantity('0.4'))
+        structure_factor = sc.structure.PercusYevick(Quantity('0.4'))
         # specifying quantities is not allowed when calculating
         with pytest.raises(AttributeError):
             s = structure_factor(Quantity('0.1'))
