@@ -1,7 +1,7 @@
 # dependencies for structural color package
 #
 # To use:
-#   conda env create -f .\environment.yml
+#   conda env create -f environment.yml
 # and then
 #   conda activate structcol
 #
@@ -12,7 +12,6 @@
 name: structcol
 channels:
   - conda-forge
-  - defaults
 dependencies:
   - python>=3.11
   - numpy
@@ -34,4 +33,3 @@ dependencies:
 
   # for installing other dependencies
   - pip
-

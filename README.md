@@ -8,17 +8,17 @@ package for Mie scattering calculations. To install:
 
 ```shell
 git clone https://github.com/manoharan-lab/python-mie.git
-pip install ./python-mie
+python -m pip install ./python-mie
 ```
 
 To remove:
 
 ```shell
-pip remove pymie
+python -m pip uninstall pymie
 ```
 
-You might want to first set up a virtual environment and install the pymie
-package there.
+You might want to first set up a conda environment (using the included
+`environment.yml` file) and install the `pymie` package in that environment.
 
 The original code was developed by Sofia Magkiriadou (with contributions from
 Jerome Fung and others) during her research [1,2] in the
@@ -44,5 +44,4 @@ Additional publications based on this code:
 
 3. Hwang, V.; Stephenson, A. B.; Barkley, S.; Brandt, S.; Xiao, M.; Aizenberg, J.; Manoharan, V. N. “Designing Angle-Independent Structural Colors Using Monte Carlo Simulations of Multiple Scattering.” *Proceedings of National Academy  Sciences* 118, no. 4 (2021): e2015551118. [doi:10.1073/pnas.2015551118](https://www.pnas.org/doi/abs/10.1073/pnas.2015551118).
 
-4. Hwang, V.\*; Stephenson, A. B.\*; Magkiriadou, S.; Park, J.-G.; Manoharan, V. N. “Effects of Multiple Scattering on Angle-Independent Structural Color in Disordered Colloidal Materials.” *Physical Review E* 101, no. 1 (2020): 012614. \*equal contribution [doi:10.1103/PhysRevE.101.012614](https://journals.aps.org/pre/abstract/10.1103/PhysRevE.101.012614). 
-
+4. Hwang, V.\*; Stephenson, A. B.\*; Magkiriadou, S.; Park, J.-G.; Manoharan, V. N. “Effects of Multiple Scattering on Angle-Independent Structural Color in Disordered Colloidal Materials.” *Physical Review E* 101, no. 1 (2020): 012614. \*equal contribution [doi:10.1103/PhysRevE.101.012614](https://journals.aps.org/pre/abstract/10.1103/PhysRevE.101.012614).
