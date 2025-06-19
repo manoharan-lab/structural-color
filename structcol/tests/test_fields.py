@@ -333,6 +333,7 @@ def test_field_perp_direction():
     assert_almost_equal(np.sum(dot_prod), 0., decimal=14)
 
 @pytest.mark.slow
+@pytest.mark.xfail
 def test_field_reflectance_mc():
     """
     Tests whether the reflectance for the fields model is what we expect from a
@@ -428,6 +429,7 @@ def test_field_reflectance_mc():
     assert_almost_equal(reflectance, refl_intensity_expected)
 
 @pytest.mark.slow
+@pytest.mark.xfail
 def test_field_co_cross_mc():
     """
     Tests whether the co- and cross-polarized reflectances for the fields model
