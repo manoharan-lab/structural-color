@@ -47,6 +47,7 @@ jobs:
       with:
         environment-file: environment.yml
         miniforge-version: latest
+        conda-remove-defaults: "true"
     - name: Check out python-mie and install
       shell: bash -el {0}
       run: |
