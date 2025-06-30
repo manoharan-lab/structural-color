@@ -311,8 +311,10 @@ class Trajectory:
         """
         m = index_ratio(n_particle, n_sample)
         x = size_parameter(wavelen, n_sample, radius)
-        k = 2 * np.pi * n_sample.magnitude / wavelen.magnitude
-        step = step.magnitude
+        k = 2 * np.pi * n_sample.magnitude / wavelen.to('um').magnitude
+        step = step.to('um').magnitude
+        #k = 2 * np.pi * n_sample.magnitude / wavelen.magnitude # previous bug line keeping here for reference
+        #step = step.magnitude # previous bug line keeping here for reference
         ntraj = theta.shape[1]
 
         # calculate the mie amplitude scattering matrix
