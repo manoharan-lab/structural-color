@@ -32,7 +32,6 @@ Physical Review E 90, no. 6 (2014): 62302. doi:10.1103/PhysRevE.90.062302
 
 import numpy as np
 from pymie import index_ratio, mie
-from pymie import multilayer_sphere_lib as msl
 from pymie import size_parameter
 from scipy.special import factorial
 from scipy.integrate import trapezoid
@@ -842,7 +841,10 @@ def polydisperse_form_factor(m, angles, diameters, concentration, pdi, wavelen,
             distr_array = np.tile(distr, [len(angles),1])
         angles_array = np.tile(angles, [len(diameter_range),1])
 
-        x_poly = size_parameter(wavelen, n_matrix, diameter_range/2)
+        # size parameter will be a 2D array [1, num_diameters]. Because this
+        # would be interpreted as a layered particle by pymie, we convert to a
+        # 1D array before looping
+        x_poly = size_parameter(wavelen, n_matrix, diameter_range/2)[0]
 
         form_factor = {}
         integrand = {}
@@ -1055,7 +1057,7 @@ def absorption_cross_section(form_type, m, diameters, n_matrix, x, wavelen,
         # if the index ratio m is an array with more than 1 element, it's a
         # multilayer particle
         if len(np.atleast_1d(m)) > 1:
-            coeffs = msl.scatcoeffs_multi(m, x)
+            coeffs = mie._scatcoeffs_multi(m, x)
             cabs_total = mie._cross_sections_complex_medium_sudiarta(coeffs[0],
                                                                      coeffs[1],
                                                                      x,

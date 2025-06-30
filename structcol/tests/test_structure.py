@@ -92,7 +92,7 @@ def test_structure_factor_percus_yevick_core_shell():
     volume_fraction_cs = Quantity(np.array([volume_fraction.magnitude, volume_fraction_shell.magnitude]), '')
 
     n_sample_cs = ri.n_eff(n_particle_cs, n_matrix, volume_fraction_cs)
-    x_cs = size_parameter(wavelen, n_sample_cs, radius_cs[1]).flatten()
+    x_cs = size_parameter(wavelen, n_sample_cs, radius_cs[1])
     qd_cs = 4*x_cs*np.sin(angles/2)
     s_cs = structure.factor_py(qd_cs, np.sum(volume_fraction_cs))
 
