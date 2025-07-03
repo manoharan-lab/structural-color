@@ -349,32 +349,34 @@ class HardSpheres(FormStructureModel):
                          index_medium, thickness)
 
 class Detector:
-    """Class to describe detector used in the single-scattering model.
+    """Class to describe far-field detector used in single-scattering
+    calculations.
 
     Attributes
     ----------
-    theta_min, theta_max : structcol.Quantity [dimensionless]
+    theta_min, theta_max : structcol.Quantity [angle]
         Specifies the angular range over which to integrate the scattered
         signal. The angles are the scattering angles (polar angle, measured
         from the incident light direction) after the light exits into the
         medium. The model will correct for refraction at the interface to
         map this range of exit angles onto the range of scattering angles from
-        the particles. Usually one would set theta_min to correspond to the
-        numerical aperture of the detector. Setting theta_max to a value less
-        than 180 degrees corresponds to dark-field detection. Both theta_min
-        and theta_max can carry explicit units of radians or degrees.
-    phi_min, phi_max : structcol.Quantity [dimensionless]
+        the particles.
+    phi_min, phi_max : structcol.Quantity [angle] (optional)
         Specifies the azimuthal angular range over which to integrate the
         scattered signal. The angles are the azimuthal angles (measured from
         the incident light direction) after the light exits into the medium.
-        The function will correct for refraction at the interface to map this
+        The model will correct for refraction at the interface to map this
         range of exit angles onto the range of scattering angles from the
         particles.
 
     """
     @ureg.check(None, "[]", "[]", "[]", "[]")
-    def __init__(self, theta_min, theta_max, phi_min, phi_max):
-        # store in radians
+    def __init__(self,
+                 theta_min=sc.Quantity(np.pi/2, 'rad'),
+                 theta_max=sc.Quantity(np.pi, 'rad'),
+                 phi_min=sc.Quantity(0, 'rad'),
+                 phi_max=sc.Quantity(2*np.pi, 'rad')):
+        # store in radians and discard units
         self.theta_min = theta_min.to('rad').magnitude
         self.theta_max = theta_max.to('rad').magnitude
         self.phi_min = phi_min.to('rad').magnitude
@@ -399,17 +401,14 @@ class HemisphericalReflectanceDetector(Detector):
 
 @ureg.check(None, None, None, '[length]', '[length]', '[]', None, None, None,
             None, None, None, None, None, None, None, None, None, None, None,
-            None, None, None, None)
+            None)
 def reflection(index_particle, index_matrix, index_medium, wavelen, radius,
                volume_fraction,
                radius2=None,
                concentration=None,
                pdi=None,
                thickness=None,
-               theta_min=Quantity('90.0 deg'),
-               theta_max=Quantity('180.0 deg'),
-               phi_min=Quantity('0.0 deg'),
-               phi_max=Quantity('360.0 deg'),
+               detector=HemisphericalReflectanceDetector(),
                incident_angle=Quantity('0.0 deg'),
                num_angles=200,
                small_angle=Quantity('1.0 deg'),
@@ -458,48 +457,27 @@ def reflection(index_particle, index_matrix, index_medium, wavelen, radius,
         array with repeating values (for example, [0.01, 0.01]).
     thickness: structcol.Quantity [length] (optional)
         thickness of photonic glass.  If unspecified, assumed to be infinite
-    theta_min: structcol.Quantity [dimensionless] (optional)
-    theta_max: structcol.Quantity [dimensionless] (optional)
-        along with theta_min, specifies the angular range over which to
-        integrate the scattered signal. The angles are the scattering angles
-        (polar angle, measured from the incident light direction) after the
-        light exits into the medium. The function will correct for refraction
-        at the interface to map this range of exit angles onto the range of
-        scattering angles from the particles. If theta_min and theta_max are
-        unspecified, the integral is carried out over the entire backscattering
-        hemisphere (90 to 180 degrees). Usually one would set theta_min to
-        correspond to the numerical aperture of the detector. Setting theta_max
-        to a value less than 180 degrees corresponds to dark-field detection.
-        Both theta_min and theta_max can carry explicit units of radians or
-        degrees.
-    phi_min: structcol.Quantity [dimensionless] (optional)
-    phi_max: structcol.Quantity [dimensionless] (optional)
-        along with phi_min, specifies the azimuthal angular range over which to
-        integrate the scattered signal. The angles are the azimuthal angles
-        (measured from the incident light direction) after the
-        light exits into the medium. The function will correct for refraction
-        at the interface to map this range of exit angles onto the range of
-        scattering angles from the particles. If phi_min and phi_max are
-        unspecified, the integral is carried out over the entire backscattering
-        hemisphere (0 to 360 degrees).
-    incident_angle: structcol.Quantity [dimensionless] (optional)
-        incident angle, measured from the normal (specify degrees or radians by
-        using the appropriate units in Quantity())
+    detector : `sc.model.Detector` object (optional)
+        Specifies the angles at which the reflectance is measured.  If
+        unspecified, a hemispherical reflectance detector is used
+    incident_angle: structcol.Quantity [angle] (optional)
+        incident angle, measured from the normal
     num_angles: integer
         number of angles to use in evaluation of the cross-section, which is
         done by numerical integration (fixed quadrature). The default value
         (200) seems to do OK for 280-nm-diameter spheres, but could use more
         testing.
     small_angle: structcol.Quantity [dimensionless] (optional)
-        If the analytic formula is used, S(q=0) returns nan. This doesn't
-        matter when calculating the scattering cross section because sin(0) =
-        0, so the contribution of the differential scattering cross section at
-        theta = 0 to the total cross section is zero. To prevent any errors or
-        warnings, set small_angle equal to some minimum angle
-        at which to calculate the structure factor (and, by extension, the
-        total cross-section).  The default value is chosen to give good
-        agreement with Mie theory for a single sphere, but it may not be
-        reasonable for all calculations.
+        Because of numerical instabilities, some structure factor calculations
+        may return nan when evaluated at q=0. This doesn't matter when
+        calculating the scattering cross section because sin(0) = 0, so the
+        contribution of the differential scattering cross section at theta = 0
+        to the total cross section is zero. However, errors or warnings may
+        appear due to the nan calculation. To prevent such errors or warnings,
+        set small_angle equal to some minimum angle at which to calculate the
+        structure factor (and, by extension, the total cross-section). The
+        default value is chosen to give good agreement with Mie theory for a
+        single sphere, but it may not be reasonable for all calculations.
     structure_type: string, dictionary, or None (optional)
         Can be string specifying structure type. Current options are "glass",
         "paracrystal", "polydisperse", "data", or None. Can also be dictionary
@@ -641,10 +619,10 @@ def reflection(index_particle, index_matrix, index_medium, wavelen, radius,
                                          n_sample.to_numpy().squeeze(),
                                          incident_angle)
 
-    theta_min = theta_min.to('rad').magnitude
-    theta_max = theta_max.to('rad').magnitude
-    phi_min = phi_min.to('rad').magnitude
-    phi_max = phi_max.to('rad').magnitude
+    theta_min = detector.theta_min
+    theta_max = detector.theta_max
+    phi_min = detector.phi_min
+    phi_max = detector.phi_max
     small_angle = small_angle.to('rad').magnitude
     # calculate the min theta, taking into account refraction at the interface
     # between the medium and the sample. This is the scattering angle at which

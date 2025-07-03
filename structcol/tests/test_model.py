@@ -384,6 +384,21 @@ class TestDetector():
             detector = sc.model.Detector(theta_min, theta_max, phi_min,
                                          phi_max)
 
+        # when only theta is specified, phi should be set to 0 to 360 degrees
+        theta_min, theta_max = sc.Quantity('90 deg'), sc.Quantity('180 deg')
+        phi_min, phi_max = sc.Quantity('0 deg'), sc.Quantity('360 deg')
+        detector = sc.model.Detector(theta_min, theta_max)
+        assert detector.phi_min == phi_min.to('rad').magnitude
+        assert detector.phi_max == phi_max.to('rad').magnitude
+
+        # when no parameters are specified, detector should be equivalent to a
+        # hemispherical reflectance detector
+        detector = sc.model.Detector()
+        assert detector.theta_min == theta_min.to('rad').magnitude
+        assert detector.theta_max == theta_max.to('rad').magnitude
+        assert detector.phi_min == phi_min.to('rad').magnitude
+        assert detector.phi_max == phi_max.to('rad').magnitude
+
     def test_hemispherical_reflectance_detector(self):
         """Test the integrating sphere-type detector"""
         detector = sc.model.HemisphericalReflectanceDetector()
@@ -460,20 +475,20 @@ def test_theta_refraction():
     # set theta_max to be slightly smaller than the theta corresponding to
     # total internal reflection (calculated manually to be 2.61799388)
     theta_max = Quantity(2.617, 'deg')
+    detector = sc.model.Detector(theta_min, theta_max)
     refl1, _, _, _, _ = model.reflection(index_particle, index_matrix,
                                          index_medium,
                                          wavelength, radius, volume_fraction,
-                                         theta_min=theta_min,
-                                         theta_max=theta_max,
+                                         detector=detector,
                                          structure_type=None)
     # try a different range of thetas (but keeping theta_max < total internal
     # reflection angle)
     theta_max = Quantity(2., 'deg')
+    detector = sc.model.Detector(theta_min, theta_max)
     refl2, _, _, _, _ = model.reflection(index_particle, index_matrix,
                                          index_medium,
                                          wavelength, radius, volume_fraction,
-                                         theta_min=theta_min,
-                                         theta_max=theta_max,
+                                         detector=detector,
                                          structure_type=None)
 
     # the reflection should be zero plus the fresnel reflection term
@@ -551,11 +566,12 @@ def test_reflection_core_shell():
     index_matrix = sc.Index.constant(1.0)
     index_medium = index_matrix
 
+    detector = sc.model.Detector(theta_min=Quantity('90.0 deg'))
     refl1, _, _, g1, lstar1 = model.reflection(index_particle, index_matrix,
                                                index_medium, wavelength, radius,
                                                volume_fraction, thickness =
                                                Quantity('15000.0 nm'),
-                                               theta_min=Quantity('90.0 deg'),
+                                               detector=detector,
                                                small_angle=Quantity('5.0 deg'),
                                                maxwell_garnett=True)
 
@@ -566,7 +582,7 @@ def test_reflection_core_shell():
                                                volume_fraction2,
                                                thickness =
                                                Quantity('15000.0 nm'),
-                                               theta_min=Quantity('90.0 deg'),
+                                               detector=detector,
                                                small_angle=Quantity('5.0 deg'),
                                                maxwell_garnett=False)
 
@@ -584,7 +600,7 @@ def test_reflection_core_shell():
                                                thickness =
                                                Quantity('15000.0 nm'),
                                                small_angle=Quantity('5.0 deg'),
-                                               theta_min=Quantity('90.0 deg'),
+                                               detector=detector,
                                                maxwell_garnett=False)
 
     # Outputs for refl, g, and lstar before adding core-shell capability
