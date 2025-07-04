@@ -176,9 +176,9 @@ class Sphere(Particle):
         volume of the sphere. If `total_volume_fraction` is specified, the
         volume fractions are multipled by this value, so that a different
         reference basis can be applied. Then a final value of
-        (1-total_volume_fraction) is added to the output, so that the computed
-        volume fractions sum to 1. This method is useful for calculating
-        effective indices.
+        (1-total_volume_fraction) is appended to the output array, so that the
+        computed volume fractions sum to 1. This method is useful for
+        calculating effective indices.
 
         Parameters
         ----------
@@ -269,7 +269,8 @@ class Model:
     """Base class for different types of single-scattering models.
 
     A Model object specifies the arrangement of components with different
-    refractive indices.
+    refractive indices and how to calculate the differential scattering
+    cross-section of this structure.
 
     Attributes
     ----------
@@ -318,8 +319,9 @@ class FormStructureModel(Model):
 class HardSpheres(FormStructureModel):
     """Hard-sphere liquid or glass.
 
-    Models scattering using the product of the Mie form factor and the
-    Percus-Yevick structure factor for hard spheres.
+    Models scattering from a hard-sphere liquid or glass using the product of
+    the Mie form factor and the Percus-Yevick structure factor for hard
+    spheres.
 
     Attributes
     ----------
