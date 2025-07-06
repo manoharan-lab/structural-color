@@ -385,10 +385,110 @@ class FormStructureModel(Model):
         self.structure_factor = structure_factor
         super().__init__(index_medium)
 
+    def differential_cross_section(self, wavelen, angles, index_external,
+                                   lengthscale,
+                                   kd=None,
+                                   cartesian=False,
+                                   incident_vector=None,
+                                   phis=None):
+        """Calculate dimensionless differential scattering cross-section,
+        including contributions from the structure factor. Need to multiply by
+        1/k**2 to get the dimensional differential cross section.
+
+        Parameters
+        ----------
+        wavelen : float (structcol.Quantity [length])
+            Wavelength of light in vacuum.
+        angles : ndarray(structcol.Quantity [dimensionless])
+            array of scattering angles. Must be entered as a Quantity to allow
+            specifying units (degrees or radians) explicitly
+        index_external : `sc.Index` object
+            Refractive index of the material outside the particles.  Can be an
+            effective index.
+        lengthscale : float
+            Length scale to use to calculate the size parameter.  Since the
+            FormStructureModel is particle-agnostic, we don't assume this is
+            equal to the radius (though it should be set to such for a sphere)
+        kd : float (sc.Quantity [1/length])
+            distance (nondimensionalized by k) at which to integrate the
+            differential cross section to get the total cross section. Needed
+            only if n_external is complex. Ignored otherwise.
+        cartesian : boolean (default False)
+            If set to True, calculation will be done in the basis defined by
+            basis vectors x and y in the lab frame, with z as the direction of
+            propagation. If False (default), calculation will be carried out in
+            the basis defined by basis vectors parallel and perpendicular to
+            scattering plane.
+        incident_vector : tuple (optional, default None)
+            vector describing the incident electric field. It is multiplied by
+            the amplitude scattering matrix to find the vector scattering
+            amplitude. Unless `cartesian` is set, this vector should be in the
+            scattering plane basis, where the first element is the parallel
+            component and the second element is the perpendicular component. If
+            `cartesian` is set to True, this vector should be in the Cartesian
+            basis, where the first element is the x-component and the second
+            element is the y-component. Note that the vector for unpolarized
+            light is the same in either basis, since either way it should be an
+            equal mix between the two othogonal polarizations: (1,1). Note that
+            if indicent_vector is None, the function assigns a value based on
+            the coordinate system. For scattering plane coordinates, the
+            assigned value is (1,1) because most scattering plane calculations
+            we're interested in involve unpolarized light. For Cartesian
+            coordinates, the assigned value is (1,0) because if we are going to
+            the trouble to use the cartesian coordinate system, it is usually
+            because we want to do calculations using polarization, and these
+            calculations are much easier to convert to measured quantities when
+            in the cartesian coordinate system.
+        phis : ndarray (optional, default None)
+            Azimuthal angles. If `cartesian` is set to True, the scattering
+            matrix depends on phi, so an `phis` should be provided. In this
+            case both `angles` and `phis` should be 2D, as output from
+            `np.meshgrid`. In the default scattering plane coordinates
+            (`cartesian=False`), `phis` is ignored, since the the scattering
+            matrix does not depend on phi.
+
+        Returns
+        -------
+        float (2-tuple):
+            parallel and perpendicular components of the differential
+            scattering cross section.
+
+        """
+        # calculate form factor
+        if self.form_factor is not None:
+            f_par, f_perp = self.form_factor(wavelen, angles, index_external,
+                                             kd=kd,
+                                             cartesian=cartesian,
+                                             incident_vector=incident_vector,
+                                             phis=phis)
+        else:
+            f_par = 1
+            f_perp = 1
+
+        n_ext = index_external(wavelen)
+        x = sc.size_parameter(n_ext, lengthscale)
+
+        # calculate structure factor
+        # TODO: should it be x.real or x.abs?
+        ql = 4*np.array(np.abs(x)).max()*np.sin(angles/2)
+
+        if len(ql.shape) == 2:
+            s = self.structure_factor(ql[:,0]).to_numpy()
+        else:
+            s = self.structure_factor(ql).to_numpy()
+
+        if len(ql.shape) == 2:
+            scat_par = s[:, np.newaxis] * f_par
+            scat_perp = s[:, np.newaxis] * f_perp
+        else:
+            scat_par = s * f_par
+            scat_perp = s * f_perp
+
+        return scat_par, scat_perp
 
 
 class HardSpheres(FormStructureModel):
-    """Hard-sphere liquid or glass.
+    """Model of scattering from a hard-sphere liquid or glass.
 
     Models scattering from a hard-sphere liquid or glass using the product of
     the Mie form factor and the Percus-Yevick structure factor for hard

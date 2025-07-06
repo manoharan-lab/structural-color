@@ -333,8 +333,8 @@ class TestModel():
     """Tests for the Model class and derived classes.
     """
     wavelen = sc.Quantity(np.linspace(400, 800, 10), 'nm')
-    ps_sphere = sc.model.Sphere(sc.index.polystyrene,
-                                    sc.Quantity('0.125 um'))
+    ps_radius = sc.Quantity('0.125 um')
+    ps_sphere = sc.model.Sphere(sc.index.polystyrene, ps_radius)
     hollow_sphere = sc.model.Sphere([sc.index.vacuum,
                                          sc.index.polystyrene],
                                         sc.Quantity([125, 135], 'nm'))
@@ -350,6 +350,56 @@ class TestModel():
         model = sc.model.Model(sc.index.vacuum)
         with pytest.raises(NotImplementedError):
             model.differential_cross_section(self.wavelen, self.angles)
+
+    def test_formstructure_model(self):
+        """tests for the FormStructureModel"""
+        # if form factor is None and structure factor is a constant, should
+        # have a constant differential scattering cross section
+        const = 1.0
+        model = sc.model.FormStructureModel(None, sc.structure.Constant(const),
+                                            sc.index.vacuum)
+        par, perp = model.differential_cross_section(self.wavelen[0],
+                                                     self.angles,
+                                                     sc.index.vacuum,
+                                                     self.ps_radius)
+        assert_equal(par, np.ones_like(par)*const)
+        assert_equal(perp, np.ones_like(perp)*const)
+
+        # Test that constant structure factor yields the same results as form
+        # factor.  There is no effective index for a FormStructureModel, unless
+        # one is explicitly given
+        model = sc.model.FormStructureModel(self.ps_sphere.form_factor,
+                                            sc.structure.Constant(const),
+                                            sc.index.vacuum)
+        par, perp = model.differential_cross_section(self.wavelen[0],
+                                                     self.angles,
+                                                     sc.index.vacuum,
+                                                     self.ps_radius)
+        fpar, fperp = self.ps_sphere.form_factor(self.wavelen[0],
+                                                 self.angles,
+                                                 sc.index.vacuum)
+
+        assert_equal(par, fpar)
+        assert_equal(perp, fperp)
+
+        # Test that constant form factor yields the same results as structure
+        # factor.
+        structure_factor = sc.structure.PercusYevick(0.5)
+        model = sc.model.FormStructureModel(None,
+                                            structure_factor,
+                                            sc.index.vacuum)
+        index_matrix = sc.index.water
+        par, perp = model.differential_cross_section(self.wavelen[0],
+                                                     self.angles,
+                                                     index_matrix,
+                                                     self.ps_radius)
+
+        x = sc.size_parameter(index_matrix(self.wavelen[0]), self.ps_radius)
+        ql = (4*np.abs(x)*np.sin(self.angles/2)).to('').magnitude
+        s = structure_factor(ql)
+
+        assert_equal(par, s)
+        assert_equal(perp, s)
 
     def test_hardsphere_model(self):
         index_matrix = sc.index.water
