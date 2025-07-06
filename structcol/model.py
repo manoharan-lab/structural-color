@@ -341,27 +341,20 @@ class Model:
 
     A Model object specifies the arrangement of components with different
     refractive indices and how to calculate the differential scattering
-    cross-section of this structure.
+    cross-section of this structure. The Model class isn't used on its own but
+    instead functions as a base class that can be subclassed to describe
+    different types of arrangments, such as bicontinuous structures or glassy
+    arrangments of spheres.
 
     Attributes
     ----------
-    n_medium : sc.Index object
+    index_medium : `sc.Index` object
         index of refraction of medium around structure
-    thickness : sc.Quantity[length]
-        thickness of sample
 
     """
-    @ureg.check(None, None, "[length]")
-    def __init__(self, index_medium, thickness):
+    def __init__(self, index_medium):
         self.index_medium = index_medium
-        self.thickness = thickness.to_preferred().magnitude
-        self.original_units = thickness.units
-        self.current_units = thickness.to_preferred().units
 
-    @property
-    def thickness_q(self):
-        """Return thickness with units"""
-        return self.thickness * self.current_units
 
 
 class FormStructureModel(Model):
@@ -370,21 +363,21 @@ class FormStructureModel(Model):
 
     Attributes
     ----------
-    form_factor : Function
-        Calculates the form factor as a function of wavelength, angles, and the
-        index external to the particle.
+    form_factor : Function (or None)
+        Function or method used to calculate the form factor as a function of
+        wavelength, angles, and the index external to the particle. If None,
+        form factor will be set to unity when calculating the differential
+        scattering cross section.
     structure_factor : `sc.structure.StructureFactor` object
         Structure factor used in the calculation
-    index_matrix : `sc.Index` object
-        Index of material surrounding the particles
 
     """
-    def __init__(self, form_factor, structure_factor, index_matrix,
-                 index_medium, thickness):
-        self.index_matrix = index_matrix
+    def __init__(self, form_factor, structure_factor,
+                 index_medium):
         self.form_factor = form_factor
         self.structure_factor = structure_factor
-        super().__init__(index_medium, thickness)
+        super().__init__(index_medium)
+
 
 
 class HardSpheres(FormStructureModel):
@@ -396,20 +389,23 @@ class HardSpheres(FormStructureModel):
 
     Attributes
     ----------
-    sphere : sc.Sphere object
+    sphere : `sc.Sphere` object
         Particles that make up the structure
     volume_fraction : float
         volume fraction of spheres that make up the structure
-    index_matrix : sc.Index object
+    index_matrix : `sc.Index` object
         Index of matrix material between the spheres
     ql_cutoff : float (optional)
         ql below which to use approximate solution to structure factor
 
     """
     def __init__(self, sphere, volume_fraction, index_matrix, index_medium,
-                 thickness, ql_cutoff=None):
+                 ql_cutoff=None):
         self.sphere = sphere
+        if isinstance(volume_fraction, sc.Quantity):
+            volume_fraction = volume_fraction.magnitude
         self.volume_fraction = volume_fraction
+        self.index_matrix = index_matrix
 
         if ql_cutoff is None:
             structure_factor = sc.structure.PercusYevick(volume_fraction)
@@ -418,8 +414,9 @@ class HardSpheres(FormStructureModel):
                                                          ql_cutoff = ql_cutoff)
 
         form_factor = self.sphere.form_factor
-        super().__init__(form_factor, structure_factor, index_matrix,
-                         index_medium, thickness)
+        super().__init__(form_factor, structure_factor,
+                         index_medium)
+
 
 class Detector:
     """Class to describe far-field detector used in single-scattering

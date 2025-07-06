@@ -346,13 +346,7 @@ class TestModel():
     def test_hardsphere_model(self):
         index_matrix = sc.index.water
         glass = sc.model.HardSpheres(self.ps_sphere, self.phi, sc.index.water,
-                                     sc.index.vacuum, self.thickness)
-
-        # make sure thickness is correctly stored
-        assert_equal(glass.thickness_q, self.thickness.to_preferred())
-
-        # make sure original units are correctly stored
-        assert glass.original_units == self.my_units
+                                     sc.index.vacuum)
 
         # make sure form factor is calculated correctly
         angles = Quantity(np.linspace(0, 180., 19), 'deg')
@@ -371,8 +365,7 @@ class TestModel():
         # make sure structure factor is the same for layered spheres as for
         # solid spheres
         glass = sc.model.HardSpheres(self.hollow_sphere, self.phi,
-                                     sc.index.water, sc.index.vacuum,
-                                     self.thickness)
+                                     sc.index.water, sc.index.vacuum)
         s_hollow = glass.structure_factor(self.qd)
         xr.testing.assert_equal(s_hollow, structure_factor(self.qd))
 
