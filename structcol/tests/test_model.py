@@ -230,13 +230,15 @@ class TestParticle():
         with pytest.raises(ValueError):
             _ = sphere.form_factor(wavelen, angles, index_matrix)
 
-        ipar_sphere, iperp_sphere = sphere.form_factor(wavelen, angles,
-                                                       index_matrix,
-                                                       distance=distance)
-
         m = sc.index.ratio(sphere.n(wavelen), index_matrix(wavelen))
         x = sc.size_parameter(index_matrix(wavelen), radius)
         k = 2 * np.pi * index_matrix(wavelen).to_numpy() / wavelen
+
+        ipar_sphere, iperp_sphere = sphere.form_factor(wavelen, angles,
+                                                       index_matrix,
+                                                       kd=k*distance)
+
+
         ipar_mie, iperp_mie = mie.diff_scat_intensity_complex_medium(
             m, x, angles, k*distance)
 

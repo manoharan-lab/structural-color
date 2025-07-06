@@ -103,6 +103,8 @@ class Sphere(Particle):
     Radii will be reported when you query the size of the particle.  If you
     want diameters, use the `Sphere.diameter` property.
 
+    Attributes
+    ----------
     index: list of Index objects
         Refractive index of particles or voids.  If specified as an array-like
         object, the refractive indices correspond to each layer in a multilayer
@@ -110,6 +112,7 @@ class Sphere(Particle):
     radii: list of sc.Quantity objects
         Radii of particles or voids, defined from the innermost to the
         outermost layer.
+
     """
     @ureg.check(None, None, '[length]')
     def __init__(self, index, radius):
@@ -172,7 +175,7 @@ class Sphere(Particle):
     def volume_fraction(self, total_volume_fraction=None):
         """Volume fraction of each material in the sphere.
 
-        By default, returns volume fraciton of each layer relative to the total
+        By default, returns volume fraction of each layer relative to the total
         volume of the sphere. If `total_volume_fraction` is specified, the
         volume fractions are multipled by this value, so that a different
         reference basis can be applied. Then a final value of
@@ -224,7 +227,8 @@ class Sphere(Particle):
         else:
             return super().n(wavelen)
 
-    def form_factor(self, wavelen, angles, index_external, distance=None):
+    def form_factor(self, wavelen, angles, index_external, kd=None,
+                    cartesian=False, incident_vector=None, phis=None):
         """Calculate form factor from Mie theory.
 
         Parameters
@@ -237,15 +241,46 @@ class Sphere(Particle):
         index_external : `sc.Index` object
             Index of refraction of the medium around the particle.  Can be an
             effective index.
-        distance: sc.Quantity [length] (optional)
-            distance at which to integrate the differential cross section to
-            get the total cross section. Needed only if n_external is complex.
-            Ignored otherwise.
+        kd : float (optional)
+            distance (nondimensionalized by k) at which to integrate the
+            differential cross section to get the total cross section. Needed
+            only if n_external is complex. Ignored otherwise.
+        cartesian : boolean (default False)
+            If set to True, calculation will be done in the basis defined by
+            basis vectors x and y in the lab frame, with z as the direction of
+            propagation. If False (default), calculation will be carried out in
+            the basis defined by basis vectors parallel and perpendicular to
+            scattering plane.
+        incident_vector: tuple (optional, default None)
+            vector describing the incident electric field. It is multiplied by
+            the amplitude scattering matrix to find the vector scattering
+            amplitude. Unless `cartesian` is set, this vector should be in the
+            scattering plane basis, where the first element is the parallel
+            component and the second element is the perpendicular component. If
+            `cartesian` is set to True, this vector should be in the Cartesian
+            basis, where the first element is the x-component and the second
+            element is the y-component. Note that the vector for unpolarized
+            light is the same in either basis, since either way it should be an
+            equal mix between the two othogonal polarizations: (1,1). Note that
+            if indicent_vector is None, the function assigns a value based on
+            the coordinate system. For scattering plane coordinates, the
+            assigned value is (1,1) because most scattering plane calculations
+            we're interested in involve unpolarized light. For Cartesian
+            coordinates, the assigned value is (1,0) because if we are going to
+            the trouble to use the cartesian coordinate system, it is usually
+            because we want to do calculations using polarization, and these
+            calculations are much easier to convert to measured quantities when
+            in the cartesian coordinate system.
+        phis : ndarray (optional, default None)
+            Azimuthal angles. If `cartesian` is set to True, the scattering
+            matrix depends on phi, so an `phis` should be provided. In this
+            case both `angles` and `phis` should be 2D, as output from
+            `np.meshgrid`. In the default scattering plane coordinates
+            (`cartesian=False`), `phis` is ignored, since the the scattering
+            matrix does not depend on phi.
 
         """
         wavelen = wavelen.to_preferred()
-        if distance is not None:
-            distance = distance.to_preferred()
 
         n_ext = index_external(wavelen)
         n_particle = self.n(wavelen)
@@ -253,12 +288,18 @@ class Sphere(Particle):
         m = sc.index.ratio(n_particle, n_ext)
         x = sc.size_parameter(n_ext, self.radius_q)
 
-        if np.any(n_ext.imag > 0):
-            if distance is None:
+        if np.any(n_ext.imag > 0) or (cartesian is True):
+            if kd is None:
                 raise ValueError("must specify distance for absorbing systems")
-            kd = (sc.wavevector(n_ext)*distance).to('')
-            form_factor = mie.diff_scat_intensity_complex_medium(m, x, angles,
-                                                                 kd)
+            if cartesian:
+                coordinate_system = 'cartesian'
+            else:
+                coordinate_system = 'scattering plane'
+            form_factor = mie.diff_scat_intensity_complex_medium(
+                            m, x, angles, kd,
+                            coordinate_system=coordinate_system,
+                            incident_vector=incident_vector,
+                            phis=phis)
         else:
             form_factor = mie.calc_ang_dist(m, x, angles)
 
