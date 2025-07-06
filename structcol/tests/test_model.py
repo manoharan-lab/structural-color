@@ -343,6 +343,14 @@ class TestModel():
     my_units = sc.ureg.millimeter
     thickness = 0.050 * sc.ureg.millimeter
 
+    angles = sc.Quantity(np.linspace(0, np.pi, 100), 'rad')
+
+    def test_base_model(self):
+        """tests for Model base class"""
+        model = sc.model.Model(sc.index.vacuum)
+        with pytest.raises(NotImplementedError):
+            model.differential_cross_section(self.wavelen, self.angles)
+
     def test_hardsphere_model(self):
         index_matrix = sc.index.water
         glass = sc.model.HardSpheres(self.ps_sphere, self.phi, sc.index.water,

@@ -355,6 +355,13 @@ class Model:
     def __init__(self, index_medium):
         self.index_medium = index_medium
 
+    def differential_cross_section(self, wavelen, angles, distance=None):
+        """Calculates differential scattering cross-section as a function of
+        wavelength and angle. This method, which depends on the structure, must
+        be implemented in derived classes that specify a structure.
+
+        """
+        raise NotImplementedError
 
 
 class FormStructureModel(Model):
