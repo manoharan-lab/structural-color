@@ -86,6 +86,36 @@ class Particle:
         """
         return self.index(wavelen)
 
+    def index_list(self, index_matrix=None):
+        """List of refractive indices that the particle comprises.
+
+        If `index_matrix` is specified, this Index is appended to the list.
+        This method is used along with `Particle.volume_fraction()` to
+        calculate effective indices.
+
+        Parameters
+        ----------
+        index_matrix: `sc.Index` object
+            Index of the matrix surrounding the particle
+
+        """
+        if np.ndim(self.index) != 0:
+            # this will unpack the index object irrespective of whether it is
+            # an array or list, then repack it into a list
+            index_list = [*self.index]
+        else:
+            index_list = [self.index]
+        if index_matrix is not None:
+            index_list.extend([index_matrix])
+        return index_list
+
+    def volume_fraction(self, total_volume_fraction=None):
+        """Volume fractions of each material in the particle.  Must be
+        implemented in derived classes (depends on the geometry of the
+        particle).
+        """
+        raise NotImplementedError
+
     def form_factor(self, wavelen, angles, index_external, distance=None):
         """Calculates form factor of the particle in a matrix with index of
         refraction `n_external`. Because the form factor depends on the

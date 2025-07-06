@@ -169,6 +169,43 @@ class TestParticle():
                                    coords={sc.Coord.MAT: range(2)})
         xr.testing.assert_equal(vf, vf_expected)
 
+        # should not work with a generic Particle
+        particle = sc.model.Particle(sc.index.polystyrene, radius)
+        with pytest.raises(NotImplementedError):
+            particle.volume_fraction()
+
+    def test_index_list(self):
+        """test that index_list method reports correct results
+
+        """
+        # test for multilayer sphere
+        indexes = [sc.index.vacuum, sc.index.polystyrene,
+                   sc.index.fused_silica, sc.index.water]
+        radii = sc.Quantity([0.1, 0.2, 0.3, 1.0], 'um')
+        my_layered_sphere = sc.model.Sphere(indexes, radii)
+        index_list = my_layered_sphere.index_list()
+        assert index_list == indexes
+        assert isinstance(index_list, list)
+
+        # multilayer sphere, method used with matrix index specified
+        index_matrix = sc.index.vacuum
+        index_list = my_layered_sphere.index_list(index_matrix)
+        assert index_list == list(indexes) + [index_matrix]
+        # make sure that lists/arrays are not nested
+        for index in index_list:
+            assert isinstance(index, sc.Index)
+
+        # should work also for a generic particle
+        my_particle = sc.model.Particle(indexes, radii)
+        index_list = my_particle.index_list(index_matrix)
+        assert index_list == list(indexes) + [index_matrix]
+
+        # test with a nonlayered sphere
+        radius = sc.Quantity(150, 'nm')
+        sphere = sc.model.Sphere(sc.index.polystyrene, radius)
+        index_list = sphere.index_list(index_matrix)
+        assert index_list == [sc.index.polystyrene, index_matrix]
+
     def test_form_factor(self):
         """Test that we get the same results from calling the
         Sphere.form_factor() method as we do from calling pymie directly.
