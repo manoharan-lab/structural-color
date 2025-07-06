@@ -402,17 +402,22 @@ class HardSpheres(FormStructureModel):
         volume fraction of spheres that make up the structure
     index_matrix : `sc.Index` object
         Index of matrix material between the spheres
+    maxwell_garnett: boolean (optional, default False)
+        If True, the model uses the Maxwell-Garnett formula to calculate the
+        effective index. If False (default), the model uses the Bruggeman
+        formula, which can be used for multilayer particles.
     ql_cutoff : float (optional)
         ql below which to use approximate solution to structure factor
 
     """
     def __init__(self, sphere, volume_fraction, index_matrix, index_medium,
-                 ql_cutoff=None):
+                 maxwell_garnett=False, ql_cutoff=None):
         self.sphere = sphere
         if isinstance(volume_fraction, sc.Quantity):
             volume_fraction = volume_fraction.magnitude
         self.volume_fraction = volume_fraction
         self.index_matrix = index_matrix
+        self.maxwell_garnett = maxwell_garnett
 
         if ql_cutoff is None:
             structure_factor = sc.structure.PercusYevick(volume_fraction)
