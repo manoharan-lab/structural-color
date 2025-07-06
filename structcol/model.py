@@ -529,6 +529,38 @@ class HardSpheres(FormStructureModel):
         super().__init__(form_factor, structure_factor,
                          index_medium)
 
+    def differential_cross_section(self, wavelen, angles,
+                                   kd=None,
+                                   cartesian=False,
+                                   incident_vector=None,
+                                   phis=None):
+        """Calculate dimensionless differential scattering cross-section,
+        including contributions from the structure factor. Need to multiply by
+        1/k**2 to get the dimensional differential cross section.
+
+        """
+        # calculate array of volume fractions of each layer in the particle. If
+        # particle is not core-shell, volume fraction remains the same
+        vf_array = self.sphere.volume_fraction(self.volume_fraction)
+        index_list = self.sphere.index_list(self.index_matrix)
+
+        # Calculate effective index of particle-matrix composite
+        index_external = sc.EffectiveIndex(index_list, vf_array,
+                                           maxwell_garnett =
+                                           self.maxwell_garnett)
+
+        # for a sphere we use the radius to calculate size parameter x
+        lengthscale = self.sphere.radius_q
+
+        return super().differential_cross_section(wavelen, angles,
+                                                  index_external,
+                                                  lengthscale,
+                                                  kd=kd,
+                                                  cartesian=cartesian,
+                                                  incident_vector =
+                                                  incident_vector,
+                                                  phis=None)
+
 
 class Detector:
     """Class to describe far-field detector used in single-scattering
@@ -874,7 +906,18 @@ def reflection(index_particle, index_matrix, index_medium, wavelen, radius,
     else:
         distance = mean_diameters.max() / 2
 
-    diff_cs_detected = differential_cross_section(m, x, angles,
+    if ((form_type == "sphere") and (structure_type == "glass") and
+        effective_medium_struct and effective_medium_form):
+        kd = (k*distance).to('')
+        model = HardSpheres(particle, volume_fraction, index_matrix,
+                            index_medium, maxwell_garnett=maxwell_garnett)
+        diff_cs_detected = model.differential_cross_section(wavelen, angles,
+                                                            kd=kd)
+        diff_cs_total = model.differential_cross_section(wavelen, angles_tot,
+                                                         kd=kd)
+
+    else:
+        diff_cs_detected = differential_cross_section(m, x, angles,
                                         volume_fraction,
                                         structure_type=structure_type,
                                         form_type=form_type,
@@ -887,7 +930,7 @@ def reflection(index_particle, index_matrix, index_medium, wavelen, radius,
                                         structure_qd_data=structure_qd_data,
                                         x_eff=x_eff)
 
-    diff_cs_total = differential_cross_section(m, x, angles_tot,
+        diff_cs_total = differential_cross_section(m, x, angles_tot,
                                         volume_fraction,
                                         structure_type=structure_type,
                                         form_type=form_type,
