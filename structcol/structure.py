@@ -87,6 +87,31 @@ class StructureFactor:
                                   "class. Use a derived class such as "
                                   "PercusYevick.")
 
+class Constant(StructureFactor):
+    """Structure factor that is always equal to a constant.
+
+    Useful for simulating a very dilute system or testing the effect of the
+    form factor alone in calculations.
+
+    Attributes
+    ----------
+    constant : float
+        value of the structure factor
+
+    """
+
+    def __init__(self, constant):
+        self.constant = constant
+
+    def calculate(self, ql):
+        """Yields constant value irrespective of ql.
+
+        """
+        # quick way to ensure we have the right shape
+        s = self.constant + 0*ql
+
+        return s.squeeze()
+
 class PercusYevick(StructureFactor):
     """Analytical structure factor for monodisperse hard-sphere liquids.
 

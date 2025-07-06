@@ -46,6 +46,13 @@ class TestStructureFactor():
         with pytest.raises(NotImplementedError):
             structure_factor(self.ql)
 
+    @pytest.mark.parametrize("constant", [0.1, 1, 10])
+    def test_constant_structure_factor(self, constant):
+        structure_factor = sc.structure.Constant(constant)
+        s = structure_factor(self.ql)
+        assert isinstance(s, xr.DataArray)
+        assert_equal(s.to_numpy(), np.ones_like(self.ql)*constant)
+
     def test_percus_yevick(self):
         """Tests the object version of the Percus-Yevick structure factor
         """
