@@ -650,11 +650,7 @@ def reflection(index_particle, index_matrix, index_medium, wavelen, radius,
     # calculate array of volume fractions of each layer in the particle. If
     # particle is not core-shell, volume fraction remains the same
     vf_array = particle.volume_fraction(volume_fraction)
-
-    if isinstance(index_particle, list):
-        index_list = index_particle + [index_matrix]
-    else:
-        index_list = [index_particle, index_matrix]
+    index_list = particle.index_list(index_matrix)
 
     # use Bruggeman formula to calculate effective index of
     # particle-matrix composite
