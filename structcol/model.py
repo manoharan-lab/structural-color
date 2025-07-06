@@ -574,8 +574,14 @@ def reflection(index_particle, index_matrix, index_medium, wavelen, radius,
     structure_qd_data: None or 1d array
         if structure_type is 'data', the qd data must be provided here in the
         form of a one dimensional array
-    effective_medium_struct : TODO document argument
-    effective_medium_form  : TODO document argument
+    effective_medium_struct : boolean (default True)
+        If True, model uses the effective index of the particles and matrix
+        to calculate the scattering wavevector used in the calculation of the
+        structure factor. Otherwise, model uses the matrix index.
+    effective_medium_form : boolean (default True)
+        If True, model uses the effective index of the particles and matrix as
+        the external index when calculating the form factor. If False, model
+        uses the matrix index as the external index.
 
     Returns
     -------
