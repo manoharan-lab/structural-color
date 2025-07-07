@@ -630,10 +630,7 @@ def reflection(index_particle, index_matrix, index_medium, wavelen, radius,
                form_type='sphere',
                maxwell_garnett=False,
                structure_s_data=None,
-               structure_qd_data=None,
-               effective_medium_struct=True,
-               effective_medium_form=True):
-
+               structure_qd_data=None):
     """
     Calculate fraction of light reflected from an amorphous colloidal
     suspension (a "photonic glass").
@@ -715,14 +712,6 @@ def reflection(index_particle, index_matrix, index_medium, wavelen, radius,
     structure_qd_data: None or 1d array
         if structure_type is 'data', the qd data must be provided here in the
         form of a one dimensional array
-    effective_medium_struct : boolean (default True)
-        If True, model uses the effective index of the particles and matrix
-        to calculate the scattering wavevector used in the calculation of the
-        structure factor. Otherwise, model uses the matrix index.
-    effective_medium_form : boolean (default True)
-        If True, model uses the effective index of the particles and matrix as
-        the external index when calculating the form factor. If False, model
-        uses the matrix index as the external index.
 
     Returns
     -------
@@ -795,33 +784,15 @@ def reflection(index_particle, index_matrix, index_medium, wavelen, radius,
 
     # use Bruggeman formula to calculate effective index of
     # particle-matrix composite
-    n_sample_eff = None
-
-    if effective_medium_form and effective_medium_struct:
-        n_sample = sc.index.effective_index(index_list, vf_array, wavelen,
-                                            maxwell_garnett=maxwell_garnett)
-    if effective_medium_struct and not effective_medium_form:
-        n_sample_eff = sc.index.effective_index(index_list, vf_array, wavelen,
-                                                maxwell_garnett =
-                                                maxwell_garnett)
-        n_sample = n_matrix
-    if not effective_medium_form and not effective_medium_struct:
-        n_sample = n_matrix
+    n_sample = sc.index.effective_index(index_list, vf_array, wavelen,
+                                        maxwell_garnett=maxwell_garnett)
 
     if len(np.atleast_1d(radius)) > 1:
         m = sc.index.ratio(n_particle, n_sample).flatten()
         x = sc.size_parameter(n_sample, radius).flatten()
-        if effective_medium_struct and not effective_medium_form:
-            x_eff = sc.size_parameter(n_sample_eff, radius).flatten()
-        else:
-            x_eff = None
     else:
         m = sc.index.ratio(n_particle, n_sample)
         x = sc.size_parameter(n_sample, radius)
-        if effective_medium_struct and not effective_medium_form:
-            x_eff = sc.size_parameter(n_sample_eff, radius)
-        else:
-            x_eff = None
 
     k = sc.wavevector(n_sample)
     # calculate transmission and reflection coefficients at first interface
@@ -906,8 +877,7 @@ def reflection(index_particle, index_matrix, index_medium, wavelen, radius,
     else:
         distance = mean_diameters.max() / 2
 
-    if ((form_type == "sphere") and (structure_type == "glass") and
-        effective_medium_struct and effective_medium_form):
+    if (form_type == "sphere") and (structure_type == "glass"):
         kd = (k*distance).to('')
         model = HardSpheres(particle, volume_fraction, index_matrix,
                             index_medium, maxwell_garnett=maxwell_garnett)
@@ -927,8 +897,7 @@ def reflection(index_particle, index_matrix, index_medium, wavelen, radius,
                                         n_matrix=n_sample, k=k,
                                         distance=distance,
                                         structure_s_data=structure_s_data,
-                                        structure_qd_data=structure_qd_data,
-                                        x_eff=x_eff)
+                                        structure_qd_data=structure_qd_data)
 
         diff_cs_total = differential_cross_section(m, x, angles_tot,
                                         volume_fraction,
@@ -940,8 +909,7 @@ def reflection(index_particle, index_matrix, index_medium, wavelen, radius,
                                         n_matrix=n_sample, k=k,
                                         distance=distance,
                                         structure_s_data=structure_s_data,
-                                        structure_qd_data=structure_qd_data,
-                                        x_eff=x_eff)
+                                        structure_qd_data=structure_qd_data)
 
     # integrate the differential cross sections to get the total cross section
     if np.abs(n_sample.imag) > 0.:
@@ -1122,7 +1090,7 @@ def reflection(index_particle, index_matrix, index_medium, wavelen, radius,
 
 
 @ureg.check(None, '[]', '[]', '[]', None, None, None, None, None,None, None,
-            None, None, None, None, None, None, None, None)
+            None, None, None, None, None, None, None)
 def differential_cross_section(m, x, angles, volume_fraction,
                                structure_type = 'glass',
                                form_type = 'sphere',
@@ -1137,8 +1105,7 @@ def differential_cross_section(m, x, angles, volume_fraction,
                                incident_vector=None,
                                phis=None,
                                structure_s_data=None,
-                               structure_qd_data=None,
-                               x_eff=None):
+                               structure_qd_data=None):
     """
     Calculate dimensionless differential scattering cross-section for a sphere,
     including contributions from the structure factor. Need to multiply by
@@ -1220,7 +1187,6 @@ def differential_cross_section(m, x, angles, volume_fraction,
     structure_qd_data: None or 1d array
         if structure_type is 'data', the qd data must be provided here in the
         form of a one dimensional array
-    x_eff: TODO document argument
 
     Returns
     -------
@@ -1277,11 +1243,8 @@ def differential_cross_section(m, x, angles, volume_fraction,
         raise ValueError('form factor type not recognized!')
 
     # calculate structure factor
-    if x_eff is not None:
-        qd = 4*np.array(np.abs(x_eff)).max()*np.sin(angles/2)
-    else:
-        # TODO: should it be x.real or x.abs?
-        qd = 4*np.array(np.abs(x)).max()*np.sin(angles/2)
+    # TODO: should it be x.real or x.abs?
+    qd = 4*np.array(np.abs(x)).max()*np.sin(angles/2)
     if isinstance(qd, Quantity):
         qd = qd.magnitude
 

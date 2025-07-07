@@ -888,9 +888,7 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
               form_type = 'sphere',
               structure_s_data=None,
               structure_qd_data=None,
-              n_matrix=None,
-              effective_medium_struct=True,
-              effective_medium_form=True):
+              n_matrix=None):
     """
     Calculates the phase function and scattering coefficient from either the
     single scattering model or Mie theory. Calculates the absorption
@@ -993,15 +991,7 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
     """
 
     # calculate parameters for scattering calculations
-    x_eff = None
-    if effective_medium_form and effective_medium_struct:
-        n_sample = n_sample
-    if effective_medium_struct and not effective_medium_form:
-        n_sample_eff = n_sample
-        x_eff = sc.size_parameter(n_sample_eff, radius)
-        n_sample = n_matrix
-    if not effective_medium_form and not effective_medium_struct:
-        n_sample = n_matrix
+    n_sample = n_sample
 
     k = sc.wavevector(n_sample)
     m = sc.index.ratio(n_particle, n_sample)
@@ -1080,8 +1070,7 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
                                     coordinate_system=coordinate_system,
                                     phis = phis,
                                     structure_s_data=structure_s_data,
-                                    structure_qd_data=structure_qd_data,
-                                    x_eff=x_eff)
+                                    structure_qd_data=structure_qd_data)
     mu_scat = number_density * cscat_total
 
     # Here, the resulting units of mu_scat and mu_abs are nm^2/um^3. Thus, we
@@ -1128,8 +1117,7 @@ def phase_function(m, x, angles, volume_fraction, k, number_density,
                    coordinate_system = 'scattering plane',
                    phis=None,
                    structure_s_data=None,
-                   structure_qd_data=None,
-                   x_eff=None):
+                   structure_qd_data=None):
     """
     Calculates the phase function (the phase function is the same for absorbing
     and non-absorbing systems).
@@ -1220,8 +1208,7 @@ def phase_function(m, x, angles, volume_fraction, k, number_density,
                                           n_matrix=n_sample, k=k,
                                           distance=distance,
                                           structure_s_data=structure_s_data,
-                                          structure_qd_data=structure_qd_data,
-                                          x_eff=x_eff)
+                                          structure_qd_data=structure_qd_data)
 
     # If in cartesian coordinate system, integrate the differential cross
     # section using integration functions in mie.py that can handle cartesian
