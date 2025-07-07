@@ -425,7 +425,7 @@ def test_event_distribution_wavelength_mc():
     index_medium = sc.index.vacuum
     n_medium = index_medium(wavelengths)
 
-    particle = sc.model.Sphere(index_particle, particle_radius)
+    particle = sc.Sphere(index_particle, particle_radius)
     vf_array = particle.volume_fraction(volume_fraction)
     n_sample_eff = sc.index.effective_index([index_particle, index_matrix],
                                             vf_array, wavelengths)

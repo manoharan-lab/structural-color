@@ -216,7 +216,7 @@ class TestEffectiveIndex():
         index_matrix = sc.index.water + 0.001j
 
         radius = sc.Quantity(np.array([100, 120, 140, 150, 160]), 'nm')
-        sphere = sc.model.Sphere(index_particle, radius)
+        sphere = sc.Sphere(index_particle, radius)
         vf_array = sphere.volume_fraction(total_volume_fraction=0.5)
         index_list = index_particle + [index_matrix]
 
@@ -390,7 +390,7 @@ class TestEffectiveIndex():
         index_list = [index_particle] * num_layers
         radius = sc.Quantity(np.array([100, 120, 140, 150, 160]), 'nm')
         # radius shouldn't matter for this calculation
-        sphere = sc.model.Sphere(index_list, radius)
+        sphere = sc.Sphere(index_list, radius)
         vf_array = sphere.volume_fraction(total_volume_fraction=1.0)
         index_matrix = sc.Index.constant(1.00)
 
@@ -413,7 +413,7 @@ class TestEffectiveIndex():
         index = sc.index.polystyrene + 0.0001j
         index_matrix = sc.index.water
         vf = 0.5
-        sphere = sc.model.Sphere(index, sc.Quantity(100, 'nm'))
+        sphere = sc.Sphere(index, sc.Quantity(100, 'nm'))
         vf_array = sphere.volume_fraction(total_volume_fraction=vf)
         n_effective_vectorized = sc.index.effective_index([index,
                                                            index_matrix],

@@ -48,6 +48,7 @@ Physical Review E 90, no. 6 (2014): 62302. doi:10.1103/PhysRevE.90.062302
 from pymie import Quantity, ureg, q, np, mie
 from . import refractive_index as index
 from .refractive_index import Index, EffectiveIndex
+from .particle import Particle, Sphere
 from . import structure, model
 import xarray as xr
 

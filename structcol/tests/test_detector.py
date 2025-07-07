@@ -301,7 +301,7 @@ def test_reflection_core_shell():
     radius_cs = sc.Quantity(np.array([100.0, 150.0]), 'nm')
     ## specify the index from innermost to outermost layer
     index_cs = [sc.Index.constant(1.5), sc.Index.constant(1.5)]
-    sphere_cs = sc.model.Sphere(index_cs, radius_cs)
+    sphere_cs = sc.Sphere(index_cs, radius_cs)
     n_particle_cs = sphere_cs.n(wavelen)
 
     vf_array = sphere_cs.volume_fraction(total_volume_fraction=volume_fraction)
@@ -331,7 +331,7 @@ def test_reflection_core_shell():
     # Reflection using a non-core-shell absorbing system
     index_particle_abs = sc.Index.constant(1.5+0.001j)
     radius = sc.Quantity(150.0, 'nm')
-    particle_abs = sc.model.Sphere(index_particle_abs, radius)
+    particle_abs = sc.Sphere(index_particle_abs, radius)
     n_particle_abs = particle_abs.n(wavelen)
     vf_array = particle_abs.volume_fraction(volume_fraction)
     n_sample_abs = sc.index.effective_index([index_particle_abs, index_matrix],
@@ -344,7 +344,7 @@ def test_reflection_core_shell():
     # Reflection using core-shells with the shell index-matched to the core
     index_cs_abs = [sc.Index.constant(1.5+0.001j),
                     sc.Index.constant(1.5+0.001j)]
-    sphere_cs_abs = sc.model.Sphere(index_cs_abs, radius_cs)
+    sphere_cs_abs = sc.Sphere(index_cs_abs, radius_cs)
     n_particle_cs_abs = sphere_cs_abs.n(wavelen)
     vf_array = sphere_cs_abs.volume_fraction(volume_fraction)
     n_sample_cs_abs = sc.index.effective_index(index_cs_abs + [index_matrix],
@@ -378,7 +378,7 @@ def test_reflection_core_shell():
     # Reflection using a non-core-shell absorbing system
     index_particle_abs = sc.Index.constant(1.5+0.001j)
     n_particle_abs = index_particle_abs(wavelen)
-    particle_abs = sc.model.Sphere(index_particle_abs, radius)
+    particle_abs = sc.Sphere(index_particle_abs, radius)
     index_matrix_abs = sc.Index.constant(1.+0.001j)
     n_matrix_abs = index_matrix_abs(wavelen)
     vf_array = particle_abs.volume_fraction(volume_fraction)
@@ -393,7 +393,7 @@ def test_reflection_core_shell():
     # Reflection using core-shells with the shell index-matched to the core
     index_cs_abs = [sc.Index.constant(1.5+0.001j),
                     sc.Index.constant(1.5+0.001j)]
-    sphere_cs_abs = sc.model.Sphere(index_cs_abs, radius_cs)
+    sphere_cs_abs = sc.Sphere(index_cs_abs, radius_cs)
     n_particle_cs_abs = sphere_cs_abs.n(wavelen)
     vf_array = sphere_cs_abs.volume_fraction(volume_fraction)
     n_sample_cs_abs = sc.index.effective_index(index_cs_abs +
@@ -430,7 +430,7 @@ def test_reflection_core_shell_mc():
     wavelen = sc.Quantity('600 nm')
     radius = sc.Quantity(np.array([0.125, 0.13]), 'um')
     index_particle = [sc.Index.constant(1.54), sc.Index.constant(1.33)]
-    sphere = sc.model.Sphere(index_particle, radius)
+    sphere = sc.Sphere(index_particle, radius)
     n_particle = sphere.n(wavelen)
     index_matrix = sc.index.vacuum
     index_medium = sc.index.vacuum
@@ -487,7 +487,7 @@ def test_reflection_absorbing_particle_or_matrix():
     # Same as previous test but with absorbing matrix
     # Reflection using matrix with an imaginary component of 0
     index_matrix_abs = sc.Index.constant(1. + 0j)
-    sphere = sc.model.Sphere(index_particle, radius)
+    sphere = sc.Sphere(index_particle, radius)
     n_particle = sphere.n(wavelen)
     vf_array = sphere.volume_fraction(volume_fraction)
     n_sample_abs = sc.index.effective_index([index_particle, index_matrix_abs],
@@ -541,7 +541,7 @@ def test_reflection_absorption_mc():
     index_particle = sc.Index.constant(1.54 + 0.001j)
     index_matrix = sc.index.vacuum + 0.0001j
 
-    sphere = sc.model.Sphere(index_particle, radius)
+    sphere = sc.Sphere(index_particle, radius)
     n_particle = sphere.n(wavelen)
     vf_array = sphere.volume_fraction(volume_fraction)
     n_sample = sc.index.effective_index([index_particle, index_matrix],
@@ -896,7 +896,7 @@ def test_throw_valueerror_for_polydisperse_core_shells():
     radius_cs = sc.Quantity(np.array([100.0, 150.0]), 'nm')
     # specify the index from innermost to outermost layer
     index_particle_cs = [sc.Index.constant(1.5), sc.Index.constant(1.5)]
-    sphere_cs = sc.model.Sphere(index_particle_cs, radius_cs)
+    sphere_cs = sc.Sphere(index_particle_cs, radius_cs)
     n_particle_cs = sphere_cs.n(wavelen)
     radius2 = radius
     concentration = sc.Quantity(np.array([0.9,0.1]), '')
@@ -928,7 +928,7 @@ def test_throw_valueerror_for_polydisperse_unspecified_parameters():
     radius = sc.Quantity(150.0, 'nm')
     # specify the index from innermost to outermost layer
     index_particle = sc.Index.constant(1.5)
-    sphere = sc.model.Sphere(index_particle, radius)
+    sphere = sc.Sphere(index_particle, radius)
     n_particle = sphere.n(wavelen)
     concentration = sc.Quantity(np.array([0.9,0.1]), '')
     # monodisperse limit

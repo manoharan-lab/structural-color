@@ -309,7 +309,7 @@ def test_multiscale_mc():
     index_medium = sc.index.vacuum
     n_medium = index_medium(wavelengths)
 
-    particle = sc.model.Sphere(index_particle, particle_radius)
+    particle = sc.Sphere(index_particle, particle_radius)
     vf_particles = particle.volume_fraction(volume_fraction_particles)
 
     # caculate the effective index of the sample
@@ -520,7 +520,7 @@ def test_multiscale_polydispersity_mc():
     index_medium = sc.index.vacuum
     n_medium = index_medium(wavelengths)
 
-    particle = sc.model.Sphere(index_particle, particle_radius)
+    particle = sc.Sphere(index_particle, particle_radius)
     vf_particles = particle.volume_fraction(volume_fraction_particles)
     n_sample_eff = sc.index.effective_index([index_particle, index_matrix],
                                             vf_particles, wavelengths)
@@ -733,7 +733,7 @@ def test_multiscale_color_mixing_mc():
 
 
     for j in range(particle_radii.size):
-        particle = sc.model.Sphere(index_particle, particle_radii[j])
+        particle = sc.Sphere(index_particle, particle_radii[j])
         vf_array = particle.volume_fraction(volume_fraction_particles)
         n_sample_eff = sc.index.effective_index([index_particle, index_matrix],
                                             vf_array, wavelengths)

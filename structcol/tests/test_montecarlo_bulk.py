@@ -52,7 +52,7 @@ boundary_bulk = 'film'
 # refractive index of particle
 index_particle = sc.index.vacuum
 n_particle = index_particle(wavelength)
-particle = sc.model.Sphere(index_particle, particle_radius)
+particle = sc.Sphere(index_particle, particle_radius)
 vf_particles = particle.volume_fraction(volume_fraction_particles)
 # refractive index of matrix
 index_matrix = sc.index.polystyrene

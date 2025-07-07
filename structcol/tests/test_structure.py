@@ -216,7 +216,7 @@ class TestStructureFactor():
         # Structure factor for non-core-shell particles
         radius = Quantity('100.0 nm')
         index_particle = sc.Index.constant(1.5)
-        sphere = sc.model.Sphere(index_particle, radius)
+        sphere = sc.Sphere(index_particle, radius)
         volume_fraction = 0.0001         # IS VF TOO LOW?
         volume_fraction_da = sphere.volume_fraction(total_volume_fraction =
                                                     volume_fraction)
@@ -231,7 +231,7 @@ class TestStructureFactor():
         # radius of non-core-shell particle
         radius_cs = Quantity(np.array([100.0, 105.0]), 'nm')
         index_particle = [sc.Index.constant(1.5), sc.Index.constant(1.0)]
-        sphere_cs = sc.model.Sphere(index_particle, radius_cs)
+        sphere_cs = sc.Sphere(index_particle, radius_cs)
         volume_fraction_da = sphere_cs.volume_fraction(total_volume_fraction =
                                                        volume_fraction)
 
@@ -317,7 +317,7 @@ def test_structure_factor_data_reflectances():
     wavelengths = sc.Quantity(np.arange(400, 800, 20), 'nm')
     radius = sc.Quantity('0.5 um')
     volume_fraction = 0.5
-    sphere = sc.model.Sphere(index_particle, radius)
+    sphere = sc.Sphere(index_particle, radius)
     n_particle = sphere.n(wavelengths)
     n_medium = index_medium(wavelengths)
     boundary = 'film'

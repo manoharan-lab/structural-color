@@ -43,7 +43,7 @@ def test_2pi_shift():
     volume_fraction = 0.55
     n_imag = 2.1e-4
     index_particle = sc.index.polystyrene + n_imag
-    sphere = sc.model.Sphere(index_particle, radius)
+    sphere = sc.Sphere(index_particle, radius)
     n_particle = sphere.n(wavelength)
     index_matrix = sc.index.vacuum
     index_medium = sc.index.vacuum
@@ -204,7 +204,7 @@ def test_field_normalized():
     index_imag = sc.Index.constant(2.1e-4*1j)
     index_particle = sc.index.polystyrene + index_imag
 
-    sphere = sc.model.Sphere(index_particle, radius)
+    sphere = sc.Sphere(index_particle, radius)
     n_particle = sphere.n(wavelength)
     index_matrix = sc.index.vacuum
     n_matrix = index_matrix(wavelength)
@@ -277,7 +277,7 @@ def test_field_perp_direction():
     index_imag = sc.Index.constant(2.1e-4*1j)
     index_particle = sc.index.polystyrene + index_imag
 
-    sphere = sc.model.Sphere(index_particle, radius)
+    sphere = sc.Sphere(index_particle, radius)
     n_particle = sphere.n(wavelength)
     index_matrix = sc.index.vacuum
     n_matrix = index_matrix(wavelength)
@@ -351,7 +351,7 @@ def test_field_reflectance_mc():
     index_imag = sc.Index.constant(2.1e-4*1j)
     index_particle = sc.index.polystyrene + index_imag
 
-    sphere = sc.model.Sphere(index_particle, radius)
+    sphere = sc.Sphere(index_particle, radius)
     n_particle = sphere.n(wavelength)
     index_matrix = sc.index.vacuum
     n_matrix = index_matrix(wavelength)
@@ -444,7 +444,7 @@ def test_field_co_cross_mc():
     index_imag = sc.Index.constant(2.1e-5*1j)
     index_particle = sc.index.polystyrene + index_imag
 
-    sphere = sc.model.Sphere(index_particle, radius)
+    sphere = sc.Sphere(index_particle, radius)
     n_particle = sphere.n(wavelengths)
     index_matrix = sc.index.vacuum
     index_medium = sc.index.vacuum
