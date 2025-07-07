@@ -691,12 +691,9 @@ def reflection(index_particle, index_matrix, index_medium, wavelen, radius,
         single sphere, but it may not be reasonable for all calculations.
     structure_type: string, dictionary, or None (optional)
         Can be string specifying structure type. Current options are "glass",
-        "paracrystal", "polydisperse", "data", or None. Can also be dictionary
-        specifying structure type and parameters for structures that require
-        them. Expects keys of 'name': 'paracrystal', and 'sigma': int or float.
-        Can also set to None in order to only visualize effect of form factor
-        on reflectance spectrum. If set to 'data', you must also provide
-        structure_s_data and structure_qd_data.
+        "polydisperse", "data", or None. Can also set to None in order to only
+        visualize effect of form factor on reflectance spectrum. If set to
+        'data', you must also provide structure_s_data and structure_qd_data.
     form_type: string or None (optional)
         String specifying form factor type. Currently, 'sphere' or
         'polydisperse' are the options. Can also set to None in order to only
@@ -1125,9 +1122,8 @@ def differential_cross_section(m, x, angles, volume_fraction,
         fraction of the entire core-shell particle.
     structure_type: str or None
         type of structure to calculate the structure factor. Can be 'glass',
-        'paracrystal', 'polydisperse', 'data', or None. If
-        structure_type=='data', you must also provide structure_s_data and
-        structure_qd_data.
+        'polydisperse', 'data', or None. If structure_type=='data', you must
+        also provide structure_s_data and structure_qd_data.
     form_type: str or None
         type of particle geometry to calculate the form factor. Can be 'sphere'
         or None.
@@ -1248,25 +1244,13 @@ def differential_cross_section(m, x, angles, volume_fraction,
     if isinstance(qd, Quantity):
         qd = qd.magnitude
 
-    if isinstance(structure_type, dict):
-        if structure_type['name'] == 'paracrystal':
-            structure_factor = sc.structure.Paracrystal(volume_fraction,
-                                            sigma = structure_type['sigma'])
-            s = structure_factor(qd)
-        else:
-            raise ValueError('structure factor type not recognized!')
-
-    elif isinstance(structure_type, str):
+    if isinstance(structure_type, str):
         if structure_type == 'glass':
             structure_factor = sc.structure.PercusYevick(volume_fraction)
             if len(qd.shape) == 2:
                 s = structure_factor(qd[:,0]).to_numpy()
             else:
                 s = structure_factor(qd).to_numpy()
-
-        elif structure_type == 'paracrystal':
-            structure_factor = sc.structure.Paracrystal(volume_fraction)
-            s = structure_factor(qd)
 
         elif structure_type == 'data':
             structure_factor = sc.structure.Interpolated(structure_s_data,

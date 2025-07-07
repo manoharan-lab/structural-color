@@ -947,7 +947,7 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
         Only used if polarization is True.
     structure_type: string or None
         structure factor desired for calculation. Can be 'glass',
-        'paracrystal', 'polydisperse', 'data', or None.
+        'polydisperse', 'data', or None.
     form_type: string or None
         form factor desired for calculation. Can be 'sphere', 'polydisperse',
         or None.
@@ -1156,7 +1156,7 @@ def phase_function(m, x, angles, volume_fraction, k, number_density,
         or None.
     structure_type: str or None
         structure factor desired for calculation. Can be 'glass',
-        'paracrystal', 'polydisperse', 'data', or None.
+        'polydisperse', 'data', or None.
     coordinate_system: string
         default value 'scattering plane' means scattering calculations will be
         carried out in the basis defined by basis vectors parallel and
