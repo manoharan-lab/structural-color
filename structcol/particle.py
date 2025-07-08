@@ -362,6 +362,7 @@ class SphereDistribution:
         self.diameters = []
         for sphere in spheres:
             self.diameters = self.diameters + [sphere.outer_diameter]
+        self.diameters = np.array(self.diameters)
 
         if np.isscalar(concentrations):
             concentrations = np.array([concentrations, 0.0])
