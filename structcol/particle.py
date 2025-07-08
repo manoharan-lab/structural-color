@@ -321,3 +321,60 @@ class Sphere(Particle):
             form_factor = mie.calc_ang_dist(m, x, angles)
 
         return form_factor
+
+class SphereDistribution:
+    """Class to describe a continuous size distribution of spheres.
+
+    Can handle one or two species. If two species, each species can have its
+    own polydispersity index.
+
+    Attributes
+    ----------
+    spheres : array-like of sc.Sphere objects
+        Species of spherical particles that make up the structure.  Each size
+        represents the mean size of a distribution.  If monospecies, should
+        contain only one element.
+    concentrations : 2-element array (structcol.Quantity [dimensionless])
+        Number fractions of each species. For example, a system composed of 90
+        A particles and 10 B particles would have c = [0.9, 0.1]. For
+        polydisperse monospecies systems, specify the concentration as [1.0,
+        0.0].
+    polydispersities : 2-element array (structcol.Quantity [dimensionless])
+        Polydispersity index of each species if the system is polydisperse.
+        For polydisperse monospecies systems, specify the pdi as a 2-element
+        array with repeating values (for example, [0.01, 0.01]).
+    polydispersity_bound : float (default 1e-5)
+        Lower bound on the polydispersity (polydispersity of zero will lead to
+        errors
+    """
+    def __init__(self, spheres, concentrations, polydispersities,
+                 polydispersity_bound = 1e-5):
+        spheres = list(np.atleast_1d(spheres))
+        if len(spheres) > 2:
+            raise ValueError("Can only handle one or two species")
+        self.spheres = spheres
+        self.diameters = []
+        for sphere in spheres:
+            self.diameters = self.diameters + [sphere.outer_diameter]
+
+        if np.isscalar(concentrations):
+            concentrations = np.array([concentrations, 0.0])
+        if len(spheres) == 1:
+            if not np.array_equal(concentrations, np.array([1.0, 0])):
+                raise ValueError("When only one species is specified, "
+                                 "concentrations must be set to [1.0, 0]")
+        if np.sum(concentrations) != 1.0:
+            raise ValueError("Concentrations must sum to 1")
+        self.concentrations = concentrations
+
+        self.polydispersity_bound = 1e-5
+        if isinstance(polydispersities, sc.Quantity):
+            polydispersities = polydispersities.to('').magnitude
+        if np.isscalar(polydispersities):
+            polydispersities = np.array([polydispersities, 0.0])
+        # if the pdi is zero, assume it's very small (we get the same results)
+        # because otherwise we get a divide by zero error
+        pdi = np.atleast_1d(polydispersities).astype(float)
+        pdi[pdi < self.polydispersity_bound] = self.polydispersity_bound
+
+        self.pdi = pdi

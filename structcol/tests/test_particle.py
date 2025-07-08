@@ -335,3 +335,48 @@ class TestParticle():
 
         assert_equal(form_sphere[0], ipar)
         assert_equal(form_sphere[1], iperp)
+
+class TestSphereDistribution():
+    """Tests for the SphereDistribution class.
+    """
+    def test_spheredistribution_construction(self):
+        radius = sc.Quantity(150, 'nm')
+        concentrations = [1.0, 0.0]
+        pdi = [0.15, 0]
+
+        # test construction with monospecies
+        sphere1 = sc.Sphere(sc.index.polystyrene, radius)
+        dist = sc.particle.SphereDistribution(sphere1, concentrations, pdi)
+
+        with pytest.raises(ValueError, match=r"When only"):
+            dist = sc.particle.SphereDistribution(sphere1, 0.5, pdi)
+        dist = sc.particle.SphereDistribution(sphere1, 1.0, pdi)
+
+        # test construction with layered sphere
+        index = [sc.index.vacuum, sc.index.polystyrene]
+        radii = sc.Quantity([0.15, 0.16], 'um')
+
+        sphere2 = sc.Sphere(index, radii)
+        dist = sc.particle.SphereDistribution(sphere2, concentrations, pdi)
+
+        # test construction with two spheres
+        concentrations = [0.1, 0.5]
+        with pytest.raises(ValueError, match=r"Concentrations must"):
+            dist = sc.particle.SphereDistribution([sphere1, sphere2],
+                                                  concentrations, pdi)
+        concentrations = [0.5, 0.5]
+        dist = sc.particle.SphereDistribution([sphere1, sphere2],
+                                              concentrations, pdi)
+
+        assert_equal(dist.diameters, [2*radius.to_preferred().magnitude,
+                                      2*radii[-1].to_preferred().magnitude])
+        assert_equal(dist.concentrations, concentrations)
+
+        # zero polydispersity for species 2 should have been replaced with
+        # finite polydispersity
+        assert_equal(dist.pdi, [pdi[0], dist.polydispersity_bound])
+
+        # at the moment, works only with one or two species, not more
+        with pytest.raises(ValueError, match=r"Can only handle one or two"):
+            dist = sc.particle.SphereDistribution([sphere1, sphere2, sphere1],
+                                                  concentrations, pdi)
