@@ -186,7 +186,7 @@ def test_phase_function_absorbing_medium():
     # with mie.calc_ang_dist() (this is how it's currently implemented in
     # monte carlo)
     radius2 = sc.Quantity('150.0 nm')
-    concentration = sc.Quantity(np.array([0.2, 0.7]), '')
+    concentration = sc.Quantity(np.array([0.3, 0.7]), '')
     pdi = sc.Quantity(np.array([0.1, 0.1]), '')
     diameters = sc.Quantity(np.array([radius.magnitude, radius2.magnitude])*2,
                             radius.units)
