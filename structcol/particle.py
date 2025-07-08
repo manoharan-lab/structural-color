@@ -559,10 +559,6 @@ class SphereDistribution:
                     # now, we use the mean radii.
                 else:
                     ff = mie.calc_ang_dist(m, x_poly[s], angles_array[s])
-                if isinstance(ff[0], sc.Quantity):
-                    ff = list(ff)
-                    ff[0] = ff[0].magnitude
-                    ff[1] = ff[1].magnitude
                 if cartesian:
                     form_factor['par'][:, :, s] = ff[0]
                     form_factor['perp'][:, :, s] = ff[1]
@@ -576,21 +572,14 @@ class SphereDistribution:
                 # multiply the form factors by the Schulz distribution
                 integrand[pol] = form_factor[pol] * distr_array
 
-                integral = {}
-                if isinstance(integrand[pol], sc.Quantity):
-                    integrand_mag = integrand[pol].magnitude
-                    units = integrand[pol].units
-                else:
-                    integrand_mag = integrand[pol]
-                    units = 1
                 if cartesian:
                     axis_int = 2
                 else:
                     axis_int = 1
-                integral = (trapezoid(integrand_mag, x=diameter_range,
+                integral = (trapezoid(integrand[pol], x=diameter_range,
                                       axis=axis_int)
-                                 * self.concentrations[d]
-                                 * units)
+                                 * self.concentrations[d])
+
                 if cartesian:
                     F[pol][d, :, :] = integral
                 else:
