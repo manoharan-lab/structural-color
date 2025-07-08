@@ -21,8 +21,8 @@ Tests for the Particle class and subclasses (in structcol/particle.py)
 .. moduleauthor:: Vinothan N. Manoharan <vnm@seas.harvard.edu>
 """
 
-from .. import Quantity, np, mie
-from numpy.testing import assert_equal
+from .. import np, mie
+from numpy.testing import assert_allclose, assert_equal
 import pytest
 import structcol as sc
 import xarray as xr
@@ -222,13 +222,13 @@ class TestParticle():
         # The pymie/tests/test_mie.py::test_form_factor test checks that the
         # Mie calculation gives the correct results for these parameters. Here
         # we just check to see if we get the same results as pymie
-        wavelen = Quantity('658.0 nm')
-        radius = Quantity('0.85 um')
+        wavelen = sc.Quantity('658.0 nm')
+        radius = sc.Quantity('0.85 um')
         index_matrix = sc.Index.constant(1.00)
         n_matrix = index_matrix(wavelen)
         index_particle = sc.Index.constant(1.59 + 1e-4 * 1.0j)
         sphere = sc.Sphere(index_particle, radius)
-        angles = Quantity(np.linspace(0, 180., 19), 'deg')
+        angles = sc.Quantity(np.linspace(0, 180., 19), 'deg')
         ipar_sphere, iperp_sphere = sphere.form_factor(wavelen, angles,
                                                        index_matrix)
 
@@ -244,13 +244,13 @@ class TestParticle():
         # checks that the Mie calculation gives the correct results for these
         # parameters. Here we just check to see if we get the same results as
         # pymie
-        wavelen = Quantity('658.0 nm')
+        wavelen = sc.Quantity('658.0 nm')
         x = 10.0
         radius = x/(2*np.pi/wavelen)
         index_matrix = sc.Index.constant(1.00)
         gold_index = sc.Index.constant(0.1425812 + 3.6813284 * 1.0j)
         sphere = sc.Sphere(gold_index, radius)
-        angles = Quantity(np.linspace(0, 90., 10), 'deg')
+        angles = sc.Quantity(np.linspace(0, 90., 10), 'deg')
         ipar_sphere, iperp_sphere = sphere.form_factor(wavelen, angles,
                                                        index_matrix)
 
@@ -265,11 +265,11 @@ class TestParticle():
         # (diff_scat_intensity_complex_medium) used here, the results may not
         # be equal if units are converted in different ways.  So to test for
         # equality, we first convert radius and distance to preferred units.
-        radius = Quantity('120.0 nm').to_preferred()
+        radius = sc.Quantity('120.0 nm').to_preferred()
         sphere = sc.Sphere(sc.Index.constant(1.5+0.001j), radius)
-        distance = Quantity(10000.0,'nm').to_preferred()
+        distance = sc.Quantity(10000.0,'nm').to_preferred()
         index_matrix = sc.Index.constant(1.0+0.001j)
-        angles = Quantity(np.linspace(0, 90., 10), 'deg')
+        angles = sc.Quantity(np.linspace(0, 90., 10), 'deg')
 
         # not specifying distance should throw exception
         with pytest.raises(ValueError):
@@ -292,10 +292,10 @@ class TestParticle():
 
         # test layered particle
         index = [sc.index.vacuum, sc.index.polystyrene, sc.index.pmma]
-        wavelen = Quantity('658.0 nm').to_preferred()
+        wavelen = sc.Quantity('658.0 nm').to_preferred()
         radii = sc.Quantity([0.10, 0.16, 0.25], 'um').to_preferred()
         sphere = sc.Sphere(index, radii)
-        angles = Quantity(np.linspace(0, 180., 19), 'deg')
+        angles = sc.Quantity(np.linspace(0, 180., 19), 'deg')
         index_matrix = sc.index.water
 
         ipar_sphere, iperp_sphere = sphere.form_factor(wavelen, angles,
@@ -310,16 +310,14 @@ class TestParticle():
 
     def test_vectorized_form_factor(self):
         # test that we can calculate the form factor for several wavelengths
-        # simultaneously.  This will fail until pymie is updated to allow a
-        # vector of m and x (currently pymie interprets a vector of m as a
-        # multilayer particle)
+        # simultaneously.
         num_wavelengths = 10
         num_angles = 19
         wavelen = sc.Quantity(np.linspace(400, 800, num_wavelengths), 'nm')
         sphere = sc.Sphere(sc.index.polystyrene,
                                  sc.Quantity('0.125 um'))
         index_matrix = sc.index.water
-        angles = Quantity(np.linspace(0, 180., num_angles), 'deg')
+        angles = sc.Quantity(np.linspace(0, 180., num_angles), 'deg')
         form_sphere = sphere.form_factor(wavelen, angles, index_matrix)
 
         # make sure shape is correct
@@ -339,18 +337,21 @@ class TestParticle():
 class TestSphereDistribution():
     """Tests for the SphereDistribution class.
     """
+    wavelen = sc.Quantity(400, 'nm')
+    angles = sc.Quantity(np.linspace(0, 180., 19), 'deg')
+
     def test_spheredistribution_construction(self):
         radius = sc.Quantity(150, 'nm')
         concentrations = [1.0, 0.0]
-        pdi = [0.15, 0]
+        pdi = 0.15
 
         # test construction with monospecies
         sphere1 = sc.Sphere(sc.index.polystyrene, radius)
-        dist = sc.particle.SphereDistribution(sphere1, concentrations, pdi)
+        dist = sc.SphereDistribution(sphere1, concentrations, pdi)
 
         with pytest.raises(ValueError, match=r"When only"):
-            dist = sc.particle.SphereDistribution(sphere1, 0.5, pdi)
-        dist = sc.particle.SphereDistribution(sphere1, 1.0, pdi)
+            dist = sc.SphereDistribution(sphere1, 0.5, pdi)
+        dist = sc.SphereDistribution(sphere1, 1.0, pdi)
         assert not dist.has_layered
 
         # test construction with layered sphere
@@ -358,16 +359,17 @@ class TestSphereDistribution():
         radii = sc.Quantity([0.15, 0.16], 'um')
 
         sphere2 = sc.Sphere(index, radii)
-        dist = sc.particle.SphereDistribution(sphere2, concentrations, pdi)
+        dist = sc.SphereDistribution(sphere2, concentrations, pdi)
         assert dist.has_layered
 
-        # test construction with two spheres
+        # test construction with two spheres, one layered
         concentrations = [0.1, 0.5]
+        pdi = [0.15, 0]
         with pytest.raises(ValueError, match=r"Concentrations must"):
-            dist = sc.particle.SphereDistribution([sphere1, sphere2],
+            dist = sc.SphereDistribution([sphere1, sphere2],
                                                   concentrations, pdi)
         concentrations = [0.5, 0.5]
-        dist = sc.particle.SphereDistribution([sphere1, sphere2],
+        dist = sc.SphereDistribution([sphere1, sphere2],
                                               concentrations, pdi)
         assert dist.has_layered
 
@@ -381,5 +383,46 @@ class TestSphereDistribution():
 
         # at the moment, works only with one or two species, not more
         with pytest.raises(ValueError, match=r"Can only handle one or two"):
-            dist = sc.particle.SphereDistribution([sphere1, sphere2, sphere1],
+            dist = sc.SphereDistribution([sphere1, sphere2, sphere1],
                                                   concentrations, pdi)
+
+    def test_spheredistribution_formfactor(self):
+        concentrations = [0.5, 0.5]
+        pdi = [0.1, 0.2]
+        index_external = sc.index.water
+
+        radius1 = sc.Quantity(150, 'nm')
+        index1 = sc.index.polystyrene
+        sphere1 = sc.Sphere(index1, radius1)
+
+        # shouldn't work with two spheres with different refractive indices
+        radius2 = sc.Quantity(180, 'nm')
+        index2 = sc.index.fused_silica
+        sphere2 = sc.Sphere(index2, radius2)
+
+        dist = sc.SphereDistribution([sphere1, sphere2],
+                                              concentrations, pdi)
+        with pytest.raises(ValueError, match=r"Currently can handle"):
+            dist.form_factor(self.wavelen, self.angles, index_external)
+
+        # shouldn't work when one or both spheres are layered
+        radius2 = sc.Quantity([0.15, 0.16], 'um')
+        index2 = [sc.index.vacuum, sc.index.polystyrene]
+
+        sphere2 = sc.Sphere(index2, radius2)
+        dist = sc.SphereDistribution(sphere2, [1.0, 0], pdi[0])
+        with pytest.raises(ValueError, match=r"Cannot handle polydispersity"):
+            dist.form_factor(self.wavelen, self.angles, index_external)
+
+        dist = sc.SphereDistribution([sphere1, sphere2],
+                                              concentrations, pdi)
+        with pytest.raises(ValueError, match=r"Cannot handle polydispersity"):
+            dist.form_factor(self.wavelen, self.angles, index_external)
+
+        # should work with one species
+        dist = sc.SphereDistribution(sphere1, 1.0, 0.0)
+        # when polydispersity is small, should be close to monodisperse form
+        # factor
+        polyff = dist.form_factor(self.wavelen, self.angles, index_external)
+        monoff = sphere1.form_factor(self.wavelen, self.angles, index_external)
+        assert_allclose(polyff, monoff)

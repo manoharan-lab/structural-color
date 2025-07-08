@@ -925,12 +925,46 @@ def differential_cross_section(m, x, angles, volume_fraction,
                              'wavelength, and n_matrix for polydisperse '
                              'systems')
 
-        form_factor = polydisperse_form_factor(m, angles, diameters,
-                                        concentration, pdi, wavelen,
-                                        n_matrix, k=k, distance=distance,
-                                        coordinate_system=coordinate_system,
-                                        incident_vector=incident_vector,
-                                        phis=phis)
+        # construct a SphereDistribution object and use its form_factor method
+        # (this is some temporary scaffolding to ensure that the
+        # SphereDistribution.formfactor() method is tested by existing tests
+        # that call model.reflection(); will be removed after further
+        # refactoring).
+        if isinstance(concentration, sc.Quantity):
+            concentration = concentration.magnitude
+        n_particle = (m * n_matrix.to_numpy())
+        if len(diameters) > 2:
+            raise ValueError("cannot handle polydispersity for "
+                             "layered spheres")
+        if np.ndim(n_particle) >= 1:
+            index_particle = sc.Index.constant(n_particle[0])
+        else:
+            index_particle = sc.Index.constant(n_particle)
+        index_external = sc.Index.constant(n_matrix.to_numpy())
+        if len(diameters) >= 2:
+            sphere1 = sc.Sphere(index_particle, diameters[0]/2)
+            sphere2 = sc.Sphere(index_particle, diameters[1]/2)
+            dist = sc.SphereDistribution([sphere1, sphere2], concentration,
+                                         pdi)
+        else:
+            sphere1 = sc.Sphere(index_particle, diameters[0]/2)
+            dist = sc.SphereDistribution(sphere1, concentration, pdi)
+
+        if coordinate_system == 'cartesian':
+            cartesian = True
+        else:
+            cartesian = False
+
+        if k is not None:
+            kd = k*distance
+        else:
+            kd = None
+
+        form_factor = dist.form_factor(wavelen, angles, index_external,
+                                       kd=kd, cartesian=cartesian,
+                                       incident_vector=incident_vector,
+                                       phis=phis)
+
         f_par = form_factor[0]
         f_perp = form_factor[1]
 
@@ -991,189 +1025,6 @@ def differential_cross_section(m, x, angles, volume_fraction,
         scat_perp = s * f_perp
 
     return scat_par, scat_perp
-
-
-def polydisperse_form_factor(m, angles, diameters, concentration, pdi, wavelen,
-                             n_matrix, k=None, distance=None,
-                             coordinate_system='scattering_plane',
-                             incident_vector=None, phis=None):
-    """
-    Calculate the form factor for polydisperse systems.
-
-    Parameters
-    ----------
-    m: float
-        complex particle relative refractive index, n_particle/n_sample
-    angles: ndarray(structcol.Quantity [dimensionless])
-        array of angles. Must be entered as a Quantity to allow specifying
-        units (degrees or radians) explicitly
-    diameters: ndarray(structcol.Quantity [length])
-        Only for polydisperse systems. Mean diameters of each species of
-        particles (can be one for a monospecies or two for bispecies).
-    concentration : 2-element array (structcol.Quantity [dimensionless])
-        'Number' concentration of each scatterer if the system is binary. For
-        ex, a system composed of 90 A particles and 10 B particles would have
-        c = [0.9, 0.1]. For polydisperse monospecies systems, specify the
-        concentration as [1.0, 0.0].
-    pdi : 2-element array (structcol.Quantity [dimensionless])
-        Polydispersity index of each scatterer if the system is polydisperse.
-        For polydisperse monospecies systems, specify the pdi as a 2-element
-        array with repeating values (for example, [0.01, 0.01]).
-    wavelen : float (structcol.Quantity [length])
-        Wavelength of light in vacuum.
-    n_matrix : float (structcol.Quantity [dimensionless])
-        Refractive index of the matrix (will be the index of the sample when
-        running the model).
-    k: float (sc.Quantity [1/length])
-        k vector. k = 2*pi*n_sample / wavelength
-    distance: float (sc.Quantity [length])
-        distance at which we perform the integration of the differential
-        cross section to get the total cross section.
-    coordinate_system : TODO document argument
-    incident_vector: TODO document argument
-    phis: TODO document argument
-
-    Returns
-    -------
-    float (2-tuple):
-        polydisperse form factor for parallel and perpendicular polarizations
-        as a function of scattering angle.
-    """
-    if len(np.atleast_1d(m)) > 1:
-        raise ValueError('cannot handle polydispersity in core-shell ',
-                         'particles')
-
-    # if the pdi is zero, assume it's very small (we get the same results)
-    # because otherwise we get a divide by zero error
-    if pdi is not None:
-        pdi = Quantity(np.atleast_1d(pdi).astype(float), pdi.units)
-        np.atleast_1d(pdi)[np.atleast_1d(pdi) < 1e-5] = 1e-5
-
-    # t is a measure of the width of the Schulz distribution, and
-    # pdi is the polydispersity index
-    pdi = pdi.magnitude
-    t = np.abs(1/(pdi**2)) - 1
-
-    # define the range of diameters of the size distribution
-    three_std_dev = 3*diameters/np.sqrt(t+1)
-    min_diameter = diameters - three_std_dev
-    min_diameter[min_diameter.magnitude < 0] = Quantity(0.000001,
-                                                        diameters.units)
-    max_diameter = diameters + three_std_dev
-
-    F = {}
-    for pol in ('par', 'perp'):
-        if coordinate_system=='cartesian':
-            F[pol] = np.empty([len(np.atleast_1d(diameters)), angles.shape[0],
-                               angles.shape[1]])
-        else:
-            F[pol] = np.empty([len(np.atleast_1d(diameters)), len(angles)])
-
-    # for each mean diameter, calculate the Schulz distribution and
-    # the size parameter x_poly
-    for d in np.arange(len(np.atleast_1d(diameters))):
-        # the diameter range is the range between the min diameter and
-        # the max diameter of the Schulz distribution
-        diameter_range = np.linspace(np.atleast_1d(min_diameter)[d],
-                                     np.atleast_1d(max_diameter)[d], 50)
-        distr = size_distribution(diameter_range, np.atleast_1d(diameters)[d],
-                                  np.atleast_1d(t)[d])
-        if coordinate_system=='cartesian':
-            distr_array = np.tile(distr, [angles.shape[0], angles.shape[1],1])
-        else:
-            distr_array = np.tile(distr, [len(angles),1])
-        angles_array = np.tile(angles, [len(diameter_range),1])
-
-        # size parameter will be a 2D array [1, num_diameters]. Because this
-        # would be interpreted as a layered particle by pymie, we convert to a
-        # 1D array before looping
-        x_poly = sc.size_parameter(n_matrix, diameter_range/2)[0]
-
-        form_factor = {}
-        integrand = {}
-        for pol in ('par', 'perp'):
-            if coordinate_system=='cartesian':
-                form_factor[pol] = np.empty([angles.shape[0], angles.shape[1],
-                                             len(diameter_range)])
-                integrand[pol] = np.empty([angles.shape[0], angles.shape[1],
-                                           len(diameter_range)])
-            else:
-                form_factor[pol] = np.empty([len(angles), len(diameter_range)])
-                integrand[pol] = np.empty([len(angles), len(diameter_range)])
-
-        # for each diameter in the distribution, calculate the detected
-        # and the total form factors for absorbing systems
-        for s in np.arange(len(diameter_range)):
-            # if the system has absorption, use the absorption formula from Mie
-            if ((np.abs(n_matrix.imag) > 0.
-                 or coordinate_system == 'cartesian')
-                 and (k is not None and distance is not None)):
-                distance_array = np.resize(distance,
-                                           len(np.atleast_1d(diameters)))
-                ff = mie.diff_scat_intensity_complex_medium(m,
-                                        x_poly[s],
-                                        angles_array[s],
-                                        k*distance_array[d],
-                                        coordinate_system=coordinate_system,
-                                        incident_vector=incident_vector,
-                                        phis=phis)
-                # it might seem reasonable to calculate the form factor of each
-                # individual radius in the Schulz distribution (meaning that we
-                # could use diameter_range[s] instead of distance_array[d]),
-                # but this doesn't lead to reasonable results because we later
-                # integrate the diff cross section at the mean radii, not at
-                # each of the radii of the distribution. So we need to be
-                # consistent with the distances we use for the integrand and
-                # the integral. For now, we use the mean radii.
-            else:
-                ff = mie.calc_ang_dist(m, x_poly[s], angles_array[s])
-            if isinstance(ff[0], Quantity):
-                ff = list(ff)
-                ff[0] = ff[0].magnitude
-                ff[1] = ff[1].magnitude
-            if coordinate_system=='cartesian':
-                form_factor['par'][:, :, s] = ff[0]
-                form_factor['perp'][:, :, s] = ff[1]
-            else:
-                form_factor['par'][:, s] = ff[0]
-                form_factor['perp'][:, s] = ff[1]
-
-        # integrate and multiply by the concentration of the mean
-        # diameter to get the polydisperse form factor
-        if isinstance(concentration, Quantity):
-            concentration = concentration.magnitude
-        diameter_range = diameter_range.magnitude
-
-        for pol in ('par', 'perp'):
-            # multiply the form factors by the Schulz distribution
-            integrand[pol] = form_factor[pol] * distr_array
-
-            integral = {}
-            if isinstance(integrand[pol], Quantity):
-                integrand_mag = integrand[pol].magnitude
-                units = integrand[pol].units
-            else:
-                integrand_mag = integrand[pol]
-                units = 1
-            if coordinate_system == 'cartesian':
-                axis_int = 2
-            else:
-                axis_int = 1
-            integral = (trapezoid(integrand_mag, x=diameter_range,
-                                  axis=axis_int)
-                             * np.atleast_1d(concentration)[d]
-                             * units)
-            if coordinate_system == 'cartesian':
-                F[pol][d, :, :] = integral
-            else:
-                F[pol][d, :] = integral
-
-    # the final polydisperse form factor as a function of angle is
-    # calculated as the average of each mean diameter's form factor
-    f_par = np.sum(F['par'], axis=0)
-    f_perp = np.sum(F['perp'], axis=0)
-    return(f_par, f_perp)
-
 
 def absorption_cross_section(form_type, m, diameters, n_matrix, x,
                              wavelen, n_particle, concentration=None,

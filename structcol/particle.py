@@ -23,6 +23,7 @@ methods for calculating form factors from such particles.
 
 import numpy as np
 import xarray as xr
+from scipy.integrate import trapezoid
 from pymie import mie
 import structcol as sc
 
@@ -268,7 +269,7 @@ class Sphere(Particle):
             propagation. If False (default), calculation will be carried out in
             the basis defined by basis vectors parallel and perpendicular to
             scattering plane.
-        incident_vector: tuple (optional, default None)
+        incident_vector : tuple (optional, default None)
             vector describing the incident electric field. It is multiplied by
             the amplitude scattering matrix to find the vector scattering
             amplitude. Unless `cartesian` is set, this vector should be in the
@@ -293,7 +294,7 @@ class Sphere(Particle):
             matrix depends on phi, so an `phis` should be provided. In this
             case both `angles` and `phis` should be 2D, as output from
             `np.meshgrid`. In the default scattering plane coordinates
-            (`cartesian=False`), `phis` is ignored, since the the scattering
+            (`cartesian=False`), `phis` is ignored, since the scattering
             matrix does not depend on phi.
 
         Returns
@@ -351,7 +352,7 @@ class SphereDistribution:
         array with repeating values (for example, [0.01, 0.01]).
     polydispersity_bound : float (default 1e-5)
         Lower bound on the polydispersity (polydispersity of zero will lead to
-        errors
+        errors)
     """
     def __init__(self, spheres, concentrations, polydispersities,
                  polydispersity_bound = 1e-5):
@@ -377,8 +378,10 @@ class SphereDistribution:
         self.polydispersity_bound = 1e-5
         if isinstance(polydispersities, sc.Quantity):
             polydispersities = polydispersities.to('').magnitude
-        if np.isscalar(polydispersities):
-            polydispersities = np.array([polydispersities, 0.0])
+        if not np.isscalar(polydispersities):
+            if len(self.diameters) == 1 and len(polydispersities) !=1:
+                raise ValueError("polydispersity overspecified; only one "
+                                 "value is needed for a single species")
         # if the pdi is zero, assume it's very small (we get the same results)
         # because otherwise we get a divide by zero error
         pdi = np.atleast_1d(polydispersities).astype(float)
@@ -392,3 +395,209 @@ class SphereDistribution:
         """
         return any(sphere.layered for sphere in self.spheres)
 
+    def form_factor(self, wavelen, angles, index_external, kd=None,
+                    cartesian=False, incident_vector=None, phis=None):
+        """
+        Calculate the form factor for polydisperse systems.
+
+        Parameters
+        ----------
+        wavelen : array-like [sc.Quantity]
+            wavelengths at which to calculate form factor
+        angles : array-like
+            scattering angles at which to calculate form factor.  Specified in
+            radians.
+        index_external : `sc.Index` object
+            Index of refraction of the medium around the particle.  Can be an
+            effective index.
+        kd : float (optional)
+            distance (nondimensionalized by k) at which to integrate the
+            differential cross section to get the total cross section. Needed
+            only if n_external is complex. Ignored otherwise.
+        cartesian : boolean (default False)
+            If set to True, calculation will be done in the basis defined by
+            basis vectors x and y in the lab frame, with z as the direction of
+            propagation. If False (default), calculation will be carried out in
+            the basis defined by basis vectors parallel and perpendicular to
+            scattering plane.
+        incident_vector : tuple (optional, default None)
+            vector describing the incident electric field. It is multiplied by
+            the amplitude scattering matrix to find the vector scattering
+            amplitude. Unless `cartesian` is set, this vector should be in the
+            scattering plane basis, where the first element is the parallel
+            component and the second element is the perpendicular component. If
+            `cartesian` is set to True, this vector should be in the Cartesian
+            basis, where the first element is the x-component and the second
+            element is the y-component. Note that the vector for unpolarized
+            light is the same in either basis, since either way it should be an
+            equal mix between the two othogonal polarizations: (1,1). Note that
+            if indicent_vector is None, the function assigns a value based on
+            the coordinate system. For scattering plane coordinates, the
+            assigned value is (1,1) because most scattering plane calculations
+            we're interested in involve unpolarized light. For Cartesian
+            coordinates, the assigned value is (1,0) because if we are going to
+            the trouble to use the cartesian coordinate system, it is usually
+            because we want to do calculations using polarization, and these
+            calculations are much easier to convert to measured quantities when
+            in the cartesian coordinate system.
+        phis : ndarray (optional, default None)
+            Azimuthal angles. If `cartesian` is set to True, the scattering
+            matrix depends on phi, so an `phis` should be provided. In this
+            case both `angles` and `phis` should be 2D, as output from
+            `np.meshgrid`. In the default scattering plane coordinates
+            (`cartesian=False`), `phis` is ignored, since the scattering
+            matrix does not depend on phi.
+
+        Returns
+        -------
+        float (2-tuple):
+            polydisperse form factor for parallel and perpendicular
+            polarizations as a function of scattering angle.
+        """
+        wavelen = wavelen.to_preferred()
+        n_ext = index_external(wavelen)
+        if cartesian:
+            coordinate_system = 'cartesian'
+        else:
+            coordinate_system = 'scattering plane'
+
+        if self.has_layered:
+            raise ValueError("Cannot handle polydispersity in core-shell ",
+                             "particles")
+
+        if len(self.spheres) == 2:
+            if self.spheres[0].index != self.spheres[1].index:
+                raise ValueError("Currently can handle only species with the "
+                                 "same refractive index.")
+        index_particle = self.spheres[0].index
+        n_particle = index_particle(wavelen)
+
+        m = sc.index.ratio(n_particle, n_ext)
+
+        # t is a measure of the width of the Schulz distribution, and
+        # pdi is the polydispersity index
+        t = np.abs(1/(self.pdi**2)) - 1
+
+        # define the range of diameters of the size distribution
+        # (all of the below will be in preferred units)
+        three_std_dev = 3*self.diameters/np.sqrt(t+1)
+        min_diameter = self.diameters - three_std_dev
+        min_diameter[min_diameter < 0] = 0.000001
+        max_diameter = self.diameters + three_std_dev
+
+        F = {}
+        for pol in ('par', 'perp'):
+            if cartesian:
+                F[pol] = np.empty([len(self.spheres), angles.shape[0],
+                                   angles.shape[1]])
+            else:
+                F[pol] = np.empty([len(self.spheres), len(angles)])
+
+        # for each mean diameter, calculate the Schulz distribution and
+        # the size parameter x_poly
+        for d in np.arange(len(self.diameters)):
+            # the diameter range is the range between the min diameter and
+            # the max diameter of the Schulz distribution
+            diameter_range = np.linspace(np.atleast_1d(min_diameter)[d],
+                                         np.atleast_1d(max_diameter)[d], 50)
+            distr = sc.model.size_distribution(diameter_range,
+                                               self.diameters[d],
+                                               np.atleast_1d(t)[d])
+            if cartesian:
+                distr_array = np.tile(distr,
+                                      [angles.shape[0], angles.shape[1], 1])
+            else:
+                distr_array = np.tile(distr, [len(angles),1])
+            angles_array = np.tile(angles, [len(diameter_range), 1])
+
+            # size parameter will be a 2D array [1, num_diameters]. Because
+            # this would be interpreted as a layered particle by pymie, we
+            # convert to a 1D array before looping
+            x_poly = sc.size_parameter(n_ext,
+                                       (diameter_range/2 *
+                                        self.spheres[0].current_units))[0]
+
+            form_factor = {}
+            integrand = {}
+            for pol in ('par', 'perp'):
+                if cartesian:
+                    form_factor[pol] = np.empty([angles.shape[0],
+                                                 angles.shape[1],
+                                                 len(diameter_range)])
+                    integrand[pol] = np.empty([angles.shape[0],
+                                               angles.shape[1],
+                                               len(diameter_range)])
+                else:
+                    form_factor[pol] = np.empty([len(angles),
+                                                 len(diameter_range)])
+                    integrand[pol] = np.empty([len(angles),
+                                               len(diameter_range)])
+
+            # for each diameter in the distribution, calculate the detected
+            # and the total form factors for absorbing systems
+            for s in np.arange(len(diameter_range)):
+                # if the system has absorption, use the absorption formula from
+                # pymie
+                if ((np.abs(n_ext.imag) > 0. or cartesian)
+                     and (kd is not None)):
+                    kd_new = np.resize(kd, len(self.diameters))
+                    ff = mie.diff_scat_intensity_complex_medium(m,
+                                            x_poly[s],
+                                            angles_array[s],
+                                            kd_new[d],
+                                            coordinate_system=coordinate_system,
+                                            incident_vector=incident_vector,
+                                            phis=phis)
+                    # it might seem reasonable to calculate the form factor of
+                    # each individual radius in the Schulz distribution
+                    # (meaning that we could use diameter_range[s] instead of
+                    # distance_array[d]), but this doesn't lead to reasonable
+                    # results because we later integrate the diff cross section
+                    # at the mean radii, not at each of the radii of the
+                    # distribution. So we need to be consistent with the
+                    # distances we use for the integrand and the integral. For
+                    # now, we use the mean radii.
+                else:
+                    ff = mie.calc_ang_dist(m, x_poly[s], angles_array[s])
+                if isinstance(ff[0], sc.Quantity):
+                    ff = list(ff)
+                    ff[0] = ff[0].magnitude
+                    ff[1] = ff[1].magnitude
+                if cartesian:
+                    form_factor['par'][:, :, s] = ff[0]
+                    form_factor['perp'][:, :, s] = ff[1]
+                else:
+                    form_factor['par'][:, s] = ff[0]
+                    form_factor['perp'][:, s] = ff[1]
+
+            # integrate and multiply by the concentration of the mean
+            # diameter to get the polydisperse form factor
+            for pol in ('par', 'perp'):
+                # multiply the form factors by the Schulz distribution
+                integrand[pol] = form_factor[pol] * distr_array
+
+                integral = {}
+                if isinstance(integrand[pol], sc.Quantity):
+                    integrand_mag = integrand[pol].magnitude
+                    units = integrand[pol].units
+                else:
+                    integrand_mag = integrand[pol]
+                    units = 1
+                if cartesian:
+                    axis_int = 2
+                else:
+                    axis_int = 1
+                integral = (trapezoid(integrand_mag, x=diameter_range,
+                                      axis=axis_int)
+                                 * self.concentrations[d]
+                                 * units)
+                if cartesian:
+                    F[pol][d, :, :] = integral
+                else:
+                    F[pol][d, :] = integral
+
+        # the final polydisperse form factor as a function of angle is
+        # calculated as the average of each mean diameter's form factor
+        f_par = np.sum(F['par'], axis=0)
+        f_perp = np.sum(F['perp'], axis=0)
+        return(f_par, f_perp)
