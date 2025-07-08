@@ -78,6 +78,10 @@ class TestParticle():
         assert_equal(radius.to_preferred().magnitude, my_sphere.radius)
         assert not my_sphere.layered
 
+        # test outer diameter
+        assert (my_sphere.outer_diameter == 2*radius.to_preferred().magnitude)
+        assert my_sphere.current_units == radius.to_preferred().units
+
     def test_core_shell_single_wavelength(self):
         index = [sc.index.vacuum, sc.index.polystyrene]
         radii = sc.Quantity([0.15, 0.16], 'um')
@@ -125,6 +129,11 @@ class TestParticle():
 
         # test number of layers
         assert my_layered_sphere.layers == len(radii)
+
+        # test outer diameter
+        assert (my_layered_sphere.outer_diameter ==
+                2*radii[-1].to_preferred().magnitude)
+        assert my_layered_sphere.current_units == radii.to_preferred().units
 
     def test_volume_fraction(self):
         """test that calculations of volume fraction for each layer work
