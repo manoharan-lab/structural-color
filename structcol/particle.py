@@ -296,6 +296,12 @@ class Sphere(Particle):
             (`cartesian=False`), `phis` is ignored, since the the scattering
             matrix does not depend on phi.
 
+        Returns
+        -------
+        float (2-tuple):
+            Form factor for parallel and perpendicular polarizations as a
+            function of scattering angle.
+
         """
         wavelen = wavelen.to_preferred()
 
