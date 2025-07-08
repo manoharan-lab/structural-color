@@ -351,6 +351,7 @@ class TestSphereDistribution():
         with pytest.raises(ValueError, match=r"When only"):
             dist = sc.particle.SphereDistribution(sphere1, 0.5, pdi)
         dist = sc.particle.SphereDistribution(sphere1, 1.0, pdi)
+        assert not dist.has_layered
 
         # test construction with layered sphere
         index = [sc.index.vacuum, sc.index.polystyrene]
@@ -358,6 +359,7 @@ class TestSphereDistribution():
 
         sphere2 = sc.Sphere(index, radii)
         dist = sc.particle.SphereDistribution(sphere2, concentrations, pdi)
+        assert dist.has_layered
 
         # test construction with two spheres
         concentrations = [0.1, 0.5]
@@ -367,6 +369,7 @@ class TestSphereDistribution():
         concentrations = [0.5, 0.5]
         dist = sc.particle.SphereDistribution([sphere1, sphere2],
                                               concentrations, pdi)
+        assert dist.has_layered
 
         assert_equal(dist.diameters, [2*radius.to_preferred().magnitude,
                                       2*radii[-1].to_preferred().magnitude])

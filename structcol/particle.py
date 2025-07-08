@@ -378,3 +378,10 @@ class SphereDistribution:
         pdi[pdi < self.polydispersity_bound] = self.polydispersity_bound
 
         self.pdi = pdi
+
+    @property
+    def has_layered(self):
+        """Returns True if the distribution contains a layered sphere
+        """
+        return any(sphere.layered for sphere in self.spheres)
+
