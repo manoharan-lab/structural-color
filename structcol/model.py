@@ -229,8 +229,7 @@ class HardSpheres(FormStructureModel):
                                                          ql_cutoff = ql_cutoff)
 
         form_factor = self.sphere.form_factor
-        super().__init__(form_factor, structure_factor,
-                         index_medium)
+        super().__init__(form_factor, structure_factor, index_medium)
 
     def differential_cross_section(self, wavelen, angles,
                                    kd=None,
@@ -254,6 +253,73 @@ class HardSpheres(FormStructureModel):
 
         # for a sphere we use the radius to calculate size parameter x
         lengthscale = self.sphere.radius_q
+
+        return super().differential_cross_section(wavelen, angles,
+                                                  index_external,
+                                                  lengthscale,
+                                                  kd=kd,
+                                                  cartesian=cartesian,
+                                                  incident_vector =
+                                                  incident_vector,
+                                                  phis=None)
+
+class PolydisperseHardSpheres(FormStructureModel):
+    """Model for scattering from a polydisperse hard-sphere liquid or glass.
+
+    Can handle one or two species. If two species, each species can have its
+    own polydispersity index. Models scattering using the Percus-Yevick
+    structure factor for polydisperse hard spheres and Mie theory for the
+    scattering amplitude.
+
+    TODO: currently makes Rayleigh-Gans-Debye approximation implicitly.  Should
+    be reimplemented to make use of partial structure factors rather than
+    measurable structure factors.
+
+    Attributes
+    ----------
+    sphere_dist : `sc.SphereDistribution` object
+        Distribution of spherical particles that make up the structure.
+    volume_fraction : float
+        total volume fraction of all sphere species
+    index_matrix : `sc.Index` object
+        Index of matrix material between the spheres
+    """
+    def __init__(self, sphere_dist, volume_fraction, index_matrix,
+                 index_medium):
+        self.sphere_dist = sphere_dist
+        self.volume_fraction = volume_fraction
+        self.index_matrix = index_matrix
+
+        structure_factor = sc.structure.Polydisperse(self.volume_fraction,
+                                                     sphere_dist.diameters,
+                                                     sphere_dist.concentrations,
+                                                     sphere_dist.pdi)
+        form_factor = self.sphere_dist.form_factor
+        super().__init__(form_factor, structure_factor, index_medium)
+
+    def differential_cross_section(self, wavelen, angles,
+                                   kd=None,
+                                   cartesian=False,
+                                   incident_vector=None,
+                                   phis=None):
+        """Calculate the dimensionless differential scattering cross-section
+        for polydisperse systems.
+
+        """
+        # calculate array of volume fractions, assuming that the sphere indices
+        # are the same
+        sphere = self.sphere_dist.spheres[-1]
+        vf_array = sphere.volume_fraction(self.volume_fraction)
+        index_list = sphere.index_list(self.index_matrix)
+
+        # Calculate effective index of particle-matrix composite
+        index_external = sc.EffectiveIndex(index_list, vf_array,
+                                           maxwell_garnett=False)
+
+        # for a polydisperse system we use the first mean diameter (of the
+        # bispecies system) to calculate size parameter x.  This is just a
+        # convention.
+        lengthscale = self.sphere_dist.spheres[0].radius_q
 
         return super().differential_cross_section(wavelen, angles,
                                                   index_external,

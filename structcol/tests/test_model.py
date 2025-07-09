@@ -23,7 +23,8 @@ Tests for the single-scattering model (in structcol/model.py)
 
 from .. import Quantity, np, mie, model
 from pytest import raises
-from numpy.testing import assert_equal, assert_almost_equal, assert_array_almost_equal
+from numpy.testing import (assert_equal, assert_almost_equal,
+                           assert_array_almost_equal, assert_allclose)
 import pytest
 import structcol as sc
 import xarray as xr
@@ -101,12 +102,16 @@ class TestModel():
         assert_equal(perp, s)
 
     def test_hardsphere_model(self):
+        """tests that HardSphere model construction and differential cross
+        section method work
+
+        """
         index_matrix = sc.index.water
         glass = sc.model.HardSpheres(self.ps_sphere, self.phi, sc.index.water,
                                      sc.index.vacuum)
 
         # make sure form factor is calculated correctly
-        angles = Quantity(np.linspace(0, 180., 19), 'deg')
+        angles = sc.Quantity(np.linspace(0, 180., 19), 'deg')
         form_model = glass.form_factor(self.wavelen, angles,
                                                index_matrix)
         form_sphere = glass.sphere.form_factor(self.wavelen, angles,
@@ -126,6 +131,69 @@ class TestModel():
         s_hollow = glass.structure_factor(self.qd)
         xr.testing.assert_equal(s_hollow, structure_factor(self.qd))
 
+    def test_polydispersehardsphere_model(self):
+        """tests that PolydisperseHardSphere model construction and
+        differential cross section method work
+
+        """
+        index_matrix = sc.index.water
+        index_particle = sc.index.polystyrene
+        index_medium = sc.index.vacuum
+
+        # single particle species, low volume fraction
+        volume_fraction = 1e-8
+        pdi = 1e-5
+        concentration = 1.0
+        dist = sc.SphereDistribution(self.ps_sphere, concentration, pdi)
+        model = sc.model.PolydisperseHardSpheres(dist, volume_fraction,
+                                                 index_matrix, index_medium)
+
+        # for this low volume fraction, form factor should dominate
+        # (note that polydisperse functions are not yet vectorized, so wavelen
+        # must be a scalar)
+        wavelen = sc.Quantity(400, 'nm')
+        # start at a few degrees to avoid division by zero error
+        angles = sc.Quantity(np.linspace(2, 180., 19), 'deg')
+        form_model = model.form_factor(wavelen, angles, index_matrix)
+        form_sphere = dist.spheres[0].form_factor(wavelen, angles,
+                                                  index_matrix)
+        for i in range(2):
+            # monodisperse and polydisperse form factors should be equal at low
+            # polydispersity
+            assert_allclose(form_model[i], form_sphere[i])
+
+        # and structure factor should be close to 1
+        n_ext = index_matrix(wavelen)
+        lengthscale = dist.spheres[0].radius_q
+        x = sc.size_parameter(n_ext, lengthscale)
+        ql = 4*np.array(np.abs(x)).max()*np.sin(angles/2)
+        s = model.structure_factor(ql)
+        assert_allclose(s.to_numpy(), np.ones_like(s.to_numpy()))
+
+        # now finite volume fraction, low polydispersity
+        volume_fraction = 0.5
+        dist = sc.SphereDistribution(self.ps_sphere, concentration, pdi)
+        model = sc.model.PolydisperseHardSpheres(dist, volume_fraction,
+                                                 index_matrix, index_medium)
+
+        # structure factor should be almost the same as for a monodisperse
+        # glass
+        mono_model = sc.model.HardSpheres(self.ps_sphere, volume_fraction,
+                                          index_matrix, index_medium)
+
+        s = model.structure_factor(ql)
+        s_mono = mono_model.structure_factor(ql.magnitude)
+        assert_allclose(s, s_mono, rtol=1e-7, atol=1e-7)
+
+        # and the same as would be calculated from creating a structure factor
+        # directly
+        diameters = self.ps_sphere.diameter_q
+        structure_factor = sc.structure.Polydisperse(volume_fraction,
+                                                     diameters,
+                                                     concentration,
+                                                     pdi)
+        s_poly = structure_factor(ql)
+        xr.testing.assert_equal(s, s_poly)
 
 class TestDetector():
     """Tests for the Detector class and derived classes.
