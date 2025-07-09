@@ -650,7 +650,25 @@ def reflection(index_particle, index_matrix, index_medium, wavelen, radius,
                                                             kd=kd)
         diff_cs_total = model.differential_cross_section(wavelen, angles_tot,
                                                          kd=kd)
-
+    elif (form_type == "polydisperse") and (structure_type == "polydisperse"):
+        kd = (k*distance).to('')
+        if len(mean_diameters) > 2:
+            raise ValueError("cannot handle polydispersity for "
+                             "layered spheres")
+        if len(mean_diameters) == 2:
+            sphere1 = sc.Sphere(index_particle, mean_diameters[0]/2)
+            sphere2 = sc.Sphere(index_particle, mean_diameters[1]/2)
+            dist = sc.SphereDistribution([sphere1, sphere2], concentration,
+                                         pdi)
+        else:
+            sphere1 = sc.Sphere(index_particle, mean_diameters[0]/2)
+            dist = sc.SphereDistribution(sphere1, concentration, pdi)
+        model = PolydisperseHardSpheres(dist, volume_fraction, index_matrix,
+                                        index_medium)
+        diff_cs_detected = model.differential_cross_section(wavelen, angles,
+                                                            kd=kd)
+        diff_cs_total = model.differential_cross_section(wavelen, angles_tot,
+                                                         kd=kd)
     else:
         diff_cs_detected = differential_cross_section(m, x, angles,
                                         volume_fraction,
