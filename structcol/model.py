@@ -1001,14 +1001,10 @@ def differential_cross_section(m, x, angles, volume_fraction,
                 raise ValueError('cannot handle polydispersity in '
                                  'core-shell particles')
 
-            # I think it's okay to divide by the first
-            # radius because it cancels out the radius dependence from qd
-            q = qd / diameters[0]
             structure_factor = sc.structure.Polydisperse(volume_fraction,
                                                          diameters,
                                                          concentration, pdi)
-            s = structure_factor(q)
-
+            s = structure_factor(qd).to_numpy()
         else:
             raise ValueError('structure factor type not recognized!')
 

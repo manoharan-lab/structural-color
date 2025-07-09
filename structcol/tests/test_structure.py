@@ -158,13 +158,12 @@ class TestStructureFactor():
         d = Quantity('100.0 nm')
         c = 1.0
         pdi = 1e-5
-        q2 = ql / d
 
         polydisperse_structure_factor = sc.structure.Polydisperse(phi, d, c,
                                                                   pdi)
-        s_poly = polydisperse_structure_factor(q2)
+        s_poly = polydisperse_structure_factor(ql)
 
-        assert_almost_equal(s_py, s_poly.magnitude)
+        assert_almost_equal(s_py, s_poly.to_numpy())
 
         # test that structure factor matches the calculations in Figure 1 of
         # Ginoza and Yasutomi, Journal of the Physical Society of Japan 1999.
@@ -194,13 +193,12 @@ class TestStructureFactor():
         # in the paper, D_sigma is the square of the relative deviation, so
         # D_sigma=1e-4 corresponds to pdi=1e-2
         pdi = 1e-2
-        q2 = ql / d
 
         polydisperse_structure_factor = sc.structure.Polydisperse(phi, d, c,
                                                                   pdi)
-        s_poly = polydisperse_structure_factor(q2)
+        s_poly = polydisperse_structure_factor(ql)
         # since plot is digitized, we expect agreement only to 1 decimal place
-        assert_almost_equal(s_poly.magnitude, s_expected, decimal=1)
+        assert_almost_equal(s_poly.to_numpy(), s_expected, decimal=1)
 
     def test_structure_factor_percus_yevick_core_shell(self):
         """Test that the structure factor is the same for core-shell particles

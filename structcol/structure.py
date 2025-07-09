@@ -416,7 +416,7 @@ class Polydisperse(StructureFactor):
         prod = np.prod(num_array, axis=1).reshape((len(t), 1))
         return (prod / (t + 1)**m)
 
-    def calculate(self, q):
+    def calculate(self, qd):
         """Calculate the measurable polydisperse structure using the approach
         in [1]_
         """
@@ -424,6 +424,10 @@ class Polydisperse(StructureFactor):
         c = self.concentrations
         diameters = self.diameters
         phi = self.volume_fraction
+
+        # by convention we normalize q to the first diameter. However, this
+        # function requires a dimensional q, so we un-normalize here
+        q = qd/diameters[0]
 
         Dsigma = self.pdi**2
         Delta = 1 - phi
@@ -542,6 +546,10 @@ class Polydisperse(StructureFactor):
         SM[SM<0] = 0
         if len(q_shape)==2:
             SM = np.reshape(SM,q_shape)
+
+        # return a DataArray with q as the coordinate
+        SM = xr.DataArray(SM.magnitude, coords={"ql": q.magnitude})
+
         return(SM)
 
 class Interpolated(StructureFactor):
