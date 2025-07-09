@@ -365,6 +365,8 @@ class SphereDistribution:
             self.diameters = self.diameters + [sphere.outer_diameter]
         self.diameters = np.array(self.diameters)
 
+        if isinstance(concentrations, sc.Quantity):
+            concentrations = concentrations.to('').magnitude
         if np.isscalar(concentrations):
             concentrations = np.array([concentrations, 0.0])
         if len(spheres) == 1:
@@ -375,7 +377,7 @@ class SphereDistribution:
             raise ValueError("Concentrations must sum to 1")
         self.concentrations = concentrations
 
-        self.polydispersity_bound = 1e-5
+        self.polydispersity_bound = polydispersity_bound
         if isinstance(polydispersities, sc.Quantity):
             polydispersities = polydispersities.to('').magnitude
         if not np.isscalar(polydispersities):
