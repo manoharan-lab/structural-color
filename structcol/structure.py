@@ -548,7 +548,7 @@ class Polydisperse(StructureFactor):
             SM = np.reshape(SM,q_shape)
 
         # return a DataArray with q as the coordinate
-        SM = xr.DataArray(SM.magnitude, coords={"ql": qd})
+        SM = xr.DataArray(SM, coords={"ql": qd})
 
         return(SM)
 

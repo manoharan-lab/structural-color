@@ -80,15 +80,21 @@ class FormStructureModel(Model):
         scattering cross section.
     structure_factor : `sc.structure.StructureFactor` object
         Structure factor used in the calculation
+    index_external : `sc.Index` object
+        Refractive index of the material outside the particles, which is
+        needed to calculate the form factor.  Can be an effective index
+        (`sc.EffectiveIndex` object).
+
 
     """
-    def __init__(self, form_factor, structure_factor,
+    def __init__(self, form_factor, structure_factor, index_external,
                  index_medium):
         self.form_factor = form_factor
         self.structure_factor = structure_factor
+        self.index_external = index_external
         super().__init__(index_medium)
 
-    def differential_cross_section(self, wavelen, angles, index_external,
+    def differential_cross_section(self, wavelen, angles,
                                    lengthscale,
                                    kd=None,
                                    cartesian=False,
@@ -105,14 +111,11 @@ class FormStructureModel(Model):
         angles : ndarray(structcol.Quantity [dimensionless])
             array of scattering angles. Must be entered as a Quantity to allow
             specifying units (degrees or radians) explicitly
-        index_external : `sc.Index` object
-            Refractive index of the material outside the particles.  Can be an
-            effective index.
-        lengthscale : float
+        lengthscale : float (structcol.Quantity [length])
             Length scale to use to calculate the size parameter.  Since the
             FormStructureModel is particle-agnostic, we don't assume this is
             equal to the radius (though it should be set to such for a sphere)
-        kd : float (sc.Quantity [1/length])
+        kd : float
             distance (nondimensionalized by k) at which to integrate the
             differential cross section to get the total cross section. Needed
             only if n_external is complex. Ignored otherwise.
@@ -159,8 +162,8 @@ class FormStructureModel(Model):
         """
         # calculate form factor
         if self.form_factor is not None:
-            f_par, f_perp = self.form_factor(wavelen, angles, index_external,
-                                             kd=kd,
+            f_par, f_perp = self.form_factor(wavelen, angles,
+                                             self.index_external, kd=kd,
                                              cartesian=cartesian,
                                              incident_vector=incident_vector,
                                              phis=phis)
@@ -168,12 +171,14 @@ class FormStructureModel(Model):
             f_par = 1
             f_perp = 1
 
-        n_ext = index_external(wavelen)
+        n_ext = self.index_external(wavelen)
         x = sc.size_parameter(n_ext, lengthscale)
 
         # calculate structure factor
         # TODO: should it be x.real or x.abs?
         ql = 4*np.array(np.abs(x)).max()*np.sin(angles/2)
+        if isinstance(ql, sc.Quantity):
+            ql = ql.to('').magnitude
 
         if len(ql.shape) == 2:
             s = self.structure_factor(ql[:,0]).to_numpy()
@@ -204,7 +209,8 @@ class HardSpheres(FormStructureModel):
     volume_fraction : float
         volume fraction of spheres that make up the structure
     index_matrix : `sc.Index` object
-        Index of matrix material between the spheres
+        Index of matrix material between the spheres.  Should be the actual
+        index, not an effective index
     maxwell_garnett: boolean (optional, default False)
         If True, the model uses the Maxwell-Garnett formula to calculate the
         effective index. If False (default), the model uses the Bruggeman
@@ -222,6 +228,16 @@ class HardSpheres(FormStructureModel):
         self.index_matrix = index_matrix
         self.maxwell_garnett = maxwell_garnett
 
+        # calculate array of volume fractions of each layer in the particle. If
+        # particle is not core-shell, volume fraction remains the same
+        vf_array = self.sphere.volume_fraction(self.volume_fraction)
+        index_list = self.sphere.index_list(self.index_matrix)
+
+        # Calculate effective index of particle-matrix composite
+        index_external = sc.EffectiveIndex(index_list, vf_array,
+                                           maxwell_garnett =
+                                           self.maxwell_garnett)
+
         if ql_cutoff is None:
             structure_factor = sc.structure.PercusYevick(volume_fraction)
         else:
@@ -229,7 +245,8 @@ class HardSpheres(FormStructureModel):
                                                          ql_cutoff = ql_cutoff)
 
         form_factor = self.sphere.form_factor
-        super().__init__(form_factor, structure_factor, index_medium)
+        super().__init__(form_factor, structure_factor, index_external,
+                         index_medium)
 
     def differential_cross_section(self, wavelen, angles,
                                    kd=None,
@@ -241,21 +258,10 @@ class HardSpheres(FormStructureModel):
         1/k**2 to get the dimensional differential cross section.
 
         """
-        # calculate array of volume fractions of each layer in the particle. If
-        # particle is not core-shell, volume fraction remains the same
-        vf_array = self.sphere.volume_fraction(self.volume_fraction)
-        index_list = self.sphere.index_list(self.index_matrix)
-
-        # Calculate effective index of particle-matrix composite
-        index_external = sc.EffectiveIndex(index_list, vf_array,
-                                           maxwell_garnett =
-                                           self.maxwell_garnett)
-
         # for a sphere we use the radius to calculate size parameter x
         lengthscale = self.sphere.radius_q
 
         return super().differential_cross_section(wavelen, angles,
-                                                  index_external,
                                                   lengthscale,
                                                   kd=kd,
                                                   cartesian=cartesian,
@@ -282,7 +288,8 @@ class PolydisperseHardSpheres(FormStructureModel):
     volume_fraction : float
         total volume fraction of all sphere species
     index_matrix : `sc.Index` object
-        Index of matrix material between the spheres
+        Index of matrix material between the spheres.  Should be the actual
+        index, not an effective index
     """
     def __init__(self, sphere_dist, volume_fraction, index_matrix,
                  index_medium):
@@ -290,22 +297,6 @@ class PolydisperseHardSpheres(FormStructureModel):
         self.volume_fraction = volume_fraction
         self.index_matrix = index_matrix
 
-        structure_factor = sc.structure.Polydisperse(self.volume_fraction,
-                                                     sphere_dist.diameters,
-                                                     sphere_dist.concentrations,
-                                                     sphere_dist.pdi)
-        form_factor = self.sphere_dist.form_factor
-        super().__init__(form_factor, structure_factor, index_medium)
-
-    def differential_cross_section(self, wavelen, angles,
-                                   kd=None,
-                                   cartesian=False,
-                                   incident_vector=None,
-                                   phis=None):
-        """Calculate the dimensionless differential scattering cross-section
-        for polydisperse systems.
-
-        """
         # calculate array of volume fractions, assuming that the sphere indices
         # are the same
         sphere = self.sphere_dist.spheres[-1]
@@ -316,13 +307,29 @@ class PolydisperseHardSpheres(FormStructureModel):
         index_external = sc.EffectiveIndex(index_list, vf_array,
                                            maxwell_garnett=False)
 
+        structure_factor = sc.structure.Polydisperse(self.volume_fraction,
+                                                     sphere_dist.diameters,
+                                                     sphere_dist.concentrations,
+                                                     sphere_dist.pdi)
+        form_factor = self.sphere_dist.form_factor
+        super().__init__(form_factor, structure_factor, index_external,
+                         index_medium)
+
+    def differential_cross_section(self, wavelen, angles,
+                                   kd=None,
+                                   cartesian=False,
+                                   incident_vector=None,
+                                   phis=None):
+        """Calculate the dimensionless differential scattering cross-section
+        for polydisperse systems.
+
+        """
         # for a polydisperse system we use the first mean diameter (of the
         # bispecies system) to calculate size parameter x.  This is just a
         # convention.
         lengthscale = self.sphere_dist.spheres[0].radius_q
 
         return super().differential_cross_section(wavelen, angles,
-                                                  index_external,
                                                   lengthscale,
                                                   kd=kd,
                                                   cartesian=cartesian,

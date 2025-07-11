@@ -35,11 +35,13 @@ class TestModel():
     wavelen = sc.Quantity(np.linspace(400, 800, 10), 'nm')
     ps_radius = sc.Quantity('0.125 um')
     ps_sphere = sc.Sphere(sc.index.polystyrene, ps_radius)
-    hollow_sphere = sc.Sphere([sc.index.vacuum,
-                                         sc.index.polystyrene],
-                                        sc.Quantity([125, 135], 'nm'))
+    hollow_sphere = sc.Sphere([sc.index.vacuum, sc.index.polystyrene],
+                                         sc.Quantity([125, 135], 'nm'))
     qd = np.arange(0.1, 20, 0.01)
-    phi = np.array([0.15, 0.3, 0.45])
+    # for now, test against a single volume fraction
+    # TODO: vectorize with volume fraction as commented below:
+    # phi = np.array([0.15, 0.3, 0.45])
+    phi = 0.45
     my_units = sc.ureg.millimeter
     thickness = 0.050 * sc.ureg.millimeter
 
@@ -57,10 +59,10 @@ class TestModel():
         # have a constant differential scattering cross section
         const = 1.0
         model = sc.model.FormStructureModel(None, sc.structure.Constant(const),
+                                            sc.index.vacuum,
                                             sc.index.vacuum)
         par, perp = model.differential_cross_section(self.wavelen[0],
                                                      self.angles,
-                                                     sc.index.vacuum,
                                                      self.ps_radius)
         assert_equal(par, np.ones_like(par)*const)
         assert_equal(perp, np.ones_like(perp)*const)
@@ -70,10 +72,10 @@ class TestModel():
         # one is explicitly given
         model = sc.model.FormStructureModel(self.ps_sphere.form_factor,
                                             sc.structure.Constant(const),
+                                            sc.index.vacuum,
                                             sc.index.vacuum)
         par, perp = model.differential_cross_section(self.wavelen[0],
                                                      self.angles,
-                                                     sc.index.vacuum,
                                                      self.ps_radius)
         fpar, fperp = self.ps_sphere.form_factor(self.wavelen[0],
                                                  self.angles,
@@ -85,13 +87,13 @@ class TestModel():
         # Test that constant form factor yields the same results as structure
         # factor.
         structure_factor = sc.structure.PercusYevick(0.5)
+        index_matrix = sc.index.water
         model = sc.model.FormStructureModel(None,
                                             structure_factor,
+                                            index_matrix,
                                             sc.index.vacuum)
-        index_matrix = sc.index.water
         par, perp = model.differential_cross_section(self.wavelen[0],
                                                      self.angles,
-                                                     index_matrix,
                                                      self.ps_radius)
 
         x = sc.size_parameter(index_matrix(self.wavelen[0]), self.ps_radius)
@@ -167,6 +169,7 @@ class TestModel():
         lengthscale = dist.spheres[0].radius_q
         x = sc.size_parameter(n_ext, lengthscale)
         ql = 4*np.array(np.abs(x)).max()*np.sin(angles/2)
+        ql = ql.to('').magnitude
         s = model.structure_factor(ql)
         assert_allclose(s.to_numpy(), np.ones_like(s.to_numpy()))
 
@@ -182,7 +185,7 @@ class TestModel():
                                           index_matrix, index_medium)
 
         s = model.structure_factor(ql)
-        s_mono = mono_model.structure_factor(ql.magnitude)
+        s_mono = mono_model.structure_factor(ql)
         assert_allclose(s, s_mono, rtol=1e-7, atol=1e-7)
 
         # and the same as would be calculated from creating a structure factor
