@@ -34,6 +34,7 @@ import numpy as np
 from pymie import mie
 from scipy.special import factorial
 from scipy.integrate import trapezoid
+import xarray as xr
 import structcol as sc
 
 from . import Quantity
@@ -559,7 +560,7 @@ def reflection(index_particle, index_matrix, index_medium, wavelen, radius,
 
     if len(np.atleast_1d(radius)) > 1:
         m = sc.index.ratio(n_particle, n_sample).flatten()
-        x = sc.size_parameter(n_sample, radius).flatten()
+        x = sc.size_parameter(n_sample, radius).to_numpy().flatten()
     else:
         m = sc.index.ratio(n_particle, n_sample)
         x = sc.size_parameter(n_sample, radius)
@@ -877,7 +878,7 @@ def reflection(index_particle, index_matrix, index_medium, wavelen, radius,
            transport_length
 
 
-@ureg.check(None, '[]', '[]', '[]', None, None, None, None, None,None, None,
+@ureg.check(None, None, '[]', '[]', None, None, None, None, None,None, None,
             None, None, None, None, None, None, None)
 def differential_cross_section(m, x, angles, volume_fraction,
                                structure_type = 'glass',
@@ -1014,6 +1015,9 @@ def differential_cross_section(m, x, angles, volume_fraction,
         else:
             sphere1 = sc.Sphere(index_particle, diameters[0]/2)
             dist = sc.SphereDistribution(sphere1, concentration, pdi)
+
+    if isinstance(x, xr.DataArray):
+        x = x.to_numpy()
 
     # calculate form factor
     if form_type == 'sphere':

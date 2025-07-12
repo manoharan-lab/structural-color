@@ -310,7 +310,7 @@ class Sphere(Particle):
         n_particle = self.n(wavelen)
 
         m = sc.index.ratio(n_particle, n_ext)
-        x = sc.size_parameter(n_ext, self.radius_q)
+        x = sc.size_parameter(n_ext, self.radius_q).to_numpy()
 
         if np.any(n_ext.imag > 0) or (cartesian is True):
             if kd is None:
@@ -523,7 +523,8 @@ class SphereDistribution:
             # convert to a 1D array before looping
             x_poly = sc.size_parameter(n_ext,
                                        (diameter_range/2 *
-                                        self.spheres[0].current_units))[0]
+                                        self.spheres[0].current_units))
+            x_poly = x_poly.to_numpy()[0]
 
             form_factor = {}
             integrand = {}

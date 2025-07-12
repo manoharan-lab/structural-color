@@ -97,6 +97,7 @@ class TestModel():
                                                      self.ps_radius)
 
         x = sc.size_parameter(index_matrix(self.wavelen[0]), self.ps_radius)
+        x = x.to_numpy().squeeze()
         ql = (4*np.abs(x)*np.sin(self.angles/2)).to('').magnitude
         s = structure_factor(ql)
 

@@ -233,7 +233,7 @@ class TestParticle():
                                                        index_matrix)
 
         m = sc.index.ratio(sphere.n(wavelen), index_matrix(wavelen))
-        x = sc.size_parameter(index_matrix(wavelen), radius)
+        x = sc.size_parameter(index_matrix(wavelen), radius).to_numpy()
         ipar_mie, iperp_mie = mie.calc_ang_dist(m, x, angles)
 
         assert_equal(ipar_sphere, ipar_mie)
@@ -302,7 +302,7 @@ class TestParticle():
                                                        index_matrix)
 
         m = sc.index.ratio(sphere.n(wavelen), index_matrix(wavelen))
-        x = sc.size_parameter(index_matrix(wavelen), radii)
+        x = sc.size_parameter(index_matrix(wavelen), radii).to_numpy()
         ipar_mie, iperp_mie = mie.calc_ang_dist(m, x, angles)
 
         assert_equal(ipar_sphere, ipar_mie)

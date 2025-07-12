@@ -36,7 +36,7 @@ def test_cross_sections():
     n_matrix = sc.Index.constant(1.33)(wavelen)
     n_particle = sc.Index.constant(1.59 + 1e-4 * 1.0j)(wavelen)
     m = sc.index.ratio(n_particle, n_matrix)
-    x = sc.size_parameter(n_matrix, radius)
+    x = sc.size_parameter(n_matrix, radius).to_numpy()
     qscat, qext, qback = mie.calc_efficiencies(m, x)
     g = mie.calc_g(m,x)   # asymmetry parameter
 
@@ -69,7 +69,7 @@ def test_form_factor():
     n_matrix = sc.Index.constant(1.00)(wavelen)
     n_particle = sc.Index.constant(1.59 + 1e-4 * 1.0j)(wavelen)
     m = sc.index.ratio(n_particle, n_matrix)
-    x = sc.size_parameter(n_matrix, radius)
+    x = sc.size_parameter(n_matrix, radius).to_numpy()
 
     angles = Quantity(np.linspace(0, 180., 19), 'deg')
     # these values are calculated from MiePlot

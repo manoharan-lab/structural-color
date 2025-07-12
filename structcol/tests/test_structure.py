@@ -226,7 +226,7 @@ class TestStructureFactor():
                                                     volume_fraction)
         n_sample = sc.index.effective_index([index_particle, index_matrix],
                                             volume_fraction_da, wavelen)
-        x = sc.size_parameter(n_sample, radius)
+        x = sc.size_parameter(n_sample, radius).to_numpy().squeeze()
         qa = 4*x*np.sin(angles/2)
         structure_factor = sc.structure.PercusYevick(volume_fraction)
         s = structure_factor(qa)
@@ -241,7 +241,7 @@ class TestStructureFactor():
 
         n_sample_cs = sc.index.effective_index(index_particle + [index_matrix],
                                                volume_fraction_da, wavelen)
-        x_cs = sc.size_parameter(n_sample_cs, radius_cs[1])
+        x_cs = sc.size_parameter(n_sample_cs, radius_cs[1]).to_numpy().squeeze()
         qa_cs = 4*x_cs*np.sin(angles/2)
         structure_factor_cs = sc.structure.PercusYevick(volume_fraction)
         s_cs = structure_factor_cs(qa_cs)

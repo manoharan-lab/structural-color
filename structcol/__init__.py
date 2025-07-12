@@ -199,6 +199,11 @@ def size_parameter(n_medium, radius):
     This function expects n_medium to be a DataArray returned by an Index
     object, which will consist of index of refraction at various wavelengths.
 
+    Notes
+    -----
+    Since the size parameter is nondimensional, this function strips units,
+    returning a pure DataArray (not a Quantity object)
+
     Parameters
     ----------
     n_medium : `xr.DataArray`
@@ -209,7 +214,10 @@ def size_parameter(n_medium, radius):
 
     Returns
     -------
-    ndarray : float or complex with shape [num_wavelengths]
+    `xr.DataArray` (complex or float):
+        DataArray of size parameters with dimensions [wavelength, layers].  Use
+        .to_numpy() method to use with functions from pymie.
+
     """
 
     if not isinstance(n_medium, xr.DataArray):
@@ -219,7 +227,16 @@ def size_parameter(n_medium, radius):
 
     wavelen = Quantity(n_medium.coords[Coord.WAVELEN].to_numpy(),
                        n_medium.attrs[Attr.LENGTH_UNIT])
+    units = n_medium.attrs[Attr.LENGTH_UNIT]
+
     sp = mie.size_parameter(wavelen, n_medium.to_numpy(), radius)
+
+    if np.isscalar(sp):
+        sp = np.atleast_2d(sp)
+    num_layers = len(np.atleast_1d(radius))
+    sp = xr.DataArray(sp, coords = {Coord.WAVELEN: wavelen.magnitude,
+                                    Coord.LAYER: np.arange(num_layers)})
+    sp.attrs[Attr.LENGTH_UNIT] = units
     return sp
 
 
