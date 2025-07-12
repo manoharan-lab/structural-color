@@ -351,14 +351,8 @@ class Polydisperse(StructureFactor):
     ----------
     volume_fraction : array-like
         volume fraction of all the particles or voids in matrix
-    diameters: array of structcol.Quantity [length]
-        mean diameters of each species of particles (can be one for a
-        monospecies or two for bispecies).
-    concentrations:  array-like
-        number fraction of each species. For example, a system composed
-        of 90 A particles and 10 B particles would have c = [0.9, 0.1].
-    pdi: array of float
-        polydispersity index of each species
+    sphere_dist : `sc.SphereDistribution` object
+        distribution of spheres to model
 
     References
     ----------
@@ -368,23 +362,18 @@ class Polydisperse(StructureFactor):
 
     """
 
-    def __init__(self, volume_fraction, diameters, concentrations, pdi):
+    def __init__(self, volume_fraction, sphere_dist):
         # this structure factor doesn't broadcast
         phi = np.atleast_1d(volume_fraction)
         self.volume_fraction = phi
 
-        c = np.atleast_1d(concentrations)
-        self.concentrations = c
+        self.sphere_dist = sphere_dist
+        self.concentrations = sphere_dist.concentrations
 
-        d = np.atleast_1d(diameters)
-        self.diameters = d
+        # need diameters with units
+        self.diameters = sphere_dist.diameters_q
 
-        self.pdi = np.atleast_1d(pdi).astype(float)
-        if isinstance(self.pdi, Quantity):
-            self.pdi = self.pdi.magnitude
-        # if the pdi is zero, assume it's very small (we get the same results)
-        # because otherwise we get a divide by zero error
-        self.pdi[self.pdi < 1e-5] = 1e-5
+        self.pdi = sphere_dist.pdi
 
     def __call__(self, q):
         return self.calculate(q)
@@ -548,7 +537,7 @@ class Polydisperse(StructureFactor):
             SM = np.reshape(SM,q_shape)
 
         # return a DataArray with q as the coordinate
-        SM = xr.DataArray(SM, coords={"ql": qd})
+        SM = xr.DataArray(SM.to('').magnitude, coords={"ql": qd})
 
         return(SM)
 

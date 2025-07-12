@@ -308,9 +308,7 @@ class PolydisperseHardSpheres(FormStructureModel):
                                            maxwell_garnett=False)
 
         structure_factor = sc.structure.Polydisperse(self.volume_fraction,
-                                                     sphere_dist.diameters,
-                                                     sphere_dist.concentrations,
-                                                     sphere_dist.pdi)
+                                                     self.sphere_dist)
         form_factor = self.sphere_dist.form_factor
         super().__init__(form_factor, structure_factor, index_external,
                          index_medium)
@@ -990,6 +988,33 @@ def differential_cross_section(m, x, angles, volume_fraction,
     if isinstance(volume_fraction, Quantity):
         volume_fraction = volume_fraction.magnitude
 
+
+    if (form_type == "polydisperse") or (structure_type == "polydisperse"):
+        # construct a SphereDistribution object and use its form_factor and/or
+        # structure_factor methods. (this is some temporary scaffolding to
+        # ensure that the SphereDistribution.formfactor() method is tested by
+        # existing tests that call model.reflection(); will be removed after
+        # further refactoring).
+        if isinstance(concentration, sc.Quantity):
+            concentration = concentration.magnitude
+        n_particle = (m * n_matrix.to_numpy())
+        if len(diameters) > 2:
+            raise ValueError("cannot handle polydispersity for "
+                             "layered spheres")
+        if np.ndim(n_particle) >= 1:
+            index_particle = sc.Index.constant(n_particle[0])
+        else:
+            index_particle = sc.Index.constant(n_particle)
+        index_external = sc.Index.constant(n_matrix.to_numpy())
+        if len(diameters) >= 2:
+            sphere1 = sc.Sphere(index_particle, diameters[0]/2)
+            sphere2 = sc.Sphere(index_particle, diameters[1]/2)
+            dist = sc.SphereDistribution([sphere1, sphere2], concentration,
+                                         pdi)
+        else:
+            sphere1 = sc.Sphere(index_particle, diameters[0]/2)
+            dist = sc.SphereDistribution(sphere1, concentration, pdi)
+
     # calculate form factor
     if form_type == 'sphere':
         if k is not None and (np.abs(k.imag.magnitude) > 0.
@@ -1015,31 +1040,6 @@ def differential_cross_section(m, x, angles, volume_fraction,
             raise ValueError('must specify diameters, concentration, pdi, '
                              'wavelength, and n_matrix for polydisperse '
                              'systems')
-
-        # construct a SphereDistribution object and use its form_factor method
-        # (this is some temporary scaffolding to ensure that the
-        # SphereDistribution.formfactor() method is tested by existing tests
-        # that call model.reflection(); will be removed after further
-        # refactoring).
-        if isinstance(concentration, sc.Quantity):
-            concentration = concentration.magnitude
-        n_particle = (m * n_matrix.to_numpy())
-        if len(diameters) > 2:
-            raise ValueError("cannot handle polydispersity for "
-                             "layered spheres")
-        if np.ndim(n_particle) >= 1:
-            index_particle = sc.Index.constant(n_particle[0])
-        else:
-            index_particle = sc.Index.constant(n_particle)
-        index_external = sc.Index.constant(n_matrix.to_numpy())
-        if len(diameters) >= 2:
-            sphere1 = sc.Sphere(index_particle, diameters[0]/2)
-            sphere2 = sc.Sphere(index_particle, diameters[1]/2)
-            dist = sc.SphereDistribution([sphere1, sphere2], concentration,
-                                         pdi)
-        else:
-            sphere1 = sc.Sphere(index_particle, diameters[0]/2)
-            dist = sc.SphereDistribution(sphere1, concentration, pdi)
 
         if coordinate_system == 'cartesian':
             cartesian = True
@@ -1092,9 +1092,7 @@ def differential_cross_section(m, x, angles, volume_fraction,
                 raise ValueError('cannot handle polydispersity in '
                                  'core-shell particles')
 
-            structure_factor = sc.structure.Polydisperse(volume_fraction,
-                                                         diameters,
-                                                         concentration, pdi)
+            structure_factor = sc.structure.Polydisperse(volume_fraction, dist)
             s = structure_factor(qd).to_numpy()
         else:
             raise ValueError('structure factor type not recognized!')

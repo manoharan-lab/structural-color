@@ -159,8 +159,11 @@ class TestStructureFactor():
         c = 1.0
         pdi = 1e-5
 
-        polydisperse_structure_factor = sc.structure.Polydisperse(phi, d, c,
-                                                                  pdi)
+        # index doesn't matter here
+        sphere = sc.Sphere(sc.index.vacuum, d/2)
+        dist = sc.SphereDistribution(sphere, c, pdi)
+
+        polydisperse_structure_factor = sc.structure.Polydisperse(phi, dist)
         s_poly = polydisperse_structure_factor(ql)
 
         assert_almost_equal(s_py, s_poly.to_numpy())
@@ -194,8 +197,11 @@ class TestStructureFactor():
         # D_sigma=1e-4 corresponds to pdi=1e-2
         pdi = 1e-2
 
-        polydisperse_structure_factor = sc.structure.Polydisperse(phi, d, c,
-                                                                  pdi)
+        # index doesn't matter here
+        sphere = sc.Sphere(sc.index.vacuum, d/2)
+        dist = sc.SphereDistribution(sphere, c, pdi)
+
+        polydisperse_structure_factor = sc.structure.Polydisperse(phi, dist)
         s_poly = polydisperse_structure_factor(ql)
         # since plot is digitized, we expect agreement only to 1 decimal place
         assert_almost_equal(s_poly.to_numpy(), s_expected, decimal=1)

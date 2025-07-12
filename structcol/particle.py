@@ -397,6 +397,12 @@ class SphereDistribution:
         """
         return any(sphere.layered for sphere in self.spheres)
 
+    @property
+    def diameters_q(self):
+        """Returns mean diameters with units
+
+        """
+        return self.diameters * self.spheres[0].current_units
     def form_factor(self, wavelen, angles, index_external, kd=None,
                     cartesian=False, incident_vector=None, phis=None):
         """

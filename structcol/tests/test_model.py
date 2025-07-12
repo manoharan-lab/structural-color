@@ -191,10 +191,7 @@ class TestModel():
         # and the same as would be calculated from creating a structure factor
         # directly
         diameters = self.ps_sphere.diameter_q
-        structure_factor = sc.structure.Polydisperse(volume_fraction,
-                                                     diameters,
-                                                     concentration,
-                                                     pdi)
+        structure_factor = sc.structure.Polydisperse(volume_fraction, dist)
         s_poly = structure_factor(ql)
         xr.testing.assert_equal(s, s_poly)
 
