@@ -191,6 +191,7 @@ def select_events(inarray, events):
     return outarray
 
 
+@ureg.check(None, "[length]")
 def size_parameter(n_medium, radius):
     """
     Calculates the size parameter x=k_medium*a needed for Mie calculations.
@@ -203,7 +204,7 @@ def size_parameter(n_medium, radius):
     n_medium : `xr.DataArray`
         refractive index of medium at various wavelengths, as calculated by an
         `sc.Index` object.
-    radius : structcol.Quantity [length]
+    radius: array-like of structcol.Quantity [length]
         radius of particle
 
     Returns
