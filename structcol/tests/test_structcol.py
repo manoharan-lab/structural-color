@@ -22,7 +22,8 @@ Tests various features of the structcol package not found in submodules
 
 from .. import Quantity, q, np
 from numpy.testing import assert_equal
-from pytest import raises
+import pytest
+import structcol as sc
 from pint.errors import DimensionalityError
 
 def test_q():
@@ -49,5 +50,31 @@ def test_q():
     assert_equal(q_values.shape, (wavelen.shape[0], angle.shape[0]))
 
     # test dimension checking
-    raises(DimensionalityError, q, Quantity('0.5 J'), Quantity('0.5 rad'))
-    raises(DimensionalityError, q, Quantity('450 nm'), Quantity('0.5 m'))
+    with pytest.raises(DimensionalityError):
+        q(Quantity('0.5 J'), Quantity('0.5 rad'))
+    with pytest.raises(DimensionalityError):
+        q(Quantity('450 nm'), Quantity('0.5 m'))
+
+@pytest.mark.parametrize("angles", [10, np.linspace(0, 180, 90)])
+@pytest.mark.parametrize("wavelen", [400, np.linspace(400, 800, 100)])
+def test_ql(wavelen, angles):
+    """Test that the function for computing the nondimensional
+    momentum-transfer vector returns expected values and is properly vectorized
+
+    """
+    angles = sc.Quantity(angles, 'deg')
+    index = sc.index.polystyrene
+    wavelen = sc.Quantity(wavelen, 'nm')
+    lengthscale = sc.Quantity(0.2, 'um')
+
+    n_medium = index(wavelen)
+
+    ql = sc.ql(n_medium, lengthscale, angles)
+
+    # expected ql as calculated using numpy
+    x = sc.size_parameter(n_medium, lengthscale).to_numpy()
+    ql_expected = (4*np.abs(x).max(axis=1)[..., np.newaxis]
+                   * np.sin(angles.to('rad').magnitude/2))
+
+    assert_equal(ql.to_numpy(), ql_expected)
+    assert ql.dims == (sc.Coord.WAVELEN, sc.Coord.THETA)

@@ -273,6 +273,45 @@ def wavevector(n_medium):
     else:
         return k
 
+
+@ureg.check(None, "[length]", "[]")
+def ql(n_medium, lengthscale, angles):
+    """Calculates the nondimensional scattering wavevector in medium for
+    structure factor calculations.
+
+    This function expects n_medium to be a DataArray returned by an Index
+    object, which will consist of index of refraction at various wavelengths.
+
+    Parameters
+    ----------
+    n_medium : `xr.DataArray`
+        refractive index of medium at various wavelengths, as calculated by an
+        `sc.Index` object.  Wavelengths are given in the coordinates.
+    lengthscale : sc.Quantity [length]
+        lengthscale to use to nondimensionalize the wavevector
+    angles : ndarray(structcol.Quantity [dimensionless])
+        array of scattering angles. Must be entered as a Quantity to allow
+        specifying units (degrees or radians) explicitly
+
+    Returns
+    -------
+    ndarray :
+        `xr.DataArray` with dimensions wavelength, angle
+
+    """
+    # return 1-dimensional DataArray with coord [wavelength]
+    x = size_parameter(n_medium, lengthscale).sel({Coord.LAYER : 0}, drop=True)
+
+    # set up coordinates for ql DataArray
+    angles = np.atleast_1d(angles).to('rad').magnitude
+    angles = xr.DataArray(angles, coords={Coord.THETA : angles})
+
+    # this should automatically broadcast since angles is a DataArray
+    # TODO: should it be x.real or x.abs?
+    ql = 4*np.abs(x)*np.sin(angles/2)
+    return ql
+
+
 # Create a module-wide random number generator object that will be used by
 # default in any functions that do random sampling. Users can override the
 # default by passing their own rng to such functions. A user-specified rng is
