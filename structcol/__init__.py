@@ -73,6 +73,8 @@ class Coord():
     # index for both
     LAYER = "material"
     MAT = "material"
+    THETA = "theta"
+    PHI = "phi"
 
 class Attr():
     """Simple class to standardize metadata (attributes) used in xarray
