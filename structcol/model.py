@@ -532,7 +532,6 @@ def reflection(index_particle, index_matrix, index_medium, wavelen, radius,
     else:
         radius2 = radius
         rho = particle.number_density(volume_fraction)
-        print(rho)
 
     # define the mean diameters in case the system is polydisperse
     mean_diameters = Quantity(np.hstack([2*radius.magnitude,
@@ -1079,7 +1078,7 @@ def differential_cross_section(m, x, angles, volume_fraction,
         elif structure_type == 'data':
             structure_factor = sc.structure.Interpolated(structure_s_data,
                                                          structure_qd_data)
-            s = structure_factor(qd)
+            s = structure_factor(qd).to_numpy()
 
         elif structure_type == 'polydisperse':
             if diameters is None or concentration is None or pdi is None:

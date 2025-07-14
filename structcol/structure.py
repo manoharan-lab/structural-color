@@ -546,26 +546,37 @@ class Interpolated(StructureFactor):
         data used to generate interpolation function
     """
 
-    def __init__(self, s_data, ql_data):
-        """Construct interpolation for a structure factor from data
+    def __init__(self, s_data, ql_data, method="linear",
+                 interp_kwargs=None):
+        """Construct interpolation for a structure factor from data.
 
         Parameters
         ----------
-        s_data: 1D numpy array
+        s_data : 1D numpy array
             structure factor values from data
-        ql_data: 1D numpy array
+        ql_data : 1D numpy array
             ql values from data
+        method : string (optional, default "linear")
+            method to use for interpolation. See `xr.DataArray.interp()` for
+            list of allowable methods. By default, linear interpolation is used
+            (since this was the default choice in previous versions), but
+            "cubic" tends to work better with structure factors, because they
+            tend to oscillate.
+        interp_kwargs : dict (optiona, default=None)
+            kwargs to pass to `xr.DataArray.interp()`.
         """
         self.data = xr.DataArray(s_data, coords={"ql": ql_data})
-        func = interp1d(ql_data, s_data, kind = 'linear', bounds_error=False,
-                        fill_value=s_data[0])
-        self.interpolation_func = func
+        self.ql_data = ql_data
+        self.method = method
+        self.interp_kwargs = interp_kwargs
 
     def calculate(self, ql):
-        """Calculates paracrystalline structure factor.
+        """Calculates interpolated structure factor.
 
         """
-        return self.interpolation_func(ql).squeeze()
+        return self.data.interp(ql=ql, method=self.method,
+                                kwargs=self.interp_kwargs).squeeze(drop=True)
+
 
 def field_phase_data(qd, filename='spf.dat'):
     s_file = os.path.join(os.getcwd(),filename)

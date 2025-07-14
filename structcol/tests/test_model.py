@@ -194,6 +194,62 @@ class TestModel():
         s_poly = structure_factor(ql)
         xr.testing.assert_equal(s, s_poly)
 
+    @pytest.mark.parametrize("volume_fraction", [0.01, 0.3, 0.6])
+    def test_formstructure_with_data(self, volume_fraction):
+        """tests that FormStructure model with interpolated structure factor
+        (generated from Percus Yevick) gives same results as HardSpheres model
+        with PY structure factor
+
+        """
+        radius = Quantity('0.5 um')
+        index_particle = sc.index.fused_silica
+        index_matrix = sc.index.vacuum
+        index_medium = sc.index.vacuum
+        thickness = Quantity('50 um')
+
+        # generate structure factor "data" from Percus-Yevick model
+        ql_data = np.arange(0, 75, 0.1)
+        structure_factor = sc.structure.PercusYevick(volume_fraction)
+        s_data = structure_factor(ql_data)
+
+        # make interpolation function.  Cubic interpolation (rather than the
+        # default linear) reduces the number of data points required
+        structure_factor_interp = sc.structure.Interpolated(s_data,
+                                                            ql_data,
+                                                            method="cubic")
+
+        sphere = sc.Sphere(index_particle, radius)
+        # need to explicitly specify effective index in FormStructureModel
+        # because it doesn't know anything about particles or volume fractions.
+        vf_array = sphere.volume_fraction(volume_fraction)
+        index_list = sphere.index_list(index_matrix)
+        index_external = sc.index.EffectiveIndex(index_list, vf_array)
+
+        fs_model = sc.model.FormStructureModel(sphere.form_factor,
+                                               structure_factor_interp,
+                                               index_external,
+                                               index_medium)
+
+        # for PY model we specify the matrix index and it will automatically
+        # calculate the effective index
+        py_model = sc.model.HardSpheres(sphere, volume_fraction, index_matrix,
+                                        index_medium)
+
+        # TODO test vectorization; for now this is single-wavelength
+        fs_par, fs_perp = fs_model.differential_cross_section(self.wavelen[0],
+                                                              self.angles,
+                                                              radius)
+        py_par, py_perp = py_model.differential_cross_section(self.wavelen[0],
+                                                              self.angles)
+
+        # with cubic interpolation, relative error is a little larger than
+        # 1e-4 at 60% volume fraction and 750 data points.
+        assert_allclose(fs_par, py_par, rtol=1e-3)
+        assert_allclose(fs_perp, py_perp, rtol=1e-3)
+        # TODO: test reflectance as well
+
+
+
 class TestDetector():
     """Tests for the Detector class and derived classes.
     """

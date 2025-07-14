@@ -253,7 +253,7 @@ class TestStructureFactor():
         ql_data = np.array([0.5, 2.5])
         s_data = np.array([1, 1])
         structure_factor = sc.structure.Interpolated(s_data, ql_data)
-        s = structure_factor(ql)
+        s = structure_factor(ql).to_numpy()
         assert_equal(s[0], 1)
 
 @pytest.mark.slow
