@@ -690,7 +690,7 @@ def test_transport_length_dilute():
     x = mie.size_parameter(wavelength, n_sample.to_numpy().squeeze(), radius)
     g = mie.calc_g(m,x)
 
-    number_density = model._number_density(volume_fraction, radius)
+    number_density = sphere.number_density(volume_fraction)
     cscat = mie.calc_cross_sections(m, x, wavelength)[0]
 
     lstar_mie = 1 / (number_density * cscat * (1-g))

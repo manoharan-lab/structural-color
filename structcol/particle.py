@@ -245,6 +245,16 @@ class Sphere(Particle):
         else:
             return super().n(wavelen)
 
+    def number_density(self, volume_fraction):
+        """Calculate number density of spheres
+
+        """
+        if self.layers > 1:
+            radius = self.radius_q.max()
+        else:
+            radius = self.radius_q
+        return 3.0 * volume_fraction / (4.0 * np.pi * radius**3)
+
     def form_factor(self, wavelen, angles, index_external, kd=None,
                     cartesian=False, incident_vector=None, phis=None):
         """Calculate form factor from Mie theory.
@@ -403,6 +413,23 @@ class SphereDistribution:
 
         """
         return self.diameters * self.spheres[0].current_units
+
+    def number_density(self, volume_fraction):
+        """General number density formula for binary systems; converges to
+        monospecies formula when the concentration of either particle is zero.
+
+        """
+        radius = self.diameters_q/2.0
+        if np.any(self.concentrations == 0):
+            rho = self.spheres[0].number_density(volume_fraction)
+        else:
+            term1 = 1 / (radius[0] ** 3 + radius[1] ** 3
+                         * self.concentrations[1]/self.concentrations[0])
+            term2 = 1 / (radius[1] ** 3 + radius[0] ** 3
+                         * self.concentrations[0]/self.concentrations[1])
+            rho = 3.0 * volume_fraction / (4.0 * np.pi) * (term1 + term2)
+        return rho
+
     def form_factor(self, wavelen, angles, index_external, kd=None,
                     cartesian=False, incident_vector=None, phis=None):
         """

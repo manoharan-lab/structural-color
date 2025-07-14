@@ -509,31 +509,39 @@ def reflection(index_particle, index_matrix, index_medium, wavelen, radius,
     # radius and radius2 should be in the same units (for polydisperse samples)
     if radius2 is not None:
         radius2 = radius2.to(radius.units)
-    if radius2 is None:
-        radius2 = radius
 
-    # check that the number of indices and radii is the same
-    if len(np.atleast_1d(n_particle)) != len(np.atleast_1d(radius)):
-        raise ValueError('Arrays of indices and radii must be the same length')
+    # construct Sphere or SphereDistribution objects
+    # TODO: remove after further refactoring.
+    if isinstance(concentration, sc.Quantity):
+        concentration = concentration.magnitude
+    if pdi is not None:
+        if (np.ndim(radius) != 0) or (np.ndim(radius2) != 0):
+            raise ValueError("cannot handle polydispersity for "
+                             "layered spheres")
+        if radius2 is not None:
+            sphere1 = sc.Sphere(index_particle, radius)
+            sphere2 = sc.Sphere(index_particle, radius2)
+            dist = sc.SphereDistribution([sphere1, sphere2], concentration,
+                                         pdi)
+        else:
+            radius2 = radius
+            sphere1 = sc.Sphere(index_particle, radius)
+            dist = sc.SphereDistribution(sphere1, concentration, pdi)
+        # calculate number density
+        rho = dist.number_density(volume_fraction)
+    else:
+        radius2 = radius
+        rho = particle.number_density(volume_fraction)
+        print(rho)
 
     # define the mean diameters in case the system is polydisperse
     mean_diameters = Quantity(np.hstack([2*radius.magnitude,
                                         2*radius2.magnitude]),
                                     radius.units)
 
-    # General number density formula for binary systems, converges to
-    # monospecies formula when the concentration of either particle is zero.
-    # When the system is monospecies, define a concentration array to be able
-    # to use the general formula.
-    if (concentration is None) or (np.any(np.atleast_1d(concentration) == 0)):
-        # concentration = Quantity(np.array([1.0, 0.0]), '')
-        rho = _number_density(volume_fraction, np.atleast_1d(radius).max())
-    else:
-        term1 = 1 / (radius.max() ** 3 + radius2.max() ** 3
-                     * concentration[1]/concentration[0])
-        term2 = 1 / (radius2.max() ** 3 + radius.max() ** 3
-                     * concentration[0]/concentration[1])
-        rho = 3.0 * volume_fraction / (4.0 * np.pi) * (term1 + term2)
+    # check that the number of indices and radii is the same
+    if len(np.atleast_1d(n_particle)) != len(np.atleast_1d(radius)):
+        raise ValueError('Arrays of indices and radii must be the same length')
 
     # calculate array of volume fractions of each layer in the particle. If
     # particle is not core-shell, volume fraction remains the same
@@ -546,6 +554,7 @@ def reflection(index_particle, index_matrix, index_medium, wavelen, radius,
                                         maxwell_garnett=maxwell_garnett)
 
     if len(np.atleast_1d(radius)) > 1:
+        # particle is multilayer
         m = sc.index.ratio(n_particle, n_sample).flatten()
         x = sc.size_parameter(n_sample, radius).to_numpy().flatten()
     else:
@@ -645,9 +654,6 @@ def reflection(index_particle, index_matrix, index_medium, wavelen, radius,
                                                          kd=kd)
     elif (form_type == "polydisperse") and (structure_type == "polydisperse"):
         kd = (k*distance).to('')
-        if len(mean_diameters) > 2:
-            raise ValueError("cannot handle polydispersity for "
-                             "layered spheres")
         if len(mean_diameters) == 2:
             sphere1 = sc.Sphere(index_particle, mean_diameters[0]/2)
             sphere2 = sc.Sphere(index_particle, mean_diameters[1]/2)
@@ -1407,6 +1413,3 @@ def fresnel_transmission(index1, index2, incident_angle):
     """
     r_par, r_perp = fresnel_reflection(index1, index2, incident_angle)
     return 1.0-r_par, 1.0-r_perp
-
-def _number_density(volume_fraction, radius):
-    return 3.0 * volume_fraction / (4.0 * np.pi * radius**3)
