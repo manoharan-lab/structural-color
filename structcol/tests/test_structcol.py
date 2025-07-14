@@ -59,7 +59,8 @@ def test_q():
 @pytest.mark.parametrize("wavelen", [400, np.linspace(400, 800, 100)])
 def test_ql(wavelen, angles):
     """Test that the function for computing the nondimensional
-    momentum-transfer vector returns expected values and is properly vectorized
+    momentum-transfer vector returns expected values and is properly
+    vectorized.
 
     """
     angles = sc.Quantity(angles, 'deg')
@@ -73,6 +74,16 @@ def test_ql(wavelen, angles):
 
     # expected ql as calculated using numpy
     x = sc.size_parameter(n_medium, lengthscale).to_numpy()
+    ql_expected = (4*np.abs(x).max(axis=1)[..., np.newaxis]
+                   * np.sin(angles.to('rad').magnitude/2))
+
+    assert_equal(ql.to_numpy(), ql_expected)
+    assert ql.dims == (sc.Coord.WAVELEN, sc.Coord.THETA)
+
+    # make sure ql represents the outer radius for layered particles
+    radii = sc.Quantity(np.array([0.1, 0.2, 0.3]), 'um')
+    ql = sc.ql(n_medium, radii, angles)
+    x = sc.size_parameter(n_medium, radii).to_numpy()
     ql_expected = (4*np.abs(x).max(axis=1)[..., np.newaxis]
                    * np.sin(angles.to('rad').magnitude/2))
 

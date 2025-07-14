@@ -288,7 +288,9 @@ def ql(n_medium, lengthscale, angles):
         refractive index of medium at various wavelengths, as calculated by an
         `sc.Index` object.  Wavelengths are given in the coordinates.
     lengthscale : sc.Quantity [length]
-        lengthscale to use to nondimensionalize the wavevector
+        lengthscale to use to calculate the size parameter.  For a sphere,
+        this is the radius (will lead to diameter being used to
+        nondimensionalize q)
     angles : ndarray(structcol.Quantity [dimensionless])
         array of scattering angles. Must be entered as a Quantity to allow
         specifying units (degrees or radians) explicitly
@@ -299,12 +301,14 @@ def ql(n_medium, lengthscale, angles):
         `xr.DataArray` with dimensions wavelength, angle
 
     """
-    # return 1-dimensional DataArray with coord [wavelength]
-    x = size_parameter(n_medium, lengthscale).sel({Coord.LAYER : 0}, drop=True)
+    # return 1-dimensional DataArray with coord [wavelength].  Use outer radius
+    # for multilayer particles.
+    x = size_parameter(n_medium, lengthscale).isel({Coord.LAYER: -1},
+                                                   drop=True)
 
     # set up coordinates for ql DataArray
-    angles = np.atleast_1d(angles).to('rad').magnitude
-    angles = xr.DataArray(angles, coords={Coord.THETA : angles})
+    angles = np.atleast_1d(angles.to('rad').magnitude)
+    angles = xr.DataArray(angles, coords={Coord.THETA: angles})
 
     # this should automatically broadcast since angles is a DataArray
     # TODO: should it be x.real or x.abs?
