@@ -191,12 +191,12 @@ class PercusYevick(StructureFactor):
         # the above expression is not numerically stable near low ql.  We
         # replace the values with a small-ql approximation
         rho_c_low = self.approximate_dcf(ql, phi, alpha, beta, gamma)
-        rho_c = xr.where(rho_c.ql < self.ql_cutoff, rho_c_low, rho_c)
+        rho_c = xr.where(ql < self.ql_cutoff, rho_c_low, rho_c)
 
         # Structure factor at ql (eq. 1 of [1]_)
         s = 1.0/(1-rho_c)
 
-        # squeeze but keeps coordinates as scalar values so that the returned
+        # squeeze but keep coordinates as scalar values so that the returned
         # DataArray still has the value of the volume fraction recorded
         return s.squeeze()
 
@@ -416,6 +416,8 @@ class Polydisperse(StructureFactor):
 
         # by convention we normalize q to the first diameter. However, this
         # function requires a dimensional q, so we un-normalize here
+        if isinstance(qd, xr.DataArray):
+            qd = qd.squeeze(drop=True).to_numpy()
         q = qd/diameters[0]
 
         Dsigma = self.pdi**2
@@ -464,12 +466,6 @@ class Polydisperse(StructureFactor):
         c = np.reshape(c, (len(np.atleast_1d(c)), 1))
         diameters = np.reshape(diameters, (len(np.atleast_1d(diameters)), 1))
 
-        if hasattr(q, 'shape'):
-            q_shape = q.shape
-        else:
-            q_shape = np.array([])
-        if len(q_shape) == 2:
-            q = Quantity(np.ndarray.flatten(q.magnitude), q.units)  # added
         s = 1j*q
         x = s*diameters
         F0 = rho
@@ -533,8 +529,6 @@ class Polydisperse(StructureFactor):
 
         SM = 1 - 2*h2
         SM[SM<0] = 0
-        if len(q_shape)==2:
-            SM = np.reshape(SM,q_shape)
 
         # return a DataArray with q as the coordinate
         SM = xr.DataArray(SM.to('').magnitude, coords={"ql": qd})

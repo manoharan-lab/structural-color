@@ -172,26 +172,13 @@ class FormStructureModel(Model):
             f_par = 1
             f_perp = 1
 
-        n_ext = self.index_external(wavelen)
-        x = sc.size_parameter(n_ext, lengthscale)
-
         # calculate structure factor
-        # TODO: should it be x.real or x.abs?
-        ql = 4*np.array(np.abs(x)).max()*np.sin(angles/2)
-        if isinstance(ql, sc.Quantity):
-            ql = ql.to('').magnitude
+        n_ext = self.index_external(wavelen)
+        ql = sc.ql(n_ext, lengthscale, angles)
+        s = self.structure_factor(ql).to_numpy()
 
-        if len(ql.shape) == 2:
-            s = self.structure_factor(ql[:,0]).to_numpy()
-        else:
-            s = self.structure_factor(ql).to_numpy()
-
-        if len(ql.shape) == 2:
-            scat_par = s[:, np.newaxis] * f_par
-            scat_perp = s[:, np.newaxis] * f_perp
-        else:
-            scat_par = s * f_par
-            scat_perp = s * f_perp
+        scat_par = s * f_par
+        scat_perp = s * f_perp
 
         return scat_par, scat_perp
 

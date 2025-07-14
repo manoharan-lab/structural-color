@@ -168,9 +168,7 @@ class TestModel():
         # and structure factor should be close to 1
         n_ext = index_matrix(wavelen)
         lengthscale = dist.spheres[0].radius_q
-        x = sc.size_parameter(n_ext, lengthscale)
-        ql = 4*np.array(np.abs(x)).max()*np.sin(angles/2)
-        ql = ql.to('').magnitude
+        ql = sc.ql(n_ext, lengthscale, angles)
         s = model.structure_factor(ql)
         assert_allclose(s.to_numpy(), np.ones_like(s.to_numpy()))
 
