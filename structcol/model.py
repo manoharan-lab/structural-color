@@ -222,15 +222,11 @@ class HardSpheres(FormStructureModel):
         # for a sphere we use the radius to calculate size parameter x
         lengthscale = self.sphere.radius_q
 
-        # calculate array of volume fractions of each layer in the particle. If
-        # particle is not core-shell, volume fraction remains the same
-        vf_array = self.sphere.volume_fraction(self.volume_fraction)
-        index_list = self.sphere.index_list(self.index_matrix)
-
-        # Calculate effective index of particle-matrix composite
-        index_external = sc.EffectiveIndex(index_list, vf_array,
-                                           maxwell_garnett =
-                                           self.maxwell_garnett)
+        index_external = sc.EffectiveIndex.from_particle(self.sphere,
+                                                         volume_fraction,
+                                                         index_matrix,
+                                                         maxwell_garnett =
+                                                         self.maxwell_garnett)
 
         if ql_cutoff is None:
             structure_factor = sc.structure.PercusYevick(volume_fraction)
@@ -277,15 +273,11 @@ class PolydisperseHardSpheres(FormStructureModel):
         # convention.
         lengthscale = self.sphere_dist.spheres[0].radius_q
 
-        # calculate array of volume fractions, assuming that the sphere indices
-        # are the same
+        # calculate effective index, assuming that sphere indices are the same
         sphere = self.sphere_dist.spheres[-1]
-        vf_array = sphere.volume_fraction(self.volume_fraction)
-        index_list = sphere.index_list(self.index_matrix)
-
-        # Calculate effective index of particle-matrix composite
-        index_external = sc.EffectiveIndex(index_list, vf_array,
-                                           maxwell_garnett=False)
+        index_external = sc.EffectiveIndex.from_particle(sphere,
+                                                         volume_fraction,
+                                                         index_matrix)
 
         structure_factor = sc.structure.Polydisperse(self.volume_fraction,
                                                      self.sphere_dist)
@@ -511,15 +503,12 @@ def reflection(index_particle, index_matrix, index_medium, wavelen, radius,
     if len(np.atleast_1d(n_particle)) != len(np.atleast_1d(radius)):
         raise ValueError('Arrays of indices and radii must be the same length')
 
-    # calculate array of volume fractions of each layer in the particle. If
-    # particle is not core-shell, volume fraction remains the same
-    vf_array = particle.volume_fraction(volume_fraction)
-    index_list = particle.index_list(index_matrix)
-
     # use Bruggeman formula to calculate effective index of
     # particle-matrix composite
-    index_external = sc.EffectiveIndex(index_list, vf_array,
-                                       maxwell_garnett=maxwell_garnett)
+    index_external = sc.EffectiveIndex.from_particle(particle, volume_fraction,
+                                                     index_matrix,
+                                                     maxwell_garnett =
+                                                     maxwell_garnett)
     n_sample = index_external(wavelen)
 
     if len(np.atleast_1d(radius)) > 1:

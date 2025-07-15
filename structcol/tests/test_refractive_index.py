@@ -319,6 +319,29 @@ class TestEffectiveIndex():
 
         xr.testing.assert_allclose(neff_bg3_complex, neff_bg3_cs_complex)
 
+    @pytest.mark.parametrize("index_particle", [sc.index.polystyrene,
+                                                sc.Index.constant(2.2+0.001j)])
+    def test_effective_index_from_sphere(self, index_particle):
+        # test construction of an EffectiveIndex object from a Sphere object
+        wavelen = sc.Quantity(np.linspace(400, 800, 20), 'nm')
+
+        radius = sc.Quantity(0.35, 'um')
+        sphere = sc.Sphere(index_particle, radius)
+        volume_fraction = 0.2
+        index_matrix = sc.index.water
+        index_eff = sc.EffectiveIndex.from_particle(sphere, volume_fraction,
+                                                    index_matrix)
+        n_eff = index_eff(wavelen)
+
+        # here's what we should get
+        index_list = [index_particle, index_matrix]
+        vf_array = xr.DataArray([volume_fraction, 1-volume_fraction],
+                                coords={sc.Coord.MAT: np.arange(2)})
+        index_eff_calculated = sc.EffectiveIndex(index_list, vf_array)
+        n_eff_calculated = index_eff_calculated(wavelen)
+
+        xr.testing.assert_equal(n_eff, n_eff_calculated)
+
     def test_multimaterial_bruggeman(self):
         """Tests the Bruggeman approximation for three or more materials
         """

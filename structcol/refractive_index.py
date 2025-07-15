@@ -250,6 +250,30 @@ class EffectiveIndex(Index):
                                  volume_fractions,
                                  maxwell_garnett=maxwell_garnett))
 
+    @classmethod
+    def from_particle(cls, particle, volume_fraction, index_matrix,
+                      maxwell_garnett=False):
+        """Convenience method to make an EffectiveIndex object starting from a
+        Particle object and a total volume fraction.
+
+        Parameters
+        ----------
+        particle : `sc.Particle` object
+            The particle to be used to create the effective index
+        volume_fraction : float
+            Total volume fraction of particles in system
+        index_matrix : `sc.Index` object
+            Index of refraction of the matrix around the particles
+
+        """
+        # calculate array of volume fractions of each layer in the particle. If
+        # particle is not core-shell, volume fraction remains the same
+        vf_array = particle.volume_fraction(volume_fraction)
+        index_list = particle.index_list(index_matrix)
+
+        # Calculate effective index of particle-matrix composite
+        return cls(index_list, vf_array, maxwell_garnett=maxwell_garnett)
+
 
 @sc.ureg.check(None, '[length]')
 def _constant_index(index, wavelen):
