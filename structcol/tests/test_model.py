@@ -59,11 +59,11 @@ class TestModel():
         # have a constant differential scattering cross section
         const = 1.0
         model = sc.model.FormStructureModel(None, sc.structure.Constant(const),
+                                            self.ps_radius,
                                             sc.index.vacuum,
                                             sc.index.vacuum)
         par, perp = model.differential_cross_section(self.wavelen[0],
-                                                     self.angles,
-                                                     self.ps_radius)
+                                                     self.angles)
         assert_equal(par, np.ones_like(par)*const)
         assert_equal(perp, np.ones_like(perp)*const)
 
@@ -72,11 +72,11 @@ class TestModel():
         # one is explicitly given
         model = sc.model.FormStructureModel(self.ps_sphere.form_factor,
                                             sc.structure.Constant(const),
+                                            self.ps_radius,
                                             sc.index.vacuum,
                                             sc.index.vacuum)
         par, perp = model.differential_cross_section(self.wavelen[0],
-                                                     self.angles,
-                                                     self.ps_radius)
+                                                     self.angles)
         fpar, fperp = self.ps_sphere.form_factor(self.wavelen[0],
                                                  self.angles,
                                                  sc.index.vacuum)
@@ -90,11 +90,11 @@ class TestModel():
         index_matrix = sc.index.water
         model = sc.model.FormStructureModel(None,
                                             structure_factor,
+                                            self.ps_radius,
                                             index_matrix,
                                             sc.index.vacuum)
         par, perp = model.differential_cross_section(self.wavelen[0],
-                                                     self.angles,
-                                                     self.ps_radius)
+                                                     self.angles)
 
         x = sc.size_parameter(index_matrix(self.wavelen[0]), self.ps_radius)
         x = x.to_numpy().squeeze()
@@ -227,6 +227,7 @@ class TestModel():
 
         fs_model = sc.model.FormStructureModel(sphere.form_factor,
                                                structure_factor_interp,
+                                               radius,
                                                index_external,
                                                index_medium)
 
@@ -237,8 +238,7 @@ class TestModel():
 
         # TODO test vectorization; for now this is single-wavelength
         fs_par, fs_perp = fs_model.differential_cross_section(self.wavelen[0],
-                                                              self.angles,
-                                                              radius)
+                                                              self.angles)
         py_par, py_perp = py_model.differential_cross_section(self.wavelen[0],
                                                               self.angles)
 

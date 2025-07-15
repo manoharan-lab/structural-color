@@ -83,24 +83,27 @@ class FormStructureModel(Model):
         Structure factor used in the calculation.  If None, structure factor
         will be set to unity when calculating the differential scattering cross
         section.
+    lengthscale : float (structcol.Quantity [length])
+        Length scale to use to calculate the size parameter. Since the
+        FormStructureModel is particle-agnostic, we don't assume this is equal
+        to the radius (though it should be set to such for a sphere)
     index_external : `sc.Index` object
         Refractive index of the material outside the particles, which is
         needed to calculate the form factor.  Can be an effective index
         (`sc.EffectiveIndex` object).
 
-
     """
-    def __init__(self, form_factor, structure_factor, index_external,
-                 index_medium):
+    def __init__(self, form_factor, structure_factor, lengthscale,
+                 index_external, index_medium):
         self.form_factor = form_factor
         if structure_factor is None:
             structure_factor = sc.structure.Constant(1.0)
         self.structure_factor = structure_factor
+        self.lengthscale = lengthscale
         self.index_external = index_external
         super().__init__(index_medium)
 
     def differential_cross_section(self, wavelen, angles,
-                                   lengthscale,
                                    kd=None,
                                    cartesian=False,
                                    incident_vector=None,
@@ -116,10 +119,6 @@ class FormStructureModel(Model):
         angles : ndarray(structcol.Quantity [dimensionless])
             array of scattering angles. Must be entered as a Quantity to allow
             specifying units (degrees or radians) explicitly
-        lengthscale : float (structcol.Quantity [length])
-            Length scale to use to calculate the size parameter.  Since the
-            FormStructureModel is particle-agnostic, we don't assume this is
-            equal to the radius (though it should be set to such for a sphere)
         kd : float
             distance (nondimensionalized by k) at which to integrate the
             differential cross section to get the total cross section. Needed
@@ -178,7 +177,7 @@ class FormStructureModel(Model):
 
         # calculate structure factor
         n_ext = self.index_external(wavelen)
-        ql = sc.ql(n_ext, lengthscale, angles)
+        ql = sc.ql(n_ext, self.lengthscale, angles)
         s = self.structure_factor(ql).to_numpy()
 
         scat_par = s * f_par
@@ -220,6 +219,9 @@ class HardSpheres(FormStructureModel):
         self.index_matrix = index_matrix
         self.maxwell_garnett = maxwell_garnett
 
+        # for a sphere we use the radius to calculate size parameter x
+        lengthscale = self.sphere.radius_q
+
         # calculate array of volume fractions of each layer in the particle. If
         # particle is not core-shell, volume fraction remains the same
         vf_array = self.sphere.volume_fraction(self.volume_fraction)
@@ -237,29 +239,9 @@ class HardSpheres(FormStructureModel):
                                                          ql_cutoff = ql_cutoff)
 
         form_factor = self.sphere.form_factor
-        super().__init__(form_factor, structure_factor, index_external,
-                         index_medium)
+        super().__init__(form_factor, structure_factor, lengthscale,
+                         index_external, index_medium)
 
-    def differential_cross_section(self, wavelen, angles,
-                                   kd=None,
-                                   cartesian=False,
-                                   incident_vector=None,
-                                   phis=None):
-        """Calculate dimensionless differential scattering cross-section,
-        including contributions from the structure factor. Need to multiply by
-        1/k**2 to get the dimensional differential cross section.
-
-        """
-        # for a sphere we use the radius to calculate size parameter x
-        lengthscale = self.sphere.radius_q
-
-        return super().differential_cross_section(wavelen, angles,
-                                                  lengthscale,
-                                                  kd=kd,
-                                                  cartesian=cartesian,
-                                                  incident_vector =
-                                                  incident_vector,
-                                                  phis=None)
 
 class PolydisperseHardSpheres(FormStructureModel):
     """Model for scattering from a polydisperse hard-sphere liquid or glass.
@@ -282,12 +264,18 @@ class PolydisperseHardSpheres(FormStructureModel):
     index_matrix : `sc.Index` object
         Index of matrix material between the spheres.  Should be the actual
         index, not an effective index
+
     """
     def __init__(self, sphere_dist, volume_fraction, index_matrix,
                  index_medium):
         self.sphere_dist = sphere_dist
         self.volume_fraction = volume_fraction
         self.index_matrix = index_matrix
+
+        # for a polydisperse system we use the first mean diameter (of the
+        # bispecies system) to calculate size parameter x.  This is just a
+        # convention.
+        lengthscale = self.sphere_dist.spheres[0].radius_q
 
         # calculate array of volume fractions, assuming that the sphere indices
         # are the same
@@ -302,30 +290,8 @@ class PolydisperseHardSpheres(FormStructureModel):
         structure_factor = sc.structure.Polydisperse(self.volume_fraction,
                                                      self.sphere_dist)
         form_factor = self.sphere_dist.form_factor
-        super().__init__(form_factor, structure_factor, index_external,
-                         index_medium)
-
-    def differential_cross_section(self, wavelen, angles,
-                                   kd=None,
-                                   cartesian=False,
-                                   incident_vector=None,
-                                   phis=None):
-        """Calculate the dimensionless differential scattering cross-section
-        for polydisperse systems.
-
-        """
-        # for a polydisperse system we use the first mean diameter (of the
-        # bispecies system) to calculate size parameter x.  This is just a
-        # convention.
-        lengthscale = self.sphere_dist.spheres[0].radius_q
-
-        return super().differential_cross_section(wavelen, angles,
-                                                  lengthscale,
-                                                  kd=kd,
-                                                  cartesian=cartesian,
-                                                  incident_vector =
-                                                  incident_vector,
-                                                  phis=None)
+        super().__init__(form_factor, structure_factor, lengthscale,
+                         index_external, index_medium)
 
 
 class Detector:
@@ -647,7 +613,6 @@ def reflection(index_particle, index_matrix, index_medium, wavelen, radius,
     else:
         distance = mean_diameters.max() / 2
     kd = (k*distance).to('')
-    lengthscale = None
 
     if form_type == "sphere":
         if structure_type == "glass":
@@ -659,12 +624,13 @@ def reflection(index_particle, index_matrix, index_medium, wavelen, radius,
                                                          structure_qd_data)
             lengthscale = particle.radius_q
             model = FormStructureModel(form_factor, structure_factor,
-                                       index_external, index_medium)
+                                       lengthscale, index_external,
+                                       index_medium)
         if structure_type is None:
             form_factor = particle.form_factor
             lengthscale = particle.radius_q
-            model = FormStructureModel(form_factor, None, index_external,
-                                       index_medium)
+            model = FormStructureModel(form_factor, None, lengthscale,
+                                       index_external, index_medium)
     elif form_type == "polydisperse":
         if structure_type == "polydisperse":
             model = PolydisperseHardSpheres(dist, volume_fraction, index_matrix,
@@ -672,8 +638,8 @@ def reflection(index_particle, index_matrix, index_medium, wavelen, radius,
         if structure_type is None:
             form_factor = dist.form_factor
             lengthscale = dist.spheres[0].radius_q
-            model = FormStructureModel(form_factor, None, index_external,
-                                       index_medium)
+            model = FormStructureModel(form_factor, None, lengthscale,
+                                       index_external, index_medium)
     elif form_type is None:
         form_factor = None
         if structure_type == "data":
@@ -687,20 +653,13 @@ def reflection(index_particle, index_matrix, index_medium, wavelen, radius,
             lengthscale = dist.spheres[0].radius_q
         if structure_type is None:
             structure_factor = None
-        model = FormStructureModel(None, structure_factor, index_external,
-                                   index_medium)
+        model = FormStructureModel(None, structure_factor, lengthscale,
+                                   index_external, index_medium)
 
-    if lengthscale is None:
-        print(form_type, structure_type)
-        diff_cs_detected = model.differential_cross_section(wavelen, angles,
-                                                            kd=kd)
-        diff_cs_total = model.differential_cross_section(wavelen, angles_tot,
-                                                         kd=kd)
-    else:
-        diff_cs_detected = model.differential_cross_section(wavelen, angles,
-                                                            lengthscale, kd=kd)
-        diff_cs_total = model.differential_cross_section(wavelen, angles_tot,
-                                                         lengthscale, kd=kd)
+    diff_cs_detected = model.differential_cross_section(wavelen, angles,
+                                                        kd=kd)
+    diff_cs_total = model.differential_cross_section(wavelen, angles_tot,
+                                                     kd=kd)
 
     # integrate the differential cross sections to get the total cross section
     if np.abs(n_sample.imag) > 0.:
