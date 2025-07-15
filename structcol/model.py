@@ -79,8 +79,10 @@ class FormStructureModel(Model):
         wavelength, angles, and the index external to the particle. If None,
         form factor will be set to unity when calculating the differential
         scattering cross section.
-    structure_factor : `sc.structure.StructureFactor` object
-        Structure factor used in the calculation
+    structure_factor : `sc.structure.StructureFactor` object or None
+        Structure factor used in the calculation.  If None, structure factor
+        will be set to unity when calculating the differential scattering cross
+        section.
     index_external : `sc.Index` object
         Refractive index of the material outside the particles, which is
         needed to calculate the form factor.  Can be an effective index
@@ -91,6 +93,8 @@ class FormStructureModel(Model):
     def __init__(self, form_factor, structure_factor, index_external,
                  index_medium):
         self.form_factor = form_factor
+        if structure_factor is None:
+            structure_factor = sc.structure.Constant(1.0)
         self.structure_factor = structure_factor
         self.index_external = index_external
         super().__init__(index_medium)
@@ -503,7 +507,6 @@ def reflection(index_particle, index_matrix, index_medium, wavelen, radius,
 
     particle = sc.Sphere(index_particle, radius)
     n_particle = particle.n(wavelen)
-    n_matrix = index_matrix(wavelen)
     n_medium = index_medium(wavelen)
 
     # radius and radius2 should be in the same units (for polydisperse samples)
@@ -549,8 +552,9 @@ def reflection(index_particle, index_matrix, index_medium, wavelen, radius,
 
     # use Bruggeman formula to calculate effective index of
     # particle-matrix composite
-    n_sample = sc.index.effective_index(index_list, vf_array, wavelen,
-                                        maxwell_garnett=maxwell_garnett)
+    index_external = sc.EffectiveIndex(index_list, vf_array,
+                                       maxwell_garnett=maxwell_garnett)
+    n_sample = index_external(wavelen)
 
     if len(np.atleast_1d(radius)) > 1:
         # particle is multilayer
@@ -642,55 +646,61 @@ def reflection(index_particle, index_matrix, index_medium, wavelen, radius,
         distance = mean_diameters / 2
     else:
         distance = mean_diameters.max() / 2
+    kd = (k*distance).to('')
+    lengthscale = None
 
-    if (form_type == "sphere") and (structure_type == "glass"):
-        kd = (k*distance).to('')
-        model = HardSpheres(particle, volume_fraction, index_matrix,
-                            index_medium, maxwell_garnett=maxwell_garnett)
-        diff_cs_detected = model.differential_cross_section(wavelen, angles,
-                                                            kd=kd)
-        diff_cs_total = model.differential_cross_section(wavelen, angles_tot,
-                                                         kd=kd)
-    elif (form_type == "polydisperse") and (structure_type == "polydisperse"):
-        kd = (k*distance).to('')
-        if len(mean_diameters) == 2:
-            sphere1 = sc.Sphere(index_particle, mean_diameters[0]/2)
-            sphere2 = sc.Sphere(index_particle, mean_diameters[1]/2)
-            dist = sc.SphereDistribution([sphere1, sphere2], concentration,
-                                         pdi)
-        else:
-            sphere1 = sc.Sphere(index_particle, mean_diameters[0]/2)
-            dist = sc.SphereDistribution(sphere1, concentration, pdi)
-        model = PolydisperseHardSpheres(dist, volume_fraction, index_matrix,
-                                        index_medium)
+    if form_type == "sphere":
+        if structure_type == "glass":
+            model = HardSpheres(particle, volume_fraction, index_matrix,
+                                index_medium, maxwell_garnett=maxwell_garnett)
+        if structure_type == "data":
+            form_factor = particle.form_factor
+            structure_factor = sc.structure.Interpolated(structure_s_data,
+                                                         structure_qd_data)
+            lengthscale = particle.radius_q
+            model = FormStructureModel(form_factor, structure_factor,
+                                       index_external, index_medium)
+        if structure_type is None:
+            form_factor = particle.form_factor
+            lengthscale = particle.radius_q
+            model = FormStructureModel(form_factor, None, index_external,
+                                       index_medium)
+    elif form_type == "polydisperse":
+        if structure_type == "polydisperse":
+            model = PolydisperseHardSpheres(dist, volume_fraction, index_matrix,
+                                            index_medium)
+        if structure_type is None:
+            form_factor = dist.form_factor
+            lengthscale = dist.spheres[0].radius_q
+            model = FormStructureModel(form_factor, None, index_external,
+                                       index_medium)
+    elif form_type is None:
+        form_factor = None
+        if structure_type == "data":
+            structure_factor = sc.structure.Interpolated(structure_s_data,
+                                                         structure_qd_data)
+        if structure_type == "glass":
+            structure_factor = sc.structure.PercusYevick(volume_fraction)
+            lengthscale = particle.radius_q
+        if structure_type == "polydisperse":
+            structure_factor = sc.structure.Polydisperse(volume_fraction, dist)
+            lengthscale = dist.spheres[0].radius_q
+        if structure_type is None:
+            structure_factor = None
+        model = FormStructureModel(None, structure_factor, index_external,
+                                   index_medium)
+
+    if lengthscale is None:
+        print(form_type, structure_type)
         diff_cs_detected = model.differential_cross_section(wavelen, angles,
                                                             kd=kd)
         diff_cs_total = model.differential_cross_section(wavelen, angles_tot,
                                                          kd=kd)
     else:
-        diff_cs_detected = differential_cross_section(m, x, angles,
-                                        volume_fraction,
-                                        structure_type=structure_type,
-                                        form_type=form_type,
-                                        diameters=mean_diameters,
-                                        concentration=concentration,
-                                        pdi=pdi, wavelen=wavelen,
-                                        n_matrix=n_sample, k=k,
-                                        distance=distance,
-                                        structure_s_data=structure_s_data,
-                                        structure_qd_data=structure_qd_data)
-
-        diff_cs_total = differential_cross_section(m, x, angles_tot,
-                                        volume_fraction,
-                                        structure_type=structure_type,
-                                        form_type=form_type,
-                                        diameters=mean_diameters,
-                                        concentration=concentration,
-                                        pdi=pdi, wavelen=wavelen,
-                                        n_matrix=n_sample, k=k,
-                                        distance=distance,
-                                        structure_s_data=structure_s_data,
-                                        structure_qd_data=structure_qd_data)
+        diff_cs_detected = model.differential_cross_section(wavelen, angles,
+                                                            lengthscale, kd=kd)
+        diff_cs_total = model.differential_cross_section(wavelen, angles_tot,
+                                                         lengthscale, kd=kd)
 
     # integrate the differential cross sections to get the total cross section
     if np.abs(n_sample.imag) > 0.:
