@@ -34,7 +34,8 @@ class TestModel():
     """
     wavelen = sc.Quantity(np.linspace(400, 800, 10), 'nm')
     ps_radius = sc.Quantity('0.125 um')
-    ps_sphere = sc.Sphere(sc.index.polystyrene, ps_radius)
+    index_particle = sc.index.polystyrene
+    ps_sphere = sc.Sphere(index_particle, ps_radius)
     hollow_sphere = sc.Sphere([sc.index.vacuum, sc.index.polystyrene],
                                          sc.Quantity([125, 135], 'nm'))
     qd = np.arange(0.1, 20, 0.01)
@@ -165,6 +166,16 @@ class TestModel():
             # polydispersity
             assert_allclose(form_model[i], form_sphere[i])
 
+        # differential scattering cross sections should be very close for
+        # monodisperse and polydisperse models in the limit of low
+        # polydispersity
+        mono_model = sc.model.HardSpheres(self.ps_sphere, volume_fraction,
+                                          index_matrix, index_medium)
+        dscat = model.differential_cross_section(wavelen, angles)
+        dscat_mono = mono_model.differential_cross_section(wavelen, angles)
+
+        assert_allclose(dscat, dscat_mono)
+
         # and structure factor should be close to 1
         n_ext = index_matrix(wavelen)
         lengthscale = dist.spheres[0].radius_q
@@ -221,9 +232,9 @@ class TestModel():
         sphere = sc.Sphere(index_particle, radius)
         # need to explicitly specify effective index in FormStructureModel
         # because it doesn't know anything about particles or volume fractions.
-        vf_array = sphere.volume_fraction(volume_fraction)
-        index_list = sphere.index_list(index_matrix)
-        index_external = sc.index.EffectiveIndex(index_list, vf_array)
+        index_external = sc.EffectiveIndex.from_particle(sphere,
+                                                         volume_fraction,
+                                                         index_matrix)
 
         fs_model = sc.model.FormStructureModel(sphere.form_factor,
                                                structure_factor_interp,
