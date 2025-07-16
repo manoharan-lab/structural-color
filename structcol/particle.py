@@ -377,12 +377,7 @@ class SphereDistribution:
 
         if isinstance(concentrations, sc.Quantity):
             concentrations = concentrations.to('').magnitude
-        if np.isscalar(concentrations):
-            concentrations = np.array([concentrations, 0.0])
-        if len(spheres) == 1:
-            if not np.array_equal(concentrations, np.array([1.0, 0])):
-                raise ValueError("When only one species is specified, "
-                                 "concentrations must be set to [1.0, 0]")
+        concentrations = np.atleast_1d(concentrations)
         if np.sum(concentrations) != 1.0:
             raise ValueError("Concentrations must sum to 1")
         self.concentrations = concentrations
@@ -446,9 +441,8 @@ class SphereDistribution:
             Index of refraction of the medium around the particle.  Can be an
             effective index.
         kd : float (optional)
-            distance (nondimensionalized by k) at which to integrate the
-            differential cross section to get the total cross section. Needed
-            only if n_external is complex. Ignored otherwise.
+            distance (nondimensionalized by k) at which to calculate the
+            differential cross section. Needed only if n_external is complex.
         cartesian : boolean (default False)
             If set to True, calculation will be done in the basis defined by
             basis vectors x and y in the lab frame, with z as the direction of

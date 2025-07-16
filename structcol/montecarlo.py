@@ -1185,6 +1185,10 @@ def phase_function(m, x, angles, volume_fraction, k, number_density,
 
     if form_type=='polydisperse':
         distance = diameters/2
+        if len(diameters) == 1:
+            distance = sc.Quantity(np.array([distance.magnitude,
+                                             distance.magnitude]),
+                                   distance.units)
     else:
         distance = diameters.max()/2
 

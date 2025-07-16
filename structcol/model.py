@@ -147,6 +147,85 @@ class FormStructureModel(Model):
 
         return scat_par, scat_perp
 
+    def scattering_cross_section(self, wavelen, angles, **ff_kwargs):
+        """Calculate scattering cross-section, including contributions from
+        both form and structure factors.
+
+        Parameters
+        ----------
+        wavelen : float (structcol.Quantity [length])
+            Wavelength of light in vacuum.
+        angles : ndarray(structcol.Quantity [dimensionless])
+            array of scattering angles. Must be entered as a Quantity to allow
+            specifying units (degrees or radians) explicitly
+        **ff_kwargs :
+            Keyword arguments to pass to `form_factor()` method. Includes kd
+            (dimensionless distance), cartesian flag, incident_vector, and phis
+            (angles). See `Sphere.form_factor()` and
+            `SphereDistribution.form_factor()` for descriptions.
+
+        Returns
+        -------
+        float (3-tuple):
+            parallel and perpendicular scattering cross-sections (or
+            cross-sections for x- and y- polarizations), and total
+            (unpolarized) cross-section.
+
+        """
+        k = sc.wavevector(self.index_external(wavelen))
+        ksquared = np.abs(k)**2
+        distance = self.lengthscale
+
+        # Note that we ignore near fields throughout structcol since we assume
+        # that the scattering length is larger than the distance at which near
+        # fields are significant (~order of the wavelength of light). In the
+        # future, we might want to include near field effects. In that case, we
+        # need to make sure to pass near_fields = True in
+        # mie.diff_scat_intensity_complex_medium(). The default is False.
+        # Also note that the diff_cscat1 and 2 are parallel and perpendicular
+        # components for the default scattering-plane basis and are
+        # diff_cscat_x and y in cartesian coordinates
+        diff_cscat1, diff_cscat2 = self.differential_cross_section(wavelen,
+                                                                   angles,
+                                                                   **ff_kwargs)
+
+        # If in cartesian coordinate system, integrate the differential cross
+        # section using integration functions in mie.py that can handle
+        # cartesian coordinates. Also includes absorption.
+        # TODO make this work for polydisperse
+        if ff_kwargs.get("cartesian") is True:
+            thetas_1d = angles[:,0]
+            phis_1d = ff_kwargs.get("phis")[0,:]
+            cscat_total = mie.integrate_intensity_complex_medium(diff_cscat1,
+                                                    diff_cscat2,
+                                                    distance,
+                                                    thetas_1d, k,
+                                                    coordinate_system =
+                                                    "cartesian",
+                                                    phis=phis_1d)[0]
+
+        # If absorption and not cartesian coords, integrate the differential
+        # cross section using integration functions in mie.py that use
+        # absorption
+        elif np.any(np.abs(k.imag.magnitude) > 0):
+            cscat_total = mie.integrate_intensity_complex_medium(diff_cscat1,
+                                                                 diff_cscat2,
+                                                                 distance,
+                                                                 angles, k)[0]
+
+        # if there is no absorption in the system, Integrate with function in
+        # model
+        else:
+            cscat_total_par = _integrate_cross_section(diff_cscat1,
+                                                       1.0/ksquared,
+                                                       angles)
+            cscat_total_perp = _integrate_cross_section(diff_cscat2,
+                                                        1.0/ksquared,
+                                                        angles)
+            cscat_total = (cscat_total_par + cscat_total_perp)/2.0
+
+        return cscat_total
+
 
 class HardSpheres(FormStructureModel):
     """Model of scattering from a hard-sphere liquid or glass.
@@ -584,8 +663,8 @@ def reflection(index_particle, index_matrix, index_medium, wavelen, radius,
                                        index_external, index_medium)
     elif form_type == "polydisperse":
         if structure_type == "polydisperse":
-            model = PolydisperseHardSpheres(dist, volume_fraction, index_matrix,
-                                            index_medium)
+            model = PolydisperseHardSpheres(dist, volume_fraction,
+                                            index_matrix, index_medium)
         if structure_type is None:
             form_factor = dist.form_factor
             lengthscale = dist.spheres[0].radius_q
@@ -1225,8 +1304,10 @@ def _integrate_cross_section(cross_section, factor, angles,
     Integrate differential cross-section (multiplied by factor) over angles
     using trapezoid rule
     """
+    # TODO: vectorize over wavelength
     # integrand
     integrand = cross_section * factor * np.sin(angles)
+
     # pint does not yet preserve units for scipy.integrate.trapezoid, so we
     # need to state explicitly that we are in the same units as the integrand.
     if isinstance(integrand, Quantity):

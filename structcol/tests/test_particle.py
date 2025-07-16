@@ -349,7 +349,7 @@ class TestSphereDistribution():
         sphere1 = sc.Sphere(sc.index.polystyrene, radius)
         dist = sc.SphereDistribution(sphere1, concentrations, pdi)
 
-        with pytest.raises(ValueError, match=r"When only"):
+        with pytest.raises(ValueError, match=r"Concentrations must"):
             dist = sc.SphereDistribution(sphere1, 0.5, pdi)
         dist = sc.SphereDistribution(sphere1, 1.0, pdi)
         assert not dist.has_layered

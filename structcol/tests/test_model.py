@@ -27,6 +27,7 @@ from numpy.testing import (assert_equal, assert_almost_equal,
                            assert_array_almost_equal, assert_allclose)
 import pytest
 import structcol as sc
+from structcol import montecarlo
 import xarray as xr
 
 class TestModel():
@@ -259,7 +260,173 @@ class TestModel():
         assert_allclose(fs_perp, py_perp, rtol=1e-3)
         # TODO: test reflectance as well
 
+    @pytest.mark.parametrize("index_matrix", [sc.index.water,
+                                              sc.Index.constant(1.59 + 0.001j)])
+    def test_scattering_cross_section(self, index_matrix):
+        """Test that the scattering_cross_section() method returns reasonable
+        values (the above tests mostly focus on the
+        differential_cross_section() method)
 
+        """
+        # TODO: test vectorization after changing _integrate_cross_section
+        wavelen = self.wavelen[0]
+
+        # test that cross section for vanishingly small volume fraction is the
+        # same as calculated directly from Mie theory (structure factor should
+        # be negligible here)
+        volume_fraction = 1e-10
+        index_medium = sc.index.vacuum
+        model = sc.model.HardSpheres(self.ps_sphere, volume_fraction,
+                                     index_matrix, index_medium)
+
+        # use a lot of angles to get better precision in numerical integration
+        angles = sc.Quantity(np.linspace(0, np.pi, 1000), 'rad')
+
+        # for Mie calculations
+        n_particle = self.index_particle(wavelen)
+        n_matrix = index_matrix(wavelen)
+        m = sc.index.ratio(n_particle, n_matrix)
+        x = sc.size_parameter(n_matrix, self.ps_radius).to_numpy()
+
+        # do the calculation using method from Model object, setting distance
+        # appropriately if there is absorption in the matrix
+        ff_kwargs = {}
+        if np.any(n_matrix.imag > 0):
+            ff_kwargs["kd"] = sc.wavevector(n_matrix) * model.lengthscale
+            ff_kwargs["kd"] = ff_kwargs["kd"].to('').magnitude
+        cscat = model.scattering_cross_section(wavelen, angles, **ff_kwargs)
+
+        # now do calculation using Mie theory, using appropriate function for
+        # the cross-section
+        wavelen_media = wavelen/n_matrix.to_numpy().squeeze()
+        if np.any(n_matrix.imag > 0):
+            lmax = mie._nstop(np.array(x).max())
+            albl = mie._scatcoeffs(m, x, lmax)
+
+            radius = self.ps_radius
+            cscat_mie = mie._cross_sections_complex_medium_sudiarta(*albl, x,
+                                                                    radius)
+            # Fu cross sections
+            nstop = mie._nstop(x)
+            albl = mie._scatcoeffs(m, x, nstop)
+            cldl = mie._internal_coeffs(m, x, nstop)
+            x_med = sc.size_parameter(n_matrix, radius).to_numpy()
+            # fu calculation expects indexes as Quantity objects
+            n_particle = sc.Quantity(n_particle.to_numpy(), '')
+            n_medium = sc.Quantity(n_matrix.to_numpy(), '')
+
+            cscat_fu = mie._cross_sections_complex_medium_fu(*albl, *cldl,
+                                                             radius, n_particle,
+                                                             n_medium, x,
+                                                             x_med, wavelen)
+
+            # first check that the Fu and Sudiarta calculations agree
+            assert_allclose(cscat_fu[0].magnitude, cscat_mie[0].magnitude)
+
+        else:
+            cscat_mie = mie.calc_cross_sections(m, x, wavelen_media)
+
+        # Now check that the Mie calculation and Model method calculations
+        # agree.
+        assert_allclose(cscat.to_preferred().magnitude,
+                        cscat_mie[0].to_preferred().magnitude,
+                        rtol=1e-3)
+        # Agreement is to within 1e-3 relative error for absorbing media, and
+        # 1e-5 for non-absorbing.  The discrepancy in absorbing media doesn't
+        # seem to improve with more integration points, but gets worse with
+        # increasingly large imaginary component of the refractive index.  Fu
+        # and Sudiarta calculations agree even at n.imag = 1j, so there may be
+        # an issue in integrate_intensity_complex_medium()
+        #
+        # TODO: add more testing of Fu, Sudiarta cross sections in pymie, along
+        # with more tests of integrate_intensity_complex_medium()
+
+    @pytest.mark.parametrize("index_matrix", [sc.index.water,
+                                              sc.Index.constant(1.59 + 0.001j),
+                                              sc.Index.constant(1.59 + 0.1j)])
+    def test_scattering_against_phase_function_method(self, index_matrix):
+        """Test that the scattering_cross_section() method rom a Model object
+        returns exactly the same results as montecarlo.phase_function() method.
+        This test exists only for refactoring.  Can remove when
+        montecarlo.phase_function() is removed
+        """
+        wavelen = self.wavelen[0]
+        volume_fraction = 0.5
+        index_medium = sc.index.vacuum
+        model = sc.model.HardSpheres(self.ps_sphere, volume_fraction,
+                                     index_matrix, index_medium)
+
+        # start at a few degrees to avoid division by zero error
+        angles = sc.Quantity(np.linspace(2, 180., 19), 'deg')
+
+        # Need to use effective index to get perfect agreement between the two.
+        # Make sure that kd uses the effective index.
+        index_external = sc.EffectiveIndex.from_particle(self.ps_sphere,
+                                                         volume_fraction,
+                                                         index_matrix)
+        n_ext = index_external(wavelen)
+        n_particle = self.index_particle(wavelen)
+        k = sc.wavevector(n_ext)
+
+        ff_kwargs = {}
+        if np.any(n_ext.imag > 0):
+            ff_kwargs['kd'] = (k * model.lengthscale).to('').magnitude
+        cscat = model.scattering_cross_section(wavelen, angles,
+                                               **ff_kwargs)
+
+        m = sc.index.ratio(n_particle, n_ext)
+        x = sc.size_parameter(n_ext, self.ps_radius).to_numpy()
+        diameters = sc.Quantity(np.array(self.ps_radius.magnitude),
+                                self.ps_radius.units) * 2
+        _, cscat_mc = montecarlo.phase_function(m, x, angles,
+                                                volume_fraction, k, None,
+                                                diameters = diameters)
+
+        # should be exactly equal
+        assert_equal(cscat.to_preferred().magnitude,
+                     cscat_mc.to_preferred().magnitude)
+
+        # Now test for polydisperse system with single component, low
+        # polydispersity.  Should give very close results to monodisperse
+        concentration = 1.0
+        pdi = 1e-5
+        dist = sc.SphereDistribution(self.ps_sphere, concentration, pdi)
+        model = sc.model.PolydisperseHardSpheres(dist, volume_fraction,
+                                                 index_matrix, index_medium)
+
+        if np.any(n_ext.imag > 0):
+            ff_kwargs['kd'] = (k * model.lengthscale).to('').magnitude
+        else:
+            ff_kwargs = {}
+        cscat = model.scattering_cross_section(wavelen, angles,
+                                               **ff_kwargs)
+        assert_allclose(cscat.to_preferred().magnitude,
+                        cscat_mc.to_preferred().magnitude, rtol=1e-5)
+
+        # finally check for polydisperse system with finite polydispersity.  We
+        # compare against the analogous computation with the phase_function()
+        # function.  Should give exactly the same results.
+        pdi = 0.15
+        dist = sc.SphereDistribution(self.ps_sphere, concentration, pdi)
+        model = sc.model.PolydisperseHardSpheres(dist, volume_fraction,
+                                                 index_matrix, index_medium)
+        cscat = model.scattering_cross_section(wavelen, angles, **ff_kwargs)
+
+        diameters = sc.Quantity(np.atleast_1d(diameters.magnitude),
+                                diameters.units)
+        concentration = np.atleast_1d(1.0)
+        _, cscat_mc = montecarlo.phase_function(m, x, angles,
+                                                volume_fraction, k, None,
+                                                concentration=concentration,
+                                                pdi=pdi,
+                                                diameters = diameters,
+                                                form_type="polydisperse",
+                                                structure_type="polydisperse",
+                                                n_sample=n_ext,
+                                                wavelen=wavelen)
+
+        assert_equal(cscat.to_preferred().magnitude,
+                     cscat_mc.to_preferred().magnitude)
 
 class TestDetector():
     """Tests for the Detector class and derived classes.
