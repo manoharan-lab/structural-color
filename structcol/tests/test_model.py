@@ -21,7 +21,7 @@ Tests for the single-scattering model (in structcol/model.py)
 .. moduleauthor:: Victoria Hwang <vhwang@g.harvard.edu>
 """
 
-from .. import Quantity, np, mie, model
+from .. import Quantity, np, mie
 from pytest import raises
 from numpy.testing import (assert_equal, assert_almost_equal,
                            assert_array_almost_equal, assert_allclose)
@@ -606,29 +606,29 @@ def test_fresnel():
 
     # quantities calculated from
     # http://www.calctool.org/CALC/phys/optics/reflec_refrac
-    rpar, rperp = model.fresnel_reflection(n1, n2, Quantity('0.0 deg'))
+    rpar, rperp = sc.model.fresnel_reflection(n1, n2, Quantity('0.0 deg'))
     assert_almost_equal(rpar, 0.04)
     assert_almost_equal(rperp, 0.04)
-    rpar, rperp = model.fresnel_reflection(n1, n2, Quantity('45.0 deg'))
+    rpar, rperp = sc.model.fresnel_reflection(n1, n2, Quantity('45.0 deg'))
     assert_almost_equal(rpar, 0.00846646)
     assert_almost_equal(rperp, 0.0920134)
 
     # test total internal reflection
-    rpar, rperp = model.fresnel_reflection(n2, n1, Quantity('45.0 deg'))
+    rpar, rperp = sc.model.fresnel_reflection(n2, n1, Quantity('45.0 deg'))
     assert_equal(rpar, 1.0)
     assert_equal(rperp, 1.0)
 
     # test no total internal reflection (just below critical angle)
-    rpar, rperp = model.fresnel_reflection(n2, n1, Quantity('41.810 deg'))
+    rpar, rperp = sc.model.fresnel_reflection(n2, n1, Quantity('41.810 deg'))
     assert_almost_equal(rpar, 0.972175, decimal=6)
     assert_almost_equal(rperp, 0.987536, decimal=6)
 
     # test vectorized computation
     angles = Quantity(np.linspace(0, 180., 19), 'deg')
     # check for value error
-    raises(ValueError, model.fresnel_reflection, n2, n1, angles)
+    raises(ValueError, sc.model.fresnel_reflection, n2, n1, angles)
     angles = Quantity(np.linspace(0, 90., 10), 'deg')
-    rpar, rperp = model.fresnel_reflection(n2, n1, angles)
+    rpar, rperp = sc.model.fresnel_reflection(n2, n1, angles)
     rpar_std = np.array([0.04, 0.0362780, 0.0243938, 0.00460754, 0.100064, 1.0,
                          1.0, 1.0, 1.0, 1])
     rperp_std = np.array([0.04, 0.0438879, 0.0590632, 0.105773, 0.390518, 1.0,
@@ -637,7 +637,7 @@ def test_fresnel():
     assert_array_almost_equal(rperp, rperp_std)
 
     # test transmission
-    tpar, tperp = model.fresnel_transmission(n2, n1, angles)
+    tpar, tperp = sc.model.fresnel_transmission(n2, n1, angles)
     tpar_std = 1.0-rpar_std
     tperp_std = 1.0-rperp_std
     assert_array_almost_equal(tpar, tpar_std)
@@ -667,7 +667,7 @@ def test_theta_refraction():
     # total internal reflection (calculated manually to be 2.61799388)
     theta_max = Quantity(2.617, 'deg')
     detector = sc.model.Detector(theta_min, theta_max)
-    refl1, _, _, _, _ = model.reflection(index_particle, index_matrix,
+    refl1, _, _, _, _ = sc.model.reflection(index_particle, index_matrix,
                                          index_medium,
                                          wavelength, radius, volume_fraction,
                                          detector=detector,
@@ -676,7 +676,7 @@ def test_theta_refraction():
     # reflection angle)
     theta_max = Quantity(2., 'deg')
     detector = sc.model.Detector(theta_min, theta_max)
-    refl2, _, _, _, _ = model.reflection(index_particle, index_matrix,
+    refl2, _, _, _, _ = sc.model.reflection(index_particle, index_matrix,
                                          index_medium,
                                          wavelength, radius, volume_fraction,
                                          detector=detector,
@@ -685,7 +685,7 @@ def test_theta_refraction():
     # the reflection should be zero plus the fresnel reflection term
     n_sample = sc.index.effective_index([index_particle, index_matrix],
                                         vf_array, wavelength)
-    r_fresnel = model.fresnel_reflection(n_medium.to_numpy(),
+    r_fresnel = sc.model.fresnel_reflection(n_medium.to_numpy(),
                                          n_sample.to_numpy(), incident_angle)
     r_fresnel_avg = (r_fresnel[0] + r_fresnel[1]) / 2
     assert_almost_equal(refl1.magnitude, r_fresnel_avg)
@@ -758,7 +758,7 @@ def test_reflection_core_shell():
     index_medium = index_matrix
 
     detector = sc.model.Detector(theta_min=Quantity('90.0 deg'))
-    refl1, _, _, g1, lstar1 = model.reflection(index_particle, index_matrix,
+    refl1, _, _, g1, lstar1 = sc.model.reflection(index_particle, index_matrix,
                                                index_medium, wavelength, radius,
                                                volume_fraction, thickness =
                                                Quantity('15000.0 nm'),
@@ -768,7 +768,7 @@ def test_reflection_core_shell():
 
     # Non core-shell particles with Bruggeman effective index
     volume_fraction2 = 0.00001
-    refl2, _, _, g2, lstar2 = model.reflection(index_particle, index_matrix, index_medium,
+    refl2, _, _, g2, lstar2 = sc.model.reflection(index_particle, index_matrix, index_medium,
                                                wavelength, radius,
                                                volume_fraction2,
                                                thickness =
@@ -784,7 +784,7 @@ def test_reflection_core_shell():
     sphere_cs = sc.Sphere(index3, radius3)
     volume_fraction3 = volume_fraction2 * (radius3[1]**3 / radius3[0]**3)
 
-    refl3, _, _, g3, lstar3 = model.reflection(index3, index_matrix,
+    refl3, _, _, g3, lstar3 = sc.model.reflection(index3, index_matrix,
                                                index_medium,
                                                wavelength, radius3,
                                                volume_fraction3,
@@ -820,7 +820,7 @@ def test_reflection_core_shell():
     radius4 = Quantity('120.0 nm')
     index_particle4 = sc.Index.constant(1.5+0.001j)
     sphere = sc.Sphere(index_particle4, radius4)
-    refl4 = model.reflection(index_particle4, index_matrix, index_medium,
+    refl4 = sc.model.reflection(index_particle4, index_matrix, index_medium,
                              wavelength, radius4, volume_fraction,
                              thickness=thickness)[0]
 
@@ -828,7 +828,7 @@ def test_reflection_core_shell():
     radius5 = Quantity(np.array([110.0, 120.0]), 'nm')
     index5 = [sc.Index.constant(1.5+0.001j), sc.Index.constant(1.5+0.001j)]
     sphere_cs = sc.Sphere(index5, radius5)
-    refl5 = model.reflection(index5, index_matrix, index_medium, wavelength,
+    refl5 = sc.model.reflection(index5, index_matrix, index_medium, wavelength,
                              radius5, volume_fraction, thickness=thickness)[0]
 
     assert_array_almost_equal(refl4.magnitude, refl5.magnitude, decimal=3)
@@ -839,7 +839,7 @@ def test_reflection_core_shell():
     index_particle6 = sc.Index.constant(1.5+0.001j)
     sphere = sc.Sphere(index_particle6, radius6)
     index_matrix6 = sc.Index.constant(1.0+0.001j)
-    refl6 = model.reflection(index_particle6, index_matrix6, index_medium,
+    refl6 = sc.model.reflection(index_particle6, index_matrix6, index_medium,
                              wavelength, radius6, volume_fraction,
                              thickness=thickness)[0]
 
@@ -848,7 +848,7 @@ def test_reflection_core_shell():
     radius7 = Quantity(np.array([110.0, 120.0]), 'nm')
     sphere_cs = sc.Sphere(index7, radius7)
     index_matrix7 = sc.Index.constant(1.0+0.001j)
-    refl7 = model.reflection(index7, index_matrix7, index_medium, wavelength,
+    refl7 = sc.model.reflection(index7, index_matrix7, index_medium, wavelength,
                              radius7, volume_fraction, thickness=thickness)[0]
 
     assert_array_almost_equal(refl6.magnitude, refl7.magnitude, decimal=3)
@@ -870,13 +870,13 @@ def test_reflection_absorbing_particle():
     n_particle_complex = sphere_complex.n(wavelength)
 
     # With Maxwell-Garnett
-    refl_mg1, _, _, g_mg1, lstar_mg1 = model.reflection(index_particle_real,
+    refl_mg1, _, _, g_mg1, lstar_mg1 = sc.model.reflection(index_particle_real,
                                                         index_matrix,
                                                         index_medium,
                                                         wavelength, radius,
                                                         volume_fraction,
                                                         maxwell_garnett=True)
-    refl_mg2, _, _, g_mg2, lstar_mg2 = model.reflection(index_particle_complex,
+    refl_mg2, _, _, g_mg2, lstar_mg2 = sc.model.reflection(index_particle_complex,
                                                         index_matrix,
                                                         index_medium,
                                                         wavelength, radius,
@@ -907,13 +907,13 @@ def test_reflection_absorbing_particle():
     assert_array_almost_equal(lstar_mg1.magnitude, lstar_mg2.magnitude, decimal=10)
 
     # With Bruggeman
-    refl_bg1, _, _, g_bg1, lstar_bg1 = model.reflection(index_particle_real,
+    refl_bg1, _, _, g_bg1, lstar_bg1 = sc.model.reflection(index_particle_real,
                                                         index_matrix,
                                                         index_medium,
                                                         wavelength, radius,
                                                         volume_fraction,
                                                         maxwell_garnett=False)
-    refl_bg2, _, _, g_bg2, lstar_bg2 = model.reflection(index_particle_complex,
+    refl_bg2, _, _, g_bg2, lstar_bg2 = sc.model.reflection(index_particle_complex,
                                                         index_matrix,
                                                         index_medium,
                                                         wavelength, radius,
@@ -950,7 +950,7 @@ def test_reflection_absorbing_particle():
     thickness = Quantity('100.0 um')
 
     # With Bruggeman
-    refl_bg3, _, _, g_bg3, lstar_bg3 = model.reflection(index_particle_complex2, index_matrix,
+    refl_bg3, _, _, g_bg3, lstar_bg3 = sc.model.reflection(index_particle_complex2, index_matrix,
                                                         index_medium, wavelength,
                                                         radius, volume_fraction,
                                                         thickness=thickness,
@@ -975,7 +975,7 @@ def test_calc_g():
     index_matrix = sc.Index.constant(1.0)
     index_medium = index_matrix
 
-    _, _, _, g1, _= model.reflection(index, index_matrix, index_medium,
+    _, _, _, g1, _= sc.model.reflection(index, index_matrix, index_medium,
                                      wavelength, radius, volume_fraction,
                                      small_angle=Quantity('0.01 deg'),
                                      num_angles=1000, structure_type=None)
@@ -1011,7 +1011,7 @@ def test_transport_length_dilute():
     index_matrix = sc.Index.constant(1.0)
     index_medium = index_matrix
 
-    _, _, _, _, lstar_model = model.reflection(index_particle, index_matrix,
+    _, _, _, _, lstar_model = sc.model.reflection(index_particle, index_matrix,
                                                index_medium, wavelength, radius,
                                                volume_fraction,
                                                maxwell_garnett=False)
@@ -1045,13 +1045,13 @@ def test_reflection_absorbing_matrix():
     sphere = sc.Sphere(index_particle, radius)
 
     # With Maxwell-Garnett
-    refl_mg1, _, _, g_mg1, lstar_mg1 = model.reflection(index_particle,
+    refl_mg1, _, _, g_mg1, lstar_mg1 = sc.model.reflection(index_particle,
                                                         index_matrix_real,
                                                         index_medium,
                                                         wavelength, radius,
                                                         volume_fraction,
                                                         maxwell_garnett=True)
-    refl_mg2, _, _, g_mg2, lstar_mg2 = model.reflection(index_particle,
+    refl_mg2, _, _, g_mg2, lstar_mg2 = sc.model.reflection(index_particle,
                                                         index_matrix_imag,
                                                         index_medium,
                                                         wavelength, radius,
@@ -1063,13 +1063,13 @@ def test_reflection_absorbing_matrix():
     assert_array_almost_equal(lstar_mg1.magnitude, lstar_mg2.magnitude)
 
     # With Bruggeman
-    refl_bg1, _, _, g_bg1, lstar_bg1 = model.reflection(index_particle,
+    refl_bg1, _, _, g_bg1, lstar_bg1 = sc.model.reflection(index_particle,
                                                         index_matrix_real,
                                                         index_medium,
                                                         wavelength, radius,
                                                         volume_fraction,
                                                         maxwell_garnett=False)
-    refl_bg2, _, _, g_bg2, lstar_bg2 = model.reflection(index_particle,
+    refl_bg2, _, _, g_bg2, lstar_bg2 = sc.model.reflection(index_particle,
                                                         index_matrix_imag,
                                                         index_medium,
                                                         wavelength, radius,
@@ -1086,7 +1086,7 @@ def test_reflection_absorbing_matrix():
     index_matrix_imag2 = sc.Index.constant(1.0 + 1e-8j)
 
     # With Bruggeman
-    refl_bg3, _, _, g_bg3, lstar_bg3 = model.reflection(index_particle,
+    refl_bg3, _, _, g_bg3, lstar_bg3 = sc.model.reflection(index_particle,
                                                         index_matrix_imag2,
                                                         index_medium,
                                                         wavelength, radius,
@@ -1113,12 +1113,12 @@ def test_reflection_polydispersity():
 
     # test that the reflectance using only the form factor is the same using
     # the polydisperse formula vs using Mie in the limit of monodispersity
-    refl, _, _, g, lstar = model.reflection(index_particle, index_matrix,
+    refl, _, _, g, lstar = sc.model.reflection(index_particle, index_matrix,
                                             index_medium, wavelength, radius,
                                             volume_fraction,
                                             structure_type=None,
                                             form_type='sphere')
-    refl2, _, _, g2, lstar2 = model.reflection(index_particle, index_matrix,
+    refl2, _, _, g2, lstar2 = sc.model.reflection(index_particle, index_matrix,
                                                index_medium, wavelength,
                                                radius, volume_fraction,
                                                radius2 = radius2,
@@ -1149,13 +1149,13 @@ def test_reflection_polydispersity():
     # using the polydisperse formula vs using Percus-Yevick in the limit of
     # monodispersity
 
-    refl3, _, _, g3, lstar3 = model.reflection(index_particle, index_matrix,
+    refl3, _, _, g3, lstar3 = sc.model.reflection(index_particle, index_matrix,
                                                index_medium, wavelength,
                                                radius, volume_fraction,
                                                structure_type='glass',
                                                form_type=None)
 
-    refl4, _, _, g4, lstar4 = model.reflection(index_particle, index_matrix,
+    refl4, _, _, g4, lstar4 = sc.model.reflection(index_particle, index_matrix,
                                                index_medium, wavelength,
                                                radius, volume_fraction, radius2
                                                = radius2, concentration =
@@ -1186,12 +1186,12 @@ def test_reflection_polydispersity():
     # the same using the polydisperse formula vs using Mie and Percus-Yevick in
     # the limit of monodispersity
 
-    refl5, _, _, g5, lstar5 = model.reflection(index_particle, index_matrix,
+    refl5, _, _, g5, lstar5 = sc.model.reflection(index_particle, index_matrix,
                                                index_medium, wavelength,
                                                radius, volume_fraction,
                                                structure_type='glass',
                                                form_type='sphere')
-    refl6, _, _, g6, lstar6 = model.reflection(index_particle, index_matrix,
+    refl6, _, _, g6, lstar6 = sc.model.reflection(index_particle, index_matrix,
                                                index_medium, wavelength, radius,
                                                volume_fraction,
                                                radius2 = radius2,
@@ -1225,14 +1225,14 @@ def test_reflection_polydispersity():
     concentration_bi = Quantity(np.array([0.3,0.7]), '')
     pdi = Quantity(np.array([1e-1, 1e-1]), '')
 
-    refl7, _, _, g7, lstar7 = model.reflection(index_particle, index_matrix,
+    refl7, _, _, g7, lstar7 = sc.model.reflection(index_particle, index_matrix,
                                                index_medium, wavelength,
                                                radius, volume_fraction, radius2
                                                = radius2, concentration =
                                                concentration_mono, pdi = pdi,
                                                structure_type='polydisperse',
                                                form_type='polydisperse')
-    refl8, _, _, g8, lstar8 = model.reflection(index_particle, index_matrix,
+    refl8, _, _, g8, lstar8 = sc.model.reflection(index_particle, index_matrix,
                                                index_medium, wavelength,
                                                radius, volume_fraction, radius2
                                                = radius2, concentration =
@@ -1249,14 +1249,14 @@ def test_reflection_polydispersity():
     radius3 = Quantity('90.0 nm')
     concentration3 = Quantity(np.array([0.5,0.5]), '')
 
-    refl9, _, _, g9, lstar9 = model.reflection(index_particle, index_matrix,
+    refl9, _, _, g9, lstar9 = sc.model.reflection(index_particle, index_matrix,
                                                index_medium, wavelength,
                                                radius, volume_fraction, radius2
                                                = radius3, concentration =
                                                concentration3, pdi = pdi,
                                                structure_type='polydisperse',
                                                form_type='polydisperse')
-    refl10, _, _, g10, lstar10 = model.reflection(index_particle, index_matrix,
+    refl10, _, _, g10, lstar10 = sc.model.reflection(index_particle, index_matrix,
                                                   index_medium, wavelength,
                                                   radius3, volume_fraction,
                                                   radius2 = radius,
@@ -1284,13 +1284,13 @@ def test_reflection_polydispersity_with_absorption():
 
     # test that the reflectance using only the form factor is the same using
     # the polydisperse formula vs using Mie in the limit of monodispersity
-    refl, _, _, g, lstar = model.reflection(index_particle, index_matrix,
+    refl, _, _, g, lstar = sc.model.reflection(index_particle, index_matrix,
                                             index_medium, wavelength, radius,
                                             volume_fraction,
                                             structure_type=None,
                                             form_type='sphere',
                                             thickness=thickness)
-    refl2, _, _, g2, lstar2 = model.reflection(index_particle, index_matrix,
+    refl2, _, _, g2, lstar2 = sc.model.reflection(index_particle, index_matrix,
                                                index_medium, wavelength,
                                                radius, volume_fraction,
                                                radius2=radius2,
@@ -1321,13 +1321,13 @@ def test_reflection_polydispersity_with_absorption():
     # test that the reflectance using only the structure factor is the same
     # using the polydisperse formula vs using Percus-Yevick in the limit of
     # monodispersity
-    refl3, _, _, g3, lstar3 = model.reflection(index_particle, index_matrix,
+    refl3, _, _, g3, lstar3 = sc.model.reflection(index_particle, index_matrix,
                                                index_medium, wavelength,
                                                radius, volume_fraction,
                                                structure_type='glass',
                                                form_type=None,
                                                thickness=thickness)
-    refl4, _, _, g4, lstar4 = model.reflection(index_particle, index_matrix,
+    refl4, _, _, g4, lstar4 = sc.model.reflection(index_particle, index_matrix,
                                                index_medium, wavelength,
                                                radius, volume_fraction, radius2
                                                = radius2, concentration =
@@ -1360,13 +1360,13 @@ def test_reflection_polydispersity_with_absorption():
     # test that the reflectance using both the structure and form factors is
     # the same using the polydisperse formula vs using Mie and Percus-Yevick in
     # the limit of monodispersity
-    refl5, _, _, g5, lstar5 = model.reflection(index_particle, index_matrix,
+    refl5, _, _, g5, lstar5 = sc.model.reflection(index_particle, index_matrix,
                                                index_medium, wavelength,
                                                radius, volume_fraction,
                                                structure_type='glass',
                                                form_type='sphere',
                                                thickness=thickness)
-    refl6, _, _, g6, lstar6 = model.reflection(index_particle, index_matrix,
+    refl6, _, _, g6, lstar6 = sc.model.reflection(index_particle, index_matrix,
                                                index_medium, wavelength, radius,
                                                volume_fraction,
                                                radius2 = radius2,
@@ -1404,7 +1404,7 @@ def test_reflection_polydispersity_with_absorption():
     index_particle2_real = sc.Index.constant(1.5)
     radius2 = Quantity('150.0 nm')
     pdi2 = Quantity(np.array([0.33, 0.33]), '')
-    refl7, _, _, g7, lstar7 = model.reflection(index_particle2_real,
+    refl7, _, _, g7, lstar7 = sc.model.reflection(index_particle2_real,
                                                index_matrix2_real,
                                                index_medium, wavelength,
                                                radius, volume_fraction, radius2
@@ -1413,7 +1413,7 @@ def test_reflection_polydispersity_with_absorption():
                                                structure_type='polydisperse',
                                                form_type='polydisperse',
                                                thickness=thickness)
-    refl8, _, _, g8, lstar8 = model.reflection(index_particle2, index_matrix2,
+    refl8, _, _, g8, lstar8 = sc.model.reflection(index_particle2, index_matrix2,
                                                index_medium, wavelength, radius,
                                                volume_fraction,
                                                radius2 = radius,
@@ -1427,7 +1427,7 @@ def test_reflection_polydispersity_with_absorption():
     assert_array_almost_equal(lstar7.to('mm').magnitude, lstar8.to('mm').magnitude, decimal=10)
 
     ## When there are 2 mean diameters
-    refl9, _, _, g9, lstar9 = model.reflection(index_particle2_real,
+    refl9, _, _, g9, lstar9 = sc.model.reflection(index_particle2_real,
                                                index_matrix2_real,
                                                index_medium, wavelength,
                                                radius, volume_fraction, radius2
@@ -1436,7 +1436,7 @@ def test_reflection_polydispersity_with_absorption():
                                                structure_type='polydisperse',
                                                form_type='polydisperse',
                                                thickness=thickness)
-    refl10, _, _, g10, lstar10 = model.reflection(index_particle2,
+    refl10, _, _, g10, lstar10 = sc.model.reflection(index_particle2,
                                                   index_matrix2, index_medium,
                                                   wavelength, radius,
                                                   volume_fraction, radius2 =
@@ -1475,11 +1475,11 @@ def test_g_transport_length():
 
     # test that the reflectance using only the form factor is the same using
     # the polydisperse formula vs using Mie in the limit of monodispersity
-    _, _, _, g, lstar = model.reflection(index_particle, index_matrix,
+    _, _, _, g, lstar = sc.model.reflection(index_particle, index_matrix,
                                          index_medium, wavelength, radius,
                                          volume_fraction,
                                          thickness=thickness1)
-    _, _, _, g2, lstar2 = model.reflection(index_particle, index_matrix,
+    _, _, _, g2, lstar2 = sc.model.reflection(index_particle, index_matrix,
                                            index_medium, wavelength,
                                            radius, volume_fraction,
                                            thickness=thickness2)
@@ -1507,7 +1507,7 @@ def test_reflection_throws_valueerror_for_polydisperse_core_shells():
 
     with pytest.raises(ValueError, match=msg_regex):
         # when running polydisperse core-shells, without absorption
-        refl, _, _, _, _ = model.reflection(index, index_matrix, index_medium,
+        refl, _, _, _, _ = sc.model.reflection(index, index_matrix, index_medium,
                                             wavelength, radius,
                                             volume_fraction2, radius2 =
                                             radius2, concentration =
@@ -1515,7 +1515,7 @@ def test_reflection_throws_valueerror_for_polydisperse_core_shells():
                                             structure_type='polydisperse',
                                             form_type='polydisperse')
     with pytest.raises(ValueError, match=msg_regex):
-        refl2, _, _, _, _ = model.reflection(index, index_matrix, index_medium,
+        refl2, _, _, _, _ = sc.model.reflection(index, index_matrix, index_medium,
                                              wavelength, radius,
                                              volume_fraction2, radius2 =
                                              radius2, concentration =
@@ -1523,7 +1523,7 @@ def test_reflection_throws_valueerror_for_polydisperse_core_shells():
                                              structure_type='glass',
                                              form_type='polydisperse')
     with pytest.raises(ValueError, match=msg_regex):
-        refl3, _, _, _, _ = model.reflection(index, index_matrix, index_medium,
+        refl3, _, _, _, _ = sc.model.reflection(index, index_matrix, index_medium,
                                              wavelength, radius,
                                              volume_fraction2, radius2 =
                                              radius2, concentration =
@@ -1531,14 +1531,14 @@ def test_reflection_throws_valueerror_for_polydisperse_core_shells():
                                              structure_type=None,
                                              form_type='polydisperse')
     with pytest.raises(ValueError, match=msg_regex):
-        refl4, _, _, _, _ = model.reflection(index, index_matrix, index_medium,
+        refl4, _, _, _, _ = sc.model.reflection(index, index_matrix, index_medium,
                                             wavelength, radius, volume_fraction2,
                                             radius2 = radius2,
                                             concentration = concentration,
                                             pdi = pdi, structure_type='polydisperse',
                                             form_type='sphere')
     with pytest.raises(ValueError, match=msg_regex):
-        refl5, _, _, _, _ = model.reflection(index, index_matrix, index_medium,
+        refl5, _, _, _, _ = sc.model.reflection(index, index_matrix, index_medium,
                                              wavelength, radius,
                                              volume_fraction2, radius2 =
                                              radius2, concentration =
@@ -1548,7 +1548,7 @@ def test_reflection_throws_valueerror_for_polydisperse_core_shells():
 
     with pytest.raises(ValueError, match=msg_regex):
         # when running polydisperse core-shells, with absorption
-        refl6, _, _, _, _ = model.reflection(index, index_matrix, index_medium,
+        refl6, _, _, _, _ = sc.model.reflection(index, index_matrix, index_medium,
                                             wavelength, radius, volume_fraction2,
                                             radius2 = radius2,
                                             concentration = concentration,
@@ -1556,7 +1556,7 @@ def test_reflection_throws_valueerror_for_polydisperse_core_shells():
                                             form_type='polydisperse',
                                             thickness=thickness)
     with pytest.raises(ValueError, match=msg_regex):
-        refl7, _, _, _, _ = model.reflection(index, index_matrix, index_medium,
+        refl7, _, _, _, _ = sc.model.reflection(index, index_matrix, index_medium,
                                             wavelength, radius, volume_fraction2,
                                             radius2 = radius2,
                                             concentration = concentration,
@@ -1564,7 +1564,7 @@ def test_reflection_throws_valueerror_for_polydisperse_core_shells():
                                             form_type='polydisperse',
                                             thickness=thickness)
     with pytest.raises(ValueError, match=msg_regex):
-        refl8, _, _, _, _ = model.reflection(index, index_matrix, index_medium,
+        refl8, _, _, _, _ = sc.model.reflection(index, index_matrix, index_medium,
                                             wavelength, radius, volume_fraction2,
                                             radius2 = radius2,
                                             concentration = concentration,
@@ -1572,14 +1572,14 @@ def test_reflection_throws_valueerror_for_polydisperse_core_shells():
                                             form_type='polydisperse',
                                             thickness=thickness)
     with pytest.raises(ValueError, match=msg_regex):
-        refl9, _, _, _, _ = model.reflection(index, index_matrix, index_medium,
+        refl9, _, _, _, _ = sc.model.reflection(index, index_matrix, index_medium,
                                             wavelength, radius, volume_fraction2,
                                             radius2 = radius2,
                                             concentration = concentration,
                                             pdi = pdi, structure_type='polydisperse',
                                             form_type='sphere', thickness=thickness)
     with pytest.raises(ValueError, match=msg_regex):
-        refl10, _, _, _, _ = model.reflection(index, index_matrix, index_medium,
+        refl10, _, _, _, _ = sc.model.reflection(index, index_matrix, index_medium,
                                             wavelength, radius, volume_fraction2,
                                             radius2 = radius2,
                                             concentration = concentration,
@@ -1603,7 +1603,7 @@ def test_reflection_throws_valueerror_for_polydisperse_unspecified_parameters():
     with pytest.raises(ValueError):
         # when running polydisperse core-shells, without absorption,
         # and unspecified radius2
-        refl, _, _, _, _ = model.reflection(index_particle, index_matrix,
+        refl, _, _, _, _ = sc.model.reflection(index_particle, index_matrix,
                                             index_medium, wavelength, radius,
                                             volume_fraction2, concentration =
                                             concentration, pdi = pdi,
@@ -1617,7 +1617,7 @@ def test_reflection_throws_valueerror_for_polydisperse_unspecified_parameters():
     with pytest.raises(ValueError):
         # when running polydisperse core-shells, with absorption,
         # and unspecified radius2
-        refl, _, _, _, _ = model.reflection(index_particle,
+        refl, _, _, _, _ = sc.model.reflection(index_particle,
                                             index_matrix, index_medium,
                                             wavelength, radius,
                                             volume_fraction2, concentration =
