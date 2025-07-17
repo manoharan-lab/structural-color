@@ -419,6 +419,83 @@ class HemisphericalReflectanceDetector(Detector):
                          phi_min=Quantity('0.0 deg'),
                          phi_max=Quantity('360.0 deg'))
 
+def _make_model(index_particle, index_matrix, index_medium, radius,
+                volume_fraction, radius2=None, concentration=None, pdi=None,
+                structure_type='glass',
+                form_type='sphere', maxwell_garnett=False,
+                structure_s_data=None, structure_qd_data=None):
+    """scaffolding function to make a model from all the input data to
+    reflection() or montecarlo.phase_function().
+    """
+
+    # handle core-shell particles properly
+    num_layers = np.atleast_1d(radius).shape[0]
+    if (num_layers > 1) and np.ndim(index_particle)!=1:
+        index_particle = [index_particle]*num_layers
+    particle = sc.Sphere(index_particle, radius)
+    index_external = sc.EffectiveIndex.from_particle(particle, volume_fraction,
+                                                     index_matrix,
+                                                     maxwell_garnett =
+                                                     maxwell_garnett)
+
+    if pdi is not None:
+        if (np.ndim(radius) != 0) or (np.ndim(radius2) != 0):
+            raise ValueError("cannot handle polydispersity for "
+                             "layered spheres")
+        if len(np.atleast_1d(pdi)) == 2:
+            sphere1 = sc.Sphere(index_particle, radius)
+            sphere2 = sc.Sphere(index_particle, radius2)
+            dist = sc.SphereDistribution([sphere1, sphere2], concentration,
+                                         pdi)
+        else:
+            radius2 = radius
+            sphere1 = sc.Sphere(index_particle, radius)
+            dist = sc.SphereDistribution(sphere1, concentration, pdi)
+
+    if form_type == "sphere":
+        if structure_type == "glass":
+            model = HardSpheres(particle, volume_fraction, index_matrix,
+                                index_medium, maxwell_garnett=maxwell_garnett)
+        if structure_type == "data":
+            form_factor = particle.form_factor
+            structure_factor = sc.structure.Interpolated(structure_s_data,
+                                                         structure_qd_data)
+            lengthscale = particle.radius_q
+            model = FormStructureModel(form_factor, structure_factor,
+                                       lengthscale, index_external,
+                                       index_medium)
+        if structure_type is None:
+            form_factor = particle.form_factor
+            lengthscale = particle.radius_q
+            model = FormStructureModel(form_factor, None, lengthscale,
+                                       index_external, index_medium)
+    elif form_type == "polydisperse":
+        if structure_type == "polydisperse":
+            model = PolydisperseHardSpheres(dist, volume_fraction,
+                                            index_matrix, index_medium)
+        if structure_type is None:
+            form_factor = dist.form_factor
+            lengthscale = dist.spheres[0].radius_q
+            model = FormStructureModel(form_factor, None, lengthscale,
+                                       index_external, index_medium)
+    elif form_type is None:
+        form_factor = None
+        if structure_type == "data":
+            structure_factor = sc.structure.Interpolated(structure_s_data,
+                                                         structure_qd_data)
+        if structure_type == "glass":
+            structure_factor = sc.structure.PercusYevick(volume_fraction)
+            lengthscale = particle.radius_q
+        if structure_type == "polydisperse":
+            structure_factor = sc.structure.Polydisperse(volume_fraction, dist)
+            lengthscale = dist.spheres[0].radius_q
+        if structure_type is None:
+            structure_factor = None
+        model = FormStructureModel(None, structure_factor, lengthscale,
+                                   index_external, index_medium)
+
+    return model
+
 
 @ureg.check(None, None, None, '[length]', '[length]', '[]', None, None, None,
             None, None, None, None, None, None, None, None, None, None)
@@ -558,24 +635,8 @@ def reflection(index_particle, index_matrix, index_medium, wavelen, radius,
     # TODO: remove after further refactoring.
     if isinstance(concentration, sc.Quantity):
         concentration = concentration.magnitude
-    if pdi is not None:
-        if (np.ndim(radius) != 0) or (np.ndim(radius2) != 0):
-            raise ValueError("cannot handle polydispersity for "
-                             "layered spheres")
-        if radius2 is not None:
-            sphere1 = sc.Sphere(index_particle, radius)
-            sphere2 = sc.Sphere(index_particle, radius2)
-            dist = sc.SphereDistribution([sphere1, sphere2], concentration,
-                                         pdi)
-        else:
-            radius2 = radius
-            sphere1 = sc.Sphere(index_particle, radius)
-            dist = sc.SphereDistribution(sphere1, concentration, pdi)
-        # calculate number density
-        rho = dist.number_density(volume_fraction)
-    else:
+    if radius2 is None:
         radius2 = radius
-        rho = particle.number_density(volume_fraction)
 
     # define the mean diameters in case the system is polydisperse
     mean_diameters = Quantity(np.hstack([2*radius.magnitude,
@@ -663,17 +724,6 @@ def reflection(index_particle, index_matrix, index_medium, wavelen, radius,
                                         n_medium.to_numpy().squeeze(),
                                         np.pi-angles)
 
-    # calculate the absorption cross section
-    if np.abs(n_sample.imag) > 0.0:
-        # The absorption coefficient can be calculated from the imaginary
-        # component of the samples's refractive index
-        mu_abs = 4 * np.pi * n_sample.imag.to_numpy().squeeze() / wavelen
-        cabs_total = mu_abs / rho
-    else:
-        cross_sections = mie.calc_cross_sections(m, x,
-                            (wavelen/(n_sample.to_numpy().squeeze())))
-        cabs_total = cross_sections[2]
-
     # calculate the differential cross section in the detected range of angles
     # and in the total angles. We calculate it at a distance = radius when
     # there is absorption in the system, making sure that near_fields are False
@@ -686,52 +736,33 @@ def reflection(index_particle, index_matrix, index_medium, wavelen, radius,
         distance = mean_diameters.max() / 2
     kd = (k*distance).to('')
 
-    if form_type == "sphere":
-        if structure_type == "glass":
-            model = HardSpheres(particle, volume_fraction, index_matrix,
-                                index_medium, maxwell_garnett=maxwell_garnett)
-        if structure_type == "data":
-            form_factor = particle.form_factor
-            structure_factor = sc.structure.Interpolated(structure_s_data,
-                                                         structure_qd_data)
-            lengthscale = particle.radius_q
-            model = FormStructureModel(form_factor, structure_factor,
-                                       lengthscale, index_external,
-                                       index_medium)
-        if structure_type is None:
-            form_factor = particle.form_factor
-            lengthscale = particle.radius_q
-            model = FormStructureModel(form_factor, None, lengthscale,
-                                       index_external, index_medium)
-    elif form_type == "polydisperse":
-        if structure_type == "polydisperse":
-            model = PolydisperseHardSpheres(dist, volume_fraction,
-                                            index_matrix, index_medium)
-        if structure_type is None:
-            form_factor = dist.form_factor
-            lengthscale = dist.spheres[0].radius_q
-            model = FormStructureModel(form_factor, None, lengthscale,
-                                       index_external, index_medium)
-    elif form_type is None:
-        form_factor = None
-        if structure_type == "data":
-            structure_factor = sc.structure.Interpolated(structure_s_data,
-                                                         structure_qd_data)
-        if structure_type == "glass":
-            structure_factor = sc.structure.PercusYevick(volume_fraction)
-            lengthscale = particle.radius_q
-        if structure_type == "polydisperse":
-            structure_factor = sc.structure.Polydisperse(volume_fraction, dist)
-            lengthscale = dist.spheres[0].radius_q
-        if structure_type is None:
-            structure_factor = None
-        model = FormStructureModel(None, structure_factor, lengthscale,
-                                   index_external, index_medium)
-
+    model = _make_model(index_particle, index_matrix, index_medium,
+                        radius, volume_fraction, radius2=radius2,
+                        concentration=concentration, pdi=pdi,
+                        structure_type=structure_type, form_type=form_type,
+                        maxwell_garnett=maxwell_garnett,
+                        structure_s_data=structure_s_data,
+                        structure_qd_data=structure_qd_data)
     diff_cs_detected = model.differential_cross_section(wavelen, angles,
                                                         kd=kd)
     diff_cs_total = model.differential_cross_section(wavelen, angles_tot,
                                                      kd=kd)
+
+    # calculate the absorption cross section
+    if isinstance(model, PolydisperseHardSpheres):
+        # calculate number density
+        rho = model.sphere_dist.number_density(volume_fraction)
+    else:
+        rho = particle.number_density(volume_fraction)
+    if np.abs(n_sample.imag) > 0.0:
+        # The absorption coefficient can be calculated from the imaginary
+        # component of the samples's refractive index
+        mu_abs = 4 * np.pi * n_sample.imag.to_numpy().squeeze() / wavelen
+        cabs_total = mu_abs / rho
+    else:
+        cross_sections = mie.calc_cross_sections(m, x,
+                            (wavelen/(n_sample.to_numpy().squeeze())))
+        cabs_total = cross_sections[2]
 
     # integrate the differential cross sections to get the total cross section
     if np.abs(n_sample.imag) > 0.:
