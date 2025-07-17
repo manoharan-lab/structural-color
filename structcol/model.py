@@ -128,6 +128,8 @@ class FormStructureModel(Model):
             scattering cross section.
 
         """
+        wavelen = wavelen.to_preferred()
+        angles = angles.to("rad")
         # calculate form factor
         if self.form_factor is not None:
             f_par, f_perp = self.form_factor(wavelen, angles,
@@ -180,6 +182,8 @@ class FormStructureModel(Model):
             (unpolarized) cross-section.
 
         """
+        wavelen = wavelen.to_preferred()
+        angles = angles.to('rad')
         k = sc.wavevector(self.index_external(wavelen))
         ksquared = np.abs(k)**2
         distance = self.lengthscale

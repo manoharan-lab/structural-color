@@ -989,13 +989,12 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
         p = S11 / (k^2 * cscat)
         (Bohren and Huffmann, chapter 13.3)
     """
+    wavelen = wavelen.to_preferred()
 
     # calculate parameters for scattering calculations
-    n_sample = n_sample
-
     k = sc.wavevector(n_sample)
     m = sc.index.ratio(n_particle, n_sample)
-    x = sc.size_parameter(n_sample, radius)
+    x = sc.size_parameter(n_sample, radius.to_preferred())
 
     # if the system is polydisperse, use the polydisperse form and structure
     # factors
@@ -1035,6 +1034,7 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
     # define the mean diameters in case the system is polydisperse
     mean_diameters = sc.Quantity(np.array([2*radius.magnitude,
                                            2*radius2.magnitude]), radius.units)
+    mean_diameters = mean_diameters.to_preferred()
 
     # calculate the absorption coefficient
     mu_abs = 4*np.pi*n_sample.imag.to_numpy()/wavelen
@@ -1181,17 +1181,60 @@ def phase_function(m, x, angles, volume_fraction, k, number_density,
         total scattering cross section for unpolarized light
 
     """
-    ksquared = np.abs(k)**2
+    ksquared = (np.abs(k)**2).to_preferred()
+    diameters = diameters.to_preferred()
+    angles = angles.to('rad')
+    if phis is not None:
+        phis = phis.to('rad')
+    if wavelen is not None:
+        wavelen = wavelen.to_preferred()
 
+    if isinstance(volume_fraction, sc.Quantity):
+        volume_fraction = volume_fraction.to('').magnitude
     if form_type=='polydisperse':
         distance = diameters/2
         if len(diameters) == 1:
             distance = sc.Quantity(np.array([distance.magnitude,
                                              distance.magnitude]),
                                    distance.units)
+        radius = distance[0].squeeze()
+        radius2 = distance[1].squeeze()
     else:
         distance = diameters.max()/2
+        radius = np.atleast_1d(diameters)[0]/2
+        radius2 = radius
 
+    kd = (k*distance).to('').magnitude
+    n_particle = (m * n_sample.to_numpy())
+    if np.ndim(n_particle) > 1:
+        num_layers = n_particle.shape[1]
+        index_particle = [sc.Index.constant(n_layer) for n_layer in
+                          n_particle[0, :]]
+    else:
+        index_particle = sc.Index.constant(n_particle)
+    index_external = sc.Index.constant(n_sample.to_numpy())
+    index_medium = sc.index.vacuum
+
+    model = sc.model._make_model(index_particle, index_external, index_medium,
+                                 radius, volume_fraction, radius2=radius2,
+                                 concentration=concentration, pdi=pdi,
+                                 structure_type=structure_type,
+                                 form_type=form_type, maxwell_garnett=False,
+                                 structure_s_data=structure_s_data,
+                                 structure_qd_data=structure_qd_data)
+
+    # patch the object; we don't know the actual matrix index, so we fed it the
+    # effective index, which it used to calculate an incorrect new effective
+    # index.  Here we correct the effective index to what it should be.
+    model.index_external = index_external
+
+    ff_kwargs = {}
+    if coordinate_system == "cartesian":
+        ff_kwargs["phis"] = phis
+        ff_kwargs["cartesian"] = True
+    if np.any(n_sample.imag > 0):
+        ff_kwargs["kd"] = kd
+    diff_cs = model.differential_cross_section(wavelen, angles, **ff_kwargs)
     # Note that we ignore near fields throughout structcol since we assume
     # that the scattering length is larger than the distance at which near
     # fields are significant (~order of the wavelength of light). In the
@@ -1201,21 +1244,30 @@ def phase_function(m, x, angles, volume_fraction, k, number_density,
     # Also note that the diff_cscat_par and perp will actuallly be
     # the values diff_cscat_x and y if coordinate_system is cartesian.
     diff_cscat_par, diff_cscat_perp = \
-         sc.model.differential_cross_section(m, x, angles, volume_fraction,
-                                             structure_type=structure_type,
-                                             form_type=form_type,
-                                             diameters=diameters,
-                                             coordinate_system =
-                                             coordinate_system,
-                                             phis=phis,
-                                             concentration=concentration,
-                                             pdi=pdi, wavelen=wavelen,
-                                             n_matrix=n_sample, k=k,
-                                             distance=distance,
-                                             structure_s_data =
-                                             structure_s_data,
-                                             structure_qd_data =
-                                             structure_qd_data)
+        sc.model.differential_cross_section(m, x, angles, volume_fraction,
+                                            structure_type=structure_type,
+                                            form_type=form_type,
+                                            diameters=diameters,
+                                            coordinate_system =
+                                            coordinate_system,
+                                            phis=phis,
+                                            concentration=concentration,
+                                            pdi=pdi, wavelen=wavelen,
+                                            n_matrix=n_sample, k=k,
+                                            distance=distance,
+                                            structure_s_data =
+                                            structure_s_data,
+                                            structure_qd_data =
+                                            structure_qd_data)
+
+    np.testing.assert_equal(model.index_external(wavelen).to_numpy(), n_sample)
+    if hasattr(model, "volume_fraction"):
+        np.testing.assert_equal(model.volume_fraction, volume_fraction)
+    np.testing.assert_equal(sc.wavevector(index_external(wavelen)), k)
+    # these won't be the same due to rounding error, but they should be close
+    np.testing.assert_allclose(diff_cs[0], diff_cscat_par)
+    np.testing.assert_allclose(diff_cs[1], diff_cscat_perp)
+    diff_cscat_par, diff_cscat_perp = diff_cs
 
     # If in cartesian coordinate system, integrate the differential cross
     # section using integration functions in mie.py that can handle cartesian
