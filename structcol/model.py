@@ -140,10 +140,18 @@ class FormStructureModel(Model):
         # calculate structure factor
         n_ext = self.index_external(wavelen)
         ql = sc.ql(n_ext, self.lengthscale, angles)
-        s = self.structure_factor(ql).to_numpy()
+        # if meshgrid was used to calculate angles, angles will have shape
+        # [num_theta, num_phi].  Because the structure factor does not depend
+        # on phi, we look at only the theta component
+        if sc.Coord.PHI in ql.coords:
+            s = self.structure_factor(ql.isel({sc.Coord.PHI: 0})).to_numpy()
+            scat_par = s[:, np.newaxis] * f_par
+            scat_perp = s[:, np.newaxis] * f_perp
+        else:
+            s = self.structure_factor(ql).to_numpy()
+            scat_par = s * f_par
+            scat_perp = s * f_perp
 
-        scat_par = s * f_par
-        scat_perp = s * f_perp
 
         return scat_par, scat_perp
 

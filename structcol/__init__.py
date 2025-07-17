@@ -308,7 +308,12 @@ def ql(n_medium, lengthscale, angles):
 
     # set up coordinates for ql DataArray
     angles = np.atleast_1d(angles.to('rad').magnitude)
-    angles = xr.DataArray(angles, coords={Coord.THETA: angles})
+    if angles.ndim == 2:
+        angles = xr.DataArray(angles, coords={Coord.THETA: angles[:, 0],
+                                              Coord.PHI: angles[0, :]})
+    else:
+        angles = xr.DataArray(angles, coords={Coord.THETA: angles})
+
 
     # this should automatically broadcast since angles is a DataArray
     # TODO: should it be x.real or x.abs?
