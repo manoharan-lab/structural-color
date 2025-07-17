@@ -315,6 +315,7 @@ class Sphere(Particle):
 
         """
         wavelen = wavelen.to_preferred()
+        angles = angles.to('rad')
 
         n_ext = index_external(wavelen)
         n_particle = self.n(wavelen)
@@ -484,6 +485,7 @@ class SphereDistribution:
             polarizations as a function of scattering angle.
         """
         wavelen = wavelen.to_preferred()
+        angles = angles.to('rad')
         n_ext = index_external(wavelen)
         if cartesian:
             coordinate_system = 'cartesian'
