@@ -42,7 +42,7 @@ def test_2pi_shift():
     radius = sc.Quantity('0.140 um')
     volume_fraction = 0.55
     n_imag = 2.1e-4
-    index_particle = sc.index.polystyrene + n_imag
+    index_particle = sc.index.polystyrene + n_imag*1j
     sphere = sc.Sphere(index_particle, radius)
     n_particle = sphere.n(wavelength)
     index_matrix = sc.index.vacuum

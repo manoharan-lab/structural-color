@@ -442,7 +442,9 @@ class TestModel():
                                 self.ps_radius.units) * 2
         _, cscat_mc = montecarlo.phase_function(m, x, angles,
                                                 volume_fraction, k, None,
-                                                diameters = diameters)
+                                                diameters = diameters,
+                                                n_sample=n_ext,
+                                                wavelen=wavelen)
 
         # should be exactly equal
         assert_equal(cscat.to_preferred().magnitude,
