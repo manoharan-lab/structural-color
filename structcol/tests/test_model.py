@@ -697,26 +697,22 @@ def test_differential_cross_section():
     # Test that the differential cross sections for non-core-shell particles
     # and core-shells are the same at low volume fractions, assuming that the
     # particle diameter of the non-core-shells is the same as the core
-    # diameter in the core-shells
+    # diameter in the core-shells (shell of the core-shells is vacuum)
 
     wavelen = Quantity('500.0 nm')
     index_matrix = sc.Index.constant(1.0)
-    n_matrix = index_matrix(wavelen)
+    index_medium = sc.index.vacuum
     angles = Quantity(np.linspace(np.pi/2, np.pi, 200), 'rad')
 
     # Differential cross section for non-core-shells
     radius = Quantity('100.0 nm')
     index_particle = sc.Index.constant(1.5)
     sphere = sc.Sphere(index_particle, radius)
-    n_particle = sphere.n(wavelen)
-    volume_fraction = 0.0001              # IS VF TOO LOW?
-    vf_array = sphere.volume_fraction(volume_fraction)
-    n_sample = sc.index.effective_index([index_particle, index_matrix],
-                                        vf_array, wavelen)
+    volume_fraction = 1e-5
 
-    m = sc.index.ratio(n_particle, n_sample)
-    x = mie.size_parameter(wavelen, n_sample.to_numpy().squeeze(), radius)
-    diff = model.differential_cross_section(m, x, angles, volume_fraction)
+    model = sc.model.HardSpheres(sphere, volume_fraction, index_matrix,
+                                 index_medium)
+    diff = model.differential_cross_section(wavelen, angles)
 
     # Differential cross section for core-shells. Core is equal to
     # non-core-shell particle, and shell is made of vacuum
@@ -725,21 +721,17 @@ def test_differential_cross_section():
     sphere_cs = sc.Sphere(index_cs, radius_cs)
     n_particle_cs = sphere_cs.n(wavelen)
 
-    volume_fraction_shell = volume_fraction * (radius_cs[1]**3 / radius_cs[0]**3-1)
-    volume_fraction_cs = np.array([volume_fraction, volume_fraction_shell])
+    # adjust volume fraction of core-shells so that volume fraction of cores is
+    # same as that of non-core-shells
+    vf_core = sphere_cs.volume_fraction()[0].to_numpy()
+    volume_fraction_cs = volume_fraction/vf_core
 
-    volume_fraction_cs = sphere_cs.volume_fraction(volume_fraction)
-    n_sample_cs = sc.index.effective_index(index_cs + [index_matrix],
-                                           volume_fraction_cs, wavelen)
-    m_cs = (n_particle_cs/n_sample_cs).to_numpy().squeeze()
-    x_cs = mie.size_parameter(wavelen, n_sample_cs.to_numpy().squeeze(),
-                              radius_cs)
-    void_volume_fraction = volume_fraction_cs[1].item() + volume_fraction
-    diff_cs = model.differential_cross_section(m_cs, x_cs, angles,
-                                               void_volume_fraction)
+    model_cs = sc.model.HardSpheres(sphere_cs, volume_fraction_cs,
+                                    index_matrix, index_medium)
+    diff_cs = model_cs.differential_cross_section(wavelen, angles)
 
-    assert_array_almost_equal(diff[0], diff_cs[0], decimal=5)
-    assert_array_almost_equal(diff[1], diff_cs[1], decimal=5)
+    assert_allclose(diff[0], diff_cs[0], rtol=1e-4)
+    assert_allclose(diff[1], diff_cs[1], rtol=1e-4)
 
 
 def test_reflection_core_shell():
