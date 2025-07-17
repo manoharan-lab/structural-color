@@ -174,7 +174,6 @@ class TestModel():
                                           index_matrix, index_medium)
         dscat = model.differential_cross_section(wavelen, angles)
         dscat_mono = mono_model.differential_cross_section(wavelen, angles)
-
         assert_allclose(dscat, dscat_mono)
 
         # and structure factor should be close to 1
@@ -183,6 +182,13 @@ class TestModel():
         ql = sc.ql(n_ext, lengthscale, angles)
         s = model.structure_factor(ql)
         assert_allclose(s.to_numpy(), np.ones_like(s.to_numpy()))
+
+        # we check also that the scattering cross sections are the same for the
+        # monodisperse and polydisperse models
+        cscat = model.scattering_cross_section(wavelen, angles)
+        cscat_mono = mono_model.scattering_cross_section(wavelen, angles)
+        assert_allclose(cscat.to_preferred().magnitude,
+                        cscat_mono.to_preferred().magnitude)
 
         # now finite volume fraction, low polydispersity
         volume_fraction = 0.5
@@ -261,7 +267,7 @@ class TestModel():
         # TODO: test reflectance as well
 
     @pytest.mark.parametrize("index_matrix", [sc.index.water,
-                                              sc.Index.constant(1.59 + 0.001j)])
+                                              sc.Index.constant(1.59+0.001j)])
     def test_scattering_cross_section(self, index_matrix):
         """Test that the scattering_cross_section() method returns reasonable
         values (the above tests mostly focus on the
@@ -342,6 +348,62 @@ class TestModel():
         # with more tests of integrate_intensity_complex_medium()
 
     @pytest.mark.parametrize("index_matrix", [sc.index.water,
+                                              sc.Index.constant(1.59+0.001j)])
+    def test_scattering_cross_section_polydisperse(self, index_matrix):
+        """Test the scattering_cross_section() method for the
+        PolydisperseHardSpheres model
+        """
+        # TODO: test vectorization after changing _integrate_cross_section
+        wavelen = self.wavelen[0]
+        volume_fraction = 0.5
+        index_medium = sc.index.vacuum
+
+        # avoid division by zero error by starting at finite angle
+        angles = sc.Quantity(np.linspace(0.01, np.pi, 20), 'rad')
+
+        # check that a binary polydisperse system with the same diameters for
+        # the two components produces the same differential and total cross
+        # sections as a single-component polydisperse system
+        pdi = 0.15
+
+        dist = sc.SphereDistribution(self.ps_sphere, 1.0, pdi)
+        single_model = sc.model.PolydisperseHardSpheres(dist, volume_fraction,
+                                                        index_matrix,
+                                                        index_medium)
+        dist = sc.SphereDistribution([self.ps_sphere, self.ps_sphere],
+                                     [0.5, 0.5], [pdi, pdi])
+        binary_model = sc.model.PolydisperseHardSpheres(dist, volume_fraction,
+                                                        index_matrix,
+                                                        index_medium)
+
+        # do the calculation using single-species polydisperse model
+        n_matrix = single_model.index_matrix(wavelen)
+        ff_kwargs = {}
+        if np.any(n_matrix.imag > 0):
+            ff_kwargs["kd"] = sc.wavevector(n_matrix) * self.ps_radius
+            ff_kwargs["kd"] = ff_kwargs["kd"].to('').magnitude
+        dscat_1 = single_model.differential_cross_section(wavelen, angles,
+                                                          **ff_kwargs)
+        cscat_1 = single_model.scattering_cross_section(wavelen, angles,
+                                                        **ff_kwargs)
+
+        # do the calculation using bidisperse polydisperse model
+        n_matrix = binary_model.index_matrix(wavelen)
+        ff_kwargs = {}
+        if np.any(n_matrix.imag > 0):
+            ff_kwargs["kd"] = (sc.wavevector(n_matrix) *
+                               binary_model.sphere_dist.diameters_q/2)
+            ff_kwargs["kd"] = ff_kwargs["kd"].to('').magnitude
+
+        dscat_2 = binary_model.differential_cross_section(wavelen, angles,
+                                                               **ff_kwargs)
+        cscat_2 = binary_model.scattering_cross_section(wavelen, angles,
+                                                        **ff_kwargs)
+        assert_equal(dscat_2, dscat_1)
+        assert_equal(cscat_2.to_preferred().magnitude,
+                     cscat_1.to_preferred().magnitude)
+
+    @pytest.mark.parametrize("index_matrix", [sc.index.water,
                                               sc.Index.constant(1.59 + 0.001j),
                                               sc.Index.constant(1.59 + 0.1j)])
     def test_scattering_against_phase_function_method(self, index_matrix):
@@ -403,7 +465,7 @@ class TestModel():
         assert_allclose(cscat.to_preferred().magnitude,
                         cscat_mc.to_preferred().magnitude, rtol=1e-5)
 
-        # finally check for polydisperse system with finite polydispersity.  We
+        # check for polydisperse system with finite polydispersity.  We
         # compare against the analogous computation with the phase_function()
         # function.  Should give exactly the same results.
         pdi = 0.15
@@ -427,6 +489,43 @@ class TestModel():
 
         assert_equal(cscat.to_preferred().magnitude,
                      cscat_mc.to_preferred().magnitude)
+
+        # Now binary system with finite polydispersity, compared to the
+        # analogous computation with the phase_function() function. Should give
+        # exactly the same results.
+        sphere1 = sc.Sphere(self.index_particle, sc.Quantity(0.15, 'um'))
+        sphere2 = sc.Sphere(self.index_particle, sc.Quantity(0.25, 'um'))
+        concentration = np.array([0.1, 0.9])
+        pdi = np.array([0.15, 0.15])
+        dist = sc.SphereDistribution([sphere1, sphere2], concentration, pdi)
+        binary_model = sc.model.PolydisperseHardSpheres(dist, volume_fraction,
+                                                        index_matrix,
+                                                        index_medium)
+        ff_kwargs = {}
+        diameters = binary_model.sphere_dist.diameters_q
+
+        if np.any(n_ext.imag > 0):
+            ff_kwargs["kd"] = (sc.wavevector(n_ext) * diameters/2)
+            ff_kwargs["kd"] = ff_kwargs["kd"].to('').magnitude
+
+        cscat = binary_model.scattering_cross_section(wavelen, angles,
+                                                      **ff_kwargs)
+
+        m = sc.index.ratio(n_particle, n_ext)
+        x = sc.size_parameter(n_ext, sphere1.radius_q).to_numpy()
+        _, cscat_mc = montecarlo.phase_function(m, x, angles,
+                                                volume_fraction, k, None,
+                                                concentration=concentration,
+                                                pdi=pdi,
+                                                diameters = diameters,
+                                                form_type="polydisperse",
+                                                structure_type="polydisperse",
+                                                n_sample=n_ext,
+                                                wavelen=wavelen)
+
+        assert_equal(cscat.to_preferred().magnitude,
+                     cscat_mc.to_preferred().magnitude)
+
 
 class TestDetector():
     """Tests for the Detector class and derived classes.

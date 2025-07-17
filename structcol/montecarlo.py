@@ -1201,18 +1201,21 @@ def phase_function(m, x, angles, volume_fraction, k, number_density,
     # Also note that the diff_cscat_par and perp will actuallly be
     # the values diff_cscat_x and y if coordinate_system is cartesian.
     diff_cscat_par, diff_cscat_perp = \
-         model.differential_cross_section(m, x, angles, volume_fraction,
-                                          structure_type=structure_type,
-                                          form_type=form_type,
-                                          diameters=diameters,
-                                          coordinate_system=coordinate_system,
-                                          phis=phis,
-                                          concentration=concentration,
-                                          pdi=pdi, wavelen=wavelen,
-                                          n_matrix=n_sample, k=k,
-                                          distance=distance,
-                                          structure_s_data=structure_s_data,
-                                          structure_qd_data=structure_qd_data)
+         sc.model.differential_cross_section(m, x, angles, volume_fraction,
+                                             structure_type=structure_type,
+                                             form_type=form_type,
+                                             diameters=diameters,
+                                             coordinate_system =
+                                             coordinate_system,
+                                             phis=phis,
+                                             concentration=concentration,
+                                             pdi=pdi, wavelen=wavelen,
+                                             n_matrix=n_sample, k=k,
+                                             distance=distance,
+                                             structure_s_data =
+                                             structure_s_data,
+                                             structure_qd_data =
+                                             structure_qd_data)
 
     # If in cartesian coordinate system, integrate the differential cross
     # section using integration functions in mie.py that can handle cartesian

@@ -192,7 +192,6 @@ class FormStructureModel(Model):
         # If in cartesian coordinate system, integrate the differential cross
         # section using integration functions in mie.py that can handle
         # cartesian coordinates. Also includes absorption.
-        # TODO make this work for polydisperse
         if ff_kwargs.get("cartesian") is True:
             thetas_1d = angles[:,0]
             phis_1d = ff_kwargs.get("phis")[0,:]
@@ -326,6 +325,41 @@ class PolydisperseHardSpheres(FormStructureModel):
         super().__init__(form_factor, structure_factor, lengthscale,
                          index_external, index_medium)
 
+    def scattering_cross_section(self, wavelen, angles, **ff_kwargs):
+        """Special routine to calculate scattering cross section for
+        polydisperse binary mixtures only.
+
+        """
+        k = sc.wavevector(self.index_external(wavelen))
+        distance = self.sphere_dist.diameters_q/2
+
+        # TODO make cartesian work for polydisperse
+        if (np.any(np.abs(k.imag.magnitude) > 0)
+            and (len(self.sphere_dist.spheres) > 1)):
+            diff_cscat1, diff_cscat2 = self.differential_cross_section(
+                                            wavelen,
+                                            angles,
+                                            **ff_kwargs)
+
+            # When the system is binary and absorbing, we integrate the
+            # polydisperse differential cross section at the surface of each
+            # component (meaning at a distance of each mean radius). Then we
+            # do a number average of the total cross sections.
+            cscat_total1, cscat_total_par1, cscat_total_perp1, _, _ = \
+                mie.integrate_intensity_complex_medium(diff_cscat1,
+                                                       diff_cscat2,
+                                                       distance[0], angles, k)
+            cscat_total2, cscat_total_par2, cscat_total_perp2, _, _ = \
+                mie.integrate_intensity_complex_medium(diff_cscat1,
+                                                       diff_cscat2,
+                                                       distance[1], angles, k)
+            cscat_total = (cscat_total1 * self.sphere_dist.concentrations[0]
+                           + cscat_total2 * self.sphere_dist.concentrations[1])
+        else:
+            cscat_total = super().scattering_cross_section(wavelen, angles,
+                                                           **ff_kwargs)
+
+        return cscat_total
 
 class Detector:
     """Class to describe far-field detector used in single-scattering
