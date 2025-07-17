@@ -1235,38 +1235,6 @@ def phase_function(m, x, angles, volume_fraction, k, number_density,
     if np.any(n_sample.imag > 0):
         ff_kwargs["kd"] = kd
     diff_cs = model.differential_cross_section(wavelen, angles, **ff_kwargs)
-    # Note that we ignore near fields throughout structcol since we assume
-    # that the scattering length is larger than the distance at which near
-    # fields are significant (~order of the wavelength of light). In the
-    # future, we might want to include near field effects. In that case, we
-    # need to make sure to pass near_fields = True in
-    # mie.diff_scat_intensity_complex_medium(). The default is False.
-    # Also note that the diff_cscat_par and perp will actuallly be
-    # the values diff_cscat_x and y if coordinate_system is cartesian.
-    diff_cscat_par, diff_cscat_perp = \
-        sc.model.differential_cross_section(m, x, angles, volume_fraction,
-                                            structure_type=structure_type,
-                                            form_type=form_type,
-                                            diameters=diameters,
-                                            coordinate_system =
-                                            coordinate_system,
-                                            phis=phis,
-                                            concentration=concentration,
-                                            pdi=pdi, wavelen=wavelen,
-                                            n_matrix=n_sample, k=k,
-                                            distance=distance,
-                                            structure_s_data =
-                                            structure_s_data,
-                                            structure_qd_data =
-                                            structure_qd_data)
-
-    np.testing.assert_equal(model.index_external(wavelen).to_numpy(), n_sample)
-    if hasattr(model, "volume_fraction"):
-        np.testing.assert_equal(model.volume_fraction, volume_fraction)
-    np.testing.assert_equal(sc.wavevector(index_external(wavelen)), k)
-    # these won't be the same due to rounding error, but they should be close
-    np.testing.assert_allclose(diff_cs[0], diff_cscat_par)
-    np.testing.assert_allclose(diff_cs[1], diff_cscat_perp)
     diff_cscat_par, diff_cscat_perp = diff_cs
 
     # If in cartesian coordinate system, integrate the differential cross
