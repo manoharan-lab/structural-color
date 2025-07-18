@@ -543,10 +543,6 @@ class SphereDistribution:
         wavelen = wavelen.to_preferred()
         angles = angles.to('rad')
         n_ext = index_external(wavelen)
-        if cartesian:
-            coordinate_system = 'cartesian'
-        else:
-            coordinate_system = 'scattering plane'
 
         if self.has_layered:
             raise ValueError("Cannot handle polydispersity in core-shell ",
@@ -557,9 +553,6 @@ class SphereDistribution:
                 raise ValueError("Currently can handle only species with the "
                                  "same refractive index.")
         index_particle = self.spheres[0].index
-        n_particle = index_particle(wavelen)
-
-        m = sc.index.ratio(n_particle, n_ext)
 
         # t is a measure of the width of the Schulz distribution, and
         # pdi is the polydispersity index
@@ -581,7 +574,6 @@ class SphereDistribution:
                 F[pol] = np.empty([len(self.spheres), len(angles)])
 
         # for each mean diameter, calculate the Schulz distribution and
-        # the size parameter x_poly
         for d in np.arange(len(self.diameters)):
             # the diameter range is the range between the min diameter and
             # the max diameter of the Schulz distribution
@@ -594,16 +586,7 @@ class SphereDistribution:
                 distr_array = np.tile(distr,
                                       [angles.shape[0], angles.shape[1], 1])
             else:
-                distr_array = np.tile(distr, [len(angles),1])
-            angles_array = np.tile(angles, [len(diameter_range), 1])
-
-            # size parameter will be a 2D array [1, num_diameters]. Because
-            # this would be interpreted as a layered particle by pymie, we
-            # convert to a 1D array before looping
-            x_poly = sc.size_parameter(n_ext,
-                                       (diameter_range/2 *
-                                        self.spheres[0].current_units))
-            x_poly = x_poly.to_numpy()[0]
+                distr_array = np.tile(distr, [len(angles), 1])
 
             form_factor = {}
             integrand = {}
@@ -624,18 +607,12 @@ class SphereDistribution:
             # for each diameter in the distribution, calculate the detected
             # and the total form factors for absorbing systems
             for s in np.arange(len(diameter_range)):
-                # if the system has absorption, use the absorption formula from
-                # pymie
+                sphere = sc.Sphere(index_particle,
+                                   sc.Quantity(diameter_range[s]/2,
+                                               self.diameters_q.units))
                 if ((np.abs(n_ext.imag) > 0. or cartesian)
                      and (kd is not None)):
-                    kd_new = np.resize(kd, len(self.diameters))
-                    ff = mie.diff_scat_intensity_complex_medium(m,
-                                            x_poly[s],
-                                            angles_array[s],
-                                            kd_new[d],
-                                            coordinate_system=coordinate_system,
-                                            incident_vector=incident_vector,
-                                            phis=phis)
+                    kd_new = np.resize(kd, len(self.diameters))[d]
                     # it might seem reasonable to calculate the form factor of
                     # each individual radius in the Schulz distribution
                     # (meaning that we could use diameter_range[s] instead of
@@ -646,7 +623,11 @@ class SphereDistribution:
                     # distances we use for the integrand and the integral. For
                     # now, we use the mean radii.
                 else:
-                    ff = mie.calc_ang_dist(m, x_poly[s], angles_array[s])
+                    kd_new = None
+                ff = sphere.form_factor(wavelen, angles, index_external,
+                                        cartesian=cartesian, kd=kd_new,
+                                        incident_vector=incident_vector,
+                                        phis=phis)
                 if cartesian:
                     form_factor['par'][:, :, s] = ff[0]
                     form_factor['perp'][:, :, s] = ff[1]
@@ -677,4 +658,5 @@ class SphereDistribution:
         # calculated as the average of each mean diameter's form factor
         f_par = np.sum(F['par'], axis=0)
         f_perp = np.sum(F['perp'], axis=0)
+
         return(f_par, f_perp)
