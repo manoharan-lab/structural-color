@@ -352,16 +352,10 @@ class Sphere(Particle):
             coordinate_system = "scattering plane"
             coords = {sc.Coord.POL: ["par", "perp"]}
 
-        if np.any(n_ext.imag > 0) or (cartesian is True):
-            if kd is None:
-                raise ValueError("must specify distance for absorbing systems")
-            form_factor = mie.diff_scat_intensity_complex_medium(
-                            m, x, angles, kd,
-                            coordinate_system=coordinate_system,
-                            incident_vector=incident_vector,
-                            phis=phis)
-        else:
-            form_factor = mie.calc_ang_dist(m, x, angles)
+        form_factor = self._form_factor(m, x, angles, kd=kd,
+                                        coordinate_system=coordinate_system,
+                                        incident_vector=incident_vector,
+                                        phis=phis)
 
         # convert tuple to array, adding a dimension with size 1 if the
         # wavelength is a scalar
@@ -381,6 +375,22 @@ class Sphere(Particle):
         ff_array.attrs[sc.Attr.LENGTH_UNIT] = wavelen.units
 
         return ff_array
+
+    def _form_factor(self, m, x, angles, kd=None, coordinate_system=None,
+                     incident_vector=None, phis=None):
+        if np.any(x.imag > 0) or (coordinate_system=='cartesian'):
+            if kd is None:
+                raise ValueError("must specify distance for absorbing systems")
+            form_factor = mie.diff_scat_intensity_complex_medium(
+                            m, x, angles, kd,
+                            coordinate_system=coordinate_system,
+                            incident_vector=incident_vector,
+                            phis=phis)
+        else:
+            form_factor = mie.calc_ang_dist(m, x, angles)
+
+        return form_factor
+
 
 class SphereDistribution:
     """Class to describe a continuous size distribution of spheres.
@@ -543,6 +553,10 @@ class SphereDistribution:
         wavelen = wavelen.to_preferred()
         angles = angles.to('rad')
         n_ext = index_external(wavelen)
+        if cartesian:
+            coordinate_system = 'cartesian'
+        else:
+            coordinate_system = 'scattering plane'
 
         if self.has_layered:
             raise ValueError("Cannot handle polydispersity in core-shell ",
@@ -553,6 +567,10 @@ class SphereDistribution:
                 raise ValueError("Currently can handle only species with the "
                                  "same refractive index.")
         index_particle = self.spheres[0].index
+        n_particle = index_particle(wavelen)
+
+        m = sc.index.ratio(n_particle, n_ext)
+
 
         # t is a measure of the width of the Schulz distribution, and
         # pdi is the polydispersity index
@@ -565,6 +583,10 @@ class SphereDistribution:
         min_diameter[min_diameter < 0] = 0.000001
         max_diameter = self.diameters + three_std_dev
 
+        if ((np.abs(n_ext.imag) > 0. or cartesian)
+            and (kd is not None)):
+            kd = np.resize(kd, len(self.diameters))
+
         F = {}
         for pol in ('par', 'perp'):
             if cartesian:
@@ -574,6 +596,7 @@ class SphereDistribution:
                 F[pol] = np.empty([len(self.spheres), len(angles)])
 
         # for each mean diameter, calculate the Schulz distribution and
+        # the size parameter x_poly
         for d in np.arange(len(self.diameters)):
             # the diameter range is the range between the min diameter and
             # the max diameter of the Schulz distribution
@@ -587,6 +610,15 @@ class SphereDistribution:
                                       [angles.shape[0], angles.shape[1], 1])
             else:
                 distr_array = np.tile(distr, [len(angles), 1])
+            angles_array = np.tile(angles, [len(diameter_range), 1])
+
+            # size parameter will be a 2D array [1, num_diameters]. Because
+            # this would be interpreted as a layered particle by pymie, we
+            # convert to a 1D array before looping
+            x_poly = sc.size_parameter(n_ext,
+                                       (diameter_range/2 *
+                                        self.spheres[0].current_units))
+            x_poly = x_poly.to_numpy()[0]
 
             form_factor = {}
             integrand = {}
@@ -610,9 +642,22 @@ class SphereDistribution:
                 sphere = sc.Sphere(index_particle,
                                    sc.Quantity(diameter_range[s]/2,
                                                self.diameters_q.units))
-                if ((np.abs(n_ext.imag) > 0. or cartesian)
-                     and (kd is not None)):
-                    kd_new = np.resize(kd, len(self.diameters))[d]
+                if kd is not None:
+                    kd_new = kd[d]
+                else:
+                    kd_new = None
+
+                # sphere.form_factor() has too much overhead for a loop (the
+                # overhead is related to all the unit checking, xarray
+                # wrapping, and calculating quantities like m, x, and indices.
+                # Since most of the calculations are constant, we use the
+                # underlying faster sphere_form_factor() to avoid the overhead.
+                ff = sphere._form_factor(m, x_poly[s], angles_array[s],
+                                         kd=kd_new,
+                                         coordinate_system=coordinate_system,
+                                         incident_vector=incident_vector,
+                                         phis=phis)
+
                     # it might seem reasonable to calculate the form factor of
                     # each individual radius in the Schulz distribution
                     # (meaning that we could use diameter_range[s] instead of
@@ -622,12 +667,7 @@ class SphereDistribution:
                     # distribution. So we need to be consistent with the
                     # distances we use for the integrand and the integral. For
                     # now, we use the mean radii.
-                else:
-                    kd_new = None
-                ff = sphere.form_factor(wavelen, angles, index_external,
-                                        cartesian=cartesian, kd=kd_new,
-                                        incident_vector=incident_vector,
-                                        phis=phis)
+
                 if cartesian:
                     form_factor['par'][:, :, s] = ff[0]
                     form_factor['perp'][:, :, s] = ff[1]
