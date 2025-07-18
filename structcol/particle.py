@@ -177,13 +177,23 @@ class Sphere(Particle):
         return self.size*2
 
     @property
-    def outer_diameter(self):
-        """Outer diameter of the particle.  Used for calculating, for example,
+    def outer_radius(self):
+        """Outer radius of the particle.  Used for calculating, for example,
         concentration of a layered sphere species"""
         if self.layered:
-            return self.radius[-1]*2
+            return self.radius[-1]
         else:
-            return self.radius*2
+            return self.radius
+
+    @property
+    def outer_diameter(self):
+        """Outer diameter of the particle."""
+        return self.outer_radius * 2
+
+    @property
+    def outer_radius_q(self):
+        """Outer radius with dimensions"""
+        return self.outer_radius * self.current_units
 
     @property
     def radius_q(self):
