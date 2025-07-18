@@ -381,6 +381,8 @@ class SphereDistribution:
         if len(spheres) > 2:
             raise ValueError("Can only handle one or two species")
         self.spheres = spheres
+        self.num_components = len(spheres)
+
         self.diameters = []
         for sphere in spheres:
             self.diameters = self.diameters + [sphere.outer_diameter]
@@ -406,6 +408,18 @@ class SphereDistribution:
         pdi[pdi < self.polydispersity_bound] = self.polydispersity_bound
 
         self.pdi = pdi
+
+    @property
+    def outer_radii(self):
+        """Returns outer radii as a DataArray with coordinate
+        `sc.Coord.COMPONENT`
+        """
+        coords={sc.Coord.COMPONENT: np.arange(self.num_components)}
+        outer_r_da = xr.DataArray(self.diameters, coords=coords)/2
+        outer_r_da.attrs[sc.Attr.LENGTH_UNIT] = self.spheres[0].current_units
+
+        # drop component coord if only monospecies
+        return outer_r_da.squeeze(drop=True)
 
     @property
     def has_layered(self):

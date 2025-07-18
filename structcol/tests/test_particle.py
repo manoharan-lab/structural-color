@@ -359,7 +359,7 @@ class TestSphereDistribution():
     angles = sc.Quantity(np.linspace(0, 180., 19), 'deg')
 
     def test_spheredistribution_construction(self):
-        radius = sc.Quantity(150, 'nm')
+        radius = sc.Quantity(130, 'nm')
         concentrations = [1.0, 0.0]
         pdi = 0.15
 
@@ -371,6 +371,7 @@ class TestSphereDistribution():
             dist = sc.SphereDistribution(sphere1, 0.5, pdi)
         dist = sc.SphereDistribution(sphere1, 1.0, pdi)
         assert not dist.has_layered
+        assert dist.outer_radii == sphere1.radius
 
         # test construction with layered sphere
         index = [sc.index.vacuum, sc.index.polystyrene]
@@ -379,6 +380,8 @@ class TestSphereDistribution():
         sphere2 = sc.Sphere(index, radii)
         dist = sc.SphereDistribution(sphere2, concentrations, pdi)
         assert dist.has_layered
+        outer_radii = xr.DataArray(radii[-1].to_preferred().magnitude)
+        xr.testing.assert_equal(dist.outer_radii, outer_radii)
 
         # test construction with two spheres, one layered
         concentrations = [0.1, 0.5]
@@ -391,9 +394,13 @@ class TestSphereDistribution():
                                               concentrations, pdi)
         assert dist.has_layered
 
-        assert_equal(dist.diameters, [2*radius.to_preferred().magnitude,
-                                      2*radii[-1].to_preferred().magnitude])
+        dist_diameters_expected = [2*radius.to_preferred().magnitude,
+                                   2*radii[-1].to_preferred().magnitude]
+        assert_equal(dist.diameters, dist_diameters_expected)
         assert_equal(dist.concentrations, concentrations)
+        outer_radii = xr.DataArray(np.array(dist_diameters_expected)/2,
+                                   coords={sc.Coord.COMPONENT: np.arange(2)})
+        xr.testing.assert_equal(dist.outer_radii, outer_radii)
 
         # zero polydispersity for species 2 should have been replaced with
         # finite polydispersity
