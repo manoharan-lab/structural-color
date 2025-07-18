@@ -271,8 +271,9 @@ class HardSpheres(FormStructureModel):
         self.index_matrix = index_matrix
         self.maxwell_garnett = maxwell_garnett
 
-        # for a sphere we use the radius to calculate size parameter x
-        lengthscale = self.sphere.radius_q
+        # for a sphere we use the radius (outer radius if layered) to calculate
+        # size parameter x
+        lengthscale = self.sphere.outer_radius_q
 
         index_external = sc.EffectiveIndex.from_particle(self.sphere,
                                                          volume_fraction,
