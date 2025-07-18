@@ -143,8 +143,9 @@ class Sphere(Particle):
     def __init__(self, index, radius):
         index = np.atleast_1d(index)
         size = np.atleast_1d(radius)
+        num_layers = len(index)
 
-        if len(index) > 1:
+        if num_layers > 1:
             self.layered = True
 
             # check to make sure radii are sorted
@@ -156,14 +157,16 @@ class Sphere(Particle):
             if size.shape != index.shape:
                 raise ValueError("Must specify index for each layer; got "
                                  f"{index.shape} indexes, {size.shape} radii")
+            coords = {sc.Coord.LAYER: np.arange(num_layers)}
         else:
             self.layered = False
             # use scalars instead of arrays
             index = index.item()
             size = size.item()
+            coords = None
 
         # store internal structure of sphere
-        super().__init__(index, size)
+        super().__init__(index, size, coords=coords)
 
     @property
     def radius(self):

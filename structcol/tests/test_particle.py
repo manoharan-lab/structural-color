@@ -74,8 +74,7 @@ class TestParticle():
 
         # test that index works as expected
         n = my_sphere.n(self.wavelen)
-        assert_equal(n.to_numpy(),
-                     sc.index.polystyrene(self.wavelen).to_numpy())
+        xr.testing.assert_equal(n, sc.index.polystyrene(self.wavelen))
         assert n.attrs[sc.Attr.LENGTH_UNIT] == radius.to_preferred().units
 
         # make sure diameter is correct
@@ -87,7 +86,11 @@ class TestParticle():
                      my_sphere.diameter.to_numpy())
         assert_equal(radius.to_preferred().magnitude,
                      my_sphere.radius.to_numpy())
+
+        # check that the particle is not marked as layered either in object or
+        # in size array
         assert not my_sphere.layered
+        assert sc.Coord.LAYER not in my_sphere.radius
 
         # test outer diameter
         assert (my_sphere.outer_diameter == 2*radius.to_preferred().magnitude)
@@ -99,11 +102,12 @@ class TestParticle():
 
         my_core_shell = sc.Sphere(index, radii)
         assert my_core_shell.layered
+        assert len(my_core_shell.radius.coords[sc.Coord.LAYER]) == 2
 
         # test that index works as expected
         wavelen = sc.Quantity(400, 'nm')
         n = my_core_shell.n(wavelen)
-        xr.testing.assert_equal(n.sel(**{sc.Coord.LAYER: 0}).drop_vars(sc.Coord.LAYER),
+        xr.testing.assert_equal(n.sel({sc.Coord.LAYER: 0}, drop=True),
                                 sc.index.vacuum(wavelen))
 
     def test_layered_sphere(self):
@@ -130,16 +134,19 @@ class TestParticle():
 
         # test that index works as expected
         n = my_layered_sphere.n(self.wavelen)
-        assert_equal(n.sel(**{sc.Coord.LAYER: 0}).to_numpy(),
-                     sc.index.vacuum(self.wavelen))
-        assert_equal(n.sel(**{sc.Coord.LAYER: 1}).to_numpy(),
-                     sc.index.polystyrene(self.wavelen))
-        assert_equal(n.sel(**{sc.Coord.LAYER: 2}).to_numpy(),
-                     sc.index.water(self.wavelen))
+        xr.testing.assert_equal(n.sel({sc.Coord.LAYER: 0}, drop=True),
+                                sc.index.vacuum(self.wavelen))
+        xr.testing.assert_equal(n.sel({sc.Coord.LAYER: 1}, drop=True),
+                                sc.index.polystyrene(self.wavelen))
+        xr.testing.assert_equal(n.sel({sc.Coord.LAYER: 2}, drop=True),
+                                sc.index.water(self.wavelen))
         assert n.attrs[sc.Attr.LENGTH_UNIT] == radii.to_preferred().units
 
         # test number of layers
         assert my_layered_sphere.layers == len(radii)
+        # test that size array has the proper number of layers too
+        num_layers = len(my_layered_sphere.radius.coords[sc.Coord.LAYER])
+        assert num_layers == len(radii)
 
         # test outer diameter
         assert (my_layered_sphere.outer_diameter ==
