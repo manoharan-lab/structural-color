@@ -51,8 +51,15 @@ class TestParticle():
         # check stored units
         assert n.attrs[sc.Attr.LENGTH_UNIT] == size.to_preferred().units
 
+        # make sure size is stored as DataArray with the correct dimensions and
+        # units
+        assert isinstance(my_particle.size, xr.DataArray)
+        assert my_particle.size.shape == ()
+        assert (my_particle.size.attrs[sc.Attr.LENGTH_UNIT]
+                == size.to_preferred().units)
+
         # make sure reported units of size are correct
-        assert_equal(size.to_preferred(), my_particle.size_q)
+        assert_equal(size.to_preferred().magnitude, my_particle.size_q.magnitude)
 
     def test_sphere_construction(self):
         radius = sc.Quantity(150, 'nm')
@@ -72,10 +79,14 @@ class TestParticle():
         assert n.attrs[sc.Attr.LENGTH_UNIT] == radius.to_preferred().units
 
         # make sure diameter is correct
-        assert_equal(radius.to_preferred() * 2, my_sphere.diameter_q)
-        assert_equal(radius.to_preferred(), my_sphere.radius_q)
-        assert_equal(radius.to_preferred().magnitude * 2, my_sphere.diameter)
-        assert_equal(radius.to_preferred().magnitude, my_sphere.radius)
+        assert_equal(radius.to_preferred().magnitude * 2,
+                     my_sphere.diameter_q.magnitude)
+        assert_equal(radius.to_preferred().magnitude,
+                     my_sphere.radius_q.magnitude)
+        assert_equal(radius.to_preferred().magnitude * 2,
+                     my_sphere.diameter.to_numpy())
+        assert_equal(radius.to_preferred().magnitude,
+                     my_sphere.radius.to_numpy())
         assert not my_sphere.layered
 
         # test outer diameter

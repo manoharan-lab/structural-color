@@ -73,8 +73,11 @@ class Coord():
     # index for both
     LAYER = "material"
     MAT = "material"
+    # polar and azimuthal angles for scattering
     THETA = "theta"
     PHI = "phi"
+    # component index for multicomponent systems
+    COMPONENT = "component"
 
 class Attr():
     """Simple class to standardize metadata (attributes) used in xarray

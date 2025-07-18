@@ -27,7 +27,6 @@ calculated reflectance are in test_detector.py
 
 import structcol as sc
 from .. import montecarlo as mc
-from .. import model
 import numpy as np
 import xarray as xr
 from numpy.testing import assert_equal, assert_almost_equal

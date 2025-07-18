@@ -32,7 +32,6 @@ Radiation Transfer” (July 2013).
 
 """
 from pymie import mie, size_parameter
-from . import model
 from . import refraction
 from . import normalize
 from . import select_events
@@ -1207,7 +1206,6 @@ def phase_function(m, x, angles, volume_fraction, k, number_density,
     kd = (k*distance).to('').magnitude
     n_particle = (m * n_sample.to_numpy())
     if np.ndim(n_particle) > 1:
-        num_layers = n_particle.shape[1]
         index_particle = [sc.Index.constant(n_layer) for n_layer in
                           n_particle[0, :]]
     else:
@@ -1290,6 +1288,7 @@ def phase_function(m, x, angles, volume_fraction, k, number_density,
         cscat_total_perp = sc.model._integrate_cross_section(diff_cscat_perp,
                                                       1.0/ksquared, angles)
         cscat_total = (cscat_total_par + cscat_total_perp)/2.0
+    #cscat_total = model.scattering_cross_section(wavelen, angles, **ff_kwargs)
 
     # calculate the phase function
     p = (diff_cscat_par + diff_cscat_perp)/(np.sum(diff_cscat_par

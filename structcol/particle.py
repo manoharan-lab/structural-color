@@ -27,7 +27,6 @@ from scipy.integrate import trapezoid
 from pymie import mie
 import structcol as sc
 
-from . import ureg
 
 class Particle:
     """Base class for specifying geometry and optical properties of a particle.
@@ -38,27 +37,35 @@ class Particle:
         Index object that returns index of particle at specified wavelengths.
         If array-like, specifies multiple refractive indices for different
         parts of the particle.
-    size : array-like[sc.Quantity]
-        Size of particle. If array-like, specifies length scales corresponding
-        to structure of particle. For example, for a multilayer sphere, the
-        sizes are the radii of the different layers. For a (hypothetical)
-        ellipsoid,the sizes might be the major and minor axes.
+    size : `xr.DataArray`
+        Size of particle. Specified as a `sc.Quantity` object and stored as a
+        DataArray. The elements of the DataArray specify length scales
+        corresponding to the structure of the particle. For example, for a
+        multilayer sphere, the sizes are the radii of the different layers. For
+        a (hypothetical) ellipsoid, the sizes might be the major and minor
+        axes. DataArray should name these dimensions accordingly (this is
+        handled by derived classes). Attribute `sc.Attr.LENGTH_UNIT` of
+        DataArray gives the units of length.
+    coords : dict (default None)
+        Coordinate names and ranges to be used for the size DataArray.
 
     """
-    @ureg.check(None, None, '[length]')
-    def __init__(self, index, size):
+    @sc.ureg.check(None, None, '[length]', None)
+    def __init__(self, index, size, coords=None):
         self.index = index
         # store sizes in internal units and strip units after saving them
         self.original_units = size.units
-        self.size = size.to_preferred().magnitude
+        self.size = xr.DataArray(size.to_preferred().magnitude, coords=coords)
         self.current_units = size.to_preferred().units
+        self.size.attrs[sc.Attr.LENGTH_UNIT] = self.current_units
 
     @property
     def size_q(self):
         """Dimensions of particle, reported with units"""
-        return self.size * self.current_units
+        return sc.Quantity(self.size.to_numpy(),
+                           self.size.attrs[sc.Attr.LENGTH_UNIT])
 
-    @ureg.check(None, '[length]')
+    @sc.ureg.check(None, '[length]')
     def n(self, wavelen):
         """Calculate index as a function of vacuum wavelength
 
@@ -132,7 +139,7 @@ class Sphere(Particle):
         outermost layer.
 
     """
-    @ureg.check(None, None, '[length]')
+    @sc.ureg.check(None, None, '[length]')
     def __init__(self, index, radius):
         index = np.atleast_1d(index)
         size = np.atleast_1d(radius)

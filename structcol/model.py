@@ -34,11 +34,9 @@ import numpy as np
 from pymie import mie
 from scipy.special import factorial
 from scipy.integrate import trapezoid
-import xarray as xr
+#import xarray as xr
 import structcol as sc
 
-from . import Quantity
-from . import ureg
 
 class Model:
     """Base class for different types of single-scattering models.
@@ -187,6 +185,8 @@ class FormStructureModel(Model):
         k = sc.wavevector(self.index_external(wavelen))
         ksquared = np.abs(k)**2
         distance = self.lengthscale
+        if np.ndim(distance) == 0:
+            distance = distance.item()
 
         # Note that we ignore near fields throughout structcol since we assume
         # that the scattering length is larger than the distance at which near
@@ -395,7 +395,7 @@ class Detector:
         particles.
 
     """
-    @ureg.check(None, "[]", "[]", "[]", "[]")
+    @sc.ureg.check(None, "[]", "[]", "[]", "[]")
     def __init__(self,
                  theta_min=sc.Quantity(np.pi/2, 'rad'),
                  theta_max=sc.Quantity(np.pi, 'rad'),
@@ -418,10 +418,10 @@ class HemisphericalReflectanceDetector(Detector):
 
     """
     def __init__(self):
-        super().__init__(theta_min=Quantity('90.0 deg'),
-                         theta_max=Quantity('180.0 deg'),
-                         phi_min=Quantity('0.0 deg'),
-                         phi_max=Quantity('360.0 deg'))
+        super().__init__(theta_min=sc.Quantity('90.0 deg'),
+                         theta_max=sc.Quantity('180.0 deg'),
+                         phi_min=sc.Quantity('0.0 deg'),
+                         phi_max=sc.Quantity('360.0 deg'))
 
 def _make_model(index_particle, index_matrix, index_medium, radius,
                 volume_fraction, radius2=None, concentration=None, pdi=None,
@@ -501,8 +501,9 @@ def _make_model(index_particle, index_matrix, index_medium, radius,
     return model
 
 
-@ureg.check(None, None, None, '[length]', '[length]', '[]', None, None, None,
-            None, None, None, None, None, None, None, None, None, None)
+@sc.ureg.check(None, None, None, '[length]', '[length]', '[]', None, None,
+               None, None, None, None, None, None, None, None, None, None,
+               None)
 def reflection(index_particle, index_matrix, index_medium, wavelen, radius,
                volume_fraction,
                radius2=None,
@@ -510,9 +511,9 @@ def reflection(index_particle, index_matrix, index_medium, wavelen, radius,
                pdi=None,
                thickness=None,
                detector=HemisphericalReflectanceDetector(),
-               incident_angle=Quantity('0.0 deg'),
+               incident_angle=sc.Quantity('0.0 deg'),
                num_angles=200,
-               small_angle=Quantity('1.0 deg'),
+               small_angle=sc.Quantity('1.0 deg'),
                structure_type='glass',
                form_type='sphere',
                maxwell_garnett=False,
@@ -643,8 +644,8 @@ def reflection(index_particle, index_matrix, index_medium, wavelen, radius,
         radius2 = radius
 
     # define the mean diameters in case the system is polydisperse
-    mean_diameters = Quantity(np.hstack([2*radius.magnitude,
-                                        2*radius2.magnitude]),
+    mean_diameters = sc.Quantity(np.hstack([2*radius.magnitude,
+                                            2*radius2.magnitude]),
                                     radius.units)
 
     # check that the number of indices and radii is the same
@@ -717,12 +718,12 @@ def reflection(index_particle, index_matrix, index_medium, wavelen, radius,
 
     # integrate form_factor*structure_factor*transmission
     # coefficient*sin(theta) over angles to get sigma_detected (eq 5)
-    angles = Quantity(np.linspace(theta_min_refracted, theta_max_refracted,
-                                  num_angles), 'rad')
-    angles_tot = Quantity(np.linspace(0.0 + small_angle, np.pi, num_angles),
-                          'rad')
-    azi_angle_range = Quantity(phi_max - phi_min,'rad')
-    azi_angle_range_tot = Quantity(2 * np.pi, 'rad')
+    angles = sc.Quantity(np.linspace(theta_min_refracted, theta_max_refracted,
+                                     num_angles), 'rad')
+    angles_tot = sc.Quantity(np.linspace(0.0 + small_angle, np.pi, num_angles),
+                             'rad')
+    azi_angle_range = sc.Quantity(phi_max - phi_min,'rad')
+    azi_angle_range_tot = sc.Quantity(2 * np.pi, 'rad')
 
     transmission = fresnel_transmission(n_sample.to_numpy().squeeze(),
                                         n_medium.to_numpy().squeeze(),
@@ -779,14 +780,14 @@ def reflection(index_particle, index_matrix, index_medium, wavelen, radius,
                                         diff_cs_detected[0] * transmission[0],
                                         diff_cs_detected[1] * transmission[1],
                                         distance[0], angles, k,
-                                        phi_min=Quantity(phi_min, 'rad'),
-                                        phi_max=Quantity(phi_max, 'rad'))
+                                        phi_min=sc.Quantity(phi_min, 'rad'),
+                                        phi_max=sc.Quantity(phi_max, 'rad'))
             cscat2 = mie.integrate_intensity_complex_medium(
                                         diff_cs_detected[0] * transmission[0],
                                         diff_cs_detected[1] * transmission[1],
                                         distance[1], angles, k,
-                                        phi_min=Quantity(phi_min, 'rad'),
-                                        phi_max=Quantity(phi_max, 'rad'))
+                                        phi_min=sc.Quantity(phi_min, 'rad'),
+                                        phi_max=sc.Quantity(phi_max, 'rad'))
             cscat_detected1 = cscat1[0]
             cscat_detected_par1 = cscat1[1]
             cscat_detected_perp1 = cscat1[2]
@@ -845,8 +846,8 @@ def reflection(index_particle, index_matrix, index_medium, wavelen, radius,
                                         diff_cs_detected[0]*transmission[0],
                                         diff_cs_detected[1]*transmission[1],
                                         distance, angles, k,
-                                        phi_min=Quantity(phi_min, 'rad'),
-                                        phi_max=Quantity(phi_max, 'rad'))
+                                        phi_min=sc.Quantity(phi_min, 'rad'),
+                                        phi_max=sc.Quantity(phi_max, 'rad'))
             cscat_detected = cscat[0]
             cscat_detected_par = cscat[1]
             cscat_detected_perp = cscat[2]
@@ -989,7 +990,7 @@ def absorption_cross_section(form_type, m, diameters, n_matrix, x,
     """
 
     if np.abs(n_matrix.imag) == 0.:
-        cabs_total = Quantity(0.0, 'um^2')
+        cabs_total = sc.Quantity(0.0, 'um^2')
 
     if form_type == 'polydisperse':
         if concentration is None or pdi is None:
@@ -1001,7 +1002,7 @@ def absorption_cross_section(form_type, m, diameters, n_matrix, x,
 
         # if the pdi is zero, assume it's very small (we get the same results)
         # because otherwise we get a divide by zero error
-        pdi = Quantity(np.atleast_1d(pdi).astype(float), pdi.units)
+        pdi = sc.Quantity(np.atleast_1d(pdi).astype(float), pdi.units)
         np.atleast_1d(pdi)[np.atleast_1d(pdi) < 1e-5] = 1e-5
 
         # t is a measure of the width of the Schulz distribution, and
@@ -1011,8 +1012,8 @@ def absorption_cross_section(form_type, m, diameters, n_matrix, x,
         # define the range of diameters of the size distribution
         three_std_dev = 3*diameters/np.sqrt(t+1)
         min_diameter = diameters - three_std_dev
-        min_diameter[min_diameter.magnitude < 0] = Quantity(0.0,
-                                                            diameters.units)
+        min_diameter[min_diameter.magnitude < 0] = sc.Quantity(0.0,
+                                                               diameters.units)
         max_diameter = diameters + three_std_dev
 
         cabs_poly = np.empty(len(np.atleast_1d(diameters)))
@@ -1028,8 +1029,8 @@ def absorption_cross_section(form_type, m, diameters, n_matrix, x,
                                       np.atleast_1d(diameters)[d],
                                       np.atleast_1d(t)[d])
             x_poly = sc.size_parameter(n_matrix,
-                                       Quantity(diameter_range/2,
-                                                diameters.units))
+                                       sc.Quantity(diameter_range/2,
+                                                   diameters.units))
 
             # for polydisperse mu_abs calculation
             x_scat = sc.size_parameter(n_particle, diameters[d]/2)
@@ -1049,8 +1050,8 @@ def absorption_cross_section(form_type, m, diameters, n_matrix, x,
                                                 coeffs[1],
                                                 internal_coeffs[0],
                                                 internal_coeffs[1],
-                                                Quantity(diameter_range[s]/2,
-                                                         diameters.units),
+                                                sc.Quantity(diameter_range[s]/2,
+                                                            diameters.units),
                                                 n_particle,
                                                 n_matrix, x_scat,
                                                 x_poly[s],
@@ -1060,10 +1061,10 @@ def absorption_cross_section(form_type, m, diameters, n_matrix, x,
             # the polydisperse mu_abs
             cabs_poly[d] = (trapezoid(cabs_magn*distr, x=diameter_range)
                             * np.atleast_1d(concentration)[d])
-        cabs_total = Quantity(np.sum(cabs_poly), cabs.units)
+        cabs_total = sc.Quantity(np.sum(cabs_poly), cabs.units)
 
     if form_type is None:
-        cabs_total = Quantity(0.0, 'um^2')
+        cabs_total = sc.Quantity(0.0, 'um^2')
 
     if form_type == 'sphere':
         radius = diameters[0]/2
@@ -1114,15 +1115,15 @@ def size_distribution(diameter_range, mean, t):
     Schulz distribution.
 
     """
-    if isinstance(diameter_range, Quantity):
+    if isinstance(diameter_range, sc.Quantity):
         diameter_range = diameter_range.magnitude
-    if isinstance(diameter_range, Quantity):
+    if isinstance(diameter_range, sc.Quantity):
         diameter_range = diameter_range.magnitude
-    if isinstance(mean, Quantity):
+    if isinstance(mean, sc.Quantity):
         mean = mean.magnitude
-    if isinstance(t, Quantity):
+    if isinstance(t, sc.Quantity):
         t = t.magnitude
-    if isinstance(t, Quantity):
+    if isinstance(t, sc.Quantity):
         t = t.magnitude
 
     if t <= 100:
@@ -1150,7 +1151,7 @@ def _integrate_cross_section(cross_section, factor, angles,
 
     # pint does not yet preserve units for scipy.integrate.trapezoid, so we
     # need to state explicitly that we are in the same units as the integrand.
-    if isinstance(integrand, Quantity):
+    if isinstance(integrand, sc.Quantity):
         integral = (trapezoid(integrand.magnitude, x=angles.magnitude)
                     * integrand.units)
     else:
@@ -1161,7 +1162,7 @@ def _integrate_cross_section(cross_section, factor, angles,
     return sigma
 
 
-@ureg.check(None, None, '[]')
+@sc.ureg.check(None, None, '[]')
 def fresnel_reflection(n1, n2, incident_angle):
     """
     Calculates Fresnel coefficients for the reflected intensity of parallel
@@ -1186,11 +1187,11 @@ def fresnel_reflection(n1, n2, incident_angle):
         intensity
     """
     theta = np.atleast_1d(incident_angle.to('rad').magnitude)
-    if isinstance(theta, Quantity):
+    if isinstance(theta, sc.Quantity):
         theta = theta.magnitude
-    if isinstance(n1, Quantity):
+    if isinstance(n1, sc.Quantity):
         n1 = n1.magnitude
-    if isinstance(n2, Quantity):
+    if isinstance(n2, sc.Quantity):
         n2 = n2.magnitude
 
     if np.any(theta > np.pi/2.0):
@@ -1227,7 +1228,7 @@ def fresnel_reflection(n1, n2, incident_angle):
 
     return np.squeeze(r_par), np.squeeze(r_perp)
 
-@ureg.check(None, None, '[]')
+@sc.ureg.check(None, None, '[]')
 def fresnel_transmission(index1, index2, incident_angle):
     """
     Calculates Fresnel coefficients for the transmitted intensity of parallel
