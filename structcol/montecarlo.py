@@ -1234,63 +1234,14 @@ def phase_function(m, x, angles, volume_fraction, k, number_density,
         ff_kwargs["kd"] = kd
     diff_cs = model.differential_cross_section(wavelen, angles, **ff_kwargs)
     diff_cscat_par, diff_cscat_perp = diff_cs
-    #cscat_totl = model.scattering_cross_section(wavelen, angles, **ff_kwargs)
-    # If in cartesian coordinate system, integrate the differential cross
-    # section using integration functions in mie.py that can handle cartesian
-    # coordinates. Also includes absorption.
-    # TODO make this work for polydisperse
-    if coordinate_system=='cartesian':
-        thetas_1d = angles[:,0]
-        phis_1d = phis[0,:]
 
-        # note that the diff_cscat_par and perp calculated above
-        # will actually be diff_cscat_x and y
-        cscat_total = mie.integrate_intensity_complex_medium(diff_cscat_par,
-                                                diff_cscat_perp,
-                                                distance,
-                                                thetas_1d, k,
-                                                coordinate_system='cartesian',
-                                                phis=phis_1d)[0]
+    cscat_total = model.scattering_cross_section(wavelen, angles, **ff_kwargs)
 
-    # If absorption and not cartesian coords, integrate the differential cross
-    # section using integration functions in mie.py that use absorption
-    elif np.abs(k.imag.magnitude)> 0.:
-        # TODO implement cartesian for polydisperse
-        if form_type=='polydisperse' and len(concentration)>1:
-            # When the system is binary and absorbing, we integrate the
-            # polydisperse differential cross section at the surface of each
-            # component (meaning at a distance of each mean radius). Then we
-            # do a number average the total cross sections.
-            cscat_total1, cscat_total_par1, cscat_total_perp1, _, _ = \
-                mie.integrate_intensity_complex_medium(diff_cscat_par,
-                                                       diff_cscat_perp,
-                                                       distance[0],angles,k)
-            cscat_total2, cscat_total_par2, cscat_total_perp2, _, _ = \
-                mie.integrate_intensity_complex_medium(diff_cscat_par,
-                                                       diff_cscat_perp,
-                                                       distance[1],angles,k)
-            cscat_total = (cscat_total1 * concentration[0]
-                           + cscat_total2 * concentration[1])
-
-        else:
-            cscat_total = mie.integrate_intensity_complex_medium(
-                                        diff_cscat_par,
-                                        diff_cscat_perp,
-                                        distance,
-                                        angles, k,
-                                        coordinate_system=coordinate_system)[0]
-
-    # if there is no absorption in the system, Integrate with function in model
-    else:
-
-        cscat_total_par = sc.model._integrate_cross_section(diff_cscat_par,
-                                                      1.0/ksquared, angles)
-        cscat_total_perp = sc.model._integrate_cross_section(diff_cscat_perp,
-                                                      1.0/ksquared, angles)
-        cscat_total = (cscat_total_par + cscat_total_perp)/2.0
-    #cscat_total = model.scattering_cross_section(wavelen, angles, **ff_kwargs)
-
-    # calculate the phase function
+    # I think this idea here is that later on, each element of the phase
+    # function is used to represent the scattering over a finite angular
+    # window. So to properly normalize we divide by the sum of all the
+    # differential cross sections, instead of by cscat_total, which represents
+    # the sum over infinitesimal angular windows.
     p = (diff_cscat_par + diff_cscat_perp)/(np.sum(diff_cscat_par
                                                    + diff_cscat_perp))
 
