@@ -464,13 +464,13 @@ def _make_model(index_particle, index_matrix, index_medium, radius,
             form_factor = particle.form_factor
             structure_factor = sc.structure.Interpolated(structure_s_data,
                                                          structure_qd_data)
-            lengthscale = particle.radius_q
+            lengthscale = particle.outer_radius_q
             model = FormStructureModel(form_factor, structure_factor,
                                        lengthscale, index_external,
                                        index_medium)
         if structure_type is None:
             form_factor = particle.form_factor
-            lengthscale = particle.radius_q
+            lengthscale = particle.outer_radius_q
             model = FormStructureModel(form_factor, None, lengthscale,
                                        index_external, index_medium)
     elif form_type == "polydisperse":
@@ -479,7 +479,7 @@ def _make_model(index_particle, index_matrix, index_medium, radius,
                                             index_matrix, index_medium)
         if structure_type is None:
             form_factor = dist.form_factor
-            lengthscale = dist.spheres[0].radius_q
+            lengthscale = dist.spheres[0].outer_radius_q
             model = FormStructureModel(form_factor, None, lengthscale,
                                        index_external, index_medium)
     elif form_type is None:
@@ -489,10 +489,10 @@ def _make_model(index_particle, index_matrix, index_medium, radius,
                                                          structure_qd_data)
         if structure_type == "glass":
             structure_factor = sc.structure.PercusYevick(volume_fraction)
-            lengthscale = particle.radius_q
+            lengthscale = particle.outer_radius_q
         if structure_type == "polydisperse":
             structure_factor = sc.structure.Polydisperse(volume_fraction, dist)
-            lengthscale = dist.spheres[0].radius_q
+            lengthscale = dist.spheres[0].outer_radius_q
         if structure_type is None:
             structure_factor = None
         model = FormStructureModel(None, structure_factor, lengthscale,

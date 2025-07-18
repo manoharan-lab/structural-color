@@ -193,7 +193,7 @@ class Sphere(Particle):
     @property
     def outer_radius_q(self):
         """Outer radius with dimensions"""
-        return self.outer_radius * self.current_units
+        return self.outer_radius.to_numpy() * self.current_units
 
     @property
     def radius_q(self):

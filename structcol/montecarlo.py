@@ -1234,7 +1234,7 @@ def phase_function(m, x, angles, volume_fraction, k, number_density,
         ff_kwargs["kd"] = kd
     diff_cs = model.differential_cross_section(wavelen, angles, **ff_kwargs)
     diff_cscat_par, diff_cscat_perp = diff_cs
-
+    #cscat_totl = model.scattering_cross_section(wavelen, angles, **ff_kwargs)
     # If in cartesian coordinate system, integrate the differential cross
     # section using integration functions in mie.py that can handle cartesian
     # coordinates. Also includes absorption.

@@ -97,6 +97,7 @@ class TestParticle():
         assert my_sphere.outer_radius == radius.to_preferred().magnitude
         assert my_sphere.current_units == radius.to_preferred().units
         assert my_sphere.outer_radius_q == radius.to_preferred()
+        assert isinstance(my_sphere.outer_radius_q, sc.Quantity)
 
     def test_core_shell_single_wavelength(self):
         index = [sc.index.vacuum, sc.index.polystyrene]
@@ -156,6 +157,7 @@ class TestParticle():
         assert (my_layered_sphere.outer_radius ==
                 radii[-1].to_preferred().magnitude)
         assert my_layered_sphere.outer_radius_q == radii[-1].to_preferred()
+        assert isinstance(my_layered_sphere.outer_radius_q, sc.Quantity)
         assert my_layered_sphere.current_units == radii.to_preferred().units
 
     def test_volume_fraction(self):
