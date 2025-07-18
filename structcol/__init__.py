@@ -78,6 +78,9 @@ class Coord():
     PHI = "phi"
     # component index for multicomponent systems
     COMPONENT = "component"
+    # polarization for scattering calculations (should take on values "x", "y"
+    # for cartesian basis or "par", "perp" for scattering-plane basis)
+    POL = "polarization"
 
 class Attr():
     """Simple class to standardize metadata (attributes) used in xarray

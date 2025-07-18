@@ -254,15 +254,14 @@ class TestParticle():
         index_particle = sc.Index.constant(1.59 + 1e-4 * 1.0j)
         sphere = sc.Sphere(index_particle, radius)
         angles = sc.Quantity(np.linspace(0, 180., 19), 'deg')
-        ipar_sphere, iperp_sphere = sphere.form_factor(wavelen, angles,
-                                                       index_matrix)
+        ff = sphere.form_factor(wavelen, angles, index_matrix)
 
         m = sc.index.ratio(sphere.n(wavelen), index_matrix(wavelen))
         x = sc.size_parameter(index_matrix(wavelen), radius).to_numpy()
         ipar_mie, iperp_mie = mie.calc_ang_dist(m, x, angles)
 
-        assert_equal(ipar_sphere, ipar_mie)
-        assert_equal(iperp_sphere, iperp_mie)
+        assert_equal(ff.loc["par"].to_numpy().squeeze(), ipar_mie)
+        assert_equal(ff.loc["perp"].to_numpy().squeeze(), iperp_mie)
 
         # test calculations for gold, which has a high imaginary refractive
         # index.  Again, pymie/tests/test_mie.py::test_absorbing_materials()
@@ -276,14 +275,13 @@ class TestParticle():
         gold_index = sc.Index.constant(0.1425812 + 3.6813284 * 1.0j)
         sphere = sc.Sphere(gold_index, radius)
         angles = sc.Quantity(np.linspace(0, 90., 10), 'deg')
-        ipar_sphere, iperp_sphere = sphere.form_factor(wavelen, angles,
-                                                       index_matrix)
+        ff = sphere.form_factor(wavelen, angles, index_matrix)
 
         m = sc.index.ratio(sphere.n(wavelen), index_matrix(wavelen))
         ipar_mie, iperp_mie = mie.calc_ang_dist(m, x, angles)
 
-        assert_equal(ipar_sphere, ipar_mie)
-        assert_equal(iperp_sphere, iperp_mie)
+        assert_equal(ff.loc["par"].to_numpy().squeeze(), ipar_mie)
+        assert_equal(ff.loc["perp"].to_numpy().squeeze(), iperp_mie)
 
         # Test absorbing matrix.
         # Although Sphere.form_factor() calls the same function
@@ -304,16 +302,16 @@ class TestParticle():
         x = sc.size_parameter(index_matrix(wavelen), radius)
         k = 2 * np.pi * index_matrix(wavelen).to_numpy() / wavelen
 
-        ipar_sphere, iperp_sphere = sphere.form_factor(wavelen, angles,
-                                                       index_matrix,
-                                                       kd=k*distance)
+        ff = sphere.form_factor(wavelen, angles, index_matrix, kd=k*distance)
 
+        # check shape (should include size-1 dimension for wavelength)
+        assert ff.shape == (2, 1, len(angles))
 
         ipar_mie, iperp_mie = mie.diff_scat_intensity_complex_medium(
             m, x, angles, k*distance)
 
-        assert_equal(ipar_sphere, ipar_mie)
-        assert_equal(iperp_sphere, iperp_mie)
+        assert_equal(ff.loc["par"].to_numpy().squeeze(), ipar_mie)
+        assert_equal(ff.loc["perp"].to_numpy().squeeze(), iperp_mie)
 
         # test layered particle
         index = [sc.index.vacuum, sc.index.polystyrene, sc.index.pmma]
@@ -323,41 +321,42 @@ class TestParticle():
         angles = sc.Quantity(np.linspace(0, 180., 19), 'deg')
         index_matrix = sc.index.water
 
-        ipar_sphere, iperp_sphere = sphere.form_factor(wavelen, angles,
-                                                       index_matrix)
+        ff = sphere.form_factor(wavelen, angles, index_matrix)
 
         m = sc.index.ratio(sphere.n(wavelen), index_matrix(wavelen))
         x = sc.size_parameter(index_matrix(wavelen), radii).to_numpy()
         ipar_mie, iperp_mie = mie.calc_ang_dist(m, x, angles)
 
-        assert_equal(ipar_sphere, ipar_mie)
-        assert_equal(iperp_sphere, iperp_mie)
+        assert_equal(ff.loc["par"].to_numpy().squeeze(), ipar_mie)
+        assert_equal(ff.loc["perp"].to_numpy().squeeze(), iperp_mie)
 
     def test_vectorized_form_factor(self):
         # test that we can calculate the form factor for several wavelengths
         # simultaneously.
         num_wavelengths = 10
         num_angles = 19
-        wavelen = sc.Quantity(np.linspace(400, 800, num_wavelengths), 'nm')
+        wavelen = sc.Quantity(np.linspace(400, 800, num_wavelengths), "nm")
         sphere = sc.Sphere(sc.index.polystyrene,
-                                 sc.Quantity('0.125 um'))
+                                 sc.Quantity("0.125 um"))
         index_matrix = sc.index.water
-        angles = sc.Quantity(np.linspace(0, 180., num_angles), 'deg')
+        angles = sc.Quantity(np.linspace(0, 180., num_angles), "deg")
         form_sphere = sphere.form_factor(wavelen, angles, index_matrix)
 
         # make sure shape is correct
-        for i in range(2):
-            assert form_sphere[i].shape == (num_wavelengths, num_angles)
+        assert form_sphere.shape == (2, num_wavelengths, num_angles)
 
+        ff_loop = []
         # test that we get same values from a loop
-        ipar = np.zeros((num_wavelengths, num_angles))
-        iperp = np.zeros((num_wavelengths, num_angles))
         for i in range(num_wavelengths):
-            ipar[i], iperp[i] = sphere.form_factor(wavelen[i], angles,
-                                                   index_matrix)
+            ff = sphere.form_factor(wavelen[i], angles, index_matrix)
+            # have to convert the scalar wavelength dimension to a list so
+            # xr.concat will work and put the dimensions in the right order
+            wavelen_coord = np.atleast_1d(ff.coords[sc.Coord.WAVELEN])
+            ff.coords[sc.Coord.WAVELEN] = wavelen_coord
+            ff_loop.append(ff)
+        ff_loop = xr.concat(ff_loop, dim=sc.Coord.WAVELEN)
 
-        assert_equal(form_sphere[0], ipar)
-        assert_equal(form_sphere[1], iperp)
+        xr.testing.assert_equal(form_sphere, ff_loop)
 
 class TestSphereDistribution():
     """Tests for the SphereDistribution class.
@@ -457,4 +456,4 @@ class TestSphereDistribution():
         # factor
         polyff = dist.form_factor(self.wavelen, self.angles, index_external)
         monoff = sphere1.form_factor(self.wavelen, self.angles, index_external)
-        assert_allclose(polyff, monoff)
+        assert_allclose(polyff, monoff.to_numpy().squeeze())

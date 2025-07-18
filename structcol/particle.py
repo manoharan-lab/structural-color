@@ -335,7 +335,9 @@ class Sphere(Particle):
 
         """
         wavelen = wavelen.to_preferred()
-        angles = angles.to('rad')
+        angles = angles.to("rad")
+        if phis is not None:
+            phis = phis.to("rad")
 
         n_ext = index_external(wavelen)
         n_particle = self.n(wavelen)
@@ -343,13 +345,16 @@ class Sphere(Particle):
         m = sc.index.ratio(n_particle, n_ext)
         x = sc.size_parameter(n_ext, self.radius_q).to_numpy()
 
+        if cartesian:
+            coordinate_system = "cartesian"
+            coords = {sc.Coord.POL: ["x", "y"]}
+        else:
+            coordinate_system = "scattering plane"
+            coords = {sc.Coord.POL: ["par", "perp"]}
+
         if np.any(n_ext.imag > 0) or (cartesian is True):
             if kd is None:
                 raise ValueError("must specify distance for absorbing systems")
-            if cartesian:
-                coordinate_system = 'cartesian'
-            else:
-                coordinate_system = 'scattering plane'
             form_factor = mie.diff_scat_intensity_complex_medium(
                             m, x, angles, kd,
                             coordinate_system=coordinate_system,
@@ -358,7 +363,24 @@ class Sphere(Particle):
         else:
             form_factor = mie.calc_ang_dist(m, x, angles)
 
-        return form_factor
+        # convert tuple to array, adding a dimension with size 1 if the
+        # wavelength is a scalar
+        form_factor = np.array([*form_factor])
+        if len(np.atleast_1d(wavelen)) == 1:
+            form_factor = np.expand_dims(form_factor, axis=1)
+
+        # set up coords for DataArray, avoiding scalar dimension for wavelen
+        coords[sc.Coord.WAVELEN] = np.atleast_1d(wavelen.magnitude)
+        if angles.ndim == 2:
+            coords[sc.Coord.THETA] = angles[:, 0].magnitude
+            coords[sc.Coord.PHI] = angles[0, :].magnitude
+        else:
+            coords[sc.Coord.THETA] = angles.magnitude
+
+        ff_array = xr.DataArray(np.array([*form_factor]), coords=coords)
+        ff_array.attrs[sc.Attr.LENGTH_UNIT] = wavelen.units
+
+        return ff_array
 
 class SphereDistribution:
     """Class to describe a continuous size distribution of spheres.

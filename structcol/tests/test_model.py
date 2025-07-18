@@ -79,12 +79,11 @@ class TestModel():
                                             sc.index.vacuum)
         par, perp = model.differential_cross_section(self.wavelen[0],
                                                      self.angles)
-        fpar, fperp = self.ps_sphere.form_factor(self.wavelen[0],
-                                                 self.angles,
-                                                 sc.index.vacuum)
+        ff = self.ps_sphere.form_factor(self.wavelen[0], self.angles,
+                                        sc.index.vacuum)
 
-        assert_equal(par, fpar)
-        assert_equal(perp, fperp)
+        assert_equal(par, ff.loc["par"].to_numpy().squeeze())
+        assert_equal(perp, ff.loc["perp"].to_numpy().squeeze())
 
         # Test that constant form factor yields the same results as structure
         # factor.
@@ -121,8 +120,7 @@ class TestModel():
                                                index_matrix)
         form_sphere = glass.sphere.form_factor(self.wavelen, angles,
                                                index_matrix)
-        for i in range(2):
-            assert_equal(form_model[i], form_sphere[i])
+        xr.testing.assert_equal(form_model, form_sphere)
 
         # make sure structure factor is calculated correctly
         s_ps = glass.structure_factor(self.qd)
@@ -165,7 +163,7 @@ class TestModel():
         for i in range(2):
             # monodisperse and polydisperse form factors should be equal at low
             # polydispersity
-            assert_allclose(form_model[i], form_sphere[i])
+            assert_allclose(form_model[i], form_sphere[i].to_numpy().squeeze())
 
         # differential scattering cross sections should be very close for
         # monodisperse and polydisperse models in the limit of low

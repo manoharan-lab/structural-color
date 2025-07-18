@@ -34,7 +34,7 @@ import numpy as np
 from pymie import mie
 from scipy.special import factorial
 from scipy.integrate import trapezoid
-#import xarray as xr
+import xarray as xr
 import structcol as sc
 
 
@@ -130,9 +130,11 @@ class FormStructureModel(Model):
         angles = angles.to("rad")
         # calculate form factor
         if self.form_factor is not None:
-            f_par, f_perp = self.form_factor(wavelen, angles,
-                                             self.index_external,
-                                             **ff_kwargs)
+            ff = self.form_factor(wavelen, angles, self.index_external,
+                                  **ff_kwargs)
+            if isinstance(ff, xr.DataArray):
+                ff = ff.to_numpy().squeeze()
+            f_par, f_perp = ff
         else:
             f_par = 1
             f_perp = 1
