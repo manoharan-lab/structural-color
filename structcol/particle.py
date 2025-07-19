@@ -28,27 +28,6 @@ from pymie import mie
 import structcol as sc
 
 
-def _make_coords(wavelen, angles, cartesian, phis=None):
-    """Convenience function to make DataArray coordinates for outputs from
-    scattering methods (e.g. form_factor()).
-
-    """
-    if cartesian:
-        coords = {sc.Coord.POL: ["x", "y"]}
-    else:
-        coords = {sc.Coord.POL: ["par", "perp"]}
-
-    # set up coords for DataArray, avoiding scalar dimension for wavelen
-    coords[sc.Coord.WAVELEN] = np.atleast_1d(wavelen.magnitude)
-    if angles.ndim == 2:
-        coords[sc.Coord.THETA] = angles[:, 0].magnitude
-        coords[sc.Coord.PHI] = angles[0, :].magnitude
-    else:
-        coords[sc.Coord.THETA] = angles.magnitude
-
-    return coords
-
-
 class Particle:
     """Base class for specifying geometry and optical properties of a particle.
 
@@ -371,10 +350,10 @@ class Sphere(Particle):
         else:
             coordinate_system = "scattering plane"
 
-        form_factor = self._form_factor(m, x, angles, kd=kd,
-                                        coordinate_system=coordinate_system,
-                                        incident_vector=incident_vector,
-                                        phis=phis)
+        form_factor = _form_factor(m, x, angles, kd=kd,
+                                   coordinate_system=coordinate_system,
+                                   incident_vector=incident_vector,
+                                   phis=phis)
 
         coords = _make_coords(wavelen, angles, cartesian, phis=phis)
 
@@ -388,26 +367,6 @@ class Sphere(Particle):
         form_factor.attrs[sc.Attr.LENGTH_UNIT] = wavelen.units
 
         return form_factor
-
-    def _form_factor(self, m, x, angles, kd=None, coordinate_system=None,
-                     incident_vector=None, phis=None):
-        """Thin wrapper around pymie form-factor routines. Called internally by
-        form_factor() methods in cases where speed is important.
-
-        """
-        if np.any(x.imag > 0) or (coordinate_system=='cartesian'):
-            if kd is None:
-                raise ValueError("must specify distance for absorbing systems")
-            form_factor = mie.diff_scat_intensity_complex_medium(
-                            m, x, angles, kd,
-                            coordinate_system=coordinate_system,
-                            incident_vector=incident_vector,
-                            phis=phis)
-        else:
-            form_factor = mie.calc_ang_dist(m, x, angles)
-
-        return form_factor
-
 
 class SphereDistribution:
     """Class to describe a continuous size distribution of spheres.
@@ -661,13 +620,12 @@ class SphereDistribution:
                 # overhead is related to all the unit checking, xarray
                 # wrapping, and calculating quantities like m, x, and indices.
                 # Since most of the calculations are constant, we use the
-                # underlying, faster sphere_form_factor() to avoid the
-                # overhead.
-                ff = sphere._form_factor(m, x_poly[s], angles_array[s],
-                                         kd=kd_new,
-                                         coordinate_system=coordinate_system,
-                                         incident_vector=incident_vector,
-                                         phis=phis)
+                # underlying, faster _form_factor() to avoid the overhead.
+                ff = _form_factor(m, x_poly[s], angles_array[s],
+                                  kd=kd_new,
+                                  coordinate_system=coordinate_system,
+                                  incident_vector=incident_vector,
+                                  phis=phis)
                 # it might seem reasonable to calculate the form factor of each
                 # individual radius in the Schulz distribution (meaning that we
                 # could use diameter_range[s] instead of distance_array[d]),
@@ -698,3 +656,43 @@ class SphereDistribution:
 
         return(f[0].to_numpy().squeeze(), f[1].to_numpy().squeeze())
 
+
+def _make_coords(wavelen, angles, cartesian, phis=None):
+    """Convenience function to make DataArray coordinates for outputs from
+    scattering methods (e.g. form_factor()).
+
+    """
+    if cartesian:
+        coords = {sc.Coord.POL: ["x", "y"]}
+    else:
+        coords = {sc.Coord.POL: ["par", "perp"]}
+
+    # set up coords for DataArray, avoiding scalar dimension for wavelen
+    coords[sc.Coord.WAVELEN] = np.atleast_1d(wavelen.magnitude)
+    if angles.ndim == 2:
+        coords[sc.Coord.THETA] = angles[:, 0].magnitude
+        coords[sc.Coord.PHI] = angles[0, :].magnitude
+    else:
+        coords[sc.Coord.THETA] = angles.magnitude
+
+    return coords
+
+
+def _form_factor(m, x, angles, kd=None, coordinate_system=None,
+                 incident_vector=None, phis=None):
+    """Thin wrapper around pymie form-factor routines. Called internally by
+    form_factor() methods in cases where speed is important.
+
+    """
+    if np.any(x.imag > 0) or (coordinate_system=='cartesian'):
+        if kd is None:
+            raise ValueError("must specify distance for absorbing systems")
+        form_factor = mie.diff_scat_intensity_complex_medium(
+                        m, x, angles, kd,
+                        coordinate_system=coordinate_system,
+                        incident_vector=incident_vector,
+                        phis=phis)
+    else:
+        form_factor = mie.calc_ang_dist(m, x, angles)
+
+    return form_factor
