@@ -165,7 +165,8 @@ class PercusYevick(StructureFactor):
         # convert volume fraction to DataArray so that calculations will
         # vectorize easily
         phi = np.atleast_1d(volume_fraction)
-        self.volume_fraction = xr.DataArray(phi, coords={"volfrac": phi})
+        self.volume_fraction = xr.DataArray(phi,
+                                            coords={sc.Coord.VOLFRAC: phi})
         self.ql_cutoff = ql_cutoff
 
     def calculate(self, ql):
@@ -327,7 +328,8 @@ class Paracrystal(StructureFactor):
         # convert arguments to DataArray so that calculations will vectorize
         # easily
         phi = np.atleast_1d(volume_fraction)
-        self.volume_fraction = xr.DataArray(phi, coords={"volfrac": phi})
+        self.volume_fraction = xr.DataArray(phi,
+                                            coords={sc.Coord.VOLFRAC: phi})
         sigma = np.atleast_1d(sigma)
         self.sigma = xr.DataArray(sigma, coords={"sigma": sigma})
 

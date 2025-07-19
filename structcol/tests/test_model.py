@@ -174,7 +174,8 @@ class TestModel():
         # dscat mono will have an extra "volfrac" scalar dimension because the
         # PY structure factor is a function of volume fraction.  The
         # interpolated structure factor is not
-        xr.testing.assert_allclose(dscat, dscat_mono.drop_vars("volfrac"))
+        xr.testing.assert_allclose(dscat,
+                                   dscat_mono.drop_vars(sc.Coord.VOLFRAC))
 
         # and structure factor should be close to 1
         n_ext = index_matrix(wavelen)
