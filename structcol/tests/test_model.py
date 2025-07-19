@@ -186,8 +186,10 @@ class TestModel():
 
         # we check also that the scattering cross sections are the same for the
         # monodisperse and polydisperse models
-        cscat = model.scattering_cross_section(wavelen, angles)
-        cscat_mono = mono_model.scattering_cross_section(wavelen, angles)
+        dscat = model.differential_cross_section(wavelen, angles)
+        cscat = model.scattering_cross_section(dscat)
+        dscat_mono = mono_model.differential_cross_section(wavelen, angles)
+        cscat_mono = mono_model.scattering_cross_section(dscat_mono)
         assert_allclose(cscat.to_preferred().magnitude,
                         cscat_mono.to_preferred().magnitude)
 
@@ -303,7 +305,8 @@ class TestModel():
         if np.any(n_matrix.imag > 0):
             ff_kwargs["kd"] = sc.wavevector(n_matrix) * model.lengthscale
             ff_kwargs["kd"] = ff_kwargs["kd"].to('').magnitude
-        cscat = model.scattering_cross_section(wavelen, angles, **ff_kwargs)
+        dscat = model.differential_cross_section(wavelen, angles, **ff_kwargs)
+        cscat = model.scattering_cross_section(dscat)
 
         # now do calculation using Mie theory, using appropriate function for
         # the cross-section
@@ -387,8 +390,7 @@ class TestModel():
             ff_kwargs["kd"] = ff_kwargs["kd"].to('').magnitude
         dscat_1 = single_model.differential_cross_section(wavelen, angles,
                                                           **ff_kwargs)
-        cscat_1 = single_model.scattering_cross_section(wavelen, angles,
-                                                        **ff_kwargs)
+        cscat_1 = single_model.scattering_cross_section(dscat_1)
 
         # do the calculation using bidisperse polydisperse model
         n_matrix = binary_model.index_matrix(wavelen)
@@ -400,8 +402,8 @@ class TestModel():
 
         dscat_2 = binary_model.differential_cross_section(wavelen, angles,
                                                                **ff_kwargs)
-        cscat_2 = binary_model.scattering_cross_section(wavelen, angles,
-                                                        **ff_kwargs)
+        cscat_2 = binary_model.scattering_cross_section(dscat_2)
+
         xr.testing.assert_equal(dscat_2, dscat_1)
         assert_equal(cscat_2.to_preferred().magnitude,
                      cscat_1.to_preferred().magnitude)
@@ -436,8 +438,8 @@ class TestModel():
         ff_kwargs = {}
         if np.any(n_ext.imag > 0):
             ff_kwargs['kd'] = (k * model.lengthscale).to('').magnitude
-        cscat = model.scattering_cross_section(wavelen, angles,
-                                               **ff_kwargs)
+        dscat = model.differential_cross_section(wavelen, angles, **ff_kwargs)
+        cscat = model.scattering_cross_section(dscat)
 
         m = sc.index.ratio(n_particle, n_ext)
         x = sc.size_parameter(n_ext, self.ps_radius).to_numpy()
@@ -465,8 +467,9 @@ class TestModel():
             ff_kwargs['kd'] = (k * model.lengthscale).to('').magnitude
         else:
             ff_kwargs = {}
-        cscat = model.scattering_cross_section(wavelen, angles,
-                                               **ff_kwargs)
+        dscat = model.differential_cross_section(wavelen, angles, **ff_kwargs)
+        cscat = model.scattering_cross_section(dscat)
+
         assert_allclose(cscat.to_preferred().magnitude,
                         cscat_mc.to_preferred().magnitude, rtol=1e-5)
 
@@ -477,7 +480,8 @@ class TestModel():
         dist = sc.SphereDistribution(self.ps_sphere, concentration, pdi)
         model = sc.model.PolydisperseHardSpheres(dist, volume_fraction,
                                                  index_matrix, index_medium)
-        cscat = model.scattering_cross_section(wavelen, angles, **ff_kwargs)
+        dscat = model.differential_cross_section(wavelen, angles, **ff_kwargs)
+        cscat = model.scattering_cross_section(dscat)
 
         diameters = sc.Quantity(np.atleast_1d(diameters.magnitude),
                                 diameters.units)
@@ -513,8 +517,9 @@ class TestModel():
             ff_kwargs["kd"] = (sc.wavevector(n_ext) * diameters/2)
             ff_kwargs["kd"] = ff_kwargs["kd"].to('').magnitude
 
-        cscat = binary_model.scattering_cross_section(wavelen, angles,
-                                                      **ff_kwargs)
+        dscat = binary_model.differential_cross_section(wavelen, angles,
+                                                        **ff_kwargs)
+        cscat = binary_model.scattering_cross_section(dscat)
 
         m = sc.index.ratio(n_particle, n_ext)
         x = sc.size_parameter(n_ext, sphere1.radius_q).to_numpy()

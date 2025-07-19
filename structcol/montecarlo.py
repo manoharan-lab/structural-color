@@ -1235,7 +1235,7 @@ def phase_function(m, x, angles, volume_fraction, k, number_density,
     diff_cs = model.differential_cross_section(wavelen, angles, **ff_kwargs)
     diff_cscat_par, diff_cscat_perp = diff_cs.to_numpy().squeeze()
 
-    cscat_total = model.scattering_cross_section(wavelen, angles, **ff_kwargs)
+    cscat_total = model.scattering_cross_section(diff_cs)
 
     # I think this idea here is that later on, each element of the phase
     # function is used to represent the scattering over a finite angular

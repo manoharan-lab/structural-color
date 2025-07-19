@@ -155,24 +155,24 @@ class FormStructureModel(Model):
         diff_cscat = diff_cscat.transpose(sc.Coord.POL, sc.Coord.WAVELEN,
                                           sc.Coord.THETA, ...)
 
+        # store form-factor options in attributes, so that we don't have to
+        # pass them again
+        diff_cscat.attrs.update(ff_kwargs)
+        # and ensure length scale is present
+        if sc.Attr.LENGTH_UNIT not in diff_cscat.attrs:
+            diff_cscat.attrs[sc.Attr.LENGTH_UNIT] = wavelen.units
+
         return diff_cscat
 
-    def scattering_cross_section(self, wavelen, angles, **ff_kwargs):
+    def scattering_cross_section(self, diff_cscat):
         """Calculate scattering cross-section, including contributions from
         both form and structure factors.
 
         Parameters
         ----------
-        wavelen : float (structcol.Quantity [length])
-            Wavelength of light in vacuum.
-        angles : ndarray(structcol.Quantity [dimensionless])
-            array of scattering angles. Must be entered as a Quantity to allow
-            specifying units (degrees or radians) explicitly
-        **ff_kwargs :
-            Keyword arguments to pass to `form_factor()` method. Includes kd
-            (dimensionless distance), cartesian flag, incident_vector, and phis
-            (angles). See `Sphere.form_factor()` and
-            `SphereDistribution.form_factor()` for descriptions.
+        diff_cscat : `xr.DataArray`
+            Differential scattering cross-sections, as returned by
+            `FormStructureModel.differential_cross_section()` method
 
         Returns
         -------
@@ -182,8 +182,15 @@ class FormStructureModel(Model):
             (unpolarized) cross-section.
 
         """
-        wavelen = wavelen.to_preferred()
-        angles = angles.to('rad')
+        wavelen = diff_cscat.coords[sc.Coord.WAVELEN].to_numpy()
+        wavelen = sc.Quantity(wavelen, diff_cscat.attrs[sc.Attr.LENGTH_UNIT])
+        thetas = sc.Quantity(diff_cscat.coords[sc.Coord.THETA].to_numpy(),
+                             'rad')
+        if sc.Coord.PHI in diff_cscat.coords:
+            phis = sc.Quantity(diff_cscat.coords[sc.Coord.PHI].to_numpy(),
+                               'rad')
+        cartesian = diff_cscat.attrs.get("cartesian")
+
         k = sc.wavevector(self.index_external(wavelen))
         ksquared = np.abs(k)**2
         distance = self.lengthscale
@@ -199,25 +206,20 @@ class FormStructureModel(Model):
         # Also note that the diff_cscat1 and 2 are parallel and perpendicular
         # components for the default scattering-plane basis and are
         # diff_cscat_x and y in cartesian coordinates
-        diff_cscat = self.differential_cross_section(wavelen, angles,
-                                                     **ff_kwargs)
         diff_cscat1 = diff_cscat.isel({sc.Coord.POL: 0}).to_numpy().squeeze()
         diff_cscat2 = diff_cscat.isel({sc.Coord.POL: 1}).to_numpy().squeeze()
 
         # If in cartesian coordinate system, integrate the differential cross
         # section using integration functions in mie.py that can handle
         # cartesian coordinates. Also includes absorption.
-        if ff_kwargs.get("cartesian") is True:
-            thetas_1d = angles[:,0]
-            phis_1d = ff_kwargs.get("phis")[0,:]
+        if cartesian:
             cscat_total = mie.integrate_intensity_complex_medium(diff_cscat1,
                                                     diff_cscat2,
                                                     distance,
-                                                    thetas_1d, k,
+                                                    thetas, k,
                                                     coordinate_system =
                                                     "cartesian",
-                                                    phis=phis_1d)[0]
-
+                                                    phis=phis)[0]
         # If absorption and not cartesian coords, integrate the differential
         # cross section using integration functions in mie.py that use
         # absorption
@@ -225,17 +227,17 @@ class FormStructureModel(Model):
             cscat_total = mie.integrate_intensity_complex_medium(diff_cscat1,
                                                                  diff_cscat2,
                                                                  distance,
-                                                                 angles, k)[0]
+                                                                 thetas, k)[0]
 
         # if there is no absorption in the system, Integrate with function in
         # model
         else:
             cscat_total_par = _integrate_cross_section(diff_cscat1,
                                                        1.0/ksquared,
-                                                       angles)
+                                                       thetas)
             cscat_total_perp = _integrate_cross_section(diff_cscat2,
                                                         1.0/ksquared,
-                                                        angles)
+                                                        thetas)
             cscat_total = (cscat_total_par + cscat_total_perp)/2.0
 
         return cscat_total
@@ -341,19 +343,25 @@ class PolydisperseHardSpheres(FormStructureModel):
         super().__init__(form_factor, structure_factor, lengthscale,
                          index_external, index_medium)
 
-    def scattering_cross_section(self, wavelen, angles, **ff_kwargs):
+    def scattering_cross_section(self, diff_cscat):
         """Special routine to calculate scattering cross section for
         polydisperse binary mixtures only.
 
         """
+        wavelen = diff_cscat.coords[sc.Coord.WAVELEN].to_numpy()
+        wavelen = sc.Quantity(wavelen, diff_cscat.attrs[sc.Attr.LENGTH_UNIT])
+        thetas = sc.Quantity(diff_cscat.coords[sc.Coord.THETA].to_numpy(),
+                             'rad')
+        if sc.Coord.PHI in diff_cscat.coords:
+            phis = sc.Quantity(diff_cscat.coords[sc.Coord.PHI].to_numpy(),
+                               'rad')
+
         k = sc.wavevector(self.index_external(wavelen))
         distance = self.sphere_dist.diameters_q/2
 
         # TODO make cartesian work for polydisperse
         if (np.any(np.abs(k.imag.magnitude) > 0)
             and (len(self.sphere_dist.spheres) > 1)):
-            diff_cscat = self.differential_cross_section(wavelen, angles,
-                                                         **ff_kwargs)
             diff_cscat1 = diff_cscat[0].to_numpy().squeeze()
             diff_cscat2 = diff_cscat[1].to_numpy().squeeze()
 
@@ -364,16 +372,15 @@ class PolydisperseHardSpheres(FormStructureModel):
             cscat_total1, cscat_total_par1, cscat_total_perp1, _, _ = \
                 mie.integrate_intensity_complex_medium(diff_cscat1,
                                                        diff_cscat2,
-                                                       distance[0], angles, k)
+                                                       distance[0], thetas, k)
             cscat_total2, cscat_total_par2, cscat_total_perp2, _, _ = \
                 mie.integrate_intensity_complex_medium(diff_cscat1,
                                                        diff_cscat2,
-                                                       distance[1], angles, k)
+                                                       distance[1], thetas, k)
             cscat_total = (cscat_total1 * self.sphere_dist.concentrations[0]
                            + cscat_total2 * self.sphere_dist.concentrations[1])
         else:
-            cscat_total = super().scattering_cross_section(wavelen, angles,
-                                                           **ff_kwargs)
+            cscat_total = super().scattering_cross_section(diff_cscat)
 
         return cscat_total
 
