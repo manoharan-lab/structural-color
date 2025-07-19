@@ -28,6 +28,27 @@ from pymie import mie
 import structcol as sc
 
 
+def _make_coords(wavelen, angles, cartesian, phis=None):
+    """Convenience function to make DataArray coordinates for outputs from
+    scattering methods (e.g. form_factor()).
+
+    """
+    if cartesian:
+        coords = {sc.Coord.POL: ["x", "y"]}
+    else:
+        coords = {sc.Coord.POL: ["par", "perp"]}
+
+    # set up coords for DataArray, avoiding scalar dimension for wavelen
+    coords[sc.Coord.WAVELEN] = np.atleast_1d(wavelen.magnitude)
+    if angles.ndim == 2:
+        coords[sc.Coord.THETA] = angles[:, 0].magnitude
+        coords[sc.Coord.PHI] = angles[0, :].magnitude
+    else:
+        coords[sc.Coord.THETA] = angles.magnitude
+
+    return coords
+
+
 class Particle:
     """Base class for specifying geometry and optical properties of a particle.
 
@@ -347,15 +368,15 @@ class Sphere(Particle):
 
         if cartesian:
             coordinate_system = "cartesian"
-            coords = {sc.Coord.POL: ["x", "y"]}
         else:
             coordinate_system = "scattering plane"
-            coords = {sc.Coord.POL: ["par", "perp"]}
 
         form_factor = self._form_factor(m, x, angles, kd=kd,
                                         coordinate_system=coordinate_system,
                                         incident_vector=incident_vector,
                                         phis=phis)
+
+        coords = _make_coords(wavelen, angles, cartesian, phis=phis)
 
         # convert tuple to array, adding a dimension with size 1 if the
         # wavelength is a scalar
@@ -363,21 +384,17 @@ class Sphere(Particle):
         if len(np.atleast_1d(wavelen)) == 1:
             form_factor = np.expand_dims(form_factor, axis=1)
 
-        # set up coords for DataArray, avoiding scalar dimension for wavelen
-        coords[sc.Coord.WAVELEN] = np.atleast_1d(wavelen.magnitude)
-        if angles.ndim == 2:
-            coords[sc.Coord.THETA] = angles[:, 0].magnitude
-            coords[sc.Coord.PHI] = angles[0, :].magnitude
-        else:
-            coords[sc.Coord.THETA] = angles.magnitude
+        form_factor = xr.DataArray(form_factor, coords=coords)
+        form_factor.attrs[sc.Attr.LENGTH_UNIT] = wavelen.units
 
-        ff_array = xr.DataArray(np.array([*form_factor]), coords=coords)
-        ff_array.attrs[sc.Attr.LENGTH_UNIT] = wavelen.units
-
-        return ff_array
+        return form_factor
 
     def _form_factor(self, m, x, angles, kd=None, coordinate_system=None,
                      incident_vector=None, phis=None):
+        """Thin wrapper around pymie form-factor routines. Called internally by
+        form_factor() methods in cases where speed is important.
+
+        """
         if np.any(x.imag > 0) or (coordinate_system=='cartesian'):
             if kd is None:
                 raise ValueError("must specify distance for absorbing systems")
