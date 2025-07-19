@@ -160,10 +160,9 @@ class TestModel():
         form_model = model.form_factor(wavelen, angles, index_matrix)
         form_sphere = dist.spheres[0].form_factor(wavelen, angles,
                                                   index_matrix)
-        for i in range(2):
-            # monodisperse and polydisperse form factors should be equal at low
-            # polydispersity
-            assert_allclose(form_model[i], form_sphere[i].to_numpy().squeeze())
+        # monodisperse and polydisperse form factors should be equal at low
+        # polydispersity
+        xr.testing.assert_allclose(form_model, form_sphere)
 
         # differential scattering cross sections should be very close for
         # monodisperse and polydisperse models in the limit of low

@@ -456,4 +456,4 @@ class TestSphereDistribution():
         # factor
         polyff = dist.form_factor(self.wavelen, self.angles, index_external)
         monoff = sphere1.form_factor(self.wavelen, self.angles, index_external)
-        assert_allclose(polyff, monoff.to_numpy().squeeze())
+        xr.testing.assert_allclose(polyff, monoff)

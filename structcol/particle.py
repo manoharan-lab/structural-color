@@ -23,7 +23,6 @@ methods for calculating form factors from such particles.
 
 import numpy as np
 import xarray as xr
-from scipy.integrate import trapezoid
 from pymie import mie
 import structcol as sc
 
@@ -646,7 +645,7 @@ class SphereDistribution:
         # calculated as the average of each mean diameter's form factor
         f = xr.concat(integral_list, dim="mean diameter").sum("mean diameter")
 
-        return(f[0].to_numpy().squeeze(), f[1].to_numpy().squeeze())
+        return f
 
 
 def _make_coords(wavelen, angles, cartesian, phis=None):
