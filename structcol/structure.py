@@ -568,7 +568,7 @@ class Interpolated(StructureFactor):
             (since this was the default choice in previous versions), but
             "cubic" tends to work better with structure factors, because they
             tend to oscillate.
-        interp_kwargs : dict (optiona, default=None)
+        interp_kwargs : dict (optional, default=None)
             kwargs to pass to `xr.DataArray.interp()`.
         """
         self.data = xr.DataArray(s_data, coords={"ql": ql_data})
@@ -581,7 +581,7 @@ class Interpolated(StructureFactor):
 
         """
         return self.data.interp(ql=ql, method=self.method,
-                                kwargs=self.interp_kwargs).squeeze(drop=True)
+                                kwargs=self.interp_kwargs).squeeze()
 
 
 def field_phase_data(qd, filename='spf.dat'):
