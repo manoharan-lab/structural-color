@@ -352,9 +352,6 @@ class PolydisperseHardSpheres(FormStructureModel):
         wavelen = sc.Quantity(wavelen, diff_cscat.attrs[sc.Attr.LENGTH_UNIT])
         thetas = sc.Quantity(diff_cscat.coords[sc.Coord.THETA].to_numpy(),
                              'rad')
-        if sc.Coord.PHI in diff_cscat.coords:
-            phis = sc.Quantity(diff_cscat.coords[sc.Coord.PHI].to_numpy(),
-                               'rad')
 
         k = sc.wavevector(self.index_external(wavelen))
         distance = self.sphere_dist.diameters_q/2

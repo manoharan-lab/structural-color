@@ -1180,7 +1180,6 @@ def phase_function(m, x, angles, volume_fraction, k, number_density,
         total scattering cross section for unpolarized light
 
     """
-    ksquared = (np.abs(k)**2).to_preferred()
     diameters = diameters.to_preferred()
     angles = angles.to('rad')
     if phis is not None:
