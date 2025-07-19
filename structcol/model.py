@@ -147,13 +147,7 @@ class FormStructureModel(Model):
         # calculate structure factor
         n_ext = self.index_external(wavelen)
         ql = sc.ql(n_ext, self.lengthscale, angles)
-        if sc.Coord.PHI in ql.coords:
-            # Because the structure factor does not depend on phi, we save some
-            # computational time by calculating the structure factor only for
-            # theta. The product sf*ff will then broadcast over phi.
-            sf = self.structure_factor(ql.isel({sc.Coord.PHI: 0}))
-        else:
-            sf = self.structure_factor(ql)
+        sf = self.structure_factor(ql)
 
         diff_cscat = ff * sf
 

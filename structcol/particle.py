@@ -662,7 +662,7 @@ def _make_coords(wavelen, angles, cartesian, phis=None):
     coords[sc.Coord.WAVELEN] = np.atleast_1d(wavelen.magnitude)
     if angles.ndim == 2:
         coords[sc.Coord.THETA] = angles[:, 0].magnitude
-        coords[sc.Coord.PHI] = angles[0, :].magnitude
+        coords[sc.Coord.PHI] = phis[0, :].magnitude
     else:
         coords[sc.Coord.THETA] = angles.magnitude
 

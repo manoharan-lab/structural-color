@@ -312,18 +312,18 @@ def ql(n_medium, lengthscale, angles):
     x = size_parameter(n_medium, lengthscale).isel({Coord.LAYER: -1},
                                                    drop=True)
 
-    # set up coordinates for ql DataArray
+    # set up coordinates for ql DataArray.  Note that ql depends only on theta.
     angles = np.atleast_1d(angles.to('rad').magnitude)
     if angles.ndim == 2:
-        angles = xr.DataArray(angles, coords={Coord.THETA: angles[:, 0],
-                                              Coord.PHI: angles[0, :]})
+        # meshgrid has been provided for theta.  Ignore the phi dimension.
+        thetas = angles[:, 0]
     else:
-        angles = xr.DataArray(angles, coords={Coord.THETA: angles})
-
+        thetas = angles
+    thetas = xr.DataArray(thetas, coords={Coord.THETA: thetas})
 
     # this should automatically broadcast since angles is a DataArray
     # TODO: should it be x.real or x.abs?
-    ql = 4*np.abs(x)*np.sin(angles/2)
+    ql = 4*np.abs(x)*np.sin(thetas/2)
     return ql
 
 
