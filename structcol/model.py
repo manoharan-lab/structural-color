@@ -126,36 +126,41 @@ class FormStructureModel(Model):
             scattering cross section.
 
         """
+        # This is the heart of the single-scattering and Monte Carlo models!
+        # Calculate the form and structure factors and multiply them to get the
+        # differential scattering cross-sections.
+
         wavelen = wavelen.to_preferred()
         angles = angles.to("rad")
+
         # calculate form factor
         if self.form_factor is not None:
             ff = self.form_factor(wavelen, angles, self.index_external,
                                   **ff_kwargs)
-            if isinstance(ff, xr.DataArray):
-                ff = ff.to_numpy().squeeze()
-            f_par, f_perp = ff
         else:
-            f_par = 1
-            f_perp = 1
+            # set constant (unity) form factor
+            ff = xr.DataArray([1, 1], coords={sc.Coord.POL: ["par", "perp"]})
+            # broadcast over wavelen and angles
+            ff = ff.expand_dims(dim={sc.Coord.WAVELEN: [wavelen.magnitude],
+                                     sc.Coord.THETA: angles.magnitude})
 
         # calculate structure factor
         n_ext = self.index_external(wavelen)
         ql = sc.ql(n_ext, self.lengthscale, angles)
-        # if meshgrid was used to calculate angles, angles will have shape
-        # [num_theta, num_phi].  Because the structure factor does not depend
-        # on phi, we look at only the theta component
         if sc.Coord.PHI in ql.coords:
-            s = self.structure_factor(ql.isel({sc.Coord.PHI: 0})).to_numpy()
-            scat_par = s[:, np.newaxis] * f_par
-            scat_perp = s[:, np.newaxis] * f_perp
+            # Because the structure factor does not depend on phi, we save some
+            # computational time by calculating the structure factor only for
+            # theta. The product sf*ff will then broadcast over phi.
+            sf = self.structure_factor(ql.isel({sc.Coord.PHI: 0}))
         else:
-            s = self.structure_factor(ql).to_numpy()
-            scat_par = s * f_par
-            scat_perp = s * f_perp
+            sf = self.structure_factor(ql)
 
+        scat = sf * ff
 
-        return scat_par, scat_perp
+        s1 = scat.isel({sc.Coord.POL: 0}).to_numpy().squeeze()
+        s2 = scat.isel({sc.Coord.POL: 1}).to_numpy().squeeze()
+
+        return s1, s2
 
     def scattering_cross_section(self, wavelen, angles, **ff_kwargs):
         """Calculate scattering cross-section, including contributions from

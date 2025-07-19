@@ -66,7 +66,7 @@ class StructureFactor:
 
         Parameters
         ----------
-        ql : xr.DataArray
+        ql : `xr.DataArray`
             dimensionless product of wavevector (in vacuum) and some length
             scale (usually diameter of particles. Must be specified as a
             labeled DataArray if you call the `structure_factor.calculate(ql)`
@@ -78,7 +78,8 @@ class StructureFactor:
         Returns:
         -------
         xr.DataArray
-            The structure factor as a function of ql and the other structural
+            The structure factor as a function of the coordinates of ql (which
+            could include wavelength and angle) and of the other structural
             parameters specified in the derived class (for example, volume
             fraction).
 
@@ -111,6 +112,7 @@ class Constant(StructureFactor):
         s = self.constant + 0*ql
 
         return s.squeeze()
+
 
 class PercusYevick(StructureFactor):
     """Analytical structure factor for monodisperse hard-sphere liquids.
@@ -280,6 +282,7 @@ class PercusYevick(StructureFactor):
         return phi * ((-8*alpha -6*beta -4*gamma)
                       + ql**2 *(4*alpha/5 + 2*beta/3 + gamma/2))
 
+
 class Paracrystal(StructureFactor):
     """Calculate structure factor of a structure characterized by disorder of
     the second kind.
@@ -339,6 +342,7 @@ class Paracrystal(StructureFactor):
 
         return s.squeeze()
 
+
 class Polydisperse(StructureFactor):
     """Object to calculate polydisperse structure factor for a monospecies (one
     mean particle size) or a bispecies (two different mean particle sizes)
@@ -375,9 +379,6 @@ class Polydisperse(StructureFactor):
 
         self.pdi = sphere_dist.pdi
 
-    def __call__(self, q):
-        return self.calculate(q)
-
     def fm(self, x, t, tm, m):
         """Evaluates the function in eq. 25 of [1]_, which is used to integrate
         the Schulz distribution. Here x is "a" in the reference, which is the
@@ -409,16 +410,18 @@ class Polydisperse(StructureFactor):
         """Calculate the measurable polydisperse structure using the approach
         in [1]_
         """
-
         c = self.concentrations
-        diameters = self.diameters
+        diameters = self.diameters.magnitude
         phi = self.volume_fraction
 
-        # by convention we normalize q to the first diameter. However, this
-        # function requires a dimensional q, so we un-normalize here
+        # by convention we nondimensionalize q using the first diameter.
+        # However, this function requires a dimensional q, so we
+        # re-dimensionalize here
         if isinstance(qd, xr.DataArray):
-            qd = qd.squeeze(drop=True).to_numpy()
-        q = qd/diameters[0]
+            qd_coords = qd.coords
+            q = qd.squeeze(drop=True).to_numpy()/diameters[0]
+        else:
+            q = qd/diameters[0]
 
         Dsigma = self.pdi**2
         Delta = 1 - phi
@@ -531,9 +534,11 @@ class Polydisperse(StructureFactor):
         SM[SM<0] = 0
 
         # return a DataArray with q as the coordinate
-        SM = xr.DataArray(SM.to('').magnitude, coords={"ql": qd})
+        SM = xr.DataArray(SM.reshape(qd.shape),
+                          coords=qd.coords)
 
-        return(SM)
+        return SM.squeeze()
+
 
 class Interpolated(StructureFactor):
     """Object to calculate an interpolated structure factor using data
