@@ -64,10 +64,9 @@ class TestModel():
                                             self.ps_radius,
                                             sc.index.vacuum,
                                             sc.index.vacuum)
-        par, perp = model.differential_cross_section(self.wavelen[0],
-                                                     self.angles)
-        assert_equal(par, np.ones_like(par)*const)
-        assert_equal(perp, np.ones_like(perp)*const)
+        dscat = model.differential_cross_section(self.wavelen[0], self.angles)
+
+        xr.testing.assert_equal(dscat, xr.ones_like(dscat)*const)
 
         # Test that constant structure factor yields the same results as form
         # factor.  There is no effective index for a FormStructureModel, unless
@@ -77,13 +76,12 @@ class TestModel():
                                             self.ps_radius,
                                             sc.index.vacuum,
                                             sc.index.vacuum)
-        par, perp = model.differential_cross_section(self.wavelen[0],
+        dscat = model.differential_cross_section(self.wavelen[0],
                                                      self.angles)
         ff = self.ps_sphere.form_factor(self.wavelen[0], self.angles,
                                         sc.index.vacuum)
 
-        assert_equal(par, ff.loc["par"].to_numpy().squeeze())
-        assert_equal(perp, ff.loc["perp"].to_numpy().squeeze())
+        xr.testing.assert_equal(dscat, ff)
 
         # Test that constant form factor yields the same results as structure
         # factor.
@@ -94,16 +92,18 @@ class TestModel():
                                             self.ps_radius,
                                             index_matrix,
                                             sc.index.vacuum)
-        par, perp = model.differential_cross_section(self.wavelen[0],
-                                                     self.angles)
+        dscat = model.differential_cross_section(self.wavelen[0],
+                                                 self.angles)
 
         x = sc.size_parameter(index_matrix(self.wavelen[0]), self.ps_radius)
         x = x.to_numpy().squeeze()
         ql = (4*np.abs(x)*np.sin(self.angles/2)).to('').magnitude
         s = structure_factor(ql)
 
-        assert_equal(par, s)
-        assert_equal(perp, s)
+        # test numpy versions because DataArrays will have different coords
+        # dscat for both polarizations should be equal to s
+        assert_equal(dscat[0].to_numpy().squeeze(), s.to_numpy().squeeze())
+        assert_equal(dscat[1].to_numpy().squeeze(), s.to_numpy().squeeze())
 
     def test_hardsphere_model(self):
         """tests that HardSphere model construction and differential cross
@@ -171,14 +171,17 @@ class TestModel():
                                           index_matrix, index_medium)
         dscat = model.differential_cross_section(wavelen, angles)
         dscat_mono = mono_model.differential_cross_section(wavelen, angles)
-        assert_allclose(dscat, dscat_mono)
+        # dscat mono will have an extra "volfrac" scalar dimension because the
+        # PY structure factor is a function of volume fraction.  The
+        # interpolated structure factor is not
+        xr.testing.assert_allclose(dscat, dscat_mono.drop_vars("volfrac"))
 
         # and structure factor should be close to 1
         n_ext = index_matrix(wavelen)
         lengthscale = dist.spheres[0].radius_q
         ql = sc.ql(n_ext, lengthscale, angles)
         s = model.structure_factor(ql)
-        assert_allclose(s.to_numpy(), np.ones_like(s.to_numpy()))
+        xr.testing.assert_allclose(s, xr.ones_like(s))
 
         # we check also that the scattering cross sections are the same for the
         # monodisperse and polydisperse models
@@ -252,15 +255,17 @@ class TestModel():
                                         index_medium)
 
         # TODO test vectorization; for now this is single-wavelength
-        fs_par, fs_perp = fs_model.differential_cross_section(self.wavelen[0],
-                                                              self.angles)
-        py_par, py_perp = py_model.differential_cross_section(self.wavelen[0],
-                                                              self.angles)
+        fs_dscat = fs_model.differential_cross_section(self.wavelen[0],
+                                                       self.angles)
+        py_dscat = py_model.differential_cross_section(self.wavelen[0],
+                                                       self.angles)
 
         # with cubic interpolation, relative error is a little larger than
         # 1e-4 at 60% volume fraction and 750 data points.
-        assert_allclose(fs_par, py_par, rtol=1e-3)
-        assert_allclose(fs_perp, py_perp, rtol=1e-3)
+        fs_dscat = fs_dscat.to_numpy().squeeze()
+        py_dscat = py_dscat.to_numpy().squeeze()
+        assert_allclose(fs_dscat[0], py_dscat[0], rtol=1e-3)
+        assert_allclose(fs_dscat[1], py_dscat[1], rtol=1e-3)
         # TODO: test reflectance as well
 
     @pytest.mark.parametrize("index_matrix", [sc.index.water,
@@ -396,7 +401,7 @@ class TestModel():
                                                                **ff_kwargs)
         cscat_2 = binary_model.scattering_cross_section(wavelen, angles,
                                                         **ff_kwargs)
-        assert_equal(dscat_2, dscat_1)
+        xr.testing.assert_equal(dscat_2, dscat_1)
         assert_equal(cscat_2.to_preferred().magnitude,
                      cscat_1.to_preferred().magnitude)
 

@@ -22,7 +22,7 @@ Tests for the Particle class and subclasses (in structcol/particle.py)
 """
 
 from .. import np, mie
-from numpy.testing import assert_allclose, assert_equal
+from numpy.testing import assert_equal
 import pytest
 import structcol as sc
 import xarray as xr

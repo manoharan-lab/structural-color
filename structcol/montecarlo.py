@@ -1233,7 +1233,7 @@ def phase_function(m, x, angles, volume_fraction, k, number_density,
     if np.any(n_sample.imag > 0):
         ff_kwargs["kd"] = kd
     diff_cs = model.differential_cross_section(wavelen, angles, **ff_kwargs)
-    diff_cscat_par, diff_cscat_perp = diff_cs
+    diff_cscat_par, diff_cscat_perp = diff_cs.to_numpy().squeeze()
 
     cscat_total = model.scattering_cross_section(wavelen, angles, **ff_kwargs)
 

@@ -126,8 +126,8 @@ class FormStructureModel(Model):
             scattering cross section.
 
         """
-        # This is the heart of the single-scattering and Monte Carlo models!
-        # Calculate the form and structure factors and multiply them to get the
+        # This is the heart of the single-scattering and Monte Carlo models! We
+        # calculate the form and structure factors and multiply them to get the
         # differential scattering cross-sections.
 
         wavelen = wavelen.to_preferred()
@@ -155,12 +155,13 @@ class FormStructureModel(Model):
         else:
             sf = self.structure_factor(ql)
 
-        scat = sf * ff
+        diff_cscat = ff * sf
 
-        s1 = scat.isel({sc.Coord.POL: 0}).to_numpy().squeeze()
-        s2 = scat.isel({sc.Coord.POL: 1}).to_numpy().squeeze()
+        # ensure dimension order is correct, for routines that convert to numpy
+        diff_cscat = diff_cscat.transpose(sc.Coord.POL, sc.Coord.WAVELEN,
+                                          sc.Coord.THETA, ...)
 
-        return s1, s2
+        return diff_cscat
 
     def scattering_cross_section(self, wavelen, angles, **ff_kwargs):
         """Calculate scattering cross-section, including contributions from
@@ -204,9 +205,10 @@ class FormStructureModel(Model):
         # Also note that the diff_cscat1 and 2 are parallel and perpendicular
         # components for the default scattering-plane basis and are
         # diff_cscat_x and y in cartesian coordinates
-        diff_cscat1, diff_cscat2 = self.differential_cross_section(wavelen,
-                                                                   angles,
-                                                                   **ff_kwargs)
+        diff_cscat = self.differential_cross_section(wavelen, angles,
+                                                     **ff_kwargs)
+        diff_cscat1 = diff_cscat.isel({sc.Coord.POL: 0}).to_numpy().squeeze()
+        diff_cscat2 = diff_cscat.isel({sc.Coord.POL: 1}).to_numpy().squeeze()
 
         # If in cartesian coordinate system, integrate the differential cross
         # section using integration functions in mie.py that can handle
@@ -356,10 +358,10 @@ class PolydisperseHardSpheres(FormStructureModel):
         # TODO make cartesian work for polydisperse
         if (np.any(np.abs(k.imag.magnitude) > 0)
             and (len(self.sphere_dist.spheres) > 1)):
-            diff_cscat1, diff_cscat2 = self.differential_cross_section(
-                                            wavelen,
-                                            angles,
-                                            **ff_kwargs)
+            diff_cscat = self.differential_cross_section(wavelen, angles,
+                                                         **ff_kwargs)
+            diff_cscat1 = diff_cscat[0].to_numpy().squeeze()
+            diff_cscat2 = diff_cscat[1].to_numpy().squeeze()
 
             # When the system is binary and absorbing, we integrate the
             # polydisperse differential cross section at the surface of each
@@ -760,6 +762,9 @@ def reflection(index_particle, index_matrix, index_medium, wavelen, radius,
                                                         kd=kd)
     diff_cs_total = model.differential_cross_section(wavelen, angles_tot,
                                                      kd=kd)
+
+    diff_cs_detected = diff_cs_detected.to_numpy().squeeze()
+    diff_cs_total = diff_cs_total.to_numpy().squeeze()
 
     # calculate the absorption cross section
     if isinstance(model, PolydisperseHardSpheres):

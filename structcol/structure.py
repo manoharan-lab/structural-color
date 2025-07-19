@@ -418,7 +418,6 @@ class Polydisperse(StructureFactor):
         # However, this function requires a dimensional q, so we
         # re-dimensionalize here
         if isinstance(qd, xr.DataArray):
-            qd_coords = qd.coords
             q = qd.squeeze(drop=True).to_numpy()/diameters[0]
         else:
             q = qd/diameters[0]
