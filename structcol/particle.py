@@ -328,9 +328,17 @@ class Sphere(Particle):
 
         Returns
         -------
-        float (2-tuple):
+        `xr.DataArray` :
             Form factor for parallel and perpendicular polarizations as a
-            function of scattering angle.
+            function of scattering angle, wavelength, and any other parameters
+            specified as arrays.
+
+        Notes
+        -----
+        The form factor is k^2 times the differential scattering cross-section.
+        The calculation is done by the pymie routines `mie.calc_ang_dist()` or
+        `mie.diff_scat_intensity_complex_medium()`, both of which return the
+        differential scattering cross-section nondimensionalized by k^2.
 
         """
         wavelen = wavelen.to_preferred()
@@ -472,58 +480,10 @@ class SphereDistribution:
         """
         Calculate the form factor for polydisperse systems.
 
-        Parameters
-        ----------
-        wavelen : array-like [sc.Quantity]
-            wavelengths at which to calculate form factor
-        angles : array-like
-            scattering angles at which to calculate form factor.  Specified in
-            radians.
-        index_external : `sc.Index` object
-            Index of refraction of the medium around the particle.  Can be an
-            effective index.
-        kd : float (optional)
-            distance (nondimensionalized by k) at which to calculate the
-            differential cross section. Needed only if n_external is complex.
-        cartesian : boolean (default False)
-            If set to True, calculation will be done in the basis defined by
-            basis vectors x and y in the lab frame, with z as the direction of
-            propagation. If False (default), calculation will be carried out in
-            the basis defined by basis vectors parallel and perpendicular to
-            scattering plane.
-        incident_vector : tuple (optional, default None)
-            vector describing the incident electric field. It is multiplied by
-            the amplitude scattering matrix to find the vector scattering
-            amplitude. Unless `cartesian` is set, this vector should be in the
-            scattering plane basis, where the first element is the parallel
-            component and the second element is the perpendicular component. If
-            `cartesian` is set to True, this vector should be in the Cartesian
-            basis, where the first element is the x-component and the second
-            element is the y-component. Note that the vector for unpolarized
-            light is the same in either basis, since either way it should be an
-            equal mix between the two othogonal polarizations: (1,1). Note that
-            if indicent_vector is None, the function assigns a value based on
-            the coordinate system. For scattering plane coordinates, the
-            assigned value is (1,1) because most scattering plane calculations
-            we're interested in involve unpolarized light. For Cartesian
-            coordinates, the assigned value is (1,0) because if we are going to
-            the trouble to use the cartesian coordinate system, it is usually
-            because we want to do calculations using polarization, and these
-            calculations are much easier to convert to measured quantities when
-            in the cartesian coordinate system.
-        phis : ndarray (optional, default None)
-            Azimuthal angles. If `cartesian` is set to True, the scattering
-            matrix depends on phi, so an `phis` should be provided. In this
-            case both `angles` and `phis` should be 2D, as output from
-            `np.meshgrid`. In the default scattering plane coordinates
-            (`cartesian=False`), `phis` is ignored, since the scattering
-            matrix does not depend on phi.
+        This is a specialized version of `Sphere.form_factor` which is applied
+        to polydisperse systems under some approximations. See the docstring of
+        `Sphere.form_factor` for parameters and return values.
 
-        Returns
-        -------
-        float (2-tuple):
-            polydisperse form factor for parallel and perpendicular
-            polarizations as a function of scattering angle.
         """
         wavelen = wavelen.to_preferred()
         angles = angles.to('rad')
