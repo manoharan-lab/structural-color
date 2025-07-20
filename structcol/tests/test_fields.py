@@ -50,8 +50,10 @@ def test_2pi_shift():
     n_medium = index_medium(wavelength)
 
     vf_array = sphere.volume_fraction(volume_fraction)
-    n_sample = sc.index.effective_index([index_particle, index_matrix],
-                                        vf_array, wavelength)
+    index_sample = sc.EffectiveIndex([index_particle, index_matrix],
+                                     vf_array)
+    n_sample = index_sample(wavelength)
+
     thickness = sc.Quantity('50.0 um')
     boundary = 'film'
 
@@ -60,8 +62,9 @@ def test_2pi_shift():
     nevents = 30
 
     # Calculate scattering quantities
-    p, mu_scat, mu_abs = mc.calc_scat(radius, n_particle, n_sample,
-                                      volume_fraction, wavelength, fields=True)
+    p, mu_scat, mu_abs = mc.calc_scat(radius, index_particle, index_matrix,
+                                      index_sample, volume_fraction,
+                                      wavelength, fields=True)
 
     # Initialize trajectories
     r0, k0, W0, E0 = mc.initialize(nevents, ntrajectories, n_medium, n_sample, boundary,
@@ -212,8 +215,9 @@ def test_field_normalized():
     n_medium = index_medium(wavelength)
 
     vf_array = sphere.volume_fraction(volume_fraction)
-    n_sample = sc.index.effective_index([index_particle, index_matrix],
-                                        vf_array, wavelength)
+    index_sample = sc.index.EffectiveIndex([index_particle, index_matrix],
+                                           vf_array)
+    n_sample = index_sample(wavelength)
     boundary = 'film'
 
     # Monte Carlo parameters
@@ -221,8 +225,9 @@ def test_field_normalized():
     nevents = 10
 
     # Calculate scattering quantities
-    p, mu_scat, mu_abs = mc.calc_scat(radius, n_particle, n_sample,
-                                      volume_fraction, wavelength, fields=True)
+    p, mu_scat, mu_abs = mc.calc_scat(radius, index_particle, index_matrix,
+                                      index_sample, volume_fraction,
+                                      wavelength, fields=True)
 
     # Initialize trajectories
     r0, k0, W0, E0 = mc.initialize(nevents, ntrajectories, n_medium, n_sample,
@@ -285,8 +290,10 @@ def test_field_perp_direction():
     n_medium = index_medium(wavelength)
 
     vf_array = sphere.volume_fraction(volume_fraction)
-    n_sample = sc.index.effective_index([index_particle, index_matrix],
-                                        vf_array, wavelength)
+    index_sample = sc.EffectiveIndex([index_particle, index_matrix],
+                                     vf_array)
+    n_sample = index_sample(wavelength)
+
     boundary = 'film'
 
     # Monte Carlo parameters
@@ -294,8 +301,9 @@ def test_field_perp_direction():
     nevents = 10
 
     # Calculate scattering quantities
-    p, mu_scat, mu_abs = mc.calc_scat(radius, n_particle, n_sample,
-                                      volume_fraction, wavelength, fields=True)
+    p, mu_scat, mu_abs = mc.calc_scat(radius, index_particle, index_matrix,
+                                      index_sample, volume_fraction,
+                                      wavelength, fields=True)
 
     # Initialize trajectories
     r0, k0, W0, E0 = mc.initialize(nevents, ntrajectories, n_medium, n_sample,
@@ -359,8 +367,10 @@ def test_field_reflectance_mc():
     n_medium = index_medium(wavelength)
 
     vf_array = sphere.volume_fraction(volume_fraction)
-    n_sample = sc.index.effective_index([index_particle, index_matrix],
-                                        vf_array, wavelength)
+    index_sample = sc.EffectiveIndex([index_particle, index_matrix],
+                                     vf_array)
+    n_sample = index_sample(wavelength)
+
     thickness = sc.Quantity('800 um')
     boundary = 'film'
 
@@ -368,9 +378,9 @@ def test_field_reflectance_mc():
     nevents = 300
 
     # Calculate scattering quantities
-    p, mu_scat, mu_abs = mc.calc_scat(radius, n_particle, n_sample,
-                                      volume_fraction, wavelength,
-                                      fields=True)
+    p, mu_scat, mu_abs = mc.calc_scat(radius, index_particle, index_matrix,
+                                      index_sample, volume_fraction,
+                                      wavelength, fields=True)
 
     # Initialize trajectories
     r0, k0, W0, E0 = mc.initialize(nevents, ntrajectories,
@@ -451,8 +461,8 @@ def test_field_co_cross_mc():
     n_medium = index_medium(wavelengths)
 
     vf_array = sphere.volume_fraction(volume_fraction)
-    n_sample_eff = sc.index.effective_index([index_particle, index_matrix],
-                                        vf_array, wavelengths)
+    index_sample_eff = sc.EffectiveIndex([index_particle, index_matrix],
+                                         vf_array)
 
     thickness = sc.Quantity('80 um')
     boundary = 'film'
@@ -472,12 +482,12 @@ def test_field_co_cross_mc():
     refl_intensity = np.zeros(wavelengths.size)
 
     for i in range(wavelengths.size):
-        n_sample = n_sample_eff[i]
+        n_sample = index_sample_eff(wavelengths[i])
 
         # Calculate scattering quantities
-        p, mu_scat, mu_abs = mc.calc_scat(radius, n_particle[i], n_sample,
-                                          volume_fraction, wavelengths[i],
-                                          fields=True)
+        p, mu_scat, mu_abs = mc.calc_scat(radius, index_particle, index_matrix,
+                                          index_sample_eff, volume_fraction,
+                                          wavelengths[i], fields=True)
 
         # Initialize trajectories
         r0, k0, W0, E0 = mc.initialize(nevents, ntrajectories, n_medium[i],

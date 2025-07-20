@@ -46,8 +46,9 @@ index_matrix = sc.Index.constant(1.0)
 n_matrix = index_matrix(wavelen)
 index_medium = sc.Index.constant(1.0)
 n_medium = index_medium(wavelen)
-n_sample = sc.index.effective_index([index_particle, index_matrix],
-                                    volume_fraction_da, wavelen)
+index_sample = sc.EffectiveIndex([index_particle, index_matrix],
+                                 volume_fraction_da)
+n_sample = index_sample(wavelen)
 
 # Index of the scattering event and trajectory corresponding to the reflected
 # photons
@@ -59,8 +60,8 @@ def test_sampling():
     # sampling angles and steps works, it's better if we don't give it a seeded
     # random number generator, so that we can ensure that sampling works with
     # the default generator.
-    p, mu_scat, mu_abs = mc.calc_scat(radius, n_particle, n_sample,
-                                      volume_fraction, wavelen)
+    p, mu_scat, mu_abs = mc.calc_scat(radius, index_particle, index_matrix,
+                                      index_sample, volume_fraction, wavelen)
 
     # Test that 'sample_angles' runs
     mc.sample_angles(nevents, ntrajectories, p)

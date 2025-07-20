@@ -59,14 +59,16 @@ index_medium = sc.index.vacuum
 n_medium = index_medium(wavelength)
 
 # Calculate the effective refractive index of the sample
-n_sample = sc.index.effective_index([index_particle, index_matrix],
-                                    volume_fraction_da, wavelength)
+index_sample = sc.EffectiveIndex([index_particle, index_matrix],
+                                    volume_fraction_da)
+n_sample = index_sample(wavelength)
 
 # Calculate the phase function and scattering and absorption coefficients from
 # the single scattering model (this absorption coefficient is of the scatterer,
 # not of an absorber added to the system)
-p, mu_scat, mu_abs = mc.calc_scat(particle_radius, n_particle, n_sample,
-                                  volume_fraction, wavelength)
+p, mu_scat, mu_abs = mc.calc_scat(particle_radius, index_particle,
+                                  index_matrix, index_sample, volume_fraction,
+                                  wavelength)
 lscat = 1/mu_scat.magnitude # microns
 
 # set up a seeded random number generator that will give consistent results
@@ -427,8 +429,9 @@ def test_event_distribution_wavelength_mc():
 
     particle = sc.Sphere(index_particle, particle_radius)
     vf_array = particle.volume_fraction(volume_fraction)
-    n_sample_eff = sc.index.effective_index([index_particle, index_matrix],
-                                            vf_array, wavelengths)
+    index_sample_eff = sc.EffectiveIndex([index_particle, index_matrix],
+                                         vf_array)
+    n_sample_eff = index_sample_eff(wavelengths)
 
     # initialize arrays for quantities we want to look at later
     refl_events = np.zeros((wavelengths.size, 2*nevents+1))
@@ -445,9 +448,9 @@ def test_event_distribution_wavelength_mc():
     for i in range(wavelengths.size):
         n_sample = n_sample_eff[i]
 
-        p[i,:], mu_scat, mu_abs = mc.calc_scat(particle_radius, n_particle[i],
-                                               n_sample, volume_fraction,
-                                               wavelengths[i])
+        p[i,:], mu_scat, mu_abs = mc.calc_scat(particle_radius, index_particle,
+                                               index_matrix, index_sample,
+                                               volume_fraction, wavelengths[i])
         lscat[i] = 1/mu_scat.magnitude # microns
 
         r0, k0, W0 = mc.initialize(nevents, ntrajectories, n_medium[i],
@@ -551,7 +554,8 @@ def test_event_distribution_angle_mc():
     refl_events_fresnel_avg = np.zeros((theta_range.size, 2*nevents+1))
     reflectance = np.zeros(theta_range.size)
 
-    p, mu_scat, mu_abs = mc.calc_scat(particle_radius, n_particle, n_sample,
+    p, mu_scat, mu_abs = mc.calc_scat(particle_radius, index_particle,
+                                      index_matrix, index_sample,
                                       volume_fraction, wavelength)
     lscat = 1/mu_scat.magnitude
 

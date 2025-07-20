@@ -873,7 +873,8 @@ def initialize(nevents, ntraj, n_medium, n_sample, boundary, rng=None,
 
 
 
-def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
+def calc_scat(radius, index_particle, index_matrix, index_sample,
+              volume_fraction, wavelen,
               radius2=None,
               concentration=None,
               pdi=None,
@@ -897,12 +898,12 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
     ----------
     radius : float (structcol.Quantity [length])
         Radius of scatterer.
-    n_particle : float (structcol.Quantity [dimensionless] or
-        structcol.refractive_index object)
+    index_particle : `sc.Index` object
         Refractive index of the particle.
-    n_sample : float (structcol.Quantity [dimensionless] or
-        structcol.refractive_index object)
-        Refractive index of the sample.
+    index_matrix : `sc.Index` object
+        Refractive index of the matrix around the particles
+    index_sample : `sc.Index` object
+        Effective refractive index of the sample.
     volume_fraction : float (structcol.Quantity [dimensionless])
         Volume fraction of the sample.
     wavelen : float (structcol.Quantity [length])
@@ -989,6 +990,12 @@ def calc_scat(radius, n_particle, n_sample, volume_fraction, wavelen,
         (Bohren and Huffmann, chapter 13.3)
     """
     wavelen = wavelen.to_preferred()
+
+    if isinstance(index_particle, list):
+        n_particle = sc.index._indexes_from_list(index_particle, wavelen)
+    else:
+        n_particle = index_particle(wavelen)
+    n_sample = index_sample(wavelen)
 
     # calculate parameters for scattering calculations
     k = sc.wavevector(n_sample)

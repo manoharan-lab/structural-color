@@ -49,8 +49,8 @@ volume_fraction_da = xr.DataArray([0.5, 1-0.5],
 n_particle = index_particle(wavelen)
 n_matrix = index_matrix(wavelen)
 n_medium = index_medium(wavelen)
-n_sample = sc.index.effective_index([index_particle, index_matrix],
-                                    volume_fraction_da, wavelen)
+index_sample = sc.EffectiveIndex([index_particle, index_matrix],
+                                 volume_fraction_da)
 
 # Index of the scattering event and trajectory corresponding to the reflected
 # photons
@@ -180,16 +180,14 @@ def test_reflection_mc():
     index_particle = sc.Index.constant(1.54)
     index_matrix = sc.index.vacuum
     index_medium = sc.index.vacuum
-    n_particle = index_particle(wavelen)
-    n_medium = index_medium(wavelen)
     volume_fraction_da = xr.DataArray([0.5, 1-0.5],
                                       coords = {sc.Coord.MAT: range(2)})
-    n_sample = sc.index.effective_index([index_particle, index_matrix],
-                                        volume_fraction_da, wavelen)
+    index_sample = sc.EffectiveIndex([index_particle, index_matrix],
+                                     volume_fraction_da)
 
-    R, T = calc_montecarlo(nevents, ntrajectories, radius, n_particle,
-                           n_sample, n_medium, volume_fraction, wavelen,
-                           seed)
+    R, T = calc_montecarlo(nevents, ntrajectories, radius, index_particle,
+                           index_matrix, index_sample, index_medium,
+                           volume_fraction, wavelen, seed)
 
     R_expected = 0.564374409013182
     T_expected = 0.4356255909868179
@@ -222,8 +220,9 @@ def test_surface_roughness_mc():
     n_matrix = index_matrix(wavelen)
     volume_fraction_da = xr.DataArray([0.5, 1-0.5],
                                       coords = {sc.Coord.MAT: range(2)})
-    n_sample = sc.index.effective_index([index_particle, index_matrix],
-                                        volume_fraction_da, wavelen)
+    index_sample = sc.EffectiveIndex([index_particle, index_matrix],
+                                        volume_fraction_da)
+    n_sample = index_sample(wavelen)
     boundary = 'film'
 
     incidence_theta_min = sc.Quantity(0, 'rad')
@@ -236,8 +235,8 @@ def test_surface_roughness_mc():
     coarse_roughness = sc.Quantity(1.1, '')
 
     # Need to specify fine roughness parameter in this function
-    p, mu_scat, mu_abs = mc.calc_scat(radius, n_particle, n_sample,
-                                      volume_fraction, wavelen,
+    p, mu_scat, mu_abs = mc.calc_scat(radius, index_particle, index_matrix,
+                                      index_sample, volume_fraction, wavelen,
                                       fine_roughness=fine_roughness,
                                       n_matrix=n_matrix)
 
@@ -293,8 +292,9 @@ def test_reflection_core_shell():
     # Reflection using a non-core-shell system
     ## ignore the "not enough events" warning
     warnings.filterwarnings("ignore", category=UserWarning)
-    R, T = calc_montecarlo(nevents, ntrajectories, radius, n_particle,
-                           n_sample, n_medium, volume_fraction, wavelen, seed)
+    R, T = calc_montecarlo(nevents, ntrajectories, radius, index_particle,
+                           index_matrix, index_sample, index_medium,
+                           volume_fraction, wavelen, seed)
 
     # Reflection using core-shells with the shell index-matched to the core
     ## specify the radii from innermost to outermost layer
@@ -303,12 +303,11 @@ def test_reflection_core_shell():
     index_cs = [sc.Index.constant(1.5), sc.Index.constant(1.5)]
     sphere_cs = sc.Sphere(index_cs, radius_cs)
     n_particle_cs = sphere_cs.n(wavelen)
-
     vf_array = sphere_cs.volume_fraction(total_volume_fraction=volume_fraction)
-    n_sample_cs = sc.index.effective_index(index_cs + [index_matrix], vf_array,
-                                           wavelen)
-    R_cs, T_cs = calc_montecarlo(nevents, ntrajectories, radius_cs,
-                                 n_particle_cs, n_sample_cs, n_medium,
+    index_sample_cs = sc.EffectiveIndex(index_cs + [index_matrix], vf_array)
+
+    R_cs, T_cs = calc_montecarlo(nevents, ntrajectories, radius_cs, index_cs,
+                                 index_matrix, index_sample_cs, index_medium,
                                  volume_fraction, wavelen, seed)
 
     assert_almost_equal(R, R_cs)
@@ -334,11 +333,12 @@ def test_reflection_core_shell():
     particle_abs = sc.Sphere(index_particle_abs, radius)
     n_particle_abs = particle_abs.n(wavelen)
     vf_array = particle_abs.volume_fraction(volume_fraction)
-    n_sample_abs = sc.index.effective_index([index_particle_abs, index_matrix],
-                                            vf_array, wavelen)
+    index_sample_abs = sc.EffectiveIndex([index_particle_abs, index_matrix],
+                                            vf_array)
 
     R_abs, T_abs = calc_montecarlo(nevents, ntrajectories, radius,
-                                   n_particle_abs, n_sample_abs, n_medium,
+                                   index_particle_abs, index_matrix,
+                                   index_sample_abs, index_medium,
                                    volume_fraction, wavelen, seed)
 
     # Reflection using core-shells with the shell index-matched to the core
@@ -347,13 +347,13 @@ def test_reflection_core_shell():
     sphere_cs_abs = sc.Sphere(index_cs_abs, radius_cs)
     n_particle_cs_abs = sphere_cs_abs.n(wavelen)
     vf_array = sphere_cs_abs.volume_fraction(volume_fraction)
-    n_sample_cs_abs = sc.index.effective_index(index_cs_abs + [index_matrix],
-                                               vf_array, wavelen)
+    index_sample_cs_abs = sc.EffectiveIndex(index_cs_abs + [index_matrix],
+                                            vf_array)
 
     R_cs_abs, T_cs_abs = calc_montecarlo(nevents, ntrajectories, radius_cs,
-                                         n_particle_cs_abs, n_sample_cs_abs,
-                                         n_medium, volume_fraction, wavelen,
-                                         seed)
+                                         index_cs_abs, index_matrix,
+                                         index_sample_cs_abs, index_medium,
+                                         volume_fraction, wavelen, seed)
 
     assert_almost_equal(R_cs_abs, R_abs, decimal=6)
     assert_almost_equal(T_cs_abs, T_abs, decimal=6)
@@ -382,13 +382,13 @@ def test_reflection_core_shell():
     index_matrix_abs = sc.Index.constant(1.+0.001j)
     n_matrix_abs = index_matrix_abs(wavelen)
     vf_array = particle_abs.volume_fraction(volume_fraction)
-    n_sample_abs = sc.index.effective_index([index_particle_abs,
-                                             index_matrix_abs], vf_array,
-                                            wavelen)
+    index_sample_abs = sc.EffectiveIndex([index_particle_abs,
+                                          index_matrix_abs], vf_array)
 
     R_abs, T_abs = calc_montecarlo(nevents, ntrajectories, radius,
-                           n_particle_abs, n_sample_abs, n_medium,
-                           volume_fraction, wavelen, seed)
+                                   index_particle_abs, index_matrix,
+                                   index_sample_abs, index_medium,
+                                   volume_fraction, wavelen, seed)
 
     # Reflection using core-shells with the shell index-matched to the core
     index_cs_abs = [sc.Index.constant(1.5+0.001j),
@@ -396,13 +396,13 @@ def test_reflection_core_shell():
     sphere_cs_abs = sc.Sphere(index_cs_abs, radius_cs)
     n_particle_cs_abs = sphere_cs_abs.n(wavelen)
     vf_array = sphere_cs_abs.volume_fraction(volume_fraction)
-    n_sample_cs_abs = sc.index.effective_index(index_cs_abs +
-                                                [index_matrix_abs], vf_array,
-                                               wavelen)
+    index_sample_cs_abs = sc.EffectiveIndex(index_cs_abs +
+                                            [index_matrix_abs], vf_array)
 
     R_cs_abs, T_cs_abs = calc_montecarlo(nevents, ntrajectories, radius_cs,
-                                 n_particle_cs_abs, n_sample_cs_abs, n_medium,
-                                 volume_fraction, wavelen, seed)
+                                         index_cs_abs, index_matrix,
+                                         index_sample_cs_abs, index_medium,
+                                         volume_fraction, wavelen, seed)
 
     assert_almost_equal(R_cs_abs, R_abs, decimal=6)
     assert_almost_equal(T_cs_abs, T_abs, decimal=6)
@@ -437,11 +437,12 @@ def test_reflection_core_shell_mc():
     n_medium = index_medium(wavelen)
     volume_fraction = 0.5
     volume_fraction_da = sphere.volume_fraction(volume_fraction)
-    n_sample = sc.index.effective_index(index_particle + [index_matrix],
-                                        volume_fraction_da, wavelen)
+    index_sample = sc.EffectiveIndex(index_particle + [index_matrix],
+                                     volume_fraction_da)
 
-    R, T = calc_montecarlo(nevents, ntrajectories, radius, n_particle,
-                           n_sample, n_medium, volume_fraction, wavelen, seed)
+    R, T = calc_montecarlo(nevents, ntrajectories, radius, index_particle,
+                           index_matrix, index_sample, index_medium,
+                           volume_fraction, wavelen, seed)
 
     R_expected = 0.6236144236194011
     T_expected = 0.37638557638059883
@@ -460,15 +461,17 @@ def test_reflection_absorbing_particle_or_matrix():
 
     # Reflection using non-absorbing particle
     warnings.filterwarnings("ignore", category=UserWarning) # ignore the "not enough events" warning
-    R, T = calc_montecarlo(nevents, ntrajectories, radius, n_particle,
-                           n_sample, n_medium, volume_fraction, wavelen, seed)
+    R, T = calc_montecarlo(nevents, ntrajectories, radius, index_particle,
+                           index_matrix, index_sample, index_medium,
+                           volume_fraction, wavelen, seed)
 
     # Reflection using particle with an imaginary component of 0
     index_particle_abs = sc.Index.constant(1.5 + 0j)
     n_particle_abs = index_particle_abs(wavelen)
     R_abs, T_abs = calc_montecarlo(nevents, ntrajectories, radius,
-                                   n_particle_abs, n_sample, n_medium,
-                                   volume_fraction, wavelen, seed)
+                                   index_particle_abs, index_matrix,
+                                   index_sample, index_medium, volume_fraction,
+                                   wavelen, seed)
 
     assert_equal(R, R_abs)
     assert_equal(T, T_abs)
@@ -490,11 +493,12 @@ def test_reflection_absorbing_particle_or_matrix():
     sphere = sc.Sphere(index_particle, radius)
     n_particle = sphere.n(wavelen)
     vf_array = sphere.volume_fraction(volume_fraction)
-    n_sample_abs = sc.index.effective_index([index_particle, index_matrix_abs],
-                                            vf_array,
-                                            wavelen)
+    index_sample_abs = sc.EffectiveIndex([index_particle, index_matrix_abs],
+                                         vf_array)
+
     R_abs, T_abs = calc_montecarlo(nevents, ntrajectories, radius,
-                                   n_particle, n_sample_abs, n_medium,
+                                   index_particle, index_matrix,
+                                   index_sample_abs, index_medium,
                                    volume_fraction, wavelen, seed)
 
     assert_equal(R, R_abs)
@@ -515,10 +519,11 @@ def test_reflection_absorbing_particle_or_matrix():
     # index is 0 or very close to 0
     index_matrix_abs = sc.Index.constant(1. + 1e-10j)
 
-    n_sample_abs = sc.index.effective_index([index_particle, index_matrix_abs],
-                                            vf_array, wavelen)
+    index_sample_abs = sc.EffectiveIndex([index_particle, index_matrix_abs],
+                                         vf_array)
     R_abs, T_abs = calc_montecarlo(nevents, ntrajectories, radius,
-                                   n_particle, n_sample_abs, n_medium,
+                                   index_particle, index_matrix,
+                                   index_sample_abs, index_medium,
                                    volume_fraction, wavelen, seed)
     assert_almost_equal(R, R_abs, decimal=6)
     assert_almost_equal(T, T_abs, decimal=6)
@@ -544,12 +549,12 @@ def test_reflection_absorption_mc():
     sphere = sc.Sphere(index_particle, radius)
     n_particle = sphere.n(wavelen)
     vf_array = sphere.volume_fraction(volume_fraction)
-    n_sample = sc.index.effective_index([index_particle, index_matrix],
-                                        vf_array, wavelen)
+    index_sample = sc.EffectiveIndex([index_particle, index_matrix],
+                                     vf_array)
 
-    R, T = calc_montecarlo(nevents, ntrajectories, radius, n_particle,
-                           n_sample, n_medium, volume_fraction, wavelen,
-                           seed)
+    R, T = calc_montecarlo(nevents, ntrajectories, radius, index_particle,
+                           index_matrix, index_sample, index_medium,
+                           volume_fraction, wavelen, seed)
 
     R_expected = 0.17023086537622875
     T_expected = 0.09485003836166318
@@ -570,15 +575,16 @@ def test_reflection_polydispersity():
     # polydispersity is the same as the monodisperse case
     warnings.filterwarnings("ignore", category=UserWarning) # ignore the "not enough events" warning
     R_mono, T_mono = calc_montecarlo(nevents, ntrajectories, radius,
-                                     n_particle, n_sample, n_medium,
+                                     index_particle, index_matrix,
+                                     index_sample, index_medium,
                                      volume_fraction, wavelen, seed,
                                      polydisperse=False)
     R_poly, T_poly = calc_montecarlo(nevents, ntrajectories, radius,
-                                     n_particle, n_sample, n_medium,
-                                     volume_fraction, wavelen, seed,
-                                     radius2 = radius2,
-                                     concentration = concentration, pdi = pdi,
-                                     polydisperse=True)
+                                     index_particle, index_matrix,
+                                     index_sample, index_medium,
+                                     volume_fraction, wavelen, seed, radius2 =
+                                     radius2, concentration = concentration,
+                                     pdi = pdi, polydisperse=True)
     assert_almost_equal(R_mono, R_poly)
     assert_almost_equal(T_mono, T_poly)
 
@@ -599,20 +605,22 @@ def test_reflection_polydispersity():
     index_matrix_abs = sc.Index.constant(1.+0.0001j)
     n_particle_abs = index_particle_abs(wavelen)
     n_matrix_abs = index_matrix_abs(wavelen)
-    n_sample_abs = sc.index.effective_index([index_particle_abs,
-                                             index_matrix_abs],
-                                            volume_fraction_da, wavelen)
+    index_sample_abs = sc.EffectiveIndex([index_particle_abs,
+                                          index_matrix_abs],
+                                         volume_fraction_da)
 
     R_mono_abs, T_mono_abs = calc_montecarlo(nevents, ntrajectories, radius,
-                                             n_particle_abs, n_sample_abs,
-                                             n_medium, volume_fraction, wavelen,
-                                             seed, polydisperse=False)
+                                             index_particle_abs, index_matrix,
+                                             index_sample_abs, index_medium,
+                                             volume_fraction, wavelen, seed,
+                                             polydisperse=False)
     R_poly_abs, T_poly_abs = calc_montecarlo(nevents, ntrajectories, radius,
-                                             n_particle_abs, n_sample_abs,
-                                             n_medium, volume_fraction, wavelen,
-                                             seed, radius2 = radius2,
-                                             concentration = concentration,
-                                             pdi = pdi, polydisperse=True)
+                                             index_particle_abs, index_matrix,
+                                             index_sample_abs, index_medium,
+                                             volume_fraction, wavelen, seed,
+                                             radius2 = radius2, concentration =
+                                             concentration, pdi = pdi,
+                                             polydisperse=True)
 
     assert_almost_equal(R_mono_abs, R_poly_abs, decimal=6)
     assert_almost_equal(T_mono_abs, T_poly_abs, decimal=6)
@@ -635,16 +643,18 @@ def test_reflection_polydispersity():
     pdi2 = sc.Quantity(np.array([1e-1, 1e-1]), '')
 
     R_mono2, T_mono2 = calc_montecarlo(nevents, ntrajectories, radius,
-                                       n_particle, n_sample, n_medium,
-                                       volume_fraction, wavelen, seed, radius2 =
-                                       radius2, concentration =
+                                       index_particle, index_matrix,
+                                       index_sample, index_medium,
+                                       volume_fraction, wavelen, seed, radius2
+                                       = radius2, concentration =
                                        concentration_mono, pdi = pdi2,
                                        polydisperse=True)
-    R_bi, T_bi = calc_montecarlo(nevents, ntrajectories, radius, n_particle,
-                                 n_sample, n_medium, volume_fraction,
-                                 wavelen, seed, radius2 = radius2,
-                                 concentration = concentration_bi, pdi =
-                                 pdi2, polydisperse=True)
+    R_bi, T_bi = calc_montecarlo(nevents, ntrajectories, radius,
+                                 index_particle, index_matrix, index_sample,
+                                 index_medium, volume_fraction, wavelen, seed,
+                                 radius2 = radius2, concentration =
+                                 concentration_bi, pdi = pdi2,
+                                 polydisperse=True)
 
     assert_equal(R_mono2, R_bi)
     assert_equal(T_mono2, T_bi)
@@ -654,14 +664,16 @@ def test_reflection_polydispersity():
     radius2 = sc.Quantity('70.0 nm')
     concentration2 = sc.Quantity(np.array([0.5,0.5]), '')
 
-    R, T = calc_montecarlo(nevents, ntrajectories, radius, n_particle,
-                           n_sample, n_medium, volume_fraction, wavelen, seed,
-                           radius2 = radius2, concentration = concentration2,
-                           pdi = pdi,polydisperse=True)
-    R2, T2 = calc_montecarlo(nevents, ntrajectories, radius2, n_particle,
-                             n_sample, n_medium, volume_fraction, wavelen, seed,
-                             radius2 = radius, concentration = concentration2,
-                             pdi = pdi, polydisperse=True)
+    R, T = calc_montecarlo(nevents, ntrajectories, radius, index_particle,
+                           index_matrix, index_sample, index_medium,
+                           volume_fraction, wavelen, seed, radius2 = radius2,
+                           concentration = concentration2, pdi =
+                           pdi,polydisperse=True)
+    R2, T2 = calc_montecarlo(nevents, ntrajectories, radius2, index_particle,
+                             index_matrix, index_sample, index_medium,
+                             volume_fraction, wavelen, seed, radius2 = radius,
+                             concentration = concentration2, pdi = pdi,
+                             polydisperse=True)
 
     assert_almost_equal(R, R2)
     assert_almost_equal(T, T2)
@@ -672,10 +684,11 @@ def test_reflection_polydispersity():
     concentration3 = sc.Quantity(np.array([1,0]), '')
     pdi3 = sc.Quantity(np.array([0., 0.]), '')
 
-    R3, T3 = calc_montecarlo(nevents, ntrajectories, radius1, n_particle,
-                             n_sample, n_medium, volume_fraction, wavelen, seed,
-                             radius2 = radius2, concentration = concentration3,
-                             pdi = pdi3, polydisperse=True)
+    R3, T3 = calc_montecarlo(nevents, ntrajectories, radius1, index_particle,
+                             index_matrix, index_sample, index_medium,
+                             volume_fraction, wavelen, seed, radius2 = radius2,
+                             concentration = concentration3, pdi = pdi3,
+                             polydisperse=True)
 
     assert_equal(R_mono, R3)
     assert_equal(T_mono, T3)
@@ -685,44 +698,52 @@ def test_reflection_polydispersity():
     ## When there's only 1 mean diameter
     radius1 = sc.Quantity('100.0 nm')
     radius2 = sc.Quantity('150.0 nm')
+    index_matrix_noabs = sc.Index.constant(1.)
     index_matrix_abs = sc.Index.constant(1. + 1e-40*1j)
+
     n_matrix_abs = index_matrix_abs(wavelen)
-    n_sample_abs = sc.index.effective_index([index_particle, index_matrix_abs],
-                                            volume_fraction_da, wavelen)
+    index_sample_noabs = sc.EffectiveIndex([index_particle,
+                                            index_matrix_noabs],
+                                           volume_fraction_da)
+    index_sample_abs = sc.EffectiveIndex([index_particle, index_matrix_abs],
+                                         volume_fraction_da)
+
     pdi4 = sc.Quantity(np.array([0.2, 0.2]), '')
     concentration2 = sc.Quantity(np.array([0.1,0.9]), '')
 
     R_noabs1, T_noabs1 = calc_montecarlo(nevents, ntrajectories, radius1,
-                                   n_particle, n_sample_abs.real, n_medium,
-                                   volume_fraction, wavelen, seed,
-                                   radius2 = radius1,
-                                   concentration = concentration2,
-                                   pdi = pdi4, polydisperse=True)
+                                         index_particle, index_matrix,
+                                         index_sample_noabs, index_medium,
+                                         volume_fraction, wavelen, seed,
+                                         radius2 = radius1, concentration =
+                                         concentration2, pdi = pdi4,
+                                         polydisperse=True)
 
     R_abs1, T_abs1 = calc_montecarlo(nevents, ntrajectories, radius1,
-                                   n_particle, n_sample_abs, n_medium,
-                                   volume_fraction, wavelen, seed,
-                                   radius2 = radius1,
-                                   concentration = concentration2,
-                                   pdi = pdi4, polydisperse=True)
+                                     index_particle, index_matrix,
+                                     index_sample_abs, index_medium,
+                                     volume_fraction, wavelen, seed, radius2 =
+                                     radius1, concentration = concentration2,
+                                     pdi = pdi4, polydisperse=True)
     assert_almost_equal(R_noabs1, R_abs1)
     assert_almost_equal(T_noabs1, T_abs1)
 
     # When there are 2 mean diameters
     R_noabs2, T_noabs2 = calc_montecarlo(nevents, ntrajectories, radius1,
-                                   n_particle, n_sample_abs.real, n_medium,
-                                   volume_fraction, wavelen, seed,
-                                   radius2 = radius2,
-                                   concentration = concentration2,
-                                   pdi = pdi4, polydisperse=True)
+                                         index_particle, index_matrix,
+                                         index_sample_noabs, index_medium,
+                                         volume_fraction, wavelen, seed,
+                                         radius2 = radius2, concentration =
+                                         concentration2, pdi = pdi4,
+                                         polydisperse=True)
 
     # something to do with the combination of absorber, 2 radii, and nevents-1
     R_abs2, T_abs2 = calc_montecarlo(nevents, ntrajectories, radius1,
-                                   n_particle, n_sample_abs, n_medium,
-                                   volume_fraction, wavelen, seed,
-                                   radius2 = radius2,
-                                   concentration = concentration2,
-                                   pdi = pdi4, polydisperse=True)
+                                     index_particle, index_matrix,
+                                     index_sample_abs, index_medium,
+                                     volume_fraction, wavelen, seed, radius2 =
+                                     radius2, concentration = concentration2,
+                                     pdi = pdi4, polydisperse=True)
 
     # Note: Previously (before adding lines nevents=nevents-1 to sample_angles()),
     # this test yielded:
@@ -757,8 +778,8 @@ def test_reflection_polydispersity_mc():
     n_particle = index_particle(wavelen)
     index_matrix = sc.index.vacuum
     n_matrix = index_matrix(wavelen)
-    n_sample = sc.index.effective_index([index_particle, index_matrix],
-                                        volume_fraction_da, wavelen)
+    index_sample = sc.EffectiveIndex([index_particle, index_matrix],
+                                     volume_fraction_da)
 
     # define the parameters for polydispersity
     radius = sc.Quantity('125 nm')
@@ -766,9 +787,9 @@ def test_reflection_polydispersity_mc():
     concentration = sc.Quantity(np.array([0.9,0.1]), '')
     pdi = sc.Quantity(np.array([0.01, 0.01]), '')
 
-    R, T = calc_montecarlo(nevents, ntrajectories, radius, n_particle,
-                           n_sample, n_medium, volume_fraction,
-                           wavelen, seed, radius2 = radius2,
+    R, T = calc_montecarlo(nevents, ntrajectories, radius, index_particle,
+                           index_matrix, index_sample, index_medium,
+                           volume_fraction, wavelen, seed, radius2 = radius2,
                            concentration = concentration, pdi = pdi,
                            polydisperse=True)
 
@@ -802,8 +823,9 @@ def test_detectors_mc():
     index_medium = sc.index.vacuum
     n_particle = index_particle(wavelength)
     n_medium = index_medium(wavelength)
-    n_sample = sc.index.effective_index([index_particle, index_matrix],
-                                        volume_fraction_da, wavelength)
+    index_sample = sc.EffectiveIndex([index_particle, index_matrix],
+                                     volume_fraction_da)
+    n_sample = index_sample(wavelength)
     thickness = sc.Quantity('80 um')
     boundary = 'film'
 
@@ -811,8 +833,9 @@ def test_detectors_mc():
     ntrajectories = 300
     nevents = 200
 
-    p, mu_scat, mu_abs = mc.calc_scat(radius, n_particle, n_sample,
-                                      volume_fraction, wavelength)
+    p, mu_scat, mu_abs = mc.calc_scat(radius, index_particle, index_matrix,
+                                      index_sample, volume_fraction,
+                                      wavelength)
 
     # Initialize the trajectories
     r0, k0, W0 = mc.initialize(nevents, ntrajectories, n_medium, n_sample,
@@ -906,12 +929,13 @@ def test_throw_valueerror_for_polydisperse_core_shells():
     # calculate the volume fractions of each layer
     vf_array = sphere_cs.volume_fraction(volume_fraction)
 
-    n_sample_cs = sc.index.effective_index(index_particle_cs + [index_matrix],
-                                           vf_array, wavelen)
+    index_sample_cs = sc.EffectiveIndex(index_particle_cs + [index_matrix],
+                                        vf_array)
 
     with pytest.raises(ValueError):
         R_cs, T_cs = calc_montecarlo(nevents, ntrajectories, radius_cs,
-                                     n_particle_cs, n_sample_cs, n_medium,
+                                     index_particle_cs, index_sample_cs,
+                                     index_matrix, index_medium,
                                      volume_fraction, wavelen, seed,
                                      radius2=radius2,
                                      concentration=concentration, pdi=pdi,
@@ -937,12 +961,13 @@ def test_throw_valueerror_for_polydisperse_unspecified_parameters():
     # calculate the volume fractions of each layer
     vf_array = sphere.volume_fraction(volume_fraction)
 
-    n_sample = sc.index.effective_index([index_particle, index_matrix],
-                                        vf_array, wavelen)
+    index_sample = sc.EffectiveIndex([index_particle, index_matrix],
+                                     vf_array)
 
     with pytest.raises(ValueError):
         R_cs, T_cs = calc_montecarlo(nevents, ntrajectories, radius,
-                                     n_particle, n_sample, n_medium,
+                                     index_particle, index_matrix,
+                                     index_sample, index_medium,
                                      volume_fraction, wavelen, seed,
                                      concentration=concentration, pdi=pdi,
                                      polydisperse=True)  # unspecified radius2
@@ -955,24 +980,28 @@ def test_surface_roughness():
     ntrajectories = 30
 
     # Reflection with no surface roughness
-    R, T = calc_montecarlo(nevents, ntrajectories, radius, n_particle,
-                           n_sample, n_medium, volume_fraction, wavelen, seed)
+    R, T = calc_montecarlo(nevents, ntrajectories, radius, index_particle,
+                           index_sample, index_matrix, index_medium,
+                           volume_fraction, wavelen, seed)
 
     # Reflection with very little fine surface roughness
     R_fine, T_fine = calc_montecarlo(nevents, ntrajectories, radius,
-                                     n_particle, n_sample, n_medium,
+                                     index_particle, index_sample,
+                                     index_matrix, index_medium,
                                      volume_fraction, wavelen, seed,
                                      fine_roughness = 1e-4, n_matrix=n_matrix)
 
     # Reflection with very little coarse surface roughness
     R_coarse, T_coarse = calc_montecarlo(nevents, ntrajectories, radius,
-                                         n_particle, n_sample, n_medium,
+                                         index_particle, index_sample,
+                                         index_matrix, index_medium,
                                          volume_fraction, wavelen, seed,
                                          coarse_roughness = 1e-5)
 
     # Reflection with very little fine and coarse surface roughness
     R_both, T_both = calc_montecarlo(nevents, ntrajectories, radius,
-                                     n_particle, n_sample, n_medium,
+                                     index_particle, index_sample,
+                                     index_matrix, index_medium,
                                      volume_fraction, wavelen, seed,
                                      fine_roughness=1e-4, coarse_roughness =
                                      1e-5, n_matrix=n_matrix)
@@ -984,11 +1013,12 @@ def test_surface_roughness():
     assert_almost_equal(R, R_both)
     assert_almost_equal(T, T_both)
 
-def calc_montecarlo(nevents, ntrajectories, radius, n_particle, n_sample,
-                    n_medium, volume_fraction, wavelen, seed, radius2=None,
-                    concentration=None, pdi=None, polydisperse=False,
-                    fine_roughness=0., coarse_roughness=0., n_matrix=None,
-                    incidence_theta_min=0., incidence_theta_max=0.):
+def calc_montecarlo(nevents, ntrajectories, radius, index_particle,
+                    index_matrix, index_sample, index_medium, volume_fraction,
+                    wavelen, seed, radius2=None, concentration=None, pdi=None,
+                    polydisperse=False, fine_roughness=0., coarse_roughness=0.,
+                    n_matrix=None, incidence_theta_min=0.,
+                    incidence_theta_max=0.):
 
     # set up a seeded random number generator that will give consistent results
     # between numpy versions. This is to reproduce the gold values which are
@@ -999,9 +1029,12 @@ def calc_montecarlo(nevents, ntrajectories, radius, n_particle, n_sample,
     incidence_theta_min=sc.Quantity(incidence_theta_min,'rad')
     incidence_theta_max=sc.Quantity(incidence_theta_min,'rad')
 
+    n_sample = index_sample(wavelen)
+    n_medium = index_medium(wavelen)
+
     # Function to run montecarlo for the tests
-    p, mu_scat, mu_abs = mc.calc_scat(radius, n_particle, n_sample,
-                                      volume_fraction, wavelen,
+    p, mu_scat, mu_abs = mc.calc_scat(radius, index_particle, index_matrix,
+                                      index_sample, volume_fraction, wavelen,
                                       radius2=radius2,
                                       concentration=concentration, pdi=pdi,
                                       polydisperse=polydisperse,

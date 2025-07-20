@@ -80,14 +80,16 @@ def calc_sphere_mc():
 
 
     # caculate the effective index of the sample
-    n_sample = sc.index.effective_index([index_particle, index_matrix],
-                                        vf_particles, wavelength)
+    index_sample = sc.EffectiveIndex([index_particle, index_matrix],
+                                     vf_particles)
+    n_sample = index_sample(wavelength)
 
     # Calculate the phase function and scattering and absorption coefficients
     #from the single scattering model
     # (this absorption coefficient is of the scatterer, not of an absorber
     #added to the system)
-    p, mu_scat, mu_abs = mc.calc_scat(particle_radius, n_particle, n_sample,
+    p, mu_scat, mu_abs = mc.calc_scat(particle_radius, index_particle,
+                                      index_matrix, index_sample,
                                       volume_fraction_particles, wavelength)
 
     # Initialize the trajectories

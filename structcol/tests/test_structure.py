@@ -329,8 +329,8 @@ def test_structure_factor_data_reflectances():
 
     vf_array = sphere.volume_fraction(volume_fraction)
 
-    n_sample_eff = sc.index.effective_index([index_particle, index_matrix],
-                                        vf_array, wavelengths)
+    index_sample_eff = sc.EffectiveIndex([index_particle, index_matrix],
+                                         vf_array)
 
 
     ql_data = np.arange(0.001, 75, 0.1)
@@ -339,13 +339,13 @@ def test_structure_factor_data_reflectances():
 
     reflectance = np.zeros(wavelengths.size)
     for i in range(wavelengths.size):
-        n_sample = n_sample_eff[i]
-        p, mu_scat, mu_abs = mc.calc_scat(radius, n_particle[i], n_sample,
-                                          volume_fraction,
-                                          wavelengths[i],
-                                          structure_type = 'data',
-                                          structure_s_data = s_data,
+        p, mu_scat, mu_abs = mc.calc_scat(radius, index_particle, index_matrix,
+                                          index_sample_eff, volume_fraction,
+                                          wavelengths[i], structure_type =
+                                          'data', structure_s_data = s_data,
                                           structure_qd_data = ql_data)
+
+        n_sample = index_sample_eff(wavelengths[i])
 
         r0, k0, W0 = mc.initialize(nevents, ntrajectories, n_medium[i],
                                    n_sample, boundary, rng=rng)
