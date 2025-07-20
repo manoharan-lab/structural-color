@@ -190,8 +190,7 @@ class TestModel():
         cscat = model.scattering_cross_section(dscat)
         dscat_mono = mono_model.differential_cross_section(wavelen, angles)
         cscat_mono = mono_model.scattering_cross_section(dscat_mono)
-        assert_allclose(cscat.to_preferred().magnitude,
-                        cscat_mono.to_preferred().magnitude)
+        xr.testing.assert_allclose(cscat, cscat_mono)
 
         # now finite volume fraction, low polydispersity
         volume_fraction = 0.5
@@ -308,6 +307,10 @@ class TestModel():
         dscat = model.differential_cross_section(wavelen, angles, **ff_kwargs)
         cscat = model.scattering_cross_section(dscat)
 
+        # make sure we have correct coords and shape
+        assert cscat.shape == (3,)
+        assert sc.Coord.POL in cscat.coords
+
         # now do calculation using Mie theory, using appropriate function for
         # the cross-section
         wavelen_media = wavelen/n_matrix.to_numpy().squeeze()
@@ -340,8 +343,7 @@ class TestModel():
 
         # Now check that the Mie calculation and Model method calculations
         # agree.
-        assert_allclose(cscat.to_preferred().magnitude,
-                        cscat_mie[0].to_preferred().magnitude,
+        assert_allclose(cscat[0], cscat_mie[0].to_preferred().magnitude,
                         rtol=1e-3)
         # Agreement is to within 1e-3 relative error for absorbing media, and
         # 1e-5 for non-absorbing.  The discrepancy in absorbing media doesn't
@@ -405,8 +407,7 @@ class TestModel():
         cscat_2 = binary_model.scattering_cross_section(dscat_2)
 
         xr.testing.assert_equal(dscat_2, dscat_1)
-        assert_equal(cscat_2.to_preferred().magnitude,
-                     cscat_1.to_preferred().magnitude)
+        xr.testing.assert_equal(cscat_2, cscat_1)
 
     @pytest.mark.parametrize("index_matrix", [sc.index.water,
                                               sc.Index.constant(1.59 + 0.001j),
@@ -452,8 +453,7 @@ class TestModel():
                                                 wavelen=wavelen)
 
         # should be exactly equal
-        assert_equal(cscat.to_preferred().magnitude,
-                     cscat_mc.to_preferred().magnitude)
+        assert_equal(cscat[0], cscat_mc.magnitude)
 
         # Now test for polydisperse system with single component, low
         # polydispersity.  Should give very close results to monodisperse
@@ -470,8 +470,7 @@ class TestModel():
         dscat = model.differential_cross_section(wavelen, angles, **ff_kwargs)
         cscat = model.scattering_cross_section(dscat)
 
-        assert_allclose(cscat.to_preferred().magnitude,
-                        cscat_mc.to_preferred().magnitude, rtol=1e-5)
+        assert_allclose(cscat[0], cscat_mc.magnitude, rtol=1e-5)
 
         # check for polydisperse system with finite polydispersity.  We
         # compare against the analogous computation with the phase_function()
@@ -496,8 +495,7 @@ class TestModel():
                                                 n_sample=n_ext,
                                                 wavelen=wavelen)
 
-        assert_equal(cscat.to_preferred().magnitude,
-                     cscat_mc.to_preferred().magnitude)
+        assert_equal(cscat[0], cscat_mc.magnitude)
 
         # Now binary system with finite polydispersity, compared to the
         # analogous computation with the phase_function() function. Should give
@@ -533,8 +531,7 @@ class TestModel():
                                                 n_sample=n_ext,
                                                 wavelen=wavelen)
 
-        assert_equal(cscat.to_preferred().magnitude,
-                     cscat_mc.to_preferred().magnitude)
+        assert_equal(cscat[0], cscat_mc.magnitude)
 
 
 class TestDetector():

@@ -1232,6 +1232,7 @@ def phase_function(m, x, angles, volume_fraction, k, number_density,
     # index.  Here we correct the effective index to what it should be.
     model.index_external = index_external
 
+    # calculate scattering cross sections
     ff_kwargs = {}
     if coordinate_system == "cartesian":
         ff_kwargs["phis"] = phis
@@ -1240,8 +1241,9 @@ def phase_function(m, x, angles, volume_fraction, k, number_density,
         ff_kwargs["kd"] = kd
     diff_cs = model.differential_cross_section(wavelen, angles, **ff_kwargs)
     diff_cscat_par, diff_cscat_perp = diff_cs.to_numpy().squeeze()
-
-    cscat_total = model.scattering_cross_section(diff_cs)
+    cscat = model.scattering_cross_section(diff_cs)
+    cscat_total = sc.Quantity(cscat[0].to_numpy(),
+                              cscat.attrs[sc.Attr.LENGTH_UNIT]**2)
 
     # I think this idea here is that later on, each element of the phase
     # function is used to represent the scattering over a finite angular
