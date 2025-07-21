@@ -252,6 +252,31 @@ class FormStructureModel(Model):
 
         return cscat
 
+    def phase_function(self, diff_cscat):
+        """Calculate phase function based on the differential scattering
+        cross-section.
+
+        Parameters
+        ----------
+        diff_cscat : `xr.DataArray`
+            Differential scattering cross-sections, as returned by
+            `FormStructureModel.differential_cross_section()` method
+
+        Returns
+        -------
+        `xr.DataArray`
+            phase function (normalized differential scattering cross-section)
+            for unpolarized light.
+
+
+        Notes
+        -----
+        The phase function is the differential scattering cross-section
+        (averaged over both components) divided by the total cross section.
+
+        """
+        cscat_total = self.scattering_cross_section(diff_cscat)[0]
+        return diff_cscat.sum(sc.Coord.POL) / cscat_total
 
 
 class HardSpheres(FormStructureModel):

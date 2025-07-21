@@ -186,9 +186,7 @@ class TestModel():
 
         # we check also that the scattering cross sections are the same for the
         # monodisperse and polydisperse models
-        dscat = model.differential_cross_section(wavelen, angles)
         cscat = model.scattering_cross_section(dscat)
-        dscat_mono = mono_model.differential_cross_section(wavelen, angles)
         cscat_mono = mono_model.scattering_cross_section(dscat_mono)
         xr.testing.assert_allclose(cscat, cscat_mono)
 
@@ -496,7 +494,7 @@ class TestModel():
                                      index_matrix, index_medium)
 
         # start at a few degrees to avoid division by zero error
-        angles = sc.Quantity(np.linspace(2, 180., 19), 'deg')
+        angles = sc.Quantity(np.linspace(2, 180., 20), 'deg')
 
         # Need to use effective index to get perfect agreement between the two.
         # Make sure that kd uses the effective index.
@@ -512,12 +510,13 @@ class TestModel():
             ff_kwargs['kd'] = (k * model.lengthscale).to('').magnitude
         dscat = model.differential_cross_section(wavelen, angles, **ff_kwargs)
         cscat = model.scattering_cross_section(dscat)
+        phase_func = model.phase_function(dscat)
 
         m = sc.index.ratio(n_particle, n_ext)
         x = sc.size_parameter(n_ext, self.ps_radius).to_numpy()
         diameters = sc.Quantity(np.array(self.ps_radius.magnitude),
                                 self.ps_radius.units) * 2
-        _, cscat_mc = montecarlo.phase_function(m, x, angles,
+        p, cscat_mc = montecarlo.phase_function(m, x, angles,
                                                 volume_fraction, k, None,
                                                 diameters = diameters,
                                                 n_sample=n_ext,
@@ -525,6 +524,10 @@ class TestModel():
 
         # should be exactly equal
         assert_equal(cscat[0], cscat_mc.magnitude)
+        # phase functions have different normalizations, so we renormalize for
+        # comparison
+        norm = phase_func.isel({sc.Coord.THETA: 0})
+        assert_allclose((phase_func/norm).to_numpy().squeeze(), p/p[0])
 
         # Now test for polydisperse system with single component, low
         # polydispersity.  Should give very close results to monodisperse
@@ -540,8 +543,12 @@ class TestModel():
             ff_kwargs = {}
         dscat = model.differential_cross_section(wavelen, angles, **ff_kwargs)
         cscat = model.scattering_cross_section(dscat)
+        phase_func = model.phase_function(dscat)
 
         assert_allclose(cscat[0], cscat_mc.magnitude, rtol=1e-5)
+        norm = phase_func.isel({sc.Coord.THETA: 0})
+        assert_allclose((phase_func/norm).to_numpy().squeeze(), p/p[0],
+                        rtol=1e-5)
 
         # check for polydisperse system with finite polydispersity.  We
         # compare against the analogous computation with the phase_function()
@@ -552,11 +559,12 @@ class TestModel():
                                                  index_matrix, index_medium)
         dscat = model.differential_cross_section(wavelen, angles, **ff_kwargs)
         cscat = model.scattering_cross_section(dscat)
+        phase_func = model.phase_function(dscat)
 
         diameters = sc.Quantity(np.atleast_1d(diameters.magnitude),
                                 diameters.units)
         concentration = np.atleast_1d(1.0)
-        _, cscat_mc = montecarlo.phase_function(m, x, angles,
+        p, cscat_mc = montecarlo.phase_function(m, x, angles,
                                                 volume_fraction, k, None,
                                                 concentration=concentration,
                                                 pdi=pdi,
@@ -567,6 +575,10 @@ class TestModel():
                                                 wavelen=wavelen)
 
         assert_equal(cscat[0], cscat_mc.magnitude)
+
+        # have to normalize to last element since first can be zero (TODO: why?)
+        norm = phase_func.isel({sc.Coord.THETA: -1})
+        assert_allclose((phase_func/norm).to_numpy().squeeze(), p/p[-1])
 
         # Now binary system with finite polydispersity, compared to the
         # analogous computation with the phase_function() function. Should give
@@ -589,10 +601,11 @@ class TestModel():
         dscat = binary_model.differential_cross_section(wavelen, angles,
                                                         **ff_kwargs)
         cscat = binary_model.scattering_cross_section(dscat)
+        phase_func = binary_model.phase_function(dscat)
 
         m = sc.index.ratio(n_particle, n_ext)
         x = sc.size_parameter(n_ext, sphere1.radius_q).to_numpy()
-        _, cscat_mc = montecarlo.phase_function(m, x, angles,
+        p, cscat_mc = montecarlo.phase_function(m, x, angles,
                                                 volume_fraction, k, None,
                                                 concentration=concentration,
                                                 pdi=pdi,
@@ -603,7 +616,8 @@ class TestModel():
                                                 wavelen=wavelen)
 
         assert_equal(cscat[0], cscat_mc.magnitude)
-
+        norm = phase_func.isel({sc.Coord.THETA: -1})
+        assert_allclose((phase_func/norm).to_numpy().squeeze(), p/p[-1])
 
 class TestDetector():
     """Tests for the Detector class and derived classes.
