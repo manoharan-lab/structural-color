@@ -409,6 +409,77 @@ class TestModel():
         xr.testing.assert_equal(dscat_2, dscat_1)
         xr.testing.assert_equal(cscat_2, cscat_1)
 
+    @pytest.mark.parametrize("volume_fraction", [1e-7, 1e-4, 1e-1, 0.30, 0.50])
+    def test_scattering_cross_section_polarization(self, volume_fraction):
+        """Test that the total cross-sections for unpolarized light are the
+        same in the lab frame (cartesian coordinates) and in scattering plane
+        coordinates.
+        """
+        # TODO: test vectorization after changing _integrate_cross_section
+        wavelen = self.wavelen[0]
+
+        index_matrix = sc.index.water
+        index_medium = sc.index.vacuum
+        sf = sc.structure.PercusYevick(volume_fraction)
+        model = sc.model.HardSpheres(self.ps_sphere, volume_fraction,
+                index_matrix, index_medium)
+
+        thetas = sc.Quantity(np.linspace(0, np.pi, 10), 'rad')
+        phis = sc.Quantity(np.linspace(0, 2*np.pi, 20), 'rad')
+        # meshgrid gives [n_theta, n_phi] shape
+        phi_mesh, theta_mesh = np.meshgrid(phis, thetas)
+
+        # Must use the effective index to calculate the wavevector
+        index_external = sc.EffectiveIndex.from_particle(self.ps_sphere,
+                                                         volume_fraction,
+                                                         index_matrix)
+        n_external = index_external(wavelen)
+
+        # do scattering plane calculation first.  Specifying incident vector
+        # here forces the calculation to go through
+        # mie.integrate_intensity_complex_medium(), which can handle an
+        # incident vector.  If we don't specify it, the calculation would go
+        # through mie.calc_ang_dist().
+        kd = (sc.wavevector(n_external) * model.lengthscale).to('').magnitude
+        ff_kwargs = {"kd": kd}
+        # For scattering plane coordinates, parallel and perpendicular
+        # polarizations rotate with phi, so that the scattering is azimuthally
+        # symmetry. To get all the light, we need to look at both the parallel
+        # and perpendicular components, which we do by specifying (1,1) for the
+        # incident vector:
+        ff_kwargs.update({"incident_vector": (1, 1)})
+        dscat = model.differential_cross_section(wavelen, thetas, **ff_kwargs)
+        cscat = model.scattering_cross_section(dscat)
+
+        # to show that incident vector was passed through, we pass an incorrect
+        # vector here.  Should get a different result
+        ff_kwargs.update({"incident_vector": (1, 0)})
+        dscat = model.differential_cross_section(wavelen, thetas, **ff_kwargs)
+        cscat_wrong = model.scattering_cross_section(dscat)
+
+        assert not np.allclose(cscat.to_numpy(), cscat_wrong.to_numpy())
+
+        # now do scattering plane calculation going through
+        # mie.calc_ang_dist(), without specifying incident vector
+        del ff_kwargs["incident_vector"]
+        dscat = model.differential_cross_section(wavelen, thetas, **ff_kwargs)
+        cscat_no_vector = model.scattering_cross_section(dscat)
+
+        assert_allclose(cscat.to_numpy(), cscat_no_vector.to_numpy())
+
+        # now do cartesian.  Incident vector is polarized, but remember we're
+        # integrating over both polarizations at each detector position, so we
+        # should get all the scattered light.
+        ff_kwargs.update({"phis": phi_mesh, "cartesian": True,
+                          "incident_vector": (1, 0)})
+        dscat_cart = model.differential_cross_section(wavelen, theta_mesh,
+                                                      **ff_kwargs)
+        cscat_cart = model.scattering_cross_section(dscat_cart)
+
+        # only the total cross section should be the same.  The x- and y-
+        # components should not be equal to the par and perp components.
+        assert_allclose(cscat_cart[0].to_numpy(), cscat[0].to_numpy())
+
     @pytest.mark.parametrize("index_matrix", [sc.index.water,
                                               sc.Index.constant(1.59 + 0.001j),
                                               sc.Index.constant(1.59 + 0.1j)])

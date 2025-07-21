@@ -221,8 +221,11 @@ class FormStructureModel(Model):
             cscat_total, cscat1, cscat2 = cscat[0:3]
         # If absorption and not cartesian coords, integrate the differential
         # cross section using integration functions in mie.py that use
-        # absorption
-        elif np.any(np.abs(k.imag.magnitude) > 0):
+        # absorption.  Also use the mie.py function if incident_vector was
+        # specified in scattering plane system -- otherwise this would be
+        # ignored.
+        elif (np.any(np.abs(k.imag.magnitude) > 0)
+              or "incident_vector" in diff_cscat.attrs):
             cscat = mie.integrate_intensity_complex_medium(diff_cscat1,
                                                            diff_cscat2,
                                                            distance,

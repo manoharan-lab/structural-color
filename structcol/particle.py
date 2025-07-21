@@ -635,9 +635,12 @@ def _form_factor(m, x, angles, kd=None, coordinate_system=None,
     form_factor() methods in cases where speed is important.
 
     """
-    if np.any(x.imag > 0) or (coordinate_system=='cartesian'):
+    if (np.any(x.imag > 0) or (coordinate_system=='cartesian')
+        or (incident_vector is not None)):
         if kd is None:
-            raise ValueError("must specify distance for absorbing systems")
+            raise ValueError("must specify distance for absorbing systems, "
+                             "cartesian frame, or when specifying incident "
+                             "vector")
         form_factor = mie.diff_scat_intensity_complex_medium(
                         m, x, angles, kd,
                         coordinate_system=coordinate_system,
