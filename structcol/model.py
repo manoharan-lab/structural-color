@@ -478,12 +478,15 @@ class HemisphericalReflectanceDetector(Detector):
                          phi_max=sc.Quantity('360.0 deg'))
 
 def _make_model(index_particle, index_matrix, index_medium, radius,
-                volume_fraction, radius2=None, concentration=None, pdi=None,
-                structure_type='glass',
+                volume_fraction, index_effective=None, radius2=None,
+                concentration=None, pdi=None, structure_type='glass',
                 form_type='sphere', maxwell_garnett=False,
                 structure_s_data=None, structure_qd_data=None):
     """scaffolding function to make a model from all the input data to
     reflection() or montecarlo.phase_function().
+
+    if index_effective is specified, uses that to specify a model rather than
+    letting the Model object calculate an effective index
     """
 
     # handle core-shell particles properly
@@ -491,10 +494,15 @@ def _make_model(index_particle, index_matrix, index_medium, radius,
     if (num_layers > 1) and np.ndim(index_particle)!=1:
         index_particle = [index_particle]*num_layers
     particle = sc.Sphere(index_particle, radius)
-    index_external = sc.EffectiveIndex.from_particle(particle, volume_fraction,
-                                                     index_matrix,
-                                                     maxwell_garnett =
-                                                     maxwell_garnett)
+
+    # deal with effective index
+    if index_effective is None:
+        index_external = sc.EffectiveIndex.from_particle(particle, volume_fraction,
+                                                         index_matrix,
+                                                         maxwell_garnett =
+                                                         maxwell_garnett)
+    else:
+        index_external = index_effective
 
     if pdi is not None:
         if (np.ndim(radius) != 0) or (np.ndim(radius2) != 0):
@@ -514,6 +522,8 @@ def _make_model(index_particle, index_matrix, index_medium, radius,
         if structure_type == "glass":
             model = HardSpheres(particle, volume_fraction, index_matrix,
                                 index_medium, maxwell_garnett=maxwell_garnett)
+            if index_effective is not None:
+                model.index_external = index_effective
         if structure_type == "data":
             form_factor = particle.form_factor
             structure_factor = sc.structure.Interpolated(structure_s_data,
@@ -531,6 +541,8 @@ def _make_model(index_particle, index_matrix, index_medium, radius,
         if structure_type == "polydisperse":
             model = PolydisperseHardSpheres(dist, volume_fraction,
                                             index_matrix, index_medium)
+            if index_effective is not None:
+                model.index_external = index_effective
         if structure_type is None:
             form_factor = dist.form_factor
             lengthscale = dist.spheres[0].outer_radius_q

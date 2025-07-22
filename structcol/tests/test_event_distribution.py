@@ -67,8 +67,8 @@ n_sample = index_sample(wavelength)
 # the single scattering model (this absorption coefficient is of the scatterer,
 # not of an absorber added to the system)
 p, mu_scat, mu_abs = mc.calc_scat(particle_radius, index_particle,
-                                  index_matrix, index_sample, volume_fraction,
-                                  wavelength)
+                                  index_matrix, index_sample, index_medium,
+                                  volume_fraction, wavelength)
 lscat = 1/mu_scat.magnitude # microns
 
 # set up a seeded random number generator that will give consistent results
@@ -450,7 +450,8 @@ def test_event_distribution_wavelength_mc():
 
         p[i,:], mu_scat, mu_abs = mc.calc_scat(particle_radius, index_particle,
                                                index_matrix, index_sample,
-                                               volume_fraction, wavelengths[i])
+                                               index_medium, volume_fraction,
+                                               wavelengths[i])
         lscat[i] = 1/mu_scat.magnitude # microns
 
         r0, k0, W0 = mc.initialize(nevents, ntrajectories, n_medium[i],
@@ -555,7 +556,7 @@ def test_event_distribution_angle_mc():
     reflectance = np.zeros(theta_range.size)
 
     p, mu_scat, mu_abs = mc.calc_scat(particle_radius, index_particle,
-                                      index_matrix, index_sample,
+                                      index_matrix, index_sample, index_medium,
                                       volume_fraction, wavelength)
     lscat = 1/mu_scat.magnitude
 

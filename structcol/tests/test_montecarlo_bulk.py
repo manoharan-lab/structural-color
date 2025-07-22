@@ -89,7 +89,7 @@ def calc_sphere_mc():
     # (this absorption coefficient is of the scatterer, not of an absorber
     #added to the system)
     p, mu_scat, mu_abs = mc.calc_scat(particle_radius, index_particle,
-                                      index_matrix, index_sample,
+                                      index_matrix, index_sample, index_medium,
                                       volume_fraction_particles, wavelength)
 
     # Initialize the trajectories

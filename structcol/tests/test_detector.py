@@ -236,7 +236,8 @@ def test_surface_roughness_mc():
 
     # Need to specify fine roughness parameter in this function
     p, mu_scat, mu_abs = mc.calc_scat(radius, index_particle, index_matrix,
-                                      index_sample, volume_fraction, wavelen,
+                                      index_sample, index_medium,
+                                      volume_fraction, wavelen,
                                       fine_roughness=fine_roughness,
                                       n_matrix=n_matrix)
 
@@ -834,8 +835,8 @@ def test_detectors_mc():
     nevents = 200
 
     p, mu_scat, mu_abs = mc.calc_scat(radius, index_particle, index_matrix,
-                                      index_sample, volume_fraction,
-                                      wavelength)
+                                      index_sample, index_medium,
+                                      volume_fraction, wavelength)
 
     # Initialize the trajectories
     r0, k0, W0 = mc.initialize(nevents, ntrajectories, n_medium, n_sample,
@@ -1034,7 +1035,8 @@ def calc_montecarlo(nevents, ntrajectories, radius, index_particle,
 
     # Function to run montecarlo for the tests
     p, mu_scat, mu_abs = mc.calc_scat(radius, index_particle, index_matrix,
-                                      index_sample, volume_fraction, wavelen,
+                                      index_sample, index_medium,
+                                      volume_fraction, wavelen,
                                       radius2=radius2,
                                       concentration=concentration, pdi=pdi,
                                       polydisperse=polydisperse,

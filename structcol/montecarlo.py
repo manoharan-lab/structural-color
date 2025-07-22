@@ -873,7 +873,7 @@ def initialize(nevents, ntraj, n_medium, n_sample, boundary, rng=None,
 
 
 
-def calc_scat(radius, index_particle, index_matrix, index_sample,
+def calc_scat(radius, index_particle, index_matrix, index_sample, index_medium,
               volume_fraction, wavelen,
               radius2=None,
               concentration=None,
@@ -904,6 +904,8 @@ def calc_scat(radius, index_particle, index_matrix, index_sample,
         Refractive index of the matrix around the particles
     index_sample : `sc.Index` object
         Effective refractive index of the sample.
+    index_medium : `sc.Index` object
+        Refractive index of the medium around the sample
     volume_fraction : float (structcol.Quantity [dimensionless])
         Volume fraction of the sample.
     wavelen : float (structcol.Quantity [length])
@@ -990,6 +992,10 @@ def calc_scat(radius, index_particle, index_matrix, index_sample,
         (Bohren and Huffmann, chapter 13.3)
     """
     wavelen = wavelen.to_preferred()
+    radius = radius.to_preferred()
+    units = wavelen.units
+    if isinstance(volume_fraction, sc.Quantity):
+        volume_fraction = volume_fraction.to('').magnitude
 
     if isinstance(index_particle, list):
         n_particle = sc.index._indexes_from_list(index_particle, wavelen)
@@ -1000,7 +1006,7 @@ def calc_scat(radius, index_particle, index_matrix, index_sample,
     # calculate parameters for scattering calculations
     k = sc.wavevector(n_sample)
     m = sc.index.ratio(n_particle, n_sample)
-    x = sc.size_parameter(n_sample, radius.to_preferred())
+    x = sc.size_parameter(n_sample, radius)
 
     # if the system is polydisperse, use the polydisperse form and structure
     # factors
@@ -1008,10 +1014,6 @@ def calc_scat(radius, index_particle, index_matrix, index_sample,
         if radius2 is None or concentration is None or pdi is None:
             raise ValueError('must specify diameters, concentration, and '
                              'pdi for polydisperperse systems')
-
-        if len(np.atleast_1d(m)) > 1:
-            raise ValueError('cannot handle polydispersity in '
-                             'core-shell particles')
 
         form_type = 'polydisperse'
         if structure_type!='data':
@@ -1022,6 +1024,19 @@ def calc_scat(radius, index_particle, index_matrix, index_sample,
         radius2 = radius2.to(radius.units)
     if radius2 is None:
         radius2 = radius
+    # define the mean diameters in case the system is polydisperse
+    mean_diameters = sc.Quantity(np.array([2*radius.magnitude,
+                                           2*radius2.magnitude]), radius.units)
+    mean_diameters = mean_diameters.to_preferred()
+
+    if form_type=='polydisperse':
+        distance = mean_diameters/2
+        if len(mean_diameters) == 1:
+            distance = sc.Quantity(np.array([distance.magnitude,
+                                             distance.magnitude]),
+                                   distance.units)
+    else:
+        distance = mean_diameters.max()/2
 
     # General number density formula for binary systems, converges to
     # monospecies formula when the concentration of either particle goes to
@@ -1037,13 +1052,17 @@ def calc_scat(radius, index_particle, index_matrix, index_sample,
     np.seterr(divide='warn', invalid='warn')
     number_density = 3.0 * volume_fraction / (4.0 * np.pi) * (term1 + term2)
 
-    # define the mean diameters in case the system is polydisperse
-    mean_diameters = sc.Quantity(np.array([2*radius.magnitude,
-                                           2*radius2.magnitude]), radius.units)
-    mean_diameters = mean_diameters.to_preferred()
+    model = sc.model._make_model(index_particle, index_matrix, index_medium,
+                                 radius, volume_fraction,
+                                 index_effective=index_sample, radius2=radius2,
+                                 concentration=concentration, pdi=pdi,
+                                 structure_type=structure_type,
+                                 form_type=form_type, maxwell_garnett=False,
+                                 structure_s_data=structure_s_data,
+                                 structure_qd_data=structure_qd_data)
 
     # calculate the absorption coefficient
-    mu_abs = 4*np.pi*n_sample.imag.to_numpy()/wavelen
+    mu_abs = 4*np.pi*n_sample.imag.to_numpy().squeeze()/wavelen
 
     # Define angles at which phase function will be calculated, based on
     # whether light is polarized or unpolarized
@@ -1055,16 +1074,17 @@ def calc_scat(radius, index_particle, index_matrix, index_sample,
 
     if fields:
         coordinate_system = 'cartesian'
+        cartesian = True
         phis = sc.Quantity(np.linspace(min_angle, 2*np.pi, num_phis), 'rad')
         # theta dimension must come first
         phis, thetas = np.meshgrid(phis, angles)
     else:
         thetas = angles
         coordinate_system = 'scattering plane'
-        phis=None
+        cartesian = False
+        phis = None
 
-
-    # calculate the phase function
+    # calculate the phase function using the function-based approach
     p, cscat_total = phase_function(m, x, thetas, volume_fraction,
                                     k, number_density,
                                     wavelen=wavelen,
@@ -1078,6 +1098,26 @@ def calc_scat(radius, index_particle, index_matrix, index_sample,
                                     structure_s_data=structure_s_data,
                                     structure_qd_data=structure_qd_data)
     mu_scat = number_density * cscat_total
+    p_old, cscat_total_old, mu_scat_old = p, cscat_total, mu_scat
+
+    # now use object-based approach
+    ff_kwargs = {}
+    if cartesian:
+        ff_kwargs["cartesian"] = True
+        ff_kwargs["phis"] = phis
+    if np.any(n_sample.imag > 0):
+        ff_kwargs["kd"] = (k*distance).to('').magnitude
+
+    dscat = model.differential_cross_section(wavelen, thetas, **ff_kwargs)
+    cscat = model.scattering_cross_section(dscat)
+    p = model.phase_function(dscat).to_numpy().squeeze()
+
+    mu_scat = number_density * (cscat[0].to_numpy().squeeze() *
+                                units**2)
+    np.testing.assert_allclose(cscat[0].to_numpy().squeeze(),
+                               cscat_total_old.magnitude, rtol=1e-14)
+    np.testing.assert_allclose(mu_scat.magnitude, mu_scat_old.magnitude,
+                               rtol=1e-14)
 
     # Here, the resulting units of mu_scat and mu_abs are nm^2/um^3. Thus, we
     # simplify the units to 1/um
@@ -1088,12 +1128,12 @@ def calc_scat(radius, index_particle, index_matrix, index_sample,
     # coeff from Mie theory. We assume that fine roughness particles are in the
     # matrix and not in the effective sample medium.
     if fine_roughness > 0.:
-        if n_matrix is None:
-            raise ValueError('need to specify n_matrix if fine_roughness > 0')
+        n_matrix = index_matrix(wavelen)
         m = sc.index.ratio(n_particle, n_matrix)
         x = sc.size_parameter(n_matrix, radius)
         k = sc.wavevector(n_matrix)
 
+        # function-based calculation
         _, cscat_total_mie = phase_function(m, x, thetas, volume_fraction,
                                             k, number_density,
                                             wavelen=wavelen,
@@ -1105,7 +1145,28 @@ def calc_scat(radius, index_particle, index_matrix, index_sample,
                                             coordinate_system=coordinate_system,
                                             phis=phis)
         mu_scat_mie = number_density * cscat_total_mie
+        cscat_total_mie_old, mu_scat_mie_old = cscat_total_mie, mu_scat_mie
+
+        # model-based calculation
+        # We use the same form factor and lengthscale from the existing model.
+        # Just need to change the external index to that of the matrix and
+        # change the structure factor to a constant. Note that we are modifying
+        # our original model here, which is ok because we don't reuse the model
+        # in this function.
+        model.index_external = index_matrix
+        model.structure_factor = sc.structure.Constant(1.0)
+
+        dscat = model.differential_cross_section(wavelen, angles, **ff_kwargs)
+        cscat_total_mie = model.scattering_cross_section(dscat)
+        mu_scat_mie = number_density * (cscat_total_mie[0].to_numpy().squeeze()
+                                        * units**2)
+
         mu_scat_mie = mu_scat_mie.to('1/um')
+        np.testing.assert_equal(cscat_total_mie[0].to_numpy().squeeze(),
+                                cscat_total_mie_old.magnitude)
+        np.testing.assert_equal(mu_scat_mie.magnitude,
+                                mu_scat_mie_old.magnitude)
+
         mu_scat = sc.Quantity(np.array([mu_scat.magnitude,
                                         mu_scat_mie.magnitude]), '1/um')
 

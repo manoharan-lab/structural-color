@@ -61,7 +61,8 @@ def test_sampling():
     # random number generator, so that we can ensure that sampling works with
     # the default generator.
     p, mu_scat, mu_abs = mc.calc_scat(radius, index_particle, index_matrix,
-                                      index_sample, volume_fraction, wavelen)
+                                      index_sample, index_medium,
+                                      volume_fraction, wavelen)
 
     # Test that 'sample_angles' runs
     mc.sample_angles(nevents, ntrajectories, p)

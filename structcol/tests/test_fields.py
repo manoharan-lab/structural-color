@@ -63,7 +63,7 @@ def test_2pi_shift():
 
     # Calculate scattering quantities
     p, mu_scat, mu_abs = mc.calc_scat(radius, index_particle, index_matrix,
-                                      index_sample, volume_fraction,
+                                      index_sample, index_medium, volume_fraction,
                                       wavelength, fields=True)
 
     # Initialize trajectories
@@ -226,7 +226,7 @@ def test_field_normalized():
 
     # Calculate scattering quantities
     p, mu_scat, mu_abs = mc.calc_scat(radius, index_particle, index_matrix,
-                                      index_sample, volume_fraction,
+                                      index_sample, index_medium, volume_fraction,
                                       wavelength, fields=True)
 
     # Initialize trajectories
@@ -302,7 +302,7 @@ def test_field_perp_direction():
 
     # Calculate scattering quantities
     p, mu_scat, mu_abs = mc.calc_scat(radius, index_particle, index_matrix,
-                                      index_sample, volume_fraction,
+                                      index_sample, index_medium, volume_fraction,
                                       wavelength, fields=True)
 
     # Initialize trajectories
@@ -379,7 +379,7 @@ def test_field_reflectance_mc():
 
     # Calculate scattering quantities
     p, mu_scat, mu_abs = mc.calc_scat(radius, index_particle, index_matrix,
-                                      index_sample, volume_fraction,
+                                      index_sample, index_medium, volume_fraction,
                                       wavelength, fields=True)
 
     # Initialize trajectories
@@ -486,8 +486,9 @@ def test_field_co_cross_mc():
 
         # Calculate scattering quantities
         p, mu_scat, mu_abs = mc.calc_scat(radius, index_particle, index_matrix,
-                                          index_sample_eff, volume_fraction,
-                                          wavelengths[i], fields=True)
+                                          index_sample_eff, index_medium,
+                                          volume_fraction, wavelengths[i],
+                                          fields=True)
 
         # Initialize trajectories
         r0, k0, W0, E0 = mc.initialize(nevents, ntrajectories, n_medium[i],
