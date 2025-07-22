@@ -997,16 +997,10 @@ def calc_scat(radius, index_particle, index_matrix, index_sample, index_medium,
     if isinstance(volume_fraction, sc.Quantity):
         volume_fraction = volume_fraction.to('').magnitude
 
-    if isinstance(index_particle, list):
-        n_particle = sc.index._indexes_from_list(index_particle, wavelen)
-    else:
-        n_particle = index_particle(wavelen)
     n_sample = index_sample(wavelen)
 
     # calculate parameters for scattering calculations
     k = sc.wavevector(n_sample)
-    m = sc.index.ratio(n_particle, n_sample)
-    x = sc.size_parameter(n_sample, radius)
 
     # if the system is polydisperse, use the polydisperse form and structure
     # factors
@@ -1073,34 +1067,16 @@ def calc_scat(radius, index_particle, index_matrix, index_sample, index_medium,
     angles = sc.Quantity(np.linspace(min_angle, np.pi, num_angles), 'rad')
 
     if fields:
-        coordinate_system = 'cartesian'
         cartesian = True
         phis = sc.Quantity(np.linspace(min_angle, 2*np.pi, num_phis), 'rad')
         # theta dimension must come first
         phis, thetas = np.meshgrid(phis, angles)
     else:
         thetas = angles
-        coordinate_system = 'scattering plane'
         cartesian = False
         phis = None
 
-    # calculate the phase function using the function-based approach
-    p, cscat_total = phase_function(m, x, thetas, volume_fraction,
-                                    k, number_density,
-                                    wavelen=wavelen,
-                                    diameters=mean_diameters,
-                                    concentration=concentration,
-                                    pdi=pdi, n_sample=n_sample,
-                                    form_type=form_type,
-                                    structure_type=structure_type,
-                                    coordinate_system=coordinate_system,
-                                    phis = phis,
-                                    structure_s_data=structure_s_data,
-                                    structure_qd_data=structure_qd_data)
-    mu_scat = number_density * cscat_total
-    p_old, cscat_total_old, mu_scat_old = p, cscat_total, mu_scat
-
-    # now use object-based approach
+    # calculate scattering quantities using the Model object
     ff_kwargs = {}
     if cartesian:
         ff_kwargs["cartesian"] = True
@@ -1114,10 +1090,6 @@ def calc_scat(radius, index_particle, index_matrix, index_sample, index_medium,
 
     mu_scat = number_density * (cscat[0].to_numpy().squeeze() *
                                 units**2)
-    np.testing.assert_allclose(cscat[0].to_numpy().squeeze(),
-                               cscat_total_old.magnitude, rtol=1e-14)
-    np.testing.assert_allclose(mu_scat.magnitude, mu_scat_old.magnitude,
-                               rtol=1e-14)
 
     # Here, the resulting units of mu_scat and mu_abs are nm^2/um^3. Thus, we
     # simplify the units to 1/um
@@ -1128,26 +1100,6 @@ def calc_scat(radius, index_particle, index_matrix, index_sample, index_medium,
     # coeff from Mie theory. We assume that fine roughness particles are in the
     # matrix and not in the effective sample medium.
     if fine_roughness > 0.:
-        n_matrix = index_matrix(wavelen)
-        m = sc.index.ratio(n_particle, n_matrix)
-        x = sc.size_parameter(n_matrix, radius)
-        k = sc.wavevector(n_matrix)
-
-        # function-based calculation
-        _, cscat_total_mie = phase_function(m, x, thetas, volume_fraction,
-                                            k, number_density,
-                                            wavelen=wavelen,
-                                            diameters=mean_diameters,
-                                            concentration=concentration,
-                                            pdi=pdi, n_sample=n_matrix,
-                                            form_type=form_type,
-                                            structure_type=None,
-                                            coordinate_system=coordinate_system,
-                                            phis=phis)
-        mu_scat_mie = number_density * cscat_total_mie
-        cscat_total_mie_old, mu_scat_mie_old = cscat_total_mie, mu_scat_mie
-
-        # model-based calculation
         # We use the same form factor and lengthscale from the existing model.
         # Just need to change the external index to that of the matrix and
         # change the structure factor to a constant. Note that we are modifying
@@ -1162,159 +1114,10 @@ def calc_scat(radius, index_particle, index_matrix, index_sample, index_medium,
                                         * units**2)
 
         mu_scat_mie = mu_scat_mie.to('1/um')
-        np.testing.assert_equal(cscat_total_mie[0].to_numpy().squeeze(),
-                                cscat_total_mie_old.magnitude)
-        np.testing.assert_equal(mu_scat_mie.magnitude,
-                                mu_scat_mie_old.magnitude)
-
         mu_scat = sc.Quantity(np.array([mu_scat.magnitude,
                                         mu_scat_mie.magnitude]), '1/um')
 
     return p, mu_scat, mu_abs
-
-
-def phase_function(m, x, angles, volume_fraction, k, number_density,
-                   wavelen=None,
-                   diameters=None,
-                   concentration=None,
-                   pdi=None,
-                   n_sample=None,
-                   form_type='sphere',
-                   structure_type='glass',
-                   coordinate_system = 'scattering plane',
-                   phis=None,
-                   structure_s_data=None,
-                   structure_qd_data=None):
-    """
-    Calculates the phase function (the phase function is the same for absorbing
-    and non-absorbing systems).
-
-    Parameters:
-    ----------
-    m: float
-        index ratio between the particle and sample
-    x: float
-        size parameter
-    angles: array (sc.Quantity [rad])
-        theta angles at which to calculate phase function
-    volume_fraction: float (sc.Quantity [dimensionless])
-    k: float (sc.Quantity [1/length])
-        k vector. k = 2*pi*n_sample / wavelength
-    number_density: float (sc.Quantity [1/length^3])
-    wavelen: float (structcol.Quantity [length])
-        Wavelength of light in vacuum.
-    diameters: float (structcol.Quantity [length])
-        Mean diameters of secondary scatterer. Specify only if the system is
-        binary, meaning that there are two mean particle radii (for example,
-        one small and one large).
-    concentration: 2-element array (structcol.Quantity [dimensionless])
-        Concentration of each scatterer if the system is binary. For
-        polydisperse monospecies systems, specify the concentration as
-        [0., 1.]. The concentrations must add up to 1.
-    pdi: 2-element array (structcol.Quantity [dimensionless])
-        Polydispersity index of each scatterer if the system is polydisperse.
-        For polydisperse monospecies systems, specify the pdi as a 2-element
-        array with repeating values (for example, [0.01, 0.01]).
-    n_sample : float (structcol.Quantity [dimensionless] or
-        structcol.refractive_index object)
-        Refractive index of the sample.
-    form_type: str or None
-        form factor desired for calculation. Can be 'sphere', 'polydisperse',
-        or None.
-    structure_type: str or None
-        structure factor desired for calculation. Can be 'glass',
-        'polydisperse', 'data', or None.
-    coordinate_system: string
-        default value 'scattering plane' means scattering calculations will be
-        carried out in the basis defined by basis vectors parallel and
-        perpendicular to scattering plane. Variable also accepts value
-        'cartesian' which scattering calculations will be carried out in the
-        basis defined by basis vectors x and y in the lab frame, with z
-        as the direction of propagation.
-    phis: array (sc.Quantity [rad])
-        phi angles at which to calculate phase function
-    structure_s_data: None or 1d array
-        if structure_type is 'data', the structure factor data must be provided
-        here in the form of a one dimensional array
-    structure_qd_array: None of 1d array
-        if structure_type is 'data', the qd data must be provided here in the
-        form of a one dimensional array
-
-    Returns:
-    --------
-    p: array
-        phase function for unpolarized light
-    cscat_total: float
-        total scattering cross section for unpolarized light
-
-    """
-    diameters = diameters.to_preferred()
-    angles = angles.to('rad')
-    if phis is not None:
-        phis = phis.to('rad')
-    if wavelen is not None:
-        wavelen = wavelen.to_preferred()
-
-    if isinstance(volume_fraction, sc.Quantity):
-        volume_fraction = volume_fraction.to('').magnitude
-    if form_type=='polydisperse':
-        distance = diameters/2
-        if len(diameters) == 1:
-            distance = sc.Quantity(np.array([distance.magnitude,
-                                             distance.magnitude]),
-                                   distance.units)
-        radius = distance[0].squeeze()
-        radius2 = distance[1].squeeze()
-    else:
-        distance = diameters.max()/2
-        radius = np.atleast_1d(diameters)[0]/2
-        radius2 = radius
-
-    kd = (k*distance).to('').magnitude
-    n_particle = (m * n_sample.to_numpy())
-    if np.ndim(n_particle) > 1:
-        index_particle = [sc.Index.constant(n_layer) for n_layer in
-                          n_particle[0, :]]
-    else:
-        index_particle = sc.Index.constant(n_particle)
-    index_external = sc.Index.constant(n_sample.to_numpy())
-    index_medium = sc.index.vacuum
-
-    model = sc.model._make_model(index_particle, index_external, index_medium,
-                                 radius, volume_fraction, radius2=radius2,
-                                 concentration=concentration, pdi=pdi,
-                                 structure_type=structure_type,
-                                 form_type=form_type, maxwell_garnett=False,
-                                 structure_s_data=structure_s_data,
-                                 structure_qd_data=structure_qd_data)
-
-    # patch the object; we don't know the actual matrix index, so we fed it the
-    # effective index, which it used to calculate an incorrect new effective
-    # index.  Here we correct the effective index to what it should be.
-    model.index_external = index_external
-
-    # calculate scattering cross sections
-    ff_kwargs = {}
-    if coordinate_system == "cartesian":
-        ff_kwargs["phis"] = phis
-        ff_kwargs["cartesian"] = True
-    if np.any(n_sample.imag > 0):
-        ff_kwargs["kd"] = kd
-    diff_cs = model.differential_cross_section(wavelen, angles, **ff_kwargs)
-    diff_cscat_par, diff_cscat_perp = diff_cs.to_numpy().squeeze()
-    cscat = model.scattering_cross_section(diff_cs)
-    cscat_total = sc.Quantity(cscat[0].to_numpy(),
-                              cscat.attrs[sc.Attr.LENGTH_UNIT]**2)
-
-    # I think this idea here is that later on, each element of the phase
-    # function is used to represent the scattering over a finite angular
-    # window. So to properly normalize we divide by the sum of all the
-    # differential cross sections, instead of by cscat_total, which represents
-    # the sum over infinitesimal angular windows.
-    p = (diff_cscat_par + diff_cscat_perp)/(np.sum(diff_cscat_par
-                                                   + diff_cscat_perp))
-
-    return(p, cscat_total)
 
 
 def sample_angles(nevents, ntraj, p, min_angle=0.01, rng=None):

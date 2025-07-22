@@ -497,7 +497,8 @@ def _make_model(index_particle, index_matrix, index_medium, radius,
 
     # deal with effective index
     if index_effective is None:
-        index_external = sc.EffectiveIndex.from_particle(particle, volume_fraction,
+        index_external = sc.EffectiveIndex.from_particle(particle,
+                                                         volume_fraction,
                                                          index_matrix,
                                                          maxwell_garnett =
                                                          maxwell_garnett)
