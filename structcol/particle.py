@@ -493,6 +493,9 @@ class SphereDistribution:
         else:
             coordinate_system = 'scattering plane'
 
+        num_wavelengths = np.atleast_1d(wavelen).shape[0]
+        num_angles = np.atleast_1d(angles).shape[0]
+
         # number of components to use in discretizing the size distribution
         num_components = 50
 
@@ -511,7 +514,8 @@ class SphereDistribution:
         n_particle = index_particle(wavelen)
 
         m = sc.index.ratio(n_particle, n_ext)
-        # m should have shape [num_components, 1] for vectorization (see below)
+        # set up for vectorization (see below).  This will yield an array of
+        # shape [num_components * num_wavelengths, 1]
         m = np.tile(m, [num_components, 1])
 
         # t is a measure of the width of the Schulz distribution, and
@@ -525,7 +529,7 @@ class SphereDistribution:
         min_diameter[min_diameter < 0] = 0.000001
         max_diameter = self.diameters + three_std_dev
 
-        if ((np.abs(n_ext.imag) > 0. or cartesian)
+        if ((np.any(np.abs(n_ext.imag) > 0) or cartesian)
             and (kd is not None)):
             kd = np.resize(kd, len(self.diameters))
 
@@ -559,10 +563,11 @@ class SphereDistribution:
             # [num_components, 1].  Now we need to set the shape of x to
             # [num_components, 1] as well.
             units = self.spheres[0].current_units
-            # result from sc.size_parameter is [1, num_components] which would
-            # be interpreted as a layered sphere by pymie.  So we transpose.
-            x = sc.size_parameter(n_ext, diameter_range/2 * units).transpose()
-            x = x.to_numpy()
+            # result from sc.size_parameter is [num_wavelengths,
+            # num_components] which would be interpreted as a layered sphere by
+            # pymie. So we reshape to [num_wavelengths*num_components, 1]
+            x = sc.size_parameter(n_ext, diameter_range/2 * units).to_numpy()
+            x = x.reshape((num_components * num_wavelengths, 1))
 
             ff_vec = _form_factor(m, x, angles,
                                   kd=kd_new,
@@ -570,19 +575,25 @@ class SphereDistribution:
                                   incident_vector=incident_vector,
                                   phis=phis)
 
-            # Construct DataArray. _form_factor() will return shape (2,
-            # num_components, num_angle).  We want (num_components, 2,
-            # 1, num_angle).  First add wavelength dimension if wavelength is
-            # scalar:
-            if len(np.atleast_1d(wavelen)) == 1:
-                ff_vec = np.expand_dims(np.array(ff_vec), axis=2)
-            # now rearrange dimensions
-            ff_vec = np.transpose(ff_vec, (1, 0, 2, 3))
+            # Construct DataArray. _form_factor() will return a 2-tuple, each
+            # with shape (num_components*num_wavelengths, num_angle). We want
+            # an array with (num_components, 2, num_wavelengths, num_angle).
+            # We reshape first and then rearrange dimensions:
+            if phis is None:
+                ff_vec = np.array(ff_vec).reshape(2, num_components,
+                                                  num_wavelengths, num_angles)
+                ff_vec = np.transpose(ff_vec, (1, 0, 2, 3))
+            else:
+                ff_vec = np.array(ff_vec).reshape(2, num_components,
+                                                  num_wavelengths, num_angles,
+                                                  len(phis))
+                ff_vec = np.transpose(ff_vec, (1, 0, 2, 3, 4))
+
             # set up coords in the same order
             coords = {}
             coords["diameter"] = diameter_range
             coords.update(scat_coords)
-            ff_vec = xr.DataArray(np.array(ff_vec), coords=coords)
+            ff_vec = xr.DataArray(ff_vec, coords=coords)
 
             # it might seem reasonable to calculate the form factor of each
             # individual radius in the Schulz distribution (meaning that we
