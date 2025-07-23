@@ -1088,7 +1088,7 @@ def calc_scat(radius, index_particle, index_matrix, index_sample, index_medium,
     cscat = model.scattering_cross_section(dscat)
     p = model.phase_function(dscat).to_numpy().squeeze()
 
-    mu_scat = number_density * (cscat[0].to_numpy().squeeze() *
+    mu_scat = number_density * (cscat.loc["avg"].to_numpy().squeeze() *
                                 units**2)
 
     # Here, the resulting units of mu_scat and mu_abs are nm^2/um^3. Thus, we
@@ -1110,8 +1110,9 @@ def calc_scat(radius, index_particle, index_matrix, index_sample, index_medium,
 
         dscat = model.differential_cross_section(wavelen, angles, **ff_kwargs)
         cscat_total_mie = model.scattering_cross_section(dscat)
-        mu_scat_mie = number_density * (cscat_total_mie[0].to_numpy().squeeze()
-                                        * units**2)
+        mu_scat_mie = (number_density
+                       * (cscat_total_mie.loc["avg"].to_numpy().squeeze()
+                          * units**2))
 
         mu_scat_mie = mu_scat_mie.to('1/um')
         mu_scat = sc.Quantity(np.array([mu_scat.magnitude,

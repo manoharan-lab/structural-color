@@ -80,7 +80,8 @@ class TestModel():
         ff = self.ps_sphere.form_factor(self.wavelen[0], self.angles,
                                         sc.index.vacuum)
 
-        xr.testing.assert_equal(dscat, ff)
+        # dscat contains avg polarization; ff does not
+        xr.testing.assert_equal(dscat.loc["par":"perp"], ff)
 
         # Test that constant form factor yields the same results as structure
         # factor.
@@ -187,7 +188,8 @@ class TestModel():
         # monodisperse and polydisperse models
         cscat = model.scattering_cross_section(dscat)
         cscat_mono = mono_model.scattering_cross_section(dscat_mono)
-        xr.testing.assert_allclose(cscat, cscat_mono)
+        xr.testing.assert_allclose(cscat,
+                                   cscat_mono.drop_vars(sc.Coord.VOLFRAC))
 
         # now finite volume fraction, low polydispersity
         volume_fraction = 0.5
@@ -305,7 +307,7 @@ class TestModel():
         cscat = model.scattering_cross_section(dscat)
 
         # make sure we have correct coords and shape
-        assert cscat.shape == (3,)
+        assert cscat.shape == (3, len(np.atleast_1d(wavelen)))
         assert sc.Coord.POL in cscat.coords
 
         # now do calculation using Mie theory, using appropriate function for
@@ -340,8 +342,8 @@ class TestModel():
 
         # Now check that the Mie calculation and Model method calculations
         # agree.
-        assert_allclose(cscat[0], cscat_mie[0].to_preferred().magnitude,
-                        rtol=1e-3)
+        assert_allclose(cscat.loc["avg"],
+                        cscat_mie[0].to_preferred().magnitude, rtol=1e-3)
         # Agreement is to within 1e-3 relative error for absorbing media, and
         # 1e-5 for non-absorbing.  The discrepancy in absorbing media doesn't
         # seem to improve with more integration points, but gets worse with
@@ -475,7 +477,8 @@ class TestModel():
 
         # only the total cross section should be the same.  The x- and y-
         # components should not be equal to the par and perp components.
-        assert_allclose(cscat_cart[0].to_numpy(), cscat[0].to_numpy())
+        assert_allclose(cscat_cart.loc["avg"].to_numpy(),
+                        cscat.loc["avg"].to_numpy())
 
     @pytest.mark.parametrize("index_matrix", [sc.index.water,
                                               sc.Index.constant(1.59 + 0.001j),
@@ -523,10 +526,12 @@ class TestModel():
         cscat_poly = model.scattering_cross_section(dscat)
         phase_func_poly = model.phase_function(dscat)
 
-        xr.testing.assert_allclose(cscat_poly, cscat_mono, rtol=1e-5)
-        # monodisperse phase function will have an extra "volfrac" scalar
+        # monodisperse quantities will have an extra "volfrac" scalar
         # dimension because the PY structure factor is a function of volume
         # fraction. The polydiserse structure factor is not
+        xr.testing.assert_allclose(cscat_poly,
+                                   cscat_mono.drop_vars(sc.Coord.VOLFRAC),
+                                   rtol=1e-5)
         xr.testing.assert_allclose(phase_func_poly,
                                    phase_func_mono.drop_vars(sc.Coord.VOLFRAC),
                                    rtol=1e-5)

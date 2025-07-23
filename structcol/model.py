@@ -121,9 +121,12 @@ class FormStructureModel(Model):
 
         Returns
         -------
-        float (2-tuple):
-            parallel and perpendicular components of the differential
-            scattering cross section.
+        `xr.DataArray` :
+            Components of the differential scattering cross section as a
+            function of wavelength, angle, and other parameters. The components
+            are the parallel, perpendicular, and average values for the
+            scattering-plane basis and the x-, y-, and average for the
+            cartesian basis.
 
         """
         # This is the heart of the single-scattering and Monte Carlo models! We
@@ -149,7 +152,13 @@ class FormStructureModel(Model):
         ql = sc.ql(n_ext, self.lengthscale, angles)
         sf = self.structure_factor(ql)
 
+        # differential cross-section is the product of form & structure factors
         diff_cscat = ff * sf
+
+        # calculate average and add to the dataarray
+        diff_cscat_avg = diff_cscat.sum(sc.Coord.POL)/2
+        diff_cscat_avg.coords[sc.Coord.POL] = "avg"
+        diff_cscat = xr.concat([diff_cscat, diff_cscat_avg], dim=sc.Coord.POL)
 
         # ensure dimension order is correct, for routines that convert to numpy
         diff_cscat = diff_cscat.transpose(sc.Coord.POL, sc.Coord.WAVELEN,
@@ -177,12 +186,12 @@ class FormStructureModel(Model):
         Returns
         -------
         `xr.DataArray` :
-            total, parallel, and perpendicular scattering cross-sections (or
-            total cross-section and cross-sections for x- and y- polarizations
-            in cartesian coordinates)
+            parallel, and perpendicular, and total scattering cross-sections
+            (or co-polarized, cross-polarized, and total cross-sections in
+            cartesian coordinates)
 
         """
-        coords = diff_cscat.coords
+        coords = diff_cscat.coords.copy()
         length_unit = diff_cscat.attrs[sc.Attr.LENGTH_UNIT]
         wavelen = sc.Quantity(coords[sc.Coord.WAVELEN].to_numpy(), length_unit)
         thetas = sc.Quantity(coords[sc.Coord.THETA].to_numpy(), 'rad')
@@ -240,14 +249,20 @@ class FormStructureModel(Model):
                                               thetas)
             cscat_total = (cscat1 + cscat2)/2.0
 
-        # create data array with appropriate coords and units (as attribute)
-        if cartesian:
-            coords = {sc.Coord.POL: ["none", "x", "y"]}
-        else:
-            coords = {sc.Coord.POL: ["none", "par", "perp"]}
-
-        cscat = xr.DataArray([cscat_total.magnitude, cscat1.magnitude,
-                              cscat2.magnitude], coords=coords)
+        # Create data array with appropriate coords and units (as attribute).
+        if sc.Coord.THETA in coords:
+            del coords[sc.Coord.THETA]
+        if sc.Coord.PHI in coords:
+            del coords[sc.Coord.PHI]
+        if "ql" in coords:
+            # "ql" coord shows up when using Interpolated structure factor
+            del coords["ql"]
+        cscat_arr = np.array([cscat1.magnitude, cscat2.magnitude,
+                              cscat_total.magnitude])
+        # add wavelength axis if not present
+        if cscat_arr.shape == (3,):
+            cscat_arr = cscat_arr[:, np.newaxis]
+        cscat = xr.DataArray(cscat_arr, coords=coords)
         cscat.attrs[sc.Attr.LENGTH_UNIT] = wavelen.units
 
         return cscat
@@ -275,8 +290,8 @@ class FormStructureModel(Model):
         (averaged over both components) divided by the total cross section.
 
         """
-        cscat_total = self.scattering_cross_section(diff_cscat)[0]
-        return diff_cscat.sum(sc.Coord.POL) / cscat_total
+        cscat_total = self.scattering_cross_section(diff_cscat).loc["avg"]
+        return diff_cscat.loc["avg"] / cscat_total
 
 
 class HardSpheres(FormStructureModel):
@@ -384,6 +399,7 @@ class PolydisperseHardSpheres(FormStructureModel):
         polydisperse binary mixtures only.
 
         """
+        coords = diff_cscat.coords.copy()
         wavelen = diff_cscat.coords[sc.Coord.WAVELEN].to_numpy()
         wavelen = sc.Quantity(wavelen, diff_cscat.attrs[sc.Attr.LENGTH_UNIT])
         thetas = sc.Quantity(diff_cscat.coords[sc.Coord.THETA].to_numpy(),
@@ -414,12 +430,25 @@ class PolydisperseHardSpheres(FormStructureModel):
                                                             distance[1],
                                                             thetas, k)
 
-            cscat1 = [cscat.magnitude for cscat in cscat1]
-            cscat2 = [cscat.magnitude for cscat in cscat2]
-            cscat = xr.DataArray([cscat1[0:3], cscat2[0:3]],
-                                 coords={sc.Coord.COMPONENT: range(len(conc)),
-                                         sc.Coord.POL: ['none', 'par',
-                                                        'perp']})
+            cscat1 = np.array([cscat.magnitude for cscat in cscat1[0:3]])
+            cscat2 = np.array([cscat.magnitude for cscat in cscat2[0:3]])
+            # rearrange to (par, perp, average) order
+            order = np.array([1,2,0])
+            cscat_arr = np.array([cscat1[order], cscat2[order]])
+
+            # set coordinates
+            if sc.Coord.THETA in coords:
+                del coords[sc.Coord.THETA]
+            if sc.Coord.PHI in coords:
+                del coords[sc.Coord.PHI]
+            # put component axis at beginning of coord dict
+            coords = {sc.Coord.COMPONENT: range(len(conc)), **coords}
+            # add wavelength axis if not present
+            if cscat_arr.shape == (2, 3):
+                cscat_arr = cscat_arr[..., np.newaxis]
+            cscat = xr.DataArray(cscat_arr, coords=coords)
+
+            # now average over components
             cscat_total = (cscat * conc).sum(sc.Coord.COMPONENT)
             cscat_total.attrs[sc.Attr.LENGTH_UNIT] = wavelen.units
         else:
