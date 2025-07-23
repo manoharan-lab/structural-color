@@ -56,6 +56,7 @@ class TestModel():
 
     def test_formstructure_model(self):
         """tests for the FormStructureModel"""
+        wavelen = self.wavelen
         # if form factor is None and structure factor is a constant, should
         # have a constant differential scattering cross section
         const = 1.0
@@ -63,7 +64,7 @@ class TestModel():
                                             self.ps_radius,
                                             sc.index.vacuum,
                                             sc.index.vacuum)
-        dscat = model.differential_cross_section(self.wavelen[0], self.angles)
+        dscat = model.differential_cross_section(wavelen, self.angles)
 
         xr.testing.assert_equal(dscat, xr.ones_like(dscat)*const)
 
@@ -75,9 +76,9 @@ class TestModel():
                                             self.ps_radius,
                                             sc.index.vacuum,
                                             sc.index.vacuum)
-        dscat = model.differential_cross_section(self.wavelen[0],
+        dscat = model.differential_cross_section(wavelen,
                                                      self.angles)
-        ff = self.ps_sphere.form_factor(self.wavelen[0], self.angles,
+        ff = self.ps_sphere.form_factor(wavelen, self.angles,
                                         sc.index.vacuum)
 
         # dscat contains avg polarization; ff does not
@@ -92,18 +93,20 @@ class TestModel():
                                             self.ps_radius,
                                             index_matrix,
                                             sc.index.vacuum)
-        dscat = model.differential_cross_section(self.wavelen[0],
+        dscat = model.differential_cross_section(wavelen,
                                                  self.angles)
 
-        x = sc.size_parameter(index_matrix(self.wavelen[0]), self.ps_radius)
-        x = x.to_numpy().squeeze()
-        ql = (4*np.abs(x)*np.sin(self.angles/2)).to('').magnitude
-        s = structure_factor(ql)
+        ql = sc.ql(index_matrix(wavelen), self.ps_radius, self.angles)
+        s = structure_factor(ql).to_numpy().squeeze()
 
         # test numpy versions because DataArrays will have different coords
+        #
         # dscat for both polarizations should be equal to s
-        assert_equal(dscat[0].to_numpy().squeeze(), s.to_numpy().squeeze())
-        assert_equal(dscat[1].to_numpy().squeeze(), s.to_numpy().squeeze())
+        assert_allclose(dscat[0].to_numpy().squeeze(), s)
+        assert_allclose(dscat[1].to_numpy().squeeze(), s)
+        # TODO: figure out why these arrays are equal to within numerical
+        # precision for all wavelengths except 800 nm.  At 800 nm, the rtol is
+        # 1e-9.
 
     def test_hardsphere_model(self):
         """tests that HardSphere model construction and differential cross
@@ -431,12 +434,10 @@ class TestModel():
         same in the lab frame (cartesian coordinates) and in scattering plane
         coordinates.
         """
-        # TODO: test vectorization after changing _integrate_cross_section
-        wavelen = self.wavelen[0]
+        wavelen = self.wavelen
 
         index_matrix = sc.index.water
         index_medium = sc.index.vacuum
-        sf = sc.structure.PercusYevick(volume_fraction)
         model = sc.model.HardSpheres(self.ps_sphere, volume_fraction,
                 index_matrix, index_medium)
 

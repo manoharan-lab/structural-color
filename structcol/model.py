@@ -144,7 +144,8 @@ class FormStructureModel(Model):
             # set constant (unity) form factor
             ff = xr.DataArray([1, 1], coords={sc.Coord.POL: ["par", "perp"]})
             # broadcast over wavelen and angles
-            ff = ff.expand_dims(dim={sc.Coord.WAVELEN: [wavelen.magnitude],
+            ff = ff.expand_dims(dim={sc.Coord.WAVELEN:
+                                        np.atleast_1d(wavelen.magnitude),
                                      sc.Coord.THETA: angles.magnitude})
 
         # calculate structure factor
