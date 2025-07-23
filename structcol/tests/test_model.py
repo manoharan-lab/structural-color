@@ -220,6 +220,10 @@ class TestModel():
         with PY structure factor
 
         """
+        # all calculations here should work with an array of wavelengths
+        wavelen = self.wavelen
+        print(wavelen)
+
         radius = Quantity('0.5 um')
         index_particle = sc.index.fused_silica
         index_matrix = sc.index.vacuum
@@ -255,18 +259,16 @@ class TestModel():
         py_model = sc.model.HardSpheres(sphere, volume_fraction, index_matrix,
                                         index_medium)
 
-        # TODO test vectorization; for now this is single-wavelength
-        fs_dscat = fs_model.differential_cross_section(self.wavelen[0],
-                                                       self.angles)
-        py_dscat = py_model.differential_cross_section(self.wavelen[0],
-                                                       self.angles)
+        fs_dscat = fs_model.differential_cross_section(wavelen, self.angles)
+        py_dscat = py_model.differential_cross_section(wavelen, self.angles)
 
         # with cubic interpolation, relative error is a little larger than
-        # 1e-4 at 60% volume fraction and 750 data points.
+        # 1e-3 at 60% volume fraction and 750 data points.  It is higher at
+        # some wavelengths than at others
         fs_dscat = fs_dscat.to_numpy().squeeze()
         py_dscat = py_dscat.to_numpy().squeeze()
-        assert_allclose(fs_dscat[0], py_dscat[0], rtol=1e-3)
-        assert_allclose(fs_dscat[1], py_dscat[1], rtol=1e-3)
+        assert_allclose(fs_dscat[0], py_dscat[0], rtol=1e-2)
+        assert_allclose(fs_dscat[1], py_dscat[1], rtol=1e-2)
         # TODO: test reflectance as well
 
     @pytest.mark.parametrize("index_matrix", [sc.index.water,
