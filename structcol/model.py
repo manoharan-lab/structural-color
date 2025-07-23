@@ -240,30 +240,29 @@ class FormStructureModel(Model):
                                                            distance,
                                                            thetas, k)
             cscat_total, cscat1, cscat2 = cscat[0:3]
-        # if there is no absorption in the system, Integrate with function in
-        # model
+        # if there is no absorption in the system, use trapezoid rule
         else:
-            cscat1 = _integrate_cross_section(diff_cscat1, 1.0/ksquared,
-                                              thetas)
-            cscat2 = _integrate_cross_section(diff_cscat2, 1.0/ksquared,
-                                              thetas)
-            cscat_total = (cscat1 + cscat2)/2.0
+            ksquared = xr.DataArray(np.atleast_1d(ksquared.magnitude),
+                                    coords={sc.Coord.WAVELEN: wavelen})
+            integrand = diff_cscat * np.sin(thetas.magnitude) * (1.0/ksquared)
+            cscat = integrand.integrate(sc.Coord.THETA) * 2*np.pi
 
-        # Create data array with appropriate coords and units (as attribute).
-        if sc.Coord.THETA in coords:
-            del coords[sc.Coord.THETA]
-        if sc.Coord.PHI in coords:
-            del coords[sc.Coord.PHI]
-        if "ql" in coords:
-            # "ql" coord shows up when using Interpolated structure factor
-            del coords["ql"]
-        cscat_arr = np.array([cscat1.magnitude, cscat2.magnitude,
-                              cscat_total.magnitude])
-        # add wavelength axis if not present
-        if cscat_arr.shape == (3,):
-            cscat_arr = cscat_arr[:, np.newaxis]
-        cscat = xr.DataArray(cscat_arr, coords=coords)
-        cscat.attrs[sc.Attr.LENGTH_UNIT] = wavelen.units
+        if not isinstance(cscat, xr.DataArray):
+            # Create data array with appropriate coords and units (as attribute).
+            if sc.Coord.THETA in coords:
+                del coords[sc.Coord.THETA]
+            if sc.Coord.PHI in coords:
+                del coords[sc.Coord.PHI]
+            if "ql" in coords:
+                # "ql" coord shows up when using Interpolated structure factor
+                del coords["ql"]
+            cscat_arr = np.array([cscat1.magnitude, cscat2.magnitude,
+                                  cscat_total.magnitude])
+            # add wavelength axis if not present
+            if cscat_arr.shape == (3,):
+                cscat_arr = cscat_arr[:, np.newaxis]
+            cscat = xr.DataArray(cscat_arr, coords=coords)
+            cscat.attrs[sc.Attr.LENGTH_UNIT] = wavelen.units
 
         return cscat
 
