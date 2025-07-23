@@ -57,7 +57,7 @@ class Model:
     def __init__(self, index_medium):
         self.index_medium = index_medium
 
-    def differential_cross_section(self, wavelen, angles, distance=None):
+    def differential_cross_section(self, wavelen, angles, **kwargs):
         """Calculates differential scattering cross-section as a function of
         wavelength and angle. This method, which depends on the structure, must
         be implemented in derived classes that specify a structure.
@@ -724,6 +724,8 @@ def reflection(index_particle, index_matrix, index_medium, wavelen, radius,
     wavelen = wavelen.to_preferred()
     radius = radius.to_preferred()
 
+    num_wavelen = np.atleast_1d(wavelen).shape[0]
+
     particle = sc.Sphere(index_particle, radius)
     n_particle = particle.n(wavelen)
     n_medium = index_medium(wavelen)
@@ -844,13 +846,13 @@ def reflection(index_particle, index_matrix, index_medium, wavelen, radius,
                         maxwell_garnett=maxwell_garnett,
                         structure_s_data=structure_s_data,
                         structure_qd_data=structure_qd_data)
-    diff_cs_detected = model.differential_cross_section(wavelen, angles,
+    diff_cs_det_da = model.differential_cross_section(wavelen, angles,
                                                         kd=kd)
-    diff_cs_total = model.differential_cross_section(wavelen, angles_tot,
+    diff_cs_tot_da = model.differential_cross_section(wavelen, angles_tot,
                                                      kd=kd)
 
-    diff_cs_detected = diff_cs_detected.to_numpy().squeeze()
-    diff_cs_total = diff_cs_total.to_numpy().squeeze()
+    diff_cs_detected = diff_cs_det_da.to_numpy().squeeze()
+    diff_cs_total = diff_cs_tot_da.to_numpy().squeeze()
 
     # calculate the absorption cross section
     if isinstance(model, PolydisperseHardSpheres):
@@ -971,12 +973,16 @@ def reflection(index_particle, index_matrix, index_medium, wavelen, radius,
 
     # if there is no absorption in the system
     else:
+        factor = (transmission[0]/np.abs(k)**2)
+        factor = factor.reshape((num_wavelen, num_angles))
         cscat_detected_par = _integrate_cross_section(diff_cs_detected[0],
-                                                transmission[0]/np.abs(k)**2,
-                                                angles, azi_angle_range)
+                                                      factor, angles,
+                                                      azi_angle_range)
+        factor = transmission[1]/np.abs(k)**2
+        factor = factor.reshape((num_wavelen, num_angles))
         cscat_detected_perp = _integrate_cross_section(diff_cs_detected[1],
-                                                transmission[1]/np.abs(k)**2,
-                                                angles, azi_angle_range)
+                                                       factor, angles,
+                                                       azi_angle_range)
         cscat_detected = (cscat_detected_par + cscat_detected_perp)/2.0
 
         cscat_total_par = _integrate_cross_section(diff_cs_total[0],
@@ -989,26 +995,26 @@ def reflection(index_particle, index_matrix, index_medium, wavelen, radius,
                                                     azi_angle_range_tot)
         cscat_total = (cscat_total_par + cscat_total_perp)/2.0
 
-        asymmetry_par = _integrate_cross_section(diff_cs_total[0],
-                                        np.cos(angles_tot)*1.0/np.abs(k)**2,
-                                        angles_tot,
-                                        azi_angle_range_tot)
-        asymmetry_perp = _integrate_cross_section(diff_cs_total[1],
-                                        np.cos(angles_tot)*1.0/np.abs(k)**2,
-                                        angles_tot,
-                                        azi_angle_range_tot)
+        factor = np.cos(angles_tot)*1.0/np.abs(k)**2
+        factor = factor.reshape((num_wavelen, len(angles_tot)))
+        asymmetry_par = _integrate_cross_section(diff_cs_total[0], factor,
+                                                 angles_tot,
+                                                 azi_angle_range_tot)
+        asymmetry_perp = _integrate_cross_section(diff_cs_total[1], factor,
+                                                  angles_tot,
+                                                  azi_angle_range_tot)
         asymmetry_parameter = (asymmetry_par + asymmetry_perp)/cscat_total/2.0
 
         # calculate transport cscat
         # not currently returned, but could be useful in the future
-        transport_cscat_par = _integrate_cross_section(
-                                    diff_cs_total[0],
-                                    (1-np.cos(angles_tot))*1.0/np.abs(k)**2,
-                                    angles_tot, azi_angle_range_tot)
-        transport_cscat_perp = _integrate_cross_section(
-                                    diff_cs_total[1],
-                                    (1-np.cos(angles_tot))*1.0/np.abs(k)**2,
-                                    angles_tot, azi_angle_range_tot)
+        factor = (1-np.cos(angles_tot))*1.0/np.abs(k)**2
+        factor = factor.reshape((num_wavelen, len(angles_tot)))
+        transport_cscat_par = _integrate_cross_section(diff_cs_total[0],
+                                                       factor, angles_tot,
+                                                       azi_angle_range_tot)
+        transport_cscat_perp = _integrate_cross_section(diff_cs_total[1],
+                                                        factor, angles_tot,
+                                                        azi_angle_range_tot)
         transport_cscat = (transport_cscat_par + transport_cscat_perp)/2
 
         # Calculate the transport length for unpolarized light (see eq. 5 of
@@ -1245,16 +1251,20 @@ def _integrate_cross_section(cross_section, factor, angles,
     Integrate differential cross-section (multiplied by factor) over angles
     using trapezoid rule
     """
-    # TODO: vectorize over wavelength
-    # integrand
-    integrand = cross_section * factor * np.sin(angles)
+    # add a dimension corresponding to wavelength if not present
+    if np.ndim(factor) == 1:
+        factor = np.atleast_1d(factor)[:, np.newaxis]
+    if np.ndim(cross_section) == 1:
+        cross_section = cross_section[np.newaxis, :]
 
-    integral = np.trapezoid(integrand, x=angles.magnitude)
+    integrand = cross_section * factor * np.sin(angles[np.newaxis, :])
+
+    integral = np.trapezoid(integrand, x=angles.magnitude, axis=-1)
 
     # multiply by azimuthal angular range to account for integral over phi
     sigma = azi_angle_range * integral
 
-    return sigma
+    return sigma.squeeze()
 
 
 @sc.ureg.check(None, None, '[]')

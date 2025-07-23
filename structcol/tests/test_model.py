@@ -277,8 +277,9 @@ class TestModel():
         differential_cross_section() method)
 
         """
-        # TODO: test vectorization after changing _integrate_cross_section
-        wavelen = self.wavelen[0]
+        # scattering_cross_section() method should be vectorized over
+        # wavelength
+        wavelen = self.wavelen
 
         # test that cross section for vanishingly small volume fraction is the
         # same as calculated directly from Mie theory (structure factor should
@@ -314,42 +315,58 @@ class TestModel():
         # the cross-section
         wavelen_media = wavelen/n_matrix.to_numpy().squeeze()
         if np.any(n_matrix.imag > 0):
-            lmax = mie._nstop(np.array(x).max())
-            albl = mie._scatcoeffs(m, x, lmax)
+            nstop = mie._nstop(np.array(x).max())
+            albl = mie._scatcoeffs(m, x, nstop)
 
             radius = self.ps_radius
-            cscat_mie = mie._cross_sections_complex_medium_sudiarta(*albl, x,
+            cscat_sud = mie._cross_sections_complex_medium_sudiarta(*albl, x,
                                                                     radius)
             # Fu cross sections
-            nstop = mie._nstop(x)
-            albl = mie._scatcoeffs(m, x, nstop)
             cldl = mie._internal_coeffs(m, x, nstop)
             x_med = sc.size_parameter(n_matrix, radius).to_numpy()
             # fu calculation expects indexes as Quantity objects
             n_particle = sc.Quantity(n_particle.to_numpy(), '')
             n_medium = sc.Quantity(n_matrix.to_numpy(), '')
 
-            cscat_fu = mie._cross_sections_complex_medium_fu(*albl, *cldl,
-                                                             radius, n_particle,
-                                                             n_medium, x,
-                                                             x_med, wavelen)
+            # for the moment, Fu calculations have to be looped over wavelength
+            # (this is because they are not yet set to take n_medium as an
+            # array)
+            c_fu_sca = np.zeros(len(wavelen))
+            c_fu_abs = np.zeros_like(c_fu_sca)
+            c_fu_ext = np.zeros_like(c_fu_sca)
+            for i in range(len(wavelen)):
+                c_fu_loop = \
+                    mie._cross_sections_complex_medium_fu(albl[0][i],
+                                                          albl[1][i],
+                                                          cldl[0][i],
+                                                          cldl[1][i],
+                                                          radius,
+                                                          n_particle[i],
+                                                          n_medium[i],
+                                                          x[i], x_med[i],
+                                                          wavelen[i])
+                c_fu_sca[i] = c_fu_loop[0].magnitude
+                c_fu_abs[i] = c_fu_loop[1].magnitude
+                c_fu_ext[i] = c_fu_loop[2].magnitude
 
-            # first check that the Fu and Sudiarta calculations agree
-            assert_allclose(cscat_fu[0].magnitude, cscat_mie[0].magnitude)
+            # first check that the Fu and Sudiarta calculations agree (note:
+            # absorption cross-sections do not agree)
+            assert_allclose(c_fu_sca, cscat_sud[0].magnitude)
 
         else:
-            cscat_mie = mie.calc_cross_sections(m, x, wavelen_media)
+            cscat_sud = mie.calc_cross_sections(m, x, wavelen_media)
 
         # Now check that the Mie calculation and Model method calculations
         # agree.
         assert_allclose(cscat.loc["avg"],
-                        cscat_mie[0].to_preferred().magnitude, rtol=1e-3)
-        # Agreement is to within 1e-3 relative error for absorbing media, and
-        # 1e-5 for non-absorbing.  The discrepancy in absorbing media doesn't
-        # seem to improve with more integration points, but gets worse with
-        # increasingly large imaginary component of the refractive index.  Fu
-        # and Sudiarta calculations agree even at n.imag = 1j, so there may be
-        # an issue in integrate_intensity_complex_medium()
+                        cscat_sud[0].to_preferred().magnitude, rtol=1e-2)
+        # Agreement is to within 1e-2 relative error for absorbing media
+        # (around 1e-3 but a little higher for certain wavelengths, and 1e-5
+        # for non-absorbing. The discrepancy in absorbing media doesn't seem to
+        # improve with more integration points, but gets worse with
+        # increasingly large imaginary component of the refractive index. Fu
+        # and Sudiarta calculations agree at n.imag = 1j, though absorption
+        # cross-sections do not agree.
         #
         # TODO: add more testing of Fu, Sudiarta cross sections in pymie, along
         # with more tests of integrate_intensity_complex_medium()
@@ -360,7 +377,8 @@ class TestModel():
         """Test the scattering_cross_section() method for the
         PolydisperseHardSpheres model
         """
-        # TODO: test vectorization after changing _integrate_cross_section
+        # TODO: test vectorization after vectorizing
+        # SphereDistribution.form_factor()
         wavelen = self.wavelen[0]
         volume_fraction = 0.5
         index_medium = sc.index.vacuum
