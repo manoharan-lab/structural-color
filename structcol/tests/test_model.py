@@ -302,8 +302,7 @@ class TestModel():
         # appropriately if there is absorption in the matrix
         ff_kwargs = {}
         if np.any(n_matrix.imag > 0):
-            ff_kwargs["kd"] = sc.wavevector(n_matrix) * model.lengthscale
-            ff_kwargs["kd"] = ff_kwargs["kd"].to('').magnitude
+            ff_kwargs["kd"] = sc.wavevector(n_matrix, model.lengthscale)
         dscat = model.differential_cross_section(wavelen, angles, **ff_kwargs)
         cscat = model.scattering_cross_section(dscat)
 
@@ -405,8 +404,7 @@ class TestModel():
         n_matrix = single_model.index_matrix(wavelen)
         ff_kwargs = {}
         if np.any(n_matrix.imag > 0):
-            ff_kwargs["kd"] = sc.wavevector(n_matrix) * self.ps_radius
-            ff_kwargs["kd"] = ff_kwargs["kd"].to('').magnitude
+            ff_kwargs["kd"] = sc.wavevector(n_matrix, self.ps_radius)
         dscat_1 = single_model.differential_cross_section(wavelen, angles,
                                                           **ff_kwargs)
         cscat_1 = single_model.scattering_cross_section(dscat_1)
@@ -415,9 +413,8 @@ class TestModel():
         n_matrix = binary_model.index_matrix(wavelen)
         ff_kwargs = {}
         if np.any(n_matrix.imag > 0):
-            ff_kwargs["kd"] = (sc.wavevector(n_matrix) *
-                               binary_model.sphere_dist.diameters_q/2)
-            ff_kwargs["kd"] = ff_kwargs["kd"].to('').magnitude
+            lengthscale = binary_model.sphere_dist.diameters_q/2
+            ff_kwargs["kd"] = sc.wavevector(n_matrix, lengthscale)
 
         dscat_2 = binary_model.differential_cross_section(wavelen, angles,
                                                                **ff_kwargs)
@@ -457,7 +454,7 @@ class TestModel():
         # mie.integrate_intensity_complex_medium(), which can handle an
         # incident vector.  If we don't specify it, the calculation would go
         # through mie.calc_ang_dist().
-        kd = (sc.wavevector(n_external) * model.lengthscale).to('').magnitude
+        kd = sc.wavevector(n_external, model.lengthscale)
         ff_kwargs = {"kd": kd}
         # For scattering plane coordinates, parallel and perpendicular
         # polarizations rotate with phi, so that the scattering is azimuthally
@@ -519,12 +516,12 @@ class TestModel():
                                                          volume_fraction,
                                                          index_matrix)
         n_ext = index_external(wavelen)
-        k = sc.wavevector(n_ext)
+        kd = sc.wavevector(n_ext, model.lengthscale)
 
         # monodisperse calculation
         ff_kwargs = {}
         if np.any(n_ext.imag > 0):
-            ff_kwargs['kd'] = (k * model.lengthscale).to('').magnitude
+            ff_kwargs['kd'] = kd
         dscat = model.differential_cross_section(wavelen, angles, **ff_kwargs)
         cscat_mono = model.scattering_cross_section(dscat)
         phase_func_mono = model.phase_function(dscat)
@@ -537,7 +534,7 @@ class TestModel():
                                                  index_matrix, index_medium)
 
         if np.any(n_ext.imag > 0):
-            ff_kwargs['kd'] = (k * model.lengthscale).to('').magnitude
+            ff_kwargs['kd'] = kd
         else:
             ff_kwargs = {}
         dscat = model.differential_cross_section(wavelen, angles, **ff_kwargs)

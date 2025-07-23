@@ -246,7 +246,7 @@ def size_parameter(n_medium, radius):
     return sp
 
 
-def wavevector(n_medium):
+def wavevector(n_medium, d=None):
     """
     Calculates the wavevector in medium for Mie calculations.
 
@@ -258,10 +258,15 @@ def wavevector(n_medium):
     n_medium : `xr.DataArray`
         refractive index of medium at various wavelengths, as calculated by an
         `sc.Index` object.  Wavelengths are given in the coordinates.
+    d : `sc.Quantity`
+        length scale to nondimensionalize the wavevector.  If provided, the
+        wavevector will be multiplied by this scale.
 
     Returns
     -------
-    ndarray : sc.Quantity [float or complex] with shape [num_wavelengths]
+    `xr.DataArray` :
+        DataArray [float or complex] of wavevectors with shape
+        [num_wavelengths]
     """
 
     if not isinstance(n_medium, xr.DataArray):
@@ -272,12 +277,11 @@ def wavevector(n_medium):
     wavelen = n_medium.coords[Coord.WAVELEN]
     units = n_medium.attrs[Attr.LENGTH_UNIT]
 
-    k = Quantity((2 * np.pi * n_medium/wavelen).to_numpy(), 1/units)
+    k = 2 * np.pi * n_medium/wavelen
+    if d is not None:
+        k = k * d.to(units).magnitude
 
-    if k.size == 1:
-        return k.item()
-    else:
-        return k
+    return k
 
 
 @ureg.check(None, "[length]", "[]")

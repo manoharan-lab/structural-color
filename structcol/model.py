@@ -201,6 +201,7 @@ class FormStructureModel(Model):
 
         k = sc.wavevector(self.index_external(wavelen))
         ksquared = np.abs(k)**2
+        k = sc.Quantity(k.to_numpy(), 1/k.attrs[sc.Attr.LENGTH_UNIT])
         distance = self.lengthscale
         if np.ndim(distance) == 0:
             distance = distance.item()
@@ -233,7 +234,7 @@ class FormStructureModel(Model):
         # absorption.  Also use the mie.py function if incident_vector was
         # specified in scattering plane system -- otherwise this would be
         # ignored.
-        elif (np.any(np.abs(k.imag.magnitude) > 0)
+        elif (np.any(np.abs(k.imag) > 0)
               or "incident_vector" in diff_cscat.attrs):
             cscat = mie.integrate_intensity_complex_medium(diff_cscat1,
                                                            diff_cscat2,
@@ -242,8 +243,6 @@ class FormStructureModel(Model):
             cscat_total, cscat1, cscat2 = cscat[0:3]
         # if there is no absorption in the system, use trapezoid rule
         else:
-            ksquared = xr.DataArray(np.atleast_1d(ksquared.magnitude),
-                                    coords={sc.Coord.WAVELEN: wavelen})
             integrand = diff_cscat * np.sin(thetas.magnitude) * (1.0/ksquared)
             cscat = integrand.integrate(sc.Coord.THETA) * 2*np.pi
 
@@ -405,6 +404,7 @@ class PolydisperseHardSpheres(FormStructureModel):
                              'rad')
 
         k = sc.wavevector(self.index_external(wavelen))
+        k = sc.Quantity(k.to_numpy(), 1/k.attrs[sc.Attr.LENGTH_UNIT])
         distance = self.sphere_dist.diameters_q/2
         conc = self.sphere_dist.concentrations
         conc = xr.DataArray(conc,
@@ -722,6 +722,8 @@ def reflection(index_particle, index_matrix, index_medium, wavelen, radius,
     # make sure we're working in the same units
     wavelen = wavelen.to_preferred()
     radius = radius.to_preferred()
+    if radius2 is not None:
+        radius2 = radius2.to_preferred()
 
     num_wavelen = np.atleast_1d(wavelen).shape[0]
 
@@ -729,12 +731,6 @@ def reflection(index_particle, index_matrix, index_medium, wavelen, radius,
     n_particle = particle.n(wavelen)
     n_medium = index_medium(wavelen)
 
-    # radius and radius2 should be in the same units (for polydisperse samples)
-    if radius2 is not None:
-        radius2 = radius2.to(radius.units)
-
-    # construct Sphere or SphereDistribution objects
-    # TODO: remove after further refactoring.
     if isinstance(concentration, sc.Quantity):
         concentration = concentration.magnitude
     if radius2 is None:
@@ -766,6 +762,7 @@ def reflection(index_particle, index_matrix, index_medium, wavelen, radius,
         x = sc.size_parameter(n_sample, radius)
 
     k = sc.wavevector(n_sample)
+    k = sc.Quantity(k.to_numpy().squeeze(), 1/k.attrs[sc.Attr.LENGTH_UNIT])
     # calculate transmission and reflection coefficients at first interface
     # between medium and sample
     # (TODO: include correction for reflection off the back interface of the
