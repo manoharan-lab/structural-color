@@ -425,7 +425,6 @@ class Trajectory:
         # Insert a row of zeros since first event does not change direction
         # Note that this will only work for normal incidence.
         theta2 = np.insert(theta,0,np.zeros(ntraj),axis=0)
-        qd = 4*np.array(np.abs(x)).max()*np.sin(theta2/2)
 
         # calculate the step propagation factor
         step_cumul = np.abs(k)*np.cumsum(step, axis=0)#step #
@@ -998,9 +997,6 @@ def calc_scat(radius, index_particle, index_matrix, index_sample, index_medium,
         volume_fraction = volume_fraction.to('').magnitude
 
     n_sample = index_sample(wavelen)
-
-    # calculate parameters for scattering calculations
-    k = sc.wavevector(n_sample)
 
     # if the system is polydisperse, use the polydisperse form and structure
     # factors

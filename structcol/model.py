@@ -248,7 +248,8 @@ class FormStructureModel(Model):
             cscat = integrand.integrate(sc.Coord.THETA) * 2*np.pi
 
         if not isinstance(cscat, xr.DataArray):
-            # Create data array with appropriate coords and units (as attribute).
+            # Create data array with appropriate coords and units (as
+            # attribute).
             if sc.Coord.THETA in coords:
                 del coords[sc.Coord.THETA]
             if sc.Coord.PHI in coords:
