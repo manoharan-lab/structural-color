@@ -273,6 +273,47 @@ class TestModel():
         assert_allclose(fs_dscat[1], py_dscat[1], rtol=1e-2)
         # TODO: test reflectance as well
 
+    def test_differential_cross_section(self):
+        # Test that the differential cross sections for non-core-shell
+        # particles and core-shells are the same at low volume fractions,
+        # assuming that the particle diameter of the non-core-shells is the
+        # same as the core diameter in the core-shells (shell of the
+        # core-shells is vacuum)
+
+        wavelen = self.wavelen
+        index_matrix = sc.Index.constant(1.0)
+        index_medium = sc.index.vacuum
+        angles = Quantity(np.linspace(np.pi/2, np.pi, 200), 'rad')
+
+        # Differential cross section for non-core-shells
+        radius = Quantity('100.0 nm')
+        index_particle = sc.Index.constant(1.5)
+        sphere = sc.Sphere(index_particle, radius)
+        volume_fraction = 1e-5
+
+        model = sc.model.HardSpheres(sphere, volume_fraction, index_matrix,
+                                     index_medium)
+        diff = model.differential_cross_section(wavelen, angles)
+
+        # Differential cross section for core-shells. Core is equal to
+        # non-core-shell particle, and shell is made of vacuum
+        radius_cs = Quantity(np.array([100.0, 110.0]), 'nm')
+        index_cs = [sc.Index.constant(1.5), sc.Index.constant(1.0)]
+        sphere_cs = sc.Sphere(index_cs, radius_cs)
+        n_particle_cs = sphere_cs.n(wavelen)
+
+        # adjust volume fraction of core-shells so that volume fraction of
+        # cores is same as that of non-core-shells
+        vf_core = sphere_cs.volume_fraction()[0].to_numpy()
+        volume_fraction_cs = volume_fraction/vf_core
+
+        model_cs = sc.model.HardSpheres(sphere_cs, volume_fraction_cs,
+                                        index_matrix, index_medium)
+        diff_cs = model_cs.differential_cross_section(wavelen, angles)
+
+        assert_allclose(diff[0], diff_cs[0], rtol=1e-4)
+        assert_allclose(diff[1], diff_cs[1], rtol=1e-4)
+
     @pytest.mark.parametrize("index_matrix", [sc.index.water,
                                               sc.Index.constant(1.59+0.001j)])
     def test_scattering_cross_section(self, index_matrix):
@@ -693,47 +734,6 @@ def test_theta_refraction():
     assert_almost_equal(refl1.magnitude, r_fresnel_avg)
     assert_almost_equal(refl2.magnitude, r_fresnel_avg)
     assert_almost_equal(refl1.magnitude, refl2.magnitude)
-
-
-def test_differential_cross_section():
-    # Test that the differential cross sections for non-core-shell particles
-    # and core-shells are the same at low volume fractions, assuming that the
-    # particle diameter of the non-core-shells is the same as the core
-    # diameter in the core-shells (shell of the core-shells is vacuum)
-
-    wavelen = Quantity('500.0 nm')
-    index_matrix = sc.Index.constant(1.0)
-    index_medium = sc.index.vacuum
-    angles = Quantity(np.linspace(np.pi/2, np.pi, 200), 'rad')
-
-    # Differential cross section for non-core-shells
-    radius = Quantity('100.0 nm')
-    index_particle = sc.Index.constant(1.5)
-    sphere = sc.Sphere(index_particle, radius)
-    volume_fraction = 1e-5
-
-    model = sc.model.HardSpheres(sphere, volume_fraction, index_matrix,
-                                 index_medium)
-    diff = model.differential_cross_section(wavelen, angles)
-
-    # Differential cross section for core-shells. Core is equal to
-    # non-core-shell particle, and shell is made of vacuum
-    radius_cs = Quantity(np.array([100.0, 110.0]), 'nm')
-    index_cs = [sc.Index.constant(1.5), sc.Index.constant(1.0)]
-    sphere_cs = sc.Sphere(index_cs, radius_cs)
-    n_particle_cs = sphere_cs.n(wavelen)
-
-    # adjust volume fraction of core-shells so that volume fraction of cores is
-    # same as that of non-core-shells
-    vf_core = sphere_cs.volume_fraction()[0].to_numpy()
-    volume_fraction_cs = volume_fraction/vf_core
-
-    model_cs = sc.model.HardSpheres(sphere_cs, volume_fraction_cs,
-                                    index_matrix, index_medium)
-    diff_cs = model_cs.differential_cross_section(wavelen, angles)
-
-    assert_allclose(diff[0], diff_cs[0], rtol=1e-4)
-    assert_allclose(diff[1], diff_cs[1], rtol=1e-4)
 
 
 def test_reflection_core_shell():
