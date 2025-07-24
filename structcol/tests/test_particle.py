@@ -247,13 +247,13 @@ class TestParticle():
         # The pymie/tests/test_mie.py::test_form_factor test checks that the
         # Mie calculation gives the correct results for these parameters. Here
         # we just check to see if we get the same results as pymie
-        wavelen = sc.Quantity('658.0 nm')
-        radius = sc.Quantity('0.85 um')
+        wavelen = sc.Quantity("658.0 nm")
+        radius = sc.Quantity("0.85 um")
         index_matrix = sc.Index.constant(1.00)
         n_matrix = index_matrix(wavelen)
         index_particle = sc.Index.constant(1.59 + 1e-4 * 1.0j)
         sphere = sc.Sphere(index_particle, radius)
-        angles = sc.Quantity(np.linspace(0, 180., 19), 'deg')
+        angles = sc.Quantity(np.linspace(0, 180., 19), "deg")
         ff = sphere.form_factor(wavelen, angles, index_matrix)
 
         m = sc.index.ratio(sphere.n(wavelen), index_matrix(wavelen))
@@ -268,13 +268,13 @@ class TestParticle():
         # checks that the Mie calculation gives the correct results for these
         # parameters. Here we just check to see if we get the same results as
         # pymie
-        wavelen = sc.Quantity('658.0 nm')
+        wavelen = sc.Quantity("658.0 nm")
         x = 10.0
         radius = x/(2*np.pi/wavelen)
         index_matrix = sc.Index.constant(1.00)
         gold_index = sc.Index.constant(0.1425812 + 3.6813284 * 1.0j)
         sphere = sc.Sphere(gold_index, radius)
-        angles = sc.Quantity(np.linspace(0, 90., 10), 'deg')
+        angles = sc.Quantity(np.linspace(0, 90., 10), "deg")
         ff = sphere.form_factor(wavelen, angles, index_matrix)
 
         m = sc.index.ratio(sphere.n(wavelen), index_matrix(wavelen))
@@ -288,21 +288,18 @@ class TestParticle():
         # (diff_scat_intensity_complex_medium) used here, the results may not
         # be equal if units are converted in different ways.  So to test for
         # equality, we first convert radius and distance to preferred units.
-        radius = sc.Quantity('120.0 nm').to_preferred()
+        radius = sc.Quantity("120.0 nm").to_preferred()
         sphere = sc.Sphere(sc.Index.constant(1.5+0.001j), radius)
-        distance = sc.Quantity(10000.0,'nm').to_preferred()
+        distance = radius
         index_matrix = sc.Index.constant(1.0+0.001j)
-        angles = sc.Quantity(np.linspace(0, 90., 10), 'deg')
-
-        # not specifying distance should throw exception
-        with pytest.raises(ValueError):
-            _ = sphere.form_factor(wavelen, angles, index_matrix)
+        angles = sc.Quantity(np.linspace(0, 90., 10), "deg")
 
         m = sc.index.ratio(sphere.n(wavelen), index_matrix(wavelen))
         x = sc.size_parameter(index_matrix(wavelen), radius)
         k = 2 * np.pi * index_matrix(wavelen).to_numpy() / wavelen
+        k = k.to_preferred()
 
-        ff = sphere.form_factor(wavelen, angles, index_matrix, kd=k*distance)
+        ff = sphere.form_factor(wavelen, angles, index_matrix)
 
         # check shape (should include size-1 dimension for wavelength)
         assert ff.shape == (2, 1, len(angles))
@@ -315,10 +312,10 @@ class TestParticle():
 
         # test layered particle
         index = [sc.index.vacuum, sc.index.polystyrene, sc.index.pmma]
-        wavelen = sc.Quantity('658.0 nm').to_preferred()
-        radii = sc.Quantity([0.10, 0.16, 0.25], 'um').to_preferred()
+        wavelen = sc.Quantity("658.0 nm").to_preferred()
+        radii = sc.Quantity([0.10, 0.16, 0.25], "um").to_preferred()
         sphere = sc.Sphere(index, radii)
-        angles = sc.Quantity(np.linspace(0, 180., 19), 'deg')
+        angles = sc.Quantity(np.linspace(0, 180., 19), "deg")
         index_matrix = sc.index.water
 
         ff = sphere.form_factor(wavelen, angles, index_matrix)

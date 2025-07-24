@@ -274,8 +274,8 @@ class Sphere(Particle):
             radius = self.radius_q
         return 3.0 * volume_fraction / (4.0 * np.pi * radius**3)
 
-    def form_factor(self, wavelen, angles, index_external, kd=None,
-                    cartesian=False, incident_vector=None, phis=None):
+    def form_factor(self, wavelen, angles, index_external, cartesian=False,
+                    incident_vector=None, phis=None):
         """Calculate form factor from Mie theory.
 
         Parameters
@@ -288,10 +288,6 @@ class Sphere(Particle):
         index_external : `sc.Index` object
             Index of refraction of the medium around the particle.  Can be an
             effective index.
-        kd : float (optional)
-            distance (nondimensionalized by k) at which to integrate the
-            differential cross section to get the total cross section. Needed
-            only if n_external is complex. Ignored otherwise.
         cartesian : boolean (default False)
             If set to True, calculation will be done in the basis defined by
             basis vectors x and y in the lab frame, with z as the direction of
@@ -357,11 +353,17 @@ class Sphere(Particle):
         else:
             coordinate_system = "scattering plane"
 
+        # calculate form factor at radius of particle for absorbing systems
+        if np.any(n_ext.imag > 0) or cartesian or incident_vector is not None:
+            # kd should be a 1D array with shape num_wavelengths
+            kd = sc.size_parameter(n_ext,
+                                   self.outer_radius_q).to_numpy().squeeze()
+        else:
+            kd = None
         form_factor = _form_factor(m, x, angles, kd=kd,
                                    coordinate_system=coordinate_system,
                                    incident_vector=incident_vector,
                                    phis=phis)
-
         coords = _make_coords(wavelen, angles, cartesian, phis=phis)
 
         # convert tuple to array, adding a dimension with size 1 if the
@@ -475,7 +477,7 @@ class SphereDistribution:
             rho = 3.0 * volume_fraction / (4.0 * np.pi) * (term1 + term2)
         return rho
 
-    def form_factor(self, wavelen, angles, index_external, kd=None,
+    def form_factor(self, wavelen, angles, index_external,
                     cartesian=False, incident_vector=None, phis=None):
         """
         Calculate the form factor for polydisperse systems.
@@ -529,10 +531,6 @@ class SphereDistribution:
         min_diameter[min_diameter < 0] = 0.000001
         max_diameter = self.diameters + three_std_dev
 
-        if ((np.any(np.abs(n_ext.imag) > 0) or cartesian)
-            and (kd is not None)):
-            kd = np.resize(kd, len(self.diameters))
-
         integral_list = []
         # for each mean diameter, calculate the Schulz distribution and
         # the size parameter x
@@ -548,12 +546,15 @@ class SphereDistribution:
                                                np.atleast_1d(t)[d])
             distr = xr.DataArray(distr, coords={"diameter": diameter_range})
 
+            units = self.spheres[0].current_units
+
             # for absorbing systems, calculate the differential cross-section
             # at the mean diameter
-            if kd is not None:
-                kd_new = kd[d]
+            if np.any(np.abs(n_ext.imag) > 0) or cartesian:
+                kd = sc.size_parameter(n_ext,
+                                       self.diameters[d]/2 * units).to_numpy()
             else:
-                kd_new = None
+                kd = None
 
             # we vectorize the calculation of the form factor for all the
             # diameters in the discretized distribution by taking advantage of
@@ -562,7 +563,7 @@ class SphereDistribution:
             # it for multiple diameters.  We've already set the shape of m to
             # [num_components, 1].  Now we need to set the shape of x to
             # [num_components, 1] as well.
-            units = self.spheres[0].current_units
+            #
             # result from sc.size_parameter is [num_wavelengths,
             # num_components] which would be interpreted as a layered sphere by
             # pymie. So we reshape to [num_wavelengths*num_components, 1]
@@ -570,7 +571,7 @@ class SphereDistribution:
             x = x.reshape((num_components * num_wavelengths, 1))
 
             ff_vec = _form_factor(m, x, angles,
-                                  kd=kd_new,
+                                  kd=kd,
                                   coordinate_system=coordinate_system,
                                   incident_vector=incident_vector,
                                   phis=phis)
@@ -648,10 +649,6 @@ def _form_factor(m, x, angles, kd=None, coordinate_system=None,
     """
     if (np.any(x.imag > 0) or (coordinate_system=='cartesian')
         or (incident_vector is not None)):
-        if kd is None:
-            raise ValueError("must specify distance for absorbing systems, "
-                             "cartesian frame, or when specifying incident "
-                             "vector")
         form_factor = mie.diff_scat_intensity_complex_medium(
                         m, x, angles, kd,
                         coordinate_system=coordinate_system,

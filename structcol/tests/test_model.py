@@ -282,8 +282,7 @@ class TestModel():
         differential_cross_section() method)
 
         """
-        # scattering_cross_section() method should be vectorized over
-        # wavelength
+        # scattering_cross_section() method is vectorized over wavelength
         wavelen = self.wavelen
 
         # test that cross section for vanishingly small volume fraction is the
@@ -303,11 +302,8 @@ class TestModel():
         m = sc.index.ratio(n_particle, n_matrix)
         x = sc.size_parameter(n_matrix, self.ps_radius).to_numpy()
 
-        # do the calculation using method from Model object, setting distance
-        # appropriately if there is absorption in the matrix
+        # do the calculation using method from Model object
         ff_kwargs = {}
-        if np.any(n_matrix.imag > 0):
-            ff_kwargs["kd"] = sc.wavevector(n_matrix, model.lengthscale)
         dscat = model.differential_cross_section(wavelen, angles, **ff_kwargs)
         cscat = model.scattering_cross_section(dscat)
 
@@ -408,8 +404,6 @@ class TestModel():
         # do the calculation using single-species polydisperse model
         n_matrix = single_model.index_matrix(wavelen)
         ff_kwargs = {}
-        if np.any(n_matrix.imag > 0):
-            ff_kwargs["kd"] = sc.wavevector(n_matrix, self.ps_radius)
         dscat_1 = single_model.differential_cross_section(wavelen, angles,
                                                           **ff_kwargs)
         cscat_1 = single_model.scattering_cross_section(dscat_1)
@@ -417,9 +411,6 @@ class TestModel():
         # do the calculation using bidisperse polydisperse model
         n_matrix = binary_model.index_matrix(wavelen)
         ff_kwargs = {}
-        if np.any(n_matrix.imag > 0):
-            lengthscale = binary_model.sphere_dist.diameters_q/2
-            ff_kwargs["kd"] = sc.wavevector(n_matrix, lengthscale)
 
         dscat_2 = binary_model.differential_cross_section(wavelen, angles,
                                                                **ff_kwargs)
@@ -457,14 +448,13 @@ class TestModel():
         # mie.integrate_intensity_complex_medium(), which can handle an
         # incident vector.  If we don't specify it, the calculation would go
         # through mie.calc_ang_dist().
-        kd = sc.wavevector(n_external, model.lengthscale)
-        ff_kwargs = {"kd": kd}
+        #
         # For scattering plane coordinates, parallel and perpendicular
         # polarizations rotate with phi, so that the scattering is azimuthally
         # symmetry. To get all the light, we need to look at both the parallel
         # and perpendicular components, which we do by specifying (1,1) for the
         # incident vector:
-        ff_kwargs.update({"incident_vector": (1, 1)})
+        ff_kwargs = {"incident_vector": (1, 1)}
         dscat = model.differential_cross_section(wavelen, thetas, **ff_kwargs)
         cscat = model.scattering_cross_section(dscat)
 
@@ -514,17 +504,8 @@ class TestModel():
         # start at a few degrees to avoid division by zero error
         angles = sc.Quantity(np.linspace(2, 180., 20), 'deg')
 
-        # Make sure that kd uses the effective index.
-        index_external = sc.EffectiveIndex.from_particle(self.ps_sphere,
-                                                         volume_fraction,
-                                                         index_matrix)
-        n_ext = index_external(wavelen)
-        kd = sc.wavevector(n_ext, model.lengthscale)
-
         # monodisperse calculation
         ff_kwargs = {}
-        if np.any(n_ext.imag > 0):
-            ff_kwargs['kd'] = kd
         dscat = model.differential_cross_section(wavelen, angles, **ff_kwargs)
         cscat_mono = model.scattering_cross_section(dscat)
         phase_func_mono = model.phase_function(dscat)
@@ -536,10 +517,6 @@ class TestModel():
         model = sc.model.PolydisperseHardSpheres(dist, volume_fraction,
                                                  index_matrix, index_medium)
 
-        if np.any(n_ext.imag > 0):
-            ff_kwargs['kd'] = kd
-        else:
-            ff_kwargs = {}
         dscat = model.differential_cross_section(wavelen, angles, **ff_kwargs)
         cscat_poly = model.scattering_cross_section(dscat)
         phase_func_poly = model.phase_function(dscat)

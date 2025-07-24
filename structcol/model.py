@@ -114,10 +114,10 @@ class FormStructureModel(Model):
             array of scattering angles. Must be entered as a Quantity to allow
             specifying units (degrees or radians) explicitly
         **ff_kwargs :
-            Keyword arguments to pass to `form_factor()` method. Includes kd
-            (dimensionless distance), cartesian flag, incident_vector, and phis
-            (angles). See `Sphere.form_factor()` and
-            `SphereDistribution.form_factor()` for descriptions.
+            Keyword arguments to pass to `form_factor()` method. Includes
+            cartesian flag, incident_vector, and phis (angles). See
+            `Sphere.form_factor()` and `SphereDistribution.form_factor()` for
+            descriptions.
 
         Returns
         -------
@@ -835,7 +835,6 @@ def reflection(index_particle, index_matrix, index_medium, wavelen, radius,
         distance = mean_diameters / 2
     else:
         distance = mean_diameters.max() / 2
-    kd = (k*distance).to('')
 
     model = _make_model(index_particle, index_matrix, index_medium,
                         radius, volume_fraction, radius2=radius2,
@@ -844,10 +843,8 @@ def reflection(index_particle, index_matrix, index_medium, wavelen, radius,
                         maxwell_garnett=maxwell_garnett,
                         structure_s_data=structure_s_data,
                         structure_qd_data=structure_qd_data)
-    diff_cs_det_da = model.differential_cross_section(wavelen, angles,
-                                                        kd=kd)
-    diff_cs_tot_da = model.differential_cross_section(wavelen, angles_tot,
-                                                     kd=kd)
+    diff_cs_det_da = model.differential_cross_section(wavelen, angles)
+    diff_cs_tot_da = model.differential_cross_section(wavelen, angles_tot)
 
     diff_cs_detected = diff_cs_det_da.to_numpy().squeeze()
     diff_cs_total = diff_cs_tot_da.to_numpy().squeeze()
