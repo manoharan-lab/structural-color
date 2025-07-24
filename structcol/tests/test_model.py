@@ -225,7 +225,6 @@ class TestModel():
         """
         # all calculations here should work with an array of wavelengths
         wavelen = self.wavelen
-        print(wavelen)
 
         radius = Quantity('0.5 um')
         index_particle = sc.index.fused_silica
@@ -377,9 +376,9 @@ class TestModel():
         """Test the scattering_cross_section() method for the
         PolydisperseHardSpheres model
         """
-        # TODO: test vectorization after vectorizing
-        # SphereDistribution.form_factor()
-        wavelen = self.wavelen[0]
+        # both the polydisperse form and structure factors are vectorized over
+        # wavelength
+        wavelen = self.wavelen
         volume_fraction = 0.5
         index_medium = sc.index.vacuum
 

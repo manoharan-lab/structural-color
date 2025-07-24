@@ -549,10 +549,10 @@ class SphereDistribution:
             units = self.spheres[0].current_units
 
             # for absorbing systems, calculate the differential cross-section
-            # at the mean diameter
+            # at the mean diameter.  kd should have shape (num_wavelengths)
             if np.any(np.abs(n_ext.imag) > 0) or cartesian:
-                kd = sc.size_parameter(n_ext,
-                                       self.diameters[d]/2 * units).to_numpy()
+                kd = sc.size_parameter(n_ext, self.diameters[d]/2 * units)
+                kd = kd.to_numpy().squeeze()
             else:
                 kd = None
 
@@ -569,6 +569,9 @@ class SphereDistribution:
             # pymie. So we reshape to [num_wavelengths*num_components, 1]
             x = sc.size_parameter(n_ext, diameter_range/2 * units).to_numpy()
             x = x.reshape((num_components * num_wavelengths, 1))
+            # also need to reshape kd to be [num_components * num_wavelengths]
+            kd = np.tile(kd, num_components)
+
 
             ff_vec = _form_factor(m, x, angles,
                                   kd=kd,
