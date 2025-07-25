@@ -22,7 +22,6 @@ Tests for the single-scattering model (in structcol/model.py)
 """
 
 from .. import Quantity, np, mie
-from pytest import raises
 from numpy.testing import (assert_equal, assert_almost_equal,
                            assert_array_almost_equal, assert_allclose)
 import pytest
@@ -644,47 +643,70 @@ class TestDetector():
 
 def test_fresnel():
     # test the fresnel reflection and transmission coefficients
-    n1 = 1.00
-    n2 = 1.5
+    wavelen = sc.Quantity(400, 'nm')
+    n1 = sc.Index.constant(1.00)(wavelen)
+    n2 = sc.Index.constant(1.5)(wavelen)
 
     # quantities calculated from
     # http://www.calctool.org/CALC/phys/optics/reflec_refrac
-    rpar, rperp = sc.model.fresnel_reflection(n1, n2, Quantity('0.0 deg'))
-    assert_almost_equal(rpar, 0.04)
-    assert_almost_equal(rperp, 0.04)
-    rpar, rperp = sc.model.fresnel_reflection(n1, n2, Quantity('45.0 deg'))
-    assert_almost_equal(rpar, 0.00846646)
-    assert_almost_equal(rperp, 0.0920134)
+    r, t = sc.model.fresnel_coeffs(n1, n2, Quantity('0.0 deg'))
+    assert_almost_equal(r.loc["par"], 0.04)
+    assert_almost_equal(r.loc["perp"], 0.04)
+    r, t = sc.model.fresnel_coeffs(n1, n2, Quantity('45.0 deg'))
+    assert_almost_equal(r.loc["par"], 0.00846646)
+    assert_almost_equal(r.loc["perp"], 0.0920134)
 
     # test total internal reflection
-    rpar, rperp = sc.model.fresnel_reflection(n2, n1, Quantity('45.0 deg'))
-    assert_equal(rpar, 1.0)
-    assert_equal(rperp, 1.0)
+    r, t = sc.model.fresnel_coeffs(n2, n1, Quantity('45.0 deg'))
+    assert_equal(r.loc["par"].item(), 1.0)
+    assert_equal(r.loc["perp"].item(), 1.0)
 
     # test no total internal reflection (just below critical angle)
-    rpar, rperp = sc.model.fresnel_reflection(n2, n1, Quantity('41.810 deg'))
-    assert_almost_equal(rpar, 0.972175, decimal=6)
-    assert_almost_equal(rperp, 0.987536, decimal=6)
+    r, t = sc.model.fresnel_coeffs(n2, n1, Quantity('41.810 deg'))
+    assert_almost_equal(r.loc["par"], 0.972175, decimal=6)
+    assert_almost_equal(r.loc["perp"], 0.987536, decimal=6)
 
-    # test vectorized computation
+    # test vectorized computation over angles
     angles = Quantity(np.linspace(0, 180., 19), 'deg')
-    # check for value error
-    raises(ValueError, sc.model.fresnel_reflection, n2, n1, angles)
+    # check for value error (can't go beyond 90 degree angle of incidence)
+    with pytest.raises(ValueError):
+        sc.model.fresnel_coeffs(n2, n1, angles)
     angles = Quantity(np.linspace(0, 90., 10), 'deg')
-    rpar, rperp = sc.model.fresnel_reflection(n2, n1, angles)
+    r, t = sc.model.fresnel_coeffs(n2, n1, angles)
     rpar_std = np.array([0.04, 0.0362780, 0.0243938, 0.00460754, 0.100064, 1.0,
                          1.0, 1.0, 1.0, 1])
     rperp_std = np.array([0.04, 0.0438879, 0.0590632, 0.105773, 0.390518, 1.0,
                          1.0, 1.0, 1.0, 1.0])
-    assert_array_almost_equal(rpar, rpar_std)
-    assert_array_almost_equal(rperp, rperp_std)
+    assert_array_almost_equal(r.loc["par"].squeeze(), rpar_std)
+    assert_array_almost_equal(r.loc["perp"].squeeze(), rperp_std)
 
     # test transmission
-    tpar, tperp = sc.model.fresnel_transmission(n2, n1, angles)
     tpar_std = 1.0-rpar_std
     tperp_std = 1.0-rperp_std
-    assert_array_almost_equal(tpar, tpar_std)
-    assert_array_almost_equal(tperp, tperp_std)
+    assert_array_almost_equal(t.loc["par"].squeeze(), tpar_std)
+    assert_array_almost_equal(t.loc["perp"].squeeze(), tperp_std)
+
+    # test vectorized computation over wavelength (check that results match
+    # those of loop).  We'll test a situation in which there is TIR.
+    wavelen = sc.Quantity(np.linspace(400, 800, 10), 'nm')
+    index_low = sc.index.vacuum
+    index_high = sc.index.polystyrene
+    n_low = index_low(wavelen)
+    n_high = index_high(wavelen)
+    angles = Quantity(np.linspace(0, 90., 10), 'deg')
+    # vectorized version
+    rt = sc.model.fresnel_coeffs(n_high, n_low, angles)
+    # check that dimensions are correct
+    assert rt.dims == (sc.Coord.FRESNEL, sc.Coord.POL, sc.Coord.WAVELEN,
+                       sc.Coord.THETA)
+    # loop-based version
+    rt_list = []
+    for wl in wavelen:
+        n_low = index_low(wl)
+        n_high = index_high(wl)
+        rt_list.append(sc.model.fresnel_coeffs(n_high, n_low, angles))
+    rt_loop = xr.concat(rt_list, dim=sc.Coord.WAVELEN)
+    xr.testing.assert_equal(rt, rt_loop)
 
 
 def test_theta_refraction():
@@ -728,11 +750,10 @@ def test_theta_refraction():
     # the reflection should be zero plus the fresnel reflection term
     n_sample = sc.index.effective_index([index_particle, index_matrix],
                                         vf_array, wavelength)
-    r_fresnel = sc.model.fresnel_reflection(n_medium.to_numpy(),
-                                         n_sample.to_numpy(), incident_angle)
+    r_fresnel, _ = sc.model.fresnel_coeffs(n_medium, n_sample, incident_angle)
     r_fresnel_avg = (r_fresnel[0] + r_fresnel[1]) / 2
-    assert_almost_equal(refl1.magnitude, r_fresnel_avg)
-    assert_almost_equal(refl2.magnitude, r_fresnel_avg)
+    assert_almost_equal(refl1.magnitude, r_fresnel_avg.to_numpy())
+    assert_almost_equal(refl2.magnitude, r_fresnel_avg.to_numpy())
     assert_almost_equal(refl1.magnitude, refl2.magnitude)
 
 

@@ -535,18 +535,17 @@ def fresnel_pass_frac(indices, n_before, n_inside, n_after, boundary,
     theta_inside[np.isnan(theta_inside)] = np.pi / 2.0
 
     # Find fraction passing through both interfaces.
-    trans_s1, trans_p1 = model.fresnel_transmission(n_before, n_inside,
-                                                    theta_before)
-    trans_s2, trans_p2 = model.fresnel_transmission(n_inside,
-                                                    n_after,
-                                                    theta_inside)
+    _, trans_1 = model.fresnel_coeffs(n_before, n_inside, theta_before)
+    trans_s1, trans_p1 = trans_1.to_numpy()
+    _, trans_2 = model.fresnel_coeffs(n_inside, n_after, theta_inside)
+    trans_s2, trans_p2 = trans_2.to_numpy()
     fresnel_trans = (trans_s1 + trans_p1) * (trans_s2 + trans_p2) / 4.
 
     # Find fraction reflected off both interfaces before transmission.
-    refl_s1, refl_p1 = model.fresnel_reflection(n_inside, n_after,
-                                                theta_inside)
-    refl_s2, refl_p2 = model.fresnel_reflection(n_inside, n_before,
-                                                theta_inside)
+    refl_1, _ = model.fresnel_coeffs(n_inside, n_after, theta_inside)
+    refl_s1, refl_p1 = refl_1.to_numpy()
+    refl_2, _ = model.fresnel_coeffs(n_inside, n_before, theta_inside)
+    refl_s2, refl_p2 = refl_2.to_numpy()
     fresnel_refl = (refl_s1 + refl_p1) * (refl_s2 + refl_p2) / 4.
 
     # Any number of higher order reflections off the two interfaces.

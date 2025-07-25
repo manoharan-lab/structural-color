@@ -744,7 +744,7 @@ def reflection(index_particle, index_matrix, index_medium, wavelen, radius,
                                     radius.units)
 
     # check that the number of indices and radii is the same
-    if len(np.atleast_1d(n_particle)) != len(np.atleast_1d(radius)):
+    if len(np.atleast_1d(index_particle)) != len(np.atleast_1d(radius)):
         raise ValueError('Arrays of indices and radii must be the same length')
 
     # use Bruggeman formula to calculate effective index of
@@ -769,12 +769,10 @@ def reflection(index_particle, index_matrix, index_medium, wavelen, radius,
     # between medium and sample
     # (TODO: include correction for reflection off the back interface of the
     # sample)
-    t_medium_sample = fresnel_transmission(n_medium.to_numpy().squeeze(),
-                                           n_sample.to_numpy().squeeze(),
-                                           incident_angle)
-    r_medium_sample = fresnel_reflection(n_medium.to_numpy().squeeze(),
-                                         n_sample.to_numpy().squeeze(),
-                                         incident_angle)
+    r_medium_sample, t_medium_sample = fresnel_coeffs(n_medium, n_sample,
+                                                      incident_angle)
+    r_medium_sample = r_medium_sample.to_numpy().squeeze()
+    t_medium_sample = t_medium_sample.to_numpy().squeeze()
 
     theta_min = detector.theta_min
     theta_max = detector.theta_max
@@ -821,9 +819,8 @@ def reflection(index_particle, index_matrix, index_medium, wavelen, radius,
     azi_angle_range = sc.Quantity(phi_max - phi_min,'rad')
     azi_angle_range_tot = sc.Quantity(2 * np.pi, 'rad')
 
-    transmission = fresnel_transmission(n_sample.to_numpy().squeeze(),
-                                        n_medium.to_numpy().squeeze(),
-                                        np.pi-angles)
+    transmission = fresnel_coeffs(n_sample, n_medium, np.pi-angles).loc["t"]
+    transmission = transmission.to_numpy().squeeze()
 
     # calculate the differential cross section in the detected range of angles
     # and in the total angles. We calculate it at a distance = radius when
@@ -1240,6 +1237,74 @@ def size_distribution(diameter_range, mean, t):
     return(distr)
 
 
+def fresnel_coeffs(n1, n2, incident_angle):
+    """
+    Calculates Fresnel coefficients for the reflected and transmitted intensity
+    of parallel (p) and perpendicular (s) polarized light incident on a
+    boundary between two dielectric, nonmagnetic materials.
+
+    Parameters
+    ----------
+    n1 : `xr.DataArray`
+        refractive index of the first medium along the direction of
+        propagation, as calculated by an `sc.Index` object. Wavelengths are
+        given in the coordinates.
+    n2: `xr.DataArray`
+        as with n1, but for the second medium along the direction of
+        propagation
+    incident_angle: array-like
+        incident angle, measured from the normal.  If specified as anything
+        except an sc.Quantity object, must be in radians
+
+    Returns
+    -------
+    `xr.DataArray` :
+        Reflection and transmission coefficients for the intensity, as a
+        function of polarization (parallel (p) or perpendicular (s)),
+        wavelength, and angle
+
+    """
+    theta = incident_angle
+    if isinstance(theta, sc.Quantity):
+        theta = theta.to("rad").magnitude
+    if not isinstance(theta, xr.DataArray):
+        theta = xr.DataArray(theta, coords={sc.Coord.THETA : theta})
+
+    if np.any(theta > np.pi/2.0):
+        raise ValueError("Unphysical angle of incidence.  Angle must be "
+                         "less than or equal to 90 degrees with respect to "
+                         "the normal.")
+
+    # see, e.g., http://www.ece.rutgers.edu/~orfanidi/ewa/ch07.pdf
+    # equations 7.4.2 for fresnel coefficients in terms of the incident
+    # angle only
+    # take the absolute value inside the square root because sometimes
+    # this value is very close to 0 and negative due to numerical precision
+    root = np.sqrt(np.abs(n2**2 - (n1 * np.sin(theta))**2))
+    costheta = np.cos(theta)
+    r_par = (np.abs((n1*root - n2**2 * costheta)/ \
+                    (n1*root + n2**2 * costheta)))**2
+    r_perp = (np.abs((n1*costheta - root) / \
+                     (n1*costheta + root)))**2
+
+    # construct DataArray
+    r = xr.concat([r_par, r_perp], dim=sc.Coord.POL)
+    r.coords[sc.Coord.POL] = ["par", "perp"]
+
+    # handle case of total internal reflection
+    ms = (n2/n1)
+    if np.any(ms.real < 1):
+        # theta < arcsin(n2/n1) is condition for no TIR. We keep the values
+        # where this condition holds, and replace with 1 for TIR angles
+        r = r.where(r.theta < np.arcsin(ms), 1)
+
+    # assemble both r and t=1-r into a DataArray
+    coeffs = xr.concat([r, 1-r], dim=sc.Coord.FRESNEL)
+    coeffs.coords[sc.Coord.FRESNEL] = ["r", "t"]
+
+    return coeffs
+
+
 def _integrate_cross_section(cross_section, factor, angles,
                              azi_angle_range = 2*np.pi):
     """
@@ -1260,97 +1325,3 @@ def _integrate_cross_section(cross_section, factor, angles,
     sigma = azi_angle_range * integral
 
     return sigma.squeeze()
-
-
-@sc.ureg.check(None, None, '[]')
-def fresnel_reflection(n1, n2, incident_angle):
-    """
-    Calculates Fresnel coefficients for the reflected intensity of parallel
-    (p) and perpendicular (s) polarized light incident on a boundary between
-    two dielectric, nonmagnetic materials.
-
-    Parameters
-    ----------
-    n1: structcol.Quantity [dimensionless]
-        refractive index of the first medium along the direction of propagation
-    n2: structcol.Quantity [dimensionless]
-        refractive index of the second medium along the direction of
-        propagation
-    incident_angle: structcol.Quantity [dimensionless] or ndarray of such
-        incident angle, measured from the normal (specify degrees or radians by
-        using the appropriate units in Quantity())
-
-    Returns
-    -------
-    (float, float) or ndarray(float, float):
-        Parallel (p) and perpendicular (s) reflection coefficients for the
-        intensity
-    """
-    theta = np.atleast_1d(incident_angle.to('rad').magnitude)
-    if isinstance(theta, sc.Quantity):
-        theta = theta.magnitude
-    if isinstance(n1, sc.Quantity):
-        n1 = n1.magnitude
-    if isinstance(n2, sc.Quantity):
-        n2 = n2.magnitude
-
-    if np.any(theta > np.pi/2.0):
-        raise ValueError('Unphysical angle of incidence.  Angle must be \n'+
-                         'less than or equal to 90 degrees with respect to' +
-                         'the normal.')
-    else:
-        r_par = np.zeros(theta.size)
-        r_perp = np.zeros(theta.size)
-        ms = (n2/n1)
-
-        if ms.real < 1:
-            # handle case of total internal reflection; this code is written
-            # using index arrays so that theta can be input as an array
-            tir_vals = theta >= np.arcsin(ms)
-            good_vals = ~tir_vals   # ~ means logical negation
-            r_perp[tir_vals] = 1
-            r_par[tir_vals] = 1
-        else:
-            good_vals = np.ones(theta.size, dtype=bool)
-
-        # see, e.g., http://www.ece.rutgers.edu/~orfanidi/ewa/ch07.pdf
-        # equations 7.4.2 for fresnel coefficients in terms of the incident
-        # angle only
-        # take the absolute value inside the square root because sometimes
-        # this value is very close to 0 and negative due to numerical precision
-        root = np.sqrt(np.abs(n2**2 - (n1 * np.sin(theta[good_vals]))**2))
-
-        costheta = np.cos(theta[good_vals])
-        r_par[good_vals] = (np.abs((n1*root - n2**2 * costheta)/ \
-                                   (n1*root + n2**2 * costheta)))**2
-        r_perp[good_vals] = (np.abs((n1*costheta - root) / \
-                                    (n1*costheta + root)))**2
-
-    return np.squeeze(r_par), np.squeeze(r_perp)
-
-@sc.ureg.check(None, None, '[]')
-def fresnel_transmission(index1, index2, incident_angle):
-    """
-    Calculates Fresnel coefficients for the transmitted intensity of parallel
-    (p) and perpendicular (s) polarized light incident on a boundary between
-    two dielectric, nonmagnetic materials.
-
-    Parameters
-    ----------
-    n1: structcol.Quantity [dimensionless]
-        refractive index of the first medium along the direction of propagation
-    n2: structcol.Quantity [dimensionless]
-        refractive index of the second medium along the direction of
-        propagation
-    incident_angle: structcol.Quantity [dimensionless] or ndarray of such
-        incident angle, measured from the normal (specify degrees or radians by
-        using the appropriate units in Quantity())
-
-    Returns
-    -------
-    (float, float) or ndarray(float, float):
-        Parallel (p) and perpendicular (s) transmission coefficients for the
-        intensity
-    """
-    r_par, r_perp = fresnel_reflection(index1, index2, incident_angle)
-    return 1.0-r_par, 1.0-r_perp

@@ -81,6 +81,8 @@ class Coord():
     # polarization for scattering calculations (should take on values "x", "y"
     # for cartesian basis or "par", "perp" for scattering-plane basis)
     POL = "polarization"
+    # Fresnel coefficient (should be either "r" or "t")
+    FRESNEL = "fresnel"
 
 class Attr():
     """Simple class to standardize metadata (attributes) used in xarray
