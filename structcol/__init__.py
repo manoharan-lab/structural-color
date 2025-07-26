@@ -76,8 +76,8 @@ class Coord():
     # polar and azimuthal angles for scattering
     THETA = "theta"
     PHI = "phi"
-    # component index for multicomponent systems
-    COMPONENT = "component"
+    # species index for multispecies systems
+    SPECIES = "species"
     # polarization for scattering calculations (should take on values "x", "y"
     # for cartesian basis or "par", "perp" for scattering-plane basis)
     POL = "polarization"

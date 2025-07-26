@@ -410,7 +410,7 @@ class PolydisperseHardSpheres(FormStructureModel):
         distance = self.sphere_dist.diameters_q/2
         conc = self.sphere_dist.concentrations
         conc = xr.DataArray(conc,
-                            coords={sc.Coord.COMPONENT: range(len(conc))})
+                            coords={sc.Coord.SPECIES: range(len(conc))})
 
         # TODO make cartesian work for polydisperse
         if (np.any(np.abs(k.imag.magnitude) > 0)
@@ -443,14 +443,14 @@ class PolydisperseHardSpheres(FormStructureModel):
             if sc.Coord.PHI in coords:
                 del coords[sc.Coord.PHI]
             # put component axis at beginning of coord dict
-            coords = {sc.Coord.COMPONENT: range(len(conc)), **coords}
+            coords = {sc.Coord.SPECIES: range(len(conc)), **coords}
             # add wavelength axis if not present
             if cscat_arr.shape == (2, 3):
                 cscat_arr = cscat_arr[..., np.newaxis]
             cscat = xr.DataArray(cscat_arr, coords=coords)
 
             # now average over components
-            cscat_total = (cscat * conc).sum(sc.Coord.COMPONENT)
+            cscat_total = (cscat * conc).sum(sc.Coord.SPECIES)
             cscat_total.attrs[sc.Attr.LENGTH_UNIT] = wavelen.units
         else:
             cscat_total = super().scattering_cross_section(diff_cscat)

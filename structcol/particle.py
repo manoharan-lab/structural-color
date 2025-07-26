@@ -408,7 +408,7 @@ class SphereDistribution:
         if len(spheres) > 2:
             raise ValueError("Can only handle one or two species")
         self.spheres = spheres
-        self.num_components = len(spheres)
+        self.num_species = len(spheres)
 
         self.diameters = []
         for sphere in spheres:
@@ -439,13 +439,13 @@ class SphereDistribution:
     @property
     def outer_radii(self):
         """Returns outer radii as a DataArray with coordinate
-        `sc.Coord.COMPONENT`
+        `sc.Coord.SPECIES`
         """
-        coords={sc.Coord.COMPONENT: np.arange(self.num_components)}
+        coords={sc.Coord.SPECIES: np.arange(self.num_species)}
         outer_r_da = xr.DataArray(self.diameters, coords=coords)/2
         outer_r_da.attrs[sc.Attr.LENGTH_UNIT] = self.spheres[0].current_units
 
-        # drop component coord if only monospecies
+        # drop species coord if only monospecies
         return outer_r_da.squeeze(drop=True)
 
     @property

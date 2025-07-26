@@ -402,7 +402,7 @@ class TestSphereDistribution():
         assert_equal(dist.diameters, dist_diameters_expected)
         assert_equal(dist.concentrations, concentrations)
         outer_radii = xr.DataArray(np.array(dist_diameters_expected)/2,
-                                   coords={sc.Coord.COMPONENT: np.arange(2)})
+                                   coords={sc.Coord.SPECIES: np.arange(2)})
         xr.testing.assert_equal(dist.outer_radii, outer_radii)
 
         # zero polydispersity for species 2 should have been replaced with
