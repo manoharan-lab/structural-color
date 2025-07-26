@@ -373,6 +373,7 @@ class Sphere(Particle):
             form_factor = np.expand_dims(form_factor, axis=1)
 
         form_factor = xr.DataArray(form_factor, coords=coords)
+        form_factor.attrs["kd"] = sc.wavevector(n_ext) * self.outer_radius
         form_factor.attrs[sc.Attr.LENGTH_UNIT] = wavelen.units
 
         return form_factor
@@ -619,6 +620,11 @@ class SphereDistribution:
         # the final polydisperse form factor as a function of angle is
         # calculated as the average of each mean diameter's form factor
         f = xr.concat(integral_list, dim="mean diameter").sum("mean diameter")
+        d = xr.DataArray(self.diameters/2,
+                         coords={sc.Coord.SPECIES: range(len(self.diameters))})
+        kd = sc.wavevector(n_ext) * d
+        f.attrs["kd"] = kd
+        f.attrs[sc.Attr.LENGTH_UNIT] = wavelen.units
 
         return f
 
