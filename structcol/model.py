@@ -168,6 +168,10 @@ class FormStructureModel(Model):
         # store form-factor options in attributes, so that we don't have to
         # pass them again
         diff_cscat.attrs.update(ff_kwargs)
+        # add kd to the attributes in case there is absorption in the matrix
+        if np.any(n_ext.imag > 0):
+            diff_cscat.attrs["kd"] = (sc.wavevector(n_ext)
+                                      * self.lengthscale.magnitude)
         # and ensure length scale is present
         if sc.Attr.LENGTH_UNIT not in diff_cscat.attrs:
             diff_cscat.attrs[sc.Attr.LENGTH_UNIT] = wavelen.units
