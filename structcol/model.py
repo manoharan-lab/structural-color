@@ -820,8 +820,8 @@ def reflection(index_particle, index_matrix, index_medium, wavelen, radius,
                                      num_angles), 'rad')
     angles_tot = sc.Quantity(np.linspace(0.0 + small_angle, np.pi, num_angles),
                              'rad')
-    azi_angle_range = sc.Quantity(phi_max - phi_min,'rad')
-    azi_angle_range_tot = sc.Quantity(2 * np.pi, 'rad')
+    azi_angle_range = phi_max - phi_min
+    azi_angle_range_tot = 2*np.pi
 
     transmission = fresnel_coeffs(n_sample, n_medium, np.pi-angles).loc["t"]
     # replace coordinate (which is pi-angles) with angles so we can integrate
@@ -1009,67 +1009,30 @@ def reflection(index_particle, index_matrix, index_medium, wavelen, radius,
             asymmetry = _integrate_intensity_complex_medium(integrand)
             asymmetry_unpolarized = asymmetry
 
-        # conversion and checks
-        cscat_detected_par = cscat_detected.loc["par"].to_numpy().squeeze()
-        cscat_detected_perp = \
-            cscat_detected.loc["perp"].to_numpy().squeeze()
-        cscat_detected = cscat_detected.loc["avg"].to_numpy().squeeze()
-
-        np.testing.assert_allclose(cscat_detected_par,
-                                   cscat_detected_par_old.magnitude,
-                                   rtol=1e-15)
-        np.testing.assert_allclose(cscat_detected_perp,
-                                   cscat_detected_perp_old.magnitude,
-                                   rtol=1e-15)
-        np.testing.assert_allclose(cscat_detected,
-                                   cscat_detected_old.magnitude,
-                                   rtol=1e-15)
-        cscat_total = cscat_total.loc["avg"].to_numpy().squeeze()
-        np.testing.assert_allclose(cscat_total, cscat_total_old.magnitude,
-                                   rtol=1e-15)
-        asymmetry_unpolarized = \
-            asymmetry_unpolarized.loc["avg"].to_numpy().squeeze()
-        np.testing.assert_allclose(asymmetry_unpolarized,
-                                   asymmetry_unpolarized_old.magnitude,
-                                   rtol=1e-14)
-
-        cscat_detected_par = sc.Quantity(cscat_detected_par, wavelen.units**2)
-        cscat_detected_perp = sc.Quantity(cscat_detected_perp,
-                                          wavelen.units**2)
-        cscat_detected = sc.Quantity(cscat_detected, wavelen.units**2)
-        cscat_total = sc.Quantity(cscat_total, wavelen.units**2)
-        asymmetry_unpolarized = sc.Quantity(asymmetry_unpolarized,
-                                            wavelen.units**2)
-        asymmetry_parameter = asymmetry_unpolarized/cscat_total
-
-        # Calculate the transport length for unpolarized light (see eq. 5 of
-        # Kaplan, Dinsmore, Yodh, Pine, PRE 50(6): 4827, 1994)
-        # TODO is this cscat or cext_tot?
-        transport_length = 1/(1.0-asymmetry_parameter)/rho/cscat_total
-
     # if there is no absorption in the system
     else:
         factor = (transmission_arr[0]/np.abs(k)**2)
         factor = factor.reshape((num_wavelen, num_angles))
-        cscat_detected_par = _integrate_cross_section(diff_cs_det_arr[0],
-                                                      factor, angles,
-                                                      azi_angle_range)
+        cscat_detected_par_old = _integrate_cross_section(diff_cs_det_arr[0],
+                                                          factor, angles,
+                                                          azi_angle_range)
         factor = transmission_arr[1]/np.abs(k)**2
         factor = factor.reshape((num_wavelen, num_angles))
-        cscat_detected_perp = _integrate_cross_section(diff_cs_det_arr[1],
-                                                       factor, angles,
-                                                       azi_angle_range)
-        cscat_detected = (cscat_detected_par + cscat_detected_perp)/2.0
+        cscat_detected_perp_old = _integrate_cross_section(diff_cs_det_arr[1],
+                                                           factor, angles,
+                                                           azi_angle_range)
+        cscat_detected_old = (cscat_detected_par_old +
+                              cscat_detected_perp_old)/2.0
 
-        cscat_total_par = _integrate_cross_section(diff_cs_tot_arr[0],
-                                                   1.0/np.abs(k)**2,
-                                                   angles_tot,
-                                                   azi_angle_range_tot)
-        cscat_total_perp = _integrate_cross_section(diff_cs_tot_arr[1],
-                                                    1.0/np.abs(k)**2,
-                                                    angles_tot,
-                                                    azi_angle_range_tot)
-        cscat_total = (cscat_total_par + cscat_total_perp)/2.0
+        cscat_total_par_old = _integrate_cross_section(diff_cs_tot_arr[0],
+                                                       1.0/np.abs(k)**2,
+                                                       angles_tot,
+                                                       azi_angle_range_tot)
+        cscat_total_perp_old = _integrate_cross_section(diff_cs_tot_arr[1],
+                                                        1.0/np.abs(k)**2,
+                                                        angles_tot,
+                                                        azi_angle_range_tot)
+        cscat_total_old = (cscat_total_par_old + cscat_total_perp_old)/2.0
 
         factor = np.cos(angles_tot)*1.0/np.abs(k)**2
         factor = factor.reshape((num_wavelen, len(angles_tot)))
@@ -1079,24 +1042,88 @@ def reflection(index_particle, index_matrix, index_medium, wavelen, radius,
         asymmetry_perp = _integrate_cross_section(diff_cs_tot_arr[1], factor,
                                                   angles_tot,
                                                   azi_angle_range_tot)
-        asymmetry_parameter = (asymmetry_par + asymmetry_perp)/cscat_total/2.0
+        asymmetry_unpolarized_old = (asymmetry_par + asymmetry_perp)/2.0
 
         # calculate transport cscat
         # not currently returned, but could be useful in the future
         factor = (1-np.cos(angles_tot))*1.0/np.abs(k)**2
         factor = factor.reshape((num_wavelen, len(angles_tot)))
-        transport_cscat_par = _integrate_cross_section(diff_cs_tot_arr[0],
-                                                       factor, angles_tot,
-                                                       azi_angle_range_tot)
-        transport_cscat_perp = _integrate_cross_section(diff_cs_tot_arr[1],
-                                                        factor, angles_tot,
-                                                        azi_angle_range_tot)
-        transport_cscat = (transport_cscat_par + transport_cscat_perp)/2
+        transport_cscat_par_old = _integrate_cross_section(diff_cs_tot_arr[0],
+                                                           factor, angles_tot,
+                                                           azi_angle_range_tot)
+        transport_cscat_perp_old = _integrate_cross_section(diff_cs_tot_arr[1],
+                                                            factor, angles_tot,
+                                                            azi_angle_range_tot)
+        transport_cscat_old = (transport_cscat_par_old +
+                               transport_cscat_perp_old)/2
 
-        # Calculate the transport length for unpolarized light (see eq. 5 of
-        # Kaplan, Dinsmore, Yodh, Pine, PRE 50(6): 4827, 1994)
-        # TODO is this cscat or cext_tot?
-        transport_length = 1/(1.0-asymmetry_parameter)/rho/cscat_total
+        # xarray-based version
+        factor = np.sin(diff_cs_detected.coords[sc.Coord.THETA])
+        integrand = diff_cs_detected * transmission/np.abs(k)**2 * factor
+        cscat_detected = integrand.integrate(sc.Coord.THETA) * azi_angle_range
+
+        # include average over polarizations
+        cscat_detected_avg = cscat_detected.sum(sc.Coord.POL)/2
+        cscat_detected_avg.coords[sc.Coord.POL] = "avg"
+        cscat_detected = xr.concat([cscat_detected, cscat_detected_avg],
+                                   dim=sc.Coord.POL)
+
+        factor = np.sin(diff_cs_total.coords[sc.Coord.THETA])
+        integrand = diff_cs_total * 1/np.abs(k)**2 * factor
+        cscat_total = integrand.integrate(sc.Coord.THETA) * azi_angle_range_tot
+
+        cosines = np.cos(diff_cs_total.coords[sc.Coord.THETA])
+        integrand = diff_cs_total * cosines * 1/np.abs(k)**2 * factor
+        asymmetry_unpolarized = (integrand.integrate(sc.Coord.THETA)
+                                 * azi_angle_range_tot)
+
+        # calculate transport cscat
+        # not currently returned, but could be useful in the future
+        integrand = diff_cs_total * (1-cosines) * 1/np.abs(k)**2 * factor
+        transport_cscat = (integrand.integrate(sc.Coord.THETA)
+                           * azi_angle_range_tot)
+
+        np.testing.assert_allclose(
+            transport_cscat.loc["avg"].to_numpy().squeeze(),
+            transport_cscat_old, rtol=1e-15)
+
+    # conversion and checks
+    cscat_detected_par = cscat_detected.loc["par"].to_numpy().squeeze()
+    cscat_detected_perp = \
+        cscat_detected.loc["perp"].to_numpy().squeeze()
+    cscat_detected = cscat_detected.loc["avg"].to_numpy().squeeze()
+
+    np.testing.assert_allclose(cscat_detected_par,
+                               cscat_detected_par_old.magnitude,
+                               rtol=1e-15)
+    np.testing.assert_allclose(cscat_detected_perp,
+                               cscat_detected_perp_old.magnitude,
+                               rtol=1e-15)
+    np.testing.assert_allclose(cscat_detected,
+                               cscat_detected_old.magnitude,
+                               rtol=1e-15)
+    cscat_total = cscat_total.loc["avg"].to_numpy().squeeze()
+    np.testing.assert_allclose(cscat_total, cscat_total_old.magnitude,
+                               rtol=1e-15)
+    asymmetry_unpolarized = \
+        asymmetry_unpolarized.loc["avg"].to_numpy().squeeze()
+    np.testing.assert_allclose(asymmetry_unpolarized,
+                               asymmetry_unpolarized_old.magnitude,
+                               rtol=1e-14)
+
+    cscat_detected_par = sc.Quantity(cscat_detected_par, wavelen.units**2)
+    cscat_detected_perp = sc.Quantity(cscat_detected_perp,
+                                      wavelen.units**2)
+    cscat_detected = sc.Quantity(cscat_detected, wavelen.units**2)
+    cscat_total = sc.Quantity(cscat_total, wavelen.units**2)
+    asymmetry_unpolarized = sc.Quantity(asymmetry_unpolarized,
+                                        wavelen.units**2)
+    asymmetry_parameter = asymmetry_unpolarized/cscat_total
+
+    # Calculate the transport length for unpolarized light (see eq. 5 of
+    # Kaplan, Dinsmore, Yodh, Pine, PRE 50(6): 4827, 1994)
+    # TODO is this cscat or cext_tot?
+    transport_length = 1/(1.0-asymmetry_parameter)/rho/cscat_total
 
     cext_total = cscat_total + cabs_total
 
