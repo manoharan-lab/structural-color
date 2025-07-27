@@ -950,18 +950,17 @@ def reflection(index_particle, index_matrix, index_medium, wavelen, radius,
                                           range(len(concentration))})
 
             integrand = diff_cs_detected * transmission * distance**2
-            cscat = _integrate_intensity_complex_medium(integrand,
-                                                        phi_min=phi_min,
-                                                        phi_max=phi_max)
+            cscat = _integrate_intensity(integrand, phi_min=phi_min,
+                                         phi_max=phi_max)
             cscat_detected = (cscat * conc).sum(sc.Coord.SPECIES)
 
             integrand = diff_cs_total * distance**2
-            cscat = _integrate_intensity_complex_medium(integrand)
+            cscat = _integrate_intensity(integrand)
             cscat_total = (cscat * conc).sum(sc.Coord.SPECIES)
 
             factor = np.cos(diff_cs_total.coords[sc.Coord.THETA])
             integrand = diff_cs_total * factor * distance**2
-            asymmetry = _integrate_intensity_complex_medium(integrand)
+            asymmetry = _integrate_intensity(integrand)
             asymmetry_unpolarized = (asymmetry * conc).sum(sc.Coord.SPECIES)
         else:
             # We calculate the detected and total cross sections using the full
@@ -996,17 +995,16 @@ def reflection(index_particle, index_matrix, index_medium, wavelen, radius,
                                         angles_tot, k)[0]
 
             integrand = diff_cs_detected * transmission * distance**2
-            cscat = _integrate_intensity_complex_medium(integrand,
-                                                        phi_min=phi_min,
+            cscat = _integrate_intensity(integrand, phi_min=phi_min,
                                                         phi_max=phi_max)
             cscat_detected = cscat
 
             integrand = diff_cs_total * distance**2
-            cscat_total = _integrate_intensity_complex_medium(integrand)
+            cscat_total = _integrate_intensity(integrand)
 
             factor = np.cos(diff_cs_total.coords[sc.Coord.THETA])
             integrand = diff_cs_total * factor * distance**2
-            asymmetry = _integrate_intensity_complex_medium(integrand)
+            asymmetry = _integrate_intensity(integrand)
             asymmetry_unpolarized = asymmetry
 
     # if there is no absorption in the system
@@ -1058,30 +1056,21 @@ def reflection(index_particle, index_matrix, index_medium, wavelen, radius,
                                transport_cscat_perp_old)/2
 
         # xarray-based version
-        factor = np.sin(diff_cs_detected.coords[sc.Coord.THETA])
-        integrand = diff_cs_detected * transmission/np.abs(k)**2 * factor
-        cscat_detected = integrand.integrate(sc.Coord.THETA) * azi_angle_range
+        integrand = diff_cs_detected * transmission/np.abs(k)**2
+        cscat_detected = _integrate_intensity(integrand, phi_min=phi_min,
+                                              phi_max=phi_max)
 
-        # include average over polarizations
-        cscat_detected_avg = cscat_detected.sum(sc.Coord.POL)/2
-        cscat_detected_avg.coords[sc.Coord.POL] = "avg"
-        cscat_detected = xr.concat([cscat_detected, cscat_detected_avg],
-                                   dim=sc.Coord.POL)
-
-        factor = np.sin(diff_cs_total.coords[sc.Coord.THETA])
-        integrand = diff_cs_total * 1/np.abs(k)**2 * factor
-        cscat_total = integrand.integrate(sc.Coord.THETA) * azi_angle_range_tot
+        integrand = diff_cs_total * 1/np.abs(k)**2
+        cscat_total = _integrate_intensity(integrand)
 
         cosines = np.cos(diff_cs_total.coords[sc.Coord.THETA])
-        integrand = diff_cs_total * cosines * 1/np.abs(k)**2 * factor
-        asymmetry_unpolarized = (integrand.integrate(sc.Coord.THETA)
-                                 * azi_angle_range_tot)
+        integrand = diff_cs_total * cosines * 1/np.abs(k)**2
+        asymmetry_unpolarized = _integrate_intensity(integrand)
 
         # calculate transport cscat
         # not currently returned, but could be useful in the future
-        integrand = diff_cs_total * (1-cosines) * 1/np.abs(k)**2 * factor
-        transport_cscat = (integrand.integrate(sc.Coord.THETA)
-                           * azi_angle_range_tot)
+        integrand = diff_cs_total * (1-cosines) * 1/np.abs(k)**2
+        transport_cscat = _integrate_intensity(integrand)
 
         np.testing.assert_allclose(
             transport_cscat.loc["avg"].to_numpy().squeeze(),
@@ -1415,47 +1404,63 @@ def fresnel_coeffs(n1, n2, incident_angle):
 
     return coeffs
 
-def _integrate_intensity_complex_medium(diff_cscat,
-                                        phi_min=0, phi_max=2*np.pi):
-    """This is an xarray-based version of
-    mie.integrate_intensity_complex_medium. Takes differential scattering
-    cross-section DataArray from Model.differential_cross_section() and
-    integrates it at the dimensionless distance (kd) that was used to calculate
-    it. Returns dimensionless cross-section; need to multiply by distance**2 to
-    get the dimensional cross-section.
+def _integrate_intensity(diff_cscat, phi_min=0, phi_max=2*np.pi):
+    """xarray-based integrator to calculate total cross-sections from
+    differential cross-sections. Takes differential scattering cross-section
+    DataArray (or a factor times such a DataArray) from
+    Model.differential_cross_section(). For absorbing medium, we integrate at
+    the dimensionless distance (kd) that was used to calculate the differential
+    cross_section. Result must be multiplied by the distance^2 (usually the
+    radius of the particle) to calculate the dimensional cross section. This
+    routine is based on mie.integrate_intensity_complex_medium. For
+    nonabsorbing systems, we integrate the far-field differential
+    cross-sections. In this case, the result must be multiplied by 1/k^2 to get
+    the dimensional cross-section.
 
     """
     kd = diff_cscat.attrs.get("kd")
 
-    # Integrate over theta
+    # Integrate over theta, including Jacobian
     thetas = diff_cscat.coords[sc.Coord.THETA]
     integrand = diff_cscat * np.sin(thetas)
     integral = integrand.integrate(sc.Coord.THETA)
 
-    if "phis" not in diff_cscat.coords:
-        # see mie.integrate_intensity_complex_medium()
-        factor = xr.DataArray([(phi_max/2 + np.sin(2*phi_max)/4
-                                - phi_min/2 - np.sin(2*phi_min)/4),
-                               (phi_max/2 - np.sin(2*phi_max)/4 -
+    if kd is not None:
+        # absorbing medium: integrate at surface of sphere
+        if "phis" not in diff_cscat.coords:
+            # see mie.integrate_intensity_complex_medium() for explanation of
+            # the azimuthal factor here
+            factor = xr.DataArray([(phi_max/2 + np.sin(2*phi_max)/4
+                                    - phi_min/2 - np.sin(2*phi_min)/4),
+                                   (phi_max/2 - np.sin(2*phi_max)/4 -
                                     phi_min/2 + np.sin(2*phi_min)/4)],
                               coords = {sc.Coord.POL: ["par", "perp"]})
-        sigma = factor * integral
+            sigma = factor * integral
+        else:
+            sigma = integral.integrate(sc.Coord.PHI)
+
+        # multiply by attenuation factor; see original function in mie.py
+        exponent = np.exp(2 * kd.imag)
+        factor_limit = 2
+        with np.errstate(divide='ignore', invalid='ignore'):
+            factor = xr.where(kd.imag <= 1e-6, factor_limit,
+                              1 / (exponent / (2*kd.imag)
+                                   + (1 - exponent) / (2*kd.imag)**2))
+        sigma = sigma * factor
     else:
-        sigma = integral.integrate(sc.Coord.PHI)
+        # nonabsorbing medium
+        sigma = integral * (phi_max - phi_min)
 
-    # multiply by attenuation factor; see original function in mie.py
-    exponent = np.exp(2 * kd.imag)
-    factor_limit = 2
-    with np.errstate(divide='ignore', invalid='ignore'):
-        factor = xr.where(kd.imag <= 1e-6, factor_limit,
-                          1 / (exponent / (2*kd.imag)
-                               + (1 - exponent) / (2*kd.imag)**2))
-    sigma = sigma * factor
-
-    # include average over polarizations
+    # include average over polarizations; if it already exists, override, since
+    # integral of average is not necessarily average of integral (the
+    # integration could have included a polarization-dependent factor)
     sigma_avg = sigma.sum(sc.Coord.POL)/2
     sigma_avg.coords[sc.Coord.POL] = "avg"
-    sigma = xr.concat([sigma, sigma_avg], dim=sc.Coord.POL)
+    if "avg" not in sigma.coords[sc.Coord.POL]:
+        sigma = xr.concat([sigma, sigma_avg], dim=sc.Coord.POL)
+    else:
+        # replace
+        sigma = sigma.where(sc.Coord.POL!="avg", sigma_avg)
 
     return sigma
 

@@ -624,7 +624,8 @@ class SphereDistribution:
         d = xr.DataArray(self.diameters/2,
                          coords={sc.Coord.SPECIES: range(len(self.diameters))})
         kd = sc.wavevector(n_ext) * d
-        f.attrs["kd"] = kd
+        if np.any(np.abs(n_ext.imag) > 0) or cartesian:
+            f.attrs["kd"] = kd
         f.attrs[sc.Attr.LENGTH_UNIT] = wavelen.units
 
         return f
