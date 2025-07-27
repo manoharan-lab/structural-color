@@ -196,89 +196,22 @@ class FormStructureModel(Model):
             cartesian coordinates)
 
         """
-        coords = diff_cscat.coords.copy()
-        length_unit = diff_cscat.attrs[sc.Attr.LENGTH_UNIT]
-        wavelen = sc.Quantity(coords[sc.Coord.WAVELEN].to_numpy(), length_unit)
-        thetas = sc.Quantity(coords[sc.Coord.THETA].to_numpy(), 'rad')
-        if sc.Coord.PHI in coords:
-            phis = sc.Quantity(coords[sc.Coord.PHI].to_numpy(), 'rad')
-        cartesian = diff_cscat.attrs.get("cartesian")
-
-        k = sc.wavevector(self.index_external(wavelen))
-        ksquared = np.abs(k)**2
-        k = sc.Quantity(k.to_numpy(), 1/k.attrs[sc.Attr.LENGTH_UNIT])
-        distance = self.lengthscale
-        if np.ndim(distance) == 0:
-            distance = distance.item()
-
-        # Note that we ignore near fields throughout structcol since we assume
-        # that the scattering length is larger than the distance at which near
-        # fields are significant (~order of the wavelength of light). In the
-        # future, we might want to include near field effects. In that case, we
-        # need to make sure to pass near_fields = True in
-        # mie.diff_scat_intensity_complex_medium(). The default is False.
-        # Also note that the diff_cscat1 and 2 are parallel and perpendicular
-        # components for the default scattering-plane basis and are
-        # diff_cscat_x and y in cartesian coordinates
-        diff_cscat1 = diff_cscat.isel({sc.Coord.POL: 0}).to_numpy().squeeze()
-        diff_cscat2 = diff_cscat.isel({sc.Coord.POL: 1}).to_numpy().squeeze()
-
-        # If in cartesian coordinate system, integrate the differential cross
-        # section using integration functions in mie.py that can handle
-        # cartesian coordinates. Also includes absorption.
-        if cartesian:
-            cscat = mie.integrate_intensity_complex_medium(diff_cscat1,
-                                                           diff_cscat2,
-                                                           distance, thetas, k,
-                                                           coordinate_system =
-                                                           "cartesian",
-                                                           phis=phis)
-            cscat_total, cscat1, cscat2 = cscat[0:3]
-        # If absorption and not cartesian coords, integrate the differential
-        # cross section using integration functions in mie.py that use
-        # absorption.  Also use the mie.py function if incident_vector was
-        # specified in scattering plane system -- otherwise this would be
-        # ignored.
-        elif (np.any(np.abs(k.imag) > 0)
-              or "incident_vector" in diff_cscat.attrs):
-            cscat = mie.integrate_intensity_complex_medium(diff_cscat1,
-                                                           diff_cscat2,
-                                                           distance,
-                                                           thetas, k)
-            cscat_total, cscat1, cscat2 = cscat[0:3]
-        # if there is no absorption in the system, use trapezoid rule
-        else:
-            integrand = diff_cscat * np.sin(thetas.magnitude) * (1.0/ksquared)
-            cscat = integrand.integrate(sc.Coord.THETA) * 2*np.pi
-
-        if not isinstance(cscat, xr.DataArray):
-            # Create data array with appropriate coords and units (as
-            # attribute).
-            if sc.Coord.THETA in coords:
-                del coords[sc.Coord.THETA]
-            if sc.Coord.PHI in coords:
-                del coords[sc.Coord.PHI]
-            if "ql" in coords:
-                # "ql" coord shows up when using Interpolated structure factor
-                del coords["ql"]
-            cscat_arr = np.array([cscat1.magnitude, cscat2.magnitude,
-                                  cscat_total.magnitude])
-            # add wavelength axis if not present
-            if cscat_arr.shape == (3,):
-                cscat_arr = cscat_arr[:, np.newaxis]
-            cscat = xr.DataArray(cscat_arr, coords=coords)
-            cscat.attrs[sc.Attr.LENGTH_UNIT] = wavelen.units
-
-        cscat_old = cscat.copy()
-
+        # dimensional factor for the cross-section is 1/k^2 for non-absorbing
+        # medium, distance^2 for absorbing
         if diff_cscat.attrs.get("kd") is None:
-            factor = 1/ksquared
+            wavelen = diff_cscat.coords[sc.Coord.WAVELEN].to_numpy()
+            wavelen = sc.Quantity(wavelen,
+                                  diff_cscat.attrs[sc.Attr.LENGTH_UNIT])
+            k = sc.wavevector(self.index_external(wavelen))
+            factor = 1/np.abs(k)**2
         else:
+            distance = self.lengthscale
+            if np.ndim(distance) == 0:
+                distance = distance.item()
             factor = distance.to_preferred().magnitude**2
+
         cscat = _integrate_intensity(diff_cscat) * factor
 
-        np.testing.assert_allclose(cscat.to_numpy().squeeze(),
-                                   cscat_old.to_numpy().squeeze(), rtol=1e-15)
         return cscat
 
     def phase_function(self, diff_cscat):
@@ -413,70 +346,21 @@ class PolydisperseHardSpheres(FormStructureModel):
         polydisperse binary mixtures only.
 
         """
-        coords = diff_cscat.coords.copy()
         wavelen = diff_cscat.coords[sc.Coord.WAVELEN].to_numpy()
         wavelen = sc.Quantity(wavelen, diff_cscat.attrs[sc.Attr.LENGTH_UNIT])
-        thetas = sc.Quantity(diff_cscat.coords[sc.Coord.THETA].to_numpy(),
-                             'rad')
-
         k = sc.wavevector(self.index_external(wavelen))
-        k = sc.Quantity(k.to_numpy(), 1/k.attrs[sc.Attr.LENGTH_UNIT])
-        distance = self.sphere_dist.diameters_q/2
+
         conc = self.sphere_dist.concentrations
         conc = xr.DataArray(conc,
                             coords={sc.Coord.SPECIES: range(len(conc))})
+        distance = self.sphere_dist.diameters_q/2
+        distance = xr.DataArray(distance.magnitude, coords=conc.coords)
 
         # TODO make cartesian work for polydisperse
-        if (np.any(np.abs(k.imag.magnitude) > 0)
+        if (np.any(np.abs(k.imag) > 0)
             and (len(self.sphere_dist.spheres) > 1)):
-            diff_cscat1 = diff_cscat[0].to_numpy().squeeze()
-            diff_cscat2 = diff_cscat[1].to_numpy().squeeze()
-
-            # When the system is binary and absorbing, we integrate the
-            # polydisperse differential cross section at the surface of each
-            # component (meaning at a distance of each mean radius). Then we
-            # do a number average of the total cross sections.
-            cscat1 = mie.integrate_intensity_complex_medium(diff_cscat1,
-                                                            diff_cscat2,
-                                                            distance[0],
-                                                            thetas, k)
-            cscat2 = mie.integrate_intensity_complex_medium(diff_cscat1,
-                                                            diff_cscat2,
-                                                            distance[1],
-                                                            thetas, k)
-
-            cscat1 = np.array([cscat.magnitude for cscat in cscat1[0:3]])
-            cscat2 = np.array([cscat.magnitude for cscat in cscat2[0:3]])
-            # rearrange to (par, perp, average) order
-            order = np.array([1,2,0])
-            cscat_arr = np.array([cscat1[order], cscat2[order]])
-
-            # set coordinates
-            if sc.Coord.THETA in coords:
-                del coords[sc.Coord.THETA]
-            if sc.Coord.PHI in coords:
-                del coords[sc.Coord.PHI]
-            # put component axis at beginning of coord dict
-            coords = {sc.Coord.SPECIES: range(len(conc)), **coords}
-            # add wavelength axis if not present
-            if cscat_arr.shape == (2, 3):
-                cscat_arr = cscat_arr[..., np.newaxis]
-            cscat = xr.DataArray(cscat_arr, coords=coords)
-
-            cscat_old = cscat.copy()
-            cscat_old = cscat_old.transpose(sc.Coord.POL, sc.Coord.WAVELEN,
-                                            sc.Coord.SPECIES, ...)
-
-            # xarray-based version
-            distance = xr.DataArray(distance.magnitude, coords = conc.coords)
+            # do concentration-average over components
             cscat = _integrate_intensity(diff_cscat) * distance**2
-
-            np.testing.assert_allclose(cscat.to_numpy().squeeze(),
-                                       cscat_old.to_numpy().squeeze(),
-                                       rtol=1e-15)
-
-
-            # now average over components
             cscat_total = (cscat * conc).sum(sc.Coord.SPECIES)
             cscat_total.attrs[sc.Attr.LENGTH_UNIT] = wavelen.units
         else:
