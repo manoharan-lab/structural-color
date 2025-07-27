@@ -490,7 +490,7 @@ class TestModel():
         #
         # For scattering plane coordinates, parallel and perpendicular
         # polarizations rotate with phi, so that the scattering is azimuthally
-        # symmetry. To get all the light, we need to look at both the parallel
+        # symmetric. To get all the light, we need to look at both the parallel
         # and perpendicular components, which we do by specifying (1,1) for the
         # incident vector:
         ff_kwargs = {"incident_vector": (1, 1)}

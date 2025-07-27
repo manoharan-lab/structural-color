@@ -269,6 +269,16 @@ class FormStructureModel(Model):
             cscat = xr.DataArray(cscat_arr, coords=coords)
             cscat.attrs[sc.Attr.LENGTH_UNIT] = wavelen.units
 
+        cscat_old = cscat.copy()
+
+        if diff_cscat.attrs.get("kd") is None:
+            factor = 1/ksquared
+        else:
+            factor = distance.to_preferred().magnitude**2
+        cscat = _integrate_intensity(diff_cscat) * factor
+
+        np.testing.assert_allclose(cscat.to_numpy().squeeze(),
+                                   cscat_old.to_numpy().squeeze(), rtol=1e-15)
         return cscat
 
     def phase_function(self, diff_cscat):
@@ -452,6 +462,19 @@ class PolydisperseHardSpheres(FormStructureModel):
             if cscat_arr.shape == (2, 3):
                 cscat_arr = cscat_arr[..., np.newaxis]
             cscat = xr.DataArray(cscat_arr, coords=coords)
+
+            cscat_old = cscat.copy()
+            cscat_old = cscat_old.transpose(sc.Coord.POL, sc.Coord.WAVELEN,
+                                            sc.Coord.SPECIES, ...)
+
+            # xarray-based version
+            distance = xr.DataArray(distance.magnitude, coords = conc.coords)
+            cscat = _integrate_intensity(diff_cscat) * distance**2
+
+            np.testing.assert_allclose(cscat.to_numpy().squeeze(),
+                                       cscat_old.to_numpy().squeeze(),
+                                       rtol=1e-15)
+
 
             # now average over components
             cscat_total = (cscat * conc).sum(sc.Coord.SPECIES)
@@ -1427,16 +1450,17 @@ def _integrate_intensity(diff_cscat, phi_min=0, phi_max=2*np.pi):
 
     if kd is not None:
         # absorbing medium: integrate at surface of sphere
-        if "phis" not in diff_cscat.coords:
+        if sc.Coord.PHI not in diff_cscat.coords:
             # see mie.integrate_intensity_complex_medium() for explanation of
             # the azimuthal factor here
             factor = xr.DataArray([(phi_max/2 + np.sin(2*phi_max)/4
                                     - phi_min/2 - np.sin(2*phi_min)/4),
                                    (phi_max/2 - np.sin(2*phi_max)/4 -
                                     phi_min/2 + np.sin(2*phi_min)/4)],
-                              coords = {sc.Coord.POL: ["par", "perp"]})
+                                  coords = {sc.Coord.POL: ["par", "perp"]})
             sigma = factor * integral
         else:
+            # cartesian
             sigma = integral.integrate(sc.Coord.PHI)
 
         # multiply by attenuation factor; see original function in mie.py
@@ -1451,16 +1475,16 @@ def _integrate_intensity(diff_cscat, phi_min=0, phi_max=2*np.pi):
         # nonabsorbing medium
         sigma = integral * (phi_max - phi_min)
 
-    # include average over polarizations; if it already exists, override, since
-    # integral of average is not necessarily average of integral (the
+    # include average over polarizations; if it already exists, overwrite,
+    # since integral of average is not necessarily average of integrals (the
     # integration could have included a polarization-dependent factor)
-    sigma_avg = sigma.sum(sc.Coord.POL)/2
+    sigma_avg = sigma.isel({sc.Coord.POL: [0,1]}).sum(sc.Coord.POL)/2
     sigma_avg.coords[sc.Coord.POL] = "avg"
     if "avg" not in sigma.coords[sc.Coord.POL]:
         sigma = xr.concat([sigma, sigma_avg], dim=sc.Coord.POL)
     else:
-        # replace
-        sigma = sigma.where(sc.Coord.POL!="avg", sigma_avg)
+        # replace (using where instead of loc so dask will work)
+        sigma = sigma.where(sigma.coords[sc.Coord.POL] != "avg", sigma_avg)
 
     return sigma
 

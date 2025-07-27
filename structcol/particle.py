@@ -373,7 +373,12 @@ class Sphere(Particle):
             form_factor = np.expand_dims(form_factor, axis=1)
 
         form_factor = xr.DataArray(form_factor, coords=coords)
-        form_factor.attrs["kd"] = sc.wavevector(n_ext) * self.outer_radius
+        if kd is not None:
+            form_factor.attrs["kd"] = sc.wavevector(n_ext) * self.outer_radius
+        if incident_vector is not None:
+            form_factor.attrs["incident_vector"] = incident_vector
+        if cartesian is True:
+            form_factor.attrs["cartesian"] = cartesian
         form_factor.attrs[sc.Attr.LENGTH_UNIT] = wavelen.units
 
         return form_factor
