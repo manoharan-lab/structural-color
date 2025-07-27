@@ -1304,6 +1304,49 @@ def fresnel_coeffs(n1, n2, incident_angle):
 
     return coeffs
 
+def _integrate_intensity_complex_medium(diff_cscat,
+                                        phi_min=0, phi_max=2*np.pi):
+    """This is an xarray-based version of
+    mie.integrate_intensity_complex_medium. Takes differential scattering
+    cross-section DataArray from Model.differential_cross_section() and
+    integrates it at the dimensionless distance (kd) that was used to calculate
+    it. Returns dimensionless cross-section; need to multiply by distance**2 to
+    get the dimensional cross-section.
+
+    """
+    kd = diff_cscat.attrs.get("kd")
+
+    # Integrate over theta
+    thetas = diff_cscat.coords[sc.Coord.THETA]
+    integrand = diff_cscat * np.sin(thetas)
+    integral = integrand.integrate(sc.Coord.THETA)
+
+    if "phis" not in diff_cscat.coords:
+        # see mie.integrate_intensity_complex_medium()
+        factor = xr.DataArray([(phi_max/2 + np.sin(2*phi_max)/4
+                                - phi_min/2 - np.sin(2*phi_min)/4),
+                               (phi_max/2 - np.sin(2*phi_max)/4 -
+                                    phi_min/2 + np.sin(2*phi_min)/4)],
+                              coords = {sc.Coord.POL: ["par", "perp"]})
+        sigma = factor * integral
+    else:
+        sigma = integral.integrate(sc.Coord.PHI)
+
+    # multiply by attenuation factor; see original function in mie.py
+    exponent = np.exp(2 * kd.imag)
+    factor_limit = 2
+    with np.errstate(divide='ignore', invalid='ignore'):
+        factor = xr.where(kd.imag <= 1e-6, factor_limit,
+                          1 / (exponent / (2*kd.imag)
+                               + (1 - exponent) / (2*kd.imag)**2))
+    sigma = sigma * factor
+
+    # include average over polarizations
+    sigma_avg = sigma.sum(sc.Coord.POL)/2
+    sigma_avg.coords[sc.Coord.POL] = "avg"
+    sigma = xr.concat([sigma, sigma_avg], dim=sc.Coord.POL)
+
+    return sigma
 
 def _integrate_cross_section(cross_section, factor, angles,
                              azi_angle_range = 2*np.pi):
