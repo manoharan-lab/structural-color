@@ -824,7 +824,9 @@ def reflection(index_particle, index_matrix, index_medium, wavelen, radius,
     azi_angle_range_tot = sc.Quantity(2 * np.pi, 'rad')
 
     transmission = fresnel_coeffs(n_sample, n_medium, np.pi-angles).loc["t"]
-    transmission = transmission.to_numpy().squeeze()
+    # replace coordinate (which is pi-angles) with angles so we can integrate
+    transmission.coords[sc.Coord.THETA] = angles
+    transmission_arr = transmission.to_numpy().squeeze()
 
     # calculate the differential cross section in the detected range of angles
     # and in the total angles. We calculate it at a distance = radius when
@@ -833,9 +835,15 @@ def reflection(index_particle, index_matrix, index_medium, wavelen, radius,
     # when the calculation is done not over all angles but only a subset.
     # When there isn't absorption, the distance does not enter the calculation.
     if form_type == 'polydisperse':
-        distance = mean_diameters / 2
+        distance_arr = mean_diameters / 2
     else:
-        distance = mean_diameters.max() / 2
+        distance_arr = mean_diameters.max() / 2
+    if np.ndim(distance_arr) == 0:
+        distance = distance_arr
+    else:
+        distance = xr.DataArray(distance_arr,
+                                coords={sc.Coord.SPECIES:
+                                        range(len(distance_arr))})
 
     model = _make_model(index_particle, index_matrix, index_medium,
                         radius, volume_fraction, radius2=radius2,
@@ -844,11 +852,11 @@ def reflection(index_particle, index_matrix, index_medium, wavelen, radius,
                         maxwell_garnett=maxwell_garnett,
                         structure_s_data=structure_s_data,
                         structure_qd_data=structure_qd_data)
-    diff_cs_det_da = model.differential_cross_section(wavelen, angles)
-    diff_cs_tot_da = model.differential_cross_section(wavelen, angles_tot)
+    diff_cs_detected = model.differential_cross_section(wavelen, angles)
+    diff_cs_total = model.differential_cross_section(wavelen, angles_tot)
 
-    diff_cs_detected = diff_cs_det_da.to_numpy().squeeze()
-    diff_cs_total = diff_cs_tot_da.to_numpy().squeeze()
+    diff_cs_det_arr = diff_cs_detected.to_numpy().squeeze()
+    diff_cs_tot_arr = diff_cs_total.to_numpy().squeeze()
 
     # calculate the absorption cross section
     if isinstance(model, PolydisperseHardSpheres):
@@ -874,17 +882,22 @@ def reflection(index_particle, index_matrix, index_medium, wavelen, radius,
             # component (meaning at a distance of each mean radius). Then we
             # do a number average the total cross sections.
             cscat1 = mie.integrate_intensity_complex_medium(
-                                        diff_cs_detected[0] * transmission[0],
-                                        diff_cs_detected[1] * transmission[1],
-                                        distance[0], angles, k,
+                                        diff_cs_det_arr[0]
+                                        * transmission_arr[0],
+                                        diff_cs_det_arr[1]
+                                        * transmission_arr[1],
+                                        distance_arr[0], angles, k,
                                         phi_min=sc.Quantity(phi_min, 'rad'),
                                         phi_max=sc.Quantity(phi_max, 'rad'))
             cscat2 = mie.integrate_intensity_complex_medium(
-                                        diff_cs_detected[0] * transmission[0],
-                                        diff_cs_detected[1] * transmission[1],
-                                        distance[1], angles, k,
+                                        diff_cs_det_arr[0]
+                                        * transmission_arr[0],
+                                        diff_cs_det_arr[1]
+                                        * transmission_arr[1],
+                                        distance_arr[1], angles, k,
                                         phi_min=sc.Quantity(phi_min, 'rad'),
                                         phi_max=sc.Quantity(phi_max, 'rad'))
+
             cscat_detected1 = cscat1[0]
             cscat_detected_par1 = cscat1[1]
             cscat_detected_perp1 = cscat1[2]
@@ -892,44 +905,64 @@ def reflection(index_particle, index_matrix, index_medium, wavelen, radius,
             cscat_detected_par2 = cscat2[1]
             cscat_detected_perp2 = cscat2[2]
 
-            cscat_detected = (cscat_detected1 * concentration[0]
-                              + cscat_detected2 * concentration[1])
-            cscat_detected_par = (cscat_detected_par1 * concentration[0]
-                                  + cscat_detected_par2 * concentration[1])
-            cscat_detected_perp = (cscat_detected_perp1 * concentration[0]
+            cscat_detected_old = (cscat_detected1 * concentration[0]
+                                  + cscat_detected2 * concentration[1])
+            cscat_detected_par_old = (cscat_detected_par1 * concentration[0]
+                                      + cscat_detected_par2 * concentration[1])
+            cscat_detected_perp_old = (cscat_detected_perp1 * concentration[0]
                                    + cscat_detected_perp2 * concentration[1])
 
             cscat_total1 = mie.integrate_intensity_complex_medium(
-                                                        diff_cs_total[0],
-                                                        diff_cs_total[1],
-                                                        distance[0],
+                                                        diff_cs_tot_arr[0],
+                                                        diff_cs_tot_arr[1],
+                                                        distance_arr[0],
                                                         angles_tot, k)[0]
             cscat_total2 = mie.integrate_intensity_complex_medium(
-                                                        diff_cs_total[0],
-                                                        diff_cs_total[1],
-                                                        distance[1],
+                                                        diff_cs_tot_arr[0],
+                                                        diff_cs_tot_arr[1],
+                                                        distance_arr[1],
                                                         angles_tot, k)[0]
-            cscat_total = (cscat_total1 * concentration[0] +
-                           cscat_total2 * concentration[1])
+            cscat_total_old = (cscat_total1 * concentration[0] +
+                               cscat_total2 * concentration[1])
 
             # Similarly, we calculate the asymmetry parameter integrating at
             # the surface of each mean component of the binary mixture and
             # then average
             factor = np.cos(angles_tot)
             asymmetry_unpolarized1 = mie.integrate_intensity_complex_medium(
-                                            diff_cs_total[0] * factor,
-                                            diff_cs_total[1] * factor,
-                                            distance[0],
+                                            diff_cs_tot_arr[0] * factor,
+                                            diff_cs_tot_arr[1] * factor,
+                                            distance_arr[0],
                                             angles_tot, k)[0]
             asymmetry_unpolarized2 = mie.integrate_intensity_complex_medium(
-                                            diff_cs_total[0] * factor,
-                                            diff_cs_total[1] * factor,
-                                            distance[1],
+                                            diff_cs_tot_arr[0] * factor,
+                                            diff_cs_tot_arr[1] * factor,
+                                            distance_arr[1],
                                             angles_tot, k)[0]
-            asymmetry_unpolarized = (asymmetry_unpolarized1 * concentration[0]
-                                     + asymmetry_unpolarized2
-                                       * concentration[1])
+            asymmetry_unpolarized_old = (asymmetry_unpolarized1
+                                         * concentration[0]
+                                         + asymmetry_unpolarized2
+                                         * concentration[1])
 
+            # xarray-based version
+            conc = xr.DataArray(concentration,
+                                coords = {sc.Coord.SPECIES:
+                                          range(len(concentration))})
+
+            integrand = diff_cs_detected * transmission * distance**2
+            cscat = _integrate_intensity_complex_medium(integrand,
+                                                        phi_min=phi_min,
+                                                        phi_max=phi_max)
+            cscat_detected = (cscat * conc).sum(sc.Coord.SPECIES)
+
+            integrand = diff_cs_total * distance**2
+            cscat = _integrate_intensity_complex_medium(integrand)
+            cscat_total = (cscat * conc).sum(sc.Coord.SPECIES)
+
+            factor = np.cos(diff_cs_total.coords[sc.Coord.THETA])
+            integrand = diff_cs_total * factor * distance**2
+            asymmetry = _integrate_intensity_complex_medium(integrand)
+            asymmetry_unpolarized = (asymmetry * conc).sum(sc.Coord.SPECIES)
         else:
             # We calculate the detected and total cross sections using the full
             # Mie solutions with the asymptotic form of the spherical Hankel
@@ -940,26 +973,73 @@ def reflection(index_particle, index_matrix, index_medium, wavelen, radius,
             # particle. The decay through the sample is accounted for later
             # with Beer- Lambert's law.
             cscat = mie.integrate_intensity_complex_medium(
-                                        diff_cs_detected[0]*transmission[0],
-                                        diff_cs_detected[1]*transmission[1],
+                                        diff_cs_det_arr[0]
+                                        *transmission_arr[0],
+                                        diff_cs_det_arr[1]
+                                        *transmission_arr[1],
                                         distance, angles, k,
                                         phi_min=sc.Quantity(phi_min, 'rad'),
                                         phi_max=sc.Quantity(phi_max, 'rad'))
-            cscat_detected = cscat[0]
-            cscat_detected_par = cscat[1]
-            cscat_detected_perp = cscat[2]
+            cscat_detected_old = cscat[0]
+            cscat_detected_par_old = cscat[1]
+            cscat_detected_perp_old = cscat[2]
 
-            cscat_total = mie.integrate_intensity_complex_medium(
-                                        diff_cs_total[0],
-                                        diff_cs_total[1],
+            cscat_total_old = mie.integrate_intensity_complex_medium(
+                                        diff_cs_tot_arr[0],
+                                        diff_cs_tot_arr[1],
                                         distance, angles_tot, k)[0]
             asym_factor = np.cos(angles_tot)
-            asymmetry_unpolarized = mie.integrate_intensity_complex_medium(
-                                        diff_cs_total[0]*asym_factor,
-                                        diff_cs_total[1]*asym_factor,
+            asymmetry_unpolarized_old = mie.integrate_intensity_complex_medium(
+                                        diff_cs_tot_arr[0]*asym_factor,
+                                        diff_cs_tot_arr[1]*asym_factor,
                                         distance,
                                         angles_tot, k)[0]
 
+            integrand = diff_cs_detected * transmission * distance**2
+            cscat = _integrate_intensity_complex_medium(integrand,
+                                                        phi_min=phi_min,
+                                                        phi_max=phi_max)
+            cscat_detected = cscat
+
+            integrand = diff_cs_total * distance**2
+            cscat_total = _integrate_intensity_complex_medium(integrand)
+
+            factor = np.cos(diff_cs_total.coords[sc.Coord.THETA])
+            integrand = diff_cs_total * factor * distance**2
+            asymmetry = _integrate_intensity_complex_medium(integrand)
+            asymmetry_unpolarized = asymmetry
+
+        # conversion and checks
+        cscat_detected_par = cscat_detected.loc["par"].to_numpy().squeeze()
+        cscat_detected_perp = \
+            cscat_detected.loc["perp"].to_numpy().squeeze()
+        cscat_detected = cscat_detected.loc["avg"].to_numpy().squeeze()
+
+        np.testing.assert_allclose(cscat_detected_par,
+                                   cscat_detected_par_old.magnitude,
+                                   rtol=1e-15)
+        np.testing.assert_allclose(cscat_detected_perp,
+                                   cscat_detected_perp_old.magnitude,
+                                   rtol=1e-15)
+        np.testing.assert_allclose(cscat_detected,
+                                   cscat_detected_old.magnitude,
+                                   rtol=1e-15)
+        cscat_total = cscat_total.loc["avg"].to_numpy().squeeze()
+        np.testing.assert_allclose(cscat_total, cscat_total_old.magnitude,
+                                   rtol=1e-15)
+        asymmetry_unpolarized = \
+            asymmetry_unpolarized.loc["avg"].to_numpy().squeeze()
+        np.testing.assert_allclose(asymmetry_unpolarized,
+                                   asymmetry_unpolarized_old.magnitude,
+                                   rtol=1e-14)
+
+        cscat_detected_par = sc.Quantity(cscat_detected_par, wavelen.units**2)
+        cscat_detected_perp = sc.Quantity(cscat_detected_perp,
+                                          wavelen.units**2)
+        cscat_detected = sc.Quantity(cscat_detected, wavelen.units**2)
+        cscat_total = sc.Quantity(cscat_total, wavelen.units**2)
+        asymmetry_unpolarized = sc.Quantity(asymmetry_unpolarized,
+                                            wavelen.units**2)
         asymmetry_parameter = asymmetry_unpolarized/cscat_total
 
         # Calculate the transport length for unpolarized light (see eq. 5 of
@@ -969,23 +1049,23 @@ def reflection(index_particle, index_matrix, index_medium, wavelen, radius,
 
     # if there is no absorption in the system
     else:
-        factor = (transmission[0]/np.abs(k)**2)
+        factor = (transmission_arr[0]/np.abs(k)**2)
         factor = factor.reshape((num_wavelen, num_angles))
-        cscat_detected_par = _integrate_cross_section(diff_cs_detected[0],
+        cscat_detected_par = _integrate_cross_section(diff_cs_det_arr[0],
                                                       factor, angles,
                                                       azi_angle_range)
-        factor = transmission[1]/np.abs(k)**2
+        factor = transmission_arr[1]/np.abs(k)**2
         factor = factor.reshape((num_wavelen, num_angles))
-        cscat_detected_perp = _integrate_cross_section(diff_cs_detected[1],
+        cscat_detected_perp = _integrate_cross_section(diff_cs_det_arr[1],
                                                        factor, angles,
                                                        azi_angle_range)
         cscat_detected = (cscat_detected_par + cscat_detected_perp)/2.0
 
-        cscat_total_par = _integrate_cross_section(diff_cs_total[0],
+        cscat_total_par = _integrate_cross_section(diff_cs_tot_arr[0],
                                                    1.0/np.abs(k)**2,
                                                    angles_tot,
                                                    azi_angle_range_tot)
-        cscat_total_perp = _integrate_cross_section(diff_cs_total[1],
+        cscat_total_perp = _integrate_cross_section(diff_cs_tot_arr[1],
                                                     1.0/np.abs(k)**2,
                                                     angles_tot,
                                                     azi_angle_range_tot)
@@ -993,10 +1073,10 @@ def reflection(index_particle, index_matrix, index_medium, wavelen, radius,
 
         factor = np.cos(angles_tot)*1.0/np.abs(k)**2
         factor = factor.reshape((num_wavelen, len(angles_tot)))
-        asymmetry_par = _integrate_cross_section(diff_cs_total[0], factor,
+        asymmetry_par = _integrate_cross_section(diff_cs_tot_arr[0], factor,
                                                  angles_tot,
                                                  azi_angle_range_tot)
-        asymmetry_perp = _integrate_cross_section(diff_cs_total[1], factor,
+        asymmetry_perp = _integrate_cross_section(diff_cs_tot_arr[1], factor,
                                                   angles_tot,
                                                   azi_angle_range_tot)
         asymmetry_parameter = (asymmetry_par + asymmetry_perp)/cscat_total/2.0
@@ -1005,10 +1085,10 @@ def reflection(index_particle, index_matrix, index_medium, wavelen, radius,
         # not currently returned, but could be useful in the future
         factor = (1-np.cos(angles_tot))*1.0/np.abs(k)**2
         factor = factor.reshape((num_wavelen, len(angles_tot)))
-        transport_cscat_par = _integrate_cross_section(diff_cs_total[0],
+        transport_cscat_par = _integrate_cross_section(diff_cs_tot_arr[0],
                                                        factor, angles_tot,
                                                        azi_angle_range_tot)
-        transport_cscat_perp = _integrate_cross_section(diff_cs_total[1],
+        transport_cscat_perp = _integrate_cross_section(diff_cs_tot_arr[1],
                                                         factor, angles_tot,
                                                         azi_angle_range_tot)
         transport_cscat = (transport_cscat_par + transport_cscat_perp)/2
@@ -1018,7 +1098,7 @@ def reflection(index_particle, index_matrix, index_medium, wavelen, radius,
         # TODO is this cscat or cext_tot?
         transport_length = 1/(1.0-asymmetry_parameter)/rho/cscat_total
 
-    cext_total = cscat_total.to('um**2') + cabs_total.to('um**2')
+    cext_total = cscat_total + cabs_total
 
     # now eq. 6 for the total reflection
     if thickness is None:
@@ -1027,7 +1107,7 @@ def reflection(index_particle, index_matrix, index_medium, wavelen, radius,
     else:
         # use Beer-Lambert law to account for attenuation
         factor = ((1.0 - np.exp(-rho*cext_total*thickness))
-                  * cscat_total/cext_total).to('')
+                  * cscat_total/cext_total)
 
     # one critical difference from Sofia's original code is that this code
     # calculates the reflected intensity in each polarization channel

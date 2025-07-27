@@ -378,6 +378,7 @@ class Sphere(Particle):
 
         return form_factor
 
+
 class SphereDistribution:
     """Class to describe a continuous size distribution of spheres.
 
