@@ -781,6 +781,39 @@ def reflection(index_particle, index_matrix, index_medium, wavelen, radius,
                             (wavelen/(n_sample.to_numpy().squeeze())))
         cabs_total = cross_sections[2]
 
+    # xarray-based version
+    integrand = diff_cs_detected * transmission
+    cscat_detected = _integrate_intensity(integrand, phi_min=phi_min,
+                                          phi_max=phi_max)
+
+    cscat_total = _integrate_intensity(diff_cs_total)
+
+    cosines = np.cos(diff_cs_total.coords[sc.Coord.THETA])
+    asymmetry_unpolarized = _integrate_intensity(diff_cs_total * cosines)
+    # calculate transport cscat
+    # not currently returned, but could be useful in the future
+    transport_cscat = _integrate_intensity(diff_cs_total * (1-cosines))
+
+    if np.abs(n_sample.imag) > 0.:
+        if form_type == 'polydisperse' and len(concentration) > 1:
+            conc = xr.DataArray(distance**2 * concentration,
+                                coords = {sc.Coord.SPECIES:
+                                          range(len(concentration))})
+            cscat_detected = (cscat_detected * conc).sum(sc.Coord.SPECIES)
+            cscat_total = (cscat_total * conc).sum(sc.Coord.SPECIES)
+            asymmetry_unpolarized = (asymmetry_unpolarized
+                                     * conc).sum(sc.Coord.SPECIES)
+            transport_cscat = (transport_cscat * conc).sum(sc.Coord.SPECIES)
+            factor = 1
+        else:
+            factor = distance**2
+    else:
+        factor = 1.0/np.abs(k)**2
+    cscat_detected = cscat_detected * factor
+    cscat_total = cscat_total * factor
+    asymmetry_unpolarized = asymmetry_unpolarized * factor
+    transport_cscat = transport_cscat * factor
+
     # integrate the differential cross sections to get the total cross section
     if np.abs(n_sample.imag) > 0.:
         if form_type == 'polydisperse' and len(concentration) > 1:
@@ -850,25 +883,6 @@ def reflection(index_particle, index_matrix, index_medium, wavelen, radius,
                                          * concentration[0]
                                          + asymmetry_unpolarized2
                                          * concentration[1])
-
-            # xarray-based version
-            conc = xr.DataArray(concentration,
-                                coords = {sc.Coord.SPECIES:
-                                          range(len(concentration))})
-
-            integrand = diff_cs_detected * transmission * distance**2
-            cscat = _integrate_intensity(integrand, phi_min=phi_min,
-                                         phi_max=phi_max)
-            cscat_detected = (cscat * conc).sum(sc.Coord.SPECIES)
-
-            integrand = diff_cs_total * distance**2
-            cscat = _integrate_intensity(integrand)
-            cscat_total = (cscat * conc).sum(sc.Coord.SPECIES)
-
-            factor = np.cos(diff_cs_total.coords[sc.Coord.THETA])
-            integrand = diff_cs_total * factor * distance**2
-            asymmetry = _integrate_intensity(integrand)
-            asymmetry_unpolarized = (asymmetry * conc).sum(sc.Coord.SPECIES)
         else:
             # We calculate the detected and total cross sections using the full
             # Mie solutions with the asymptotic form of the spherical Hankel
@@ -900,19 +914,6 @@ def reflection(index_particle, index_matrix, index_medium, wavelen, radius,
                                         diff_cs_tot_arr[1]*asym_factor,
                                         distance,
                                         angles_tot, k)[0]
-
-            integrand = diff_cs_detected * transmission * distance**2
-            cscat = _integrate_intensity(integrand, phi_min=phi_min,
-                                                        phi_max=phi_max)
-            cscat_detected = cscat
-
-            integrand = diff_cs_total * distance**2
-            cscat_total = _integrate_intensity(integrand)
-
-            factor = np.cos(diff_cs_total.coords[sc.Coord.THETA])
-            integrand = diff_cs_total * factor * distance**2
-            asymmetry = _integrate_intensity(integrand)
-            asymmetry_unpolarized = asymmetry
 
     # if there is no absorption in the system
     else:
@@ -961,23 +962,6 @@ def reflection(index_particle, index_matrix, index_medium, wavelen, radius,
                                                             azi_angle_range_tot)
         transport_cscat_old = (transport_cscat_par_old +
                                transport_cscat_perp_old)/2
-
-        # xarray-based version
-        integrand = diff_cs_detected * transmission/np.abs(k)**2
-        cscat_detected = _integrate_intensity(integrand, phi_min=phi_min,
-                                              phi_max=phi_max)
-
-        integrand = diff_cs_total * 1/np.abs(k)**2
-        cscat_total = _integrate_intensity(integrand)
-
-        cosines = np.cos(diff_cs_total.coords[sc.Coord.THETA])
-        integrand = diff_cs_total * cosines * 1/np.abs(k)**2
-        asymmetry_unpolarized = _integrate_intensity(integrand)
-
-        # calculate transport cscat
-        # not currently returned, but could be useful in the future
-        integrand = diff_cs_total * (1-cosines) * 1/np.abs(k)**2
-        transport_cscat = _integrate_intensity(integrand)
 
         np.testing.assert_allclose(
             transport_cscat.loc["avg"].to_numpy().squeeze(),
