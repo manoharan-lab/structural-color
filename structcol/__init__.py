@@ -84,12 +84,14 @@ class Coord():
     # Fresnel coefficient (should be either "r" or "t")
     FRESNEL = "fresnel"
 
+
 class Attr():
     """Simple class to standardize metadata (attributes) used in xarray
     objects.
 
     """
     LENGTH_UNIT = "length unit"
+
 
 # Preferred unit for length. Because the package allows calculations as a
 # function of wavelength and radius, it's not always clear what length scale to
@@ -99,6 +101,59 @@ class Attr():
 # are then nondimensionalized. We choose micrometers because all the dispersion
 # relations are expressed in terms of micrometers.
 ureg.default_preferred_units = [ureg.micrometer]
+
+
+def make_input_coords(wavelen, thetas, phis=None):
+    """Convenience function to generate DataArray coordinates to be used as
+    inputs to differential_cross_section() and form_factor() methods.
+
+    Parameters
+    ----------
+    wavelen : array-like [`sc.Quantity`]
+        Wavelengths at which to calculate form factor
+    thetas : array-like [`sc.Quantity`]
+        Scattering angles (theta) at which to calculate form factor.
+    phis : array-like (optional, default None)
+        Azimuthal angles (phi)
+
+    Returns
+    -------
+    `xr.Coordinates` object :
+        can be used as input to scattering methods, which will then vectorize
+        the calculations over the specified coordinates.
+
+    Notes
+    -----
+    Standardizes units. All dimensional quantities are converted to preferred
+    units and then magnitudes.
+
+    """
+    if isinstance(wavelen, Quantity):
+        wavelen = wavelen.to_preferred().magnitude
+    if isinstance(thetas, Quantity):
+        thetas = thetas.to("rad").magnitude
+    if phis is not None:
+        if isinstance(phis, Quantity):
+            phis = phis.to("rad").magnitude
+
+    coords = xr.Coordinates()
+
+    # set up coords for DataArray, avoiding scalar dimension for wavelen
+    coords[Coord.WAVELEN] = np.atleast_1d(wavelen)
+    if thetas.ndim == 2:
+        # theta and phi were specified using meshgrid
+        if phis is None:
+            raise ValueError("thetas specified as 2D array, but no "
+                             "corresponding phis array was supplied.")
+        coords[Coord.THETA] = thetas[:, 0]
+        coords[Coord.PHI] = phis[0, :]
+    else:
+        coords[Coord.THETA] = thetas
+        if phis is not None:
+            coords[Coord.PHI] = phis
+
+    return coords
+
 
 
 def refraction(angles, n_before, n_after):

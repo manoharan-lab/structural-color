@@ -22,6 +22,7 @@ Tests various features of the structcol package not found in submodules
 
 from .. import Quantity, q, np
 from numpy.testing import assert_equal
+import xarray as xr
 import pytest
 import structcol as sc
 from pint.errors import DimensionalityError
@@ -89,3 +90,32 @@ def test_ql(wavelen, angles):
 
     assert_equal(ql.to_numpy(), ql_expected)
     assert ql.dims == (sc.Coord.WAVELEN, sc.Coord.THETA)
+
+@pytest.mark.parametrize("wavelen", [sc.Quantity(400, "nm"),
+                                     0.4,
+                                     sc.Quantity(np.linspace(400, 800, 10),
+                                                 "nm"),
+                                     np.linspace(0.4, 0.8, 20)])
+def test_make_input_coords(wavelen):
+    """Tests the convenience function to make DataArray coords from numpy
+    arrays or scalars"""
+    thetas = sc.Quantity(np.linspace(0, np.pi, 10), "rad")
+    phis = sc.Quantity(np.linspace(0, 360, 12), "deg")
+
+    coords = sc.make_input_coords(wavelen, thetas)
+    assert np.ndim(coords[sc.Coord.WAVELEN]) == 1
+    assert sc.Coord.THETA in coords
+    assert sc.Coord.PHI not in coords
+
+    # ensure that coords work with thetas, phis specified from either meshgrid
+    # or as separate 1D arrays.  First 1D:
+    coords_1d = sc.make_input_coords(wavelen, thetas, phis=phis)
+    assert sc.Coord.THETA in coords_1d
+    assert sc.Coord.PHI in coords_1d
+
+    # we need to specify phis if thetas comes from meshgrid
+    thetas, phis = np.meshgrid(thetas, phis, indexing="ij")
+    with pytest.raises(ValueError, match="thetas specified as"):
+        coords = sc.make_input_coords(wavelen, thetas)
+    coords_2d = sc.make_input_coords(wavelen, thetas, phis=phis)
+    xr.testing.assert_equal(coords_2d, coords_1d)
