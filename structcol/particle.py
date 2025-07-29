@@ -332,8 +332,8 @@ class Sphere(Particle):
             raise ValueError("Must specify at least wavelength and angles for "
                              "form factor calculation")
 
-        units = sc.Quantity(1, "m").to_preferred().units
-        wavelen = sc.Quantity(coords[sc.Coord.WAVELEN].to_numpy(), units)
+        wavelen = sc.Quantity(coords[sc.Coord.WAVELEN].to_numpy(),
+                              sc.LENGTH_UNIT)
         angles = sc.Quantity(coords[sc.Coord.THETA].to_numpy(), "rad")
         if sc.Coord.PHI in coords:
             phis = sc.Quantity(coords[sc.Coord.PHI].to_numpy(), "rad")
@@ -493,8 +493,8 @@ class SphereDistribution:
         `Sphere.form_factor` for parameters and return values.
 
         """
-        units = sc.Quantity(1, "m").to_preferred().units
-        wavelen = sc.Quantity(coords[sc.Coord.WAVELEN].to_numpy(), units)
+        wavelen = sc.Quantity(coords[sc.Coord.WAVELEN].to_numpy(),
+                              sc.LENGTH_UNIT)
         angles = sc.Quantity(coords[sc.Coord.THETA].to_numpy(), "rad")
         if sc.Coord.PHI in coords:
             phis = sc.Quantity(coords[sc.Coord.PHI].to_numpy(), "rad")

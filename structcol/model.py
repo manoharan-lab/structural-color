@@ -131,8 +131,8 @@ class FormStructureModel(Model):
         # calculate the form and structure factors and multiply them to get the
         # differential scattering cross-sections.
 
-        units = sc.Quantity(1, "m").to_preferred().units
-        wavelen = sc.Quantity(coords[sc.Coord.WAVELEN].to_numpy(), units)
+        wavelen = sc.Quantity(coords[sc.Coord.WAVELEN].to_numpy(),
+                              sc.LENGTH_UNIT)
         angles = sc.Quantity(coords[sc.Coord.THETA].to_numpy(), "rad")
 
         # calculate form factor
