@@ -131,25 +131,18 @@ class FormStructureModel(Model):
         # calculate the form and structure factors and multiply them to get the
         # differential scattering cross-sections.
 
-        wavelen = sc.Quantity(coords[sc.Coord.WAVELEN].to_numpy(),
-                              sc.LENGTH_UNIT)
-        angles = sc.Quantity(coords[sc.Coord.THETA].to_numpy(), "rad")
-
         # calculate form factor
-        if self.form_factor is not None:
+        if self.form_factor is None:
+            # set form factor to 1 and broadcast over wavelen, angles
+            ff = xr.DataArray([1, 1], coords={sc.Coord.POL: ["par", "perp"]})
+            ff = ff.expand_dims(dim=coords)
+        else:
             ff = self.form_factor(coords, self.index_external,
                                   **ff_kwargs)
-        else:
-            # set constant (unity) form factor
-            ff = xr.DataArray([1, 1], coords={sc.Coord.POL: ["par", "perp"]})
-            # broadcast over wavelen and angles
-            ff = ff.expand_dims(dim={sc.Coord.WAVELEN:
-                                     coords[sc.Coord.WAVELEN].to_numpy(),
-                                     sc.Coord.THETA:
-                                     coords[sc.Coord.THETA].to_numpy()})
 
         # calculate structure factor
-        n_ext = self.index_external(wavelen)
+        n_ext = self.index_external(coords[sc.Coord.WAVELEN])
+        angles = sc.Quantity(coords[sc.Coord.THETA].to_numpy(), "rad")
         ql = sc.ql(n_ext, self.lengthscale, angles)
         sf = self.structure_factor(ql)
 
@@ -174,7 +167,7 @@ class FormStructureModel(Model):
                                       * self.lengthscale.magnitude)
         # and ensure length scale is present
         if sc.Attr.LENGTH_UNIT not in diff_cscat.attrs:
-            diff_cscat.attrs[sc.Attr.LENGTH_UNIT] = wavelen.units
+            diff_cscat.attrs[sc.Attr.LENGTH_UNIT] = sc.LENGTH_UNIT
 
         return diff_cscat
 
