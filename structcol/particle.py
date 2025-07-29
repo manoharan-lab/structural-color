@@ -109,7 +109,7 @@ class Particle:
         """
         raise NotImplementedError
 
-    def form_factor(self, wavelen, angles, index_external, distance=None):
+    def form_factor(self, coords, index_external, distance=None):
         """Calculates form factor of the particle in a matrix with index of
         refraction `n_external`. Because the form factor depends on the
         particle, this method must be implemented in derived classes.
