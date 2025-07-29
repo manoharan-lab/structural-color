@@ -254,7 +254,9 @@ class TestParticle():
         index_particle = sc.Index.constant(1.59 + 1e-4 * 1.0j)
         sphere = sc.Sphere(index_particle, radius)
         angles = sc.Quantity(np.linspace(0, 180., 19), "deg")
-        ff = sphere.form_factor(wavelen, angles, index_matrix)
+
+        coords = sc.make_input_coords(wavelen, angles)
+        ff = sphere.form_factor(coords, index_matrix)
 
         m = sc.index.ratio(sphere.n(wavelen), index_matrix(wavelen))
         x = sc.size_parameter(index_matrix(wavelen), radius).to_numpy()
@@ -275,7 +277,9 @@ class TestParticle():
         gold_index = sc.Index.constant(0.1425812 + 3.6813284 * 1.0j)
         sphere = sc.Sphere(gold_index, radius)
         angles = sc.Quantity(np.linspace(0, 90., 10), "deg")
-        ff = sphere.form_factor(wavelen, angles, index_matrix)
+
+        coords = sc.make_input_coords(wavelen, angles)
+        ff = sphere.form_factor(coords, index_matrix)
 
         m = sc.index.ratio(sphere.n(wavelen), index_matrix(wavelen))
         ipar_mie, iperp_mie = mie.calc_ang_dist(m, x, angles)
@@ -299,7 +303,8 @@ class TestParticle():
         k = 2 * np.pi * index_matrix(wavelen).to_numpy() / wavelen
         k = k.to_preferred()
 
-        ff = sphere.form_factor(wavelen, angles, index_matrix)
+        coords = sc.make_input_coords(wavelen, angles)
+        ff = sphere.form_factor(coords, index_matrix)
 
         # check shape (should include size-1 dimension for wavelength)
         assert ff.shape == (2, 1, len(angles))
@@ -318,7 +323,8 @@ class TestParticle():
         angles = sc.Quantity(np.linspace(0, 180., 19), "deg")
         index_matrix = sc.index.water
 
-        ff = sphere.form_factor(wavelen, angles, index_matrix)
+        coords = sc.make_input_coords(wavelen, angles)
+        ff = sphere.form_factor(coords, index_matrix)
 
         m = sc.index.ratio(sphere.n(wavelen), index_matrix(wavelen))
         x = sc.size_parameter(index_matrix(wavelen), radii).to_numpy()
@@ -337,7 +343,9 @@ class TestParticle():
                                  sc.Quantity("0.125 um"))
         index_matrix = sc.index.water
         angles = sc.Quantity(np.linspace(0, 180., num_angles), "deg")
-        form_sphere = sphere.form_factor(wavelen, angles, index_matrix)
+
+        coords = sc.make_input_coords(wavelen, angles)
+        form_sphere = sphere.form_factor(coords, index_matrix)
 
         # make sure shape is correct
         assert form_sphere.shape == (2, num_wavelengths, num_angles)
@@ -345,7 +353,8 @@ class TestParticle():
         ff_loop = []
         # test that we get same values from a loop
         for i in range(num_wavelengths):
-            ff = sphere.form_factor(wavelen[i], angles, index_matrix)
+            coords = sc.make_input_coords(wavelen[i], angles)
+            ff = sphere.form_factor(coords, index_matrix)
             # have to convert the scalar wavelength dimension to a list so
             # xr.concat will work and put the dimensions in the right order
             wavelen_coord = np.atleast_1d(ff.coords[sc.Coord.WAVELEN])
@@ -430,8 +439,10 @@ class TestSphereDistribution():
 
         dist = sc.SphereDistribution([sphere1, sphere2],
                                               concentrations, pdi)
+
+        coords = sc.make_input_coords(self.wavelen, self.angles)
         with pytest.raises(ValueError, match=r"Currently can handle"):
-            dist.form_factor(self.wavelen, self.angles, index_external)
+            dist.form_factor(coords, index_external)
 
         # shouldn't work when one or both spheres are layered
         radius2 = sc.Quantity([0.15, 0.16], 'um')
@@ -440,17 +451,17 @@ class TestSphereDistribution():
         sphere2 = sc.Sphere(index2, radius2)
         dist = sc.SphereDistribution(sphere2, [1.0, 0], pdi[0])
         with pytest.raises(ValueError, match=r"Cannot handle polydispersity"):
-            dist.form_factor(self.wavelen, self.angles, index_external)
+            dist.form_factor(coords, index_external)
 
         dist = sc.SphereDistribution([sphere1, sphere2],
                                               concentrations, pdi)
         with pytest.raises(ValueError, match=r"Cannot handle polydispersity"):
-            dist.form_factor(self.wavelen, self.angles, index_external)
+            dist.form_factor(coords, index_external)
 
         # should work with one species
         dist = sc.SphereDistribution(sphere1, 1.0, 0.0)
         # when polydispersity is small, should be close to monodisperse form
         # factor
-        polyff = dist.form_factor(self.wavelen, self.angles, index_external)
-        monoff = sphere1.form_factor(self.wavelen, self.angles, index_external)
+        polyff = dist.form_factor(coords, index_external)
+        monoff = sphere1.form_factor(coords, index_external)
         xr.testing.assert_allclose(polyff, monoff)

@@ -57,7 +57,7 @@ class Model:
     def __init__(self, index_medium):
         self.index_medium = index_medium
 
-    def differential_cross_section(self, wavelen, angles, **kwargs):
+    def differential_cross_section(self, coords, **kwargs):
         """Calculates differential scattering cross-section as a function of
         wavelength and angle. This method, which depends on the structure, must
         be implemented in derived classes that specify a structure.
@@ -101,23 +101,21 @@ class FormStructureModel(Model):
         self.index_external = index_external
         super().__init__(index_medium)
 
-    def differential_cross_section(self, wavelen, angles, **ff_kwargs):
+    def differential_cross_section(self, coords, **ff_kwargs):
         """Calculate dimensionless differential scattering cross-section,
         including contributions from the structure factor. Need to multiply by
         1/k**2 to get the dimensional differential cross section.
 
         Parameters
         ----------
-        wavelen : float (structcol.Quantity [length])
-            Wavelength of light in vacuum.
-        angles : ndarray(structcol.Quantity [dimensionless])
-            array of scattering angles. Must be entered as a Quantity to allow
-            specifying units (degrees or radians) explicitly
+        coords : `xr.Coordinates`
+            Parameters to vectorize the calculation over.  Must include
+            wavelength (sc.Coord.WAVELEN) and theta (sc.Coord.THETA).  Can also
+            include phi (sc.Coord.PHI).
         **ff_kwargs :
             Keyword arguments to pass to `form_factor()` method. Includes
-            cartesian flag, incident_vector, and phis (angles). See
-            `Sphere.form_factor()` and `SphereDistribution.form_factor()` for
-            descriptions.
+            cartesian flag and incident_vector. See `Sphere.form_factor()` and
+            `SphereDistribution.form_factor()` for descriptions.
 
         Returns
         -------
@@ -133,20 +131,22 @@ class FormStructureModel(Model):
         # calculate the form and structure factors and multiply them to get the
         # differential scattering cross-sections.
 
-        wavelen = wavelen.to_preferred()
-        angles = angles.to("rad")
+        units = sc.Quantity(1, "m").to_preferred().units
+        wavelen = sc.Quantity(coords[sc.Coord.WAVELEN].to_numpy(), units)
+        angles = sc.Quantity(coords[sc.Coord.THETA].to_numpy(), "rad")
 
         # calculate form factor
         if self.form_factor is not None:
-            ff = self.form_factor(wavelen, angles, self.index_external,
+            ff = self.form_factor(coords, self.index_external,
                                   **ff_kwargs)
         else:
             # set constant (unity) form factor
             ff = xr.DataArray([1, 1], coords={sc.Coord.POL: ["par", "perp"]})
             # broadcast over wavelen and angles
             ff = ff.expand_dims(dim={sc.Coord.WAVELEN:
-                                        np.atleast_1d(wavelen.magnitude),
-                                     sc.Coord.THETA: angles.magnitude})
+                                     coords[sc.Coord.WAVELEN].to_numpy(),
+                                     sc.Coord.THETA:
+                                     coords[sc.Coord.THETA].to_numpy()})
 
         # calculate structure factor
         n_ext = self.index_external(wavelen)
@@ -746,8 +746,10 @@ def reflection(index_particle, index_matrix, index_medium, wavelen, radius,
                         maxwell_garnett=maxwell_garnett,
                         structure_s_data=structure_s_data,
                         structure_qd_data=structure_qd_data)
-    diff_cs_detected = model.differential_cross_section(wavelen, angles)
-    diff_cs_total = model.differential_cross_section(wavelen, angles_tot)
+    coords_det = sc.make_input_coords(wavelen, angles)
+    diff_cs_detected = model.differential_cross_section(coords_det)
+    coords_tot = sc.make_input_coords(wavelen, angles_tot)
+    diff_cs_total = model.differential_cross_section(coords_tot)
 
     # calculate the absorption cross section
     if isinstance(model, PolydisperseHardSpheres):

@@ -1076,8 +1076,8 @@ def calc_scat(radius, index_particle, index_matrix, index_sample, index_medium,
     ff_kwargs = {}
     if cartesian:
         ff_kwargs["cartesian"] = True
-        ff_kwargs["phis"] = phis
-    dscat = model.differential_cross_section(wavelen, thetas, **ff_kwargs)
+    coords = sc.make_input_coords(wavelen, thetas, phis=phis)
+    dscat = model.differential_cross_section(coords, **ff_kwargs)
     cscat = model.scattering_cross_section(dscat)
     p = model.phase_function(dscat).to_numpy().squeeze()
 
@@ -1101,7 +1101,7 @@ def calc_scat(radius, index_particle, index_matrix, index_sample, index_medium,
         model.index_external = index_matrix
         model.structure_factor = sc.structure.Constant(1.0)
 
-        dscat = model.differential_cross_section(wavelen, angles, **ff_kwargs)
+        dscat = model.differential_cross_section(coords, **ff_kwargs)
         cscat_total_mie = model.scattering_cross_section(dscat)
         mu_scat_mie = (number_density
                        * (cscat_total_mie.loc["avg"].to_numpy().squeeze()

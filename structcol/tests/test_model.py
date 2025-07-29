@@ -46,12 +46,13 @@ class TestModel():
     thickness = 0.050 * sc.ureg.millimeter
 
     angles = sc.Quantity(np.linspace(0, np.pi, 100), 'rad')
+    coords = sc.make_input_coords(wavelen, angles)
 
     def test_base_model(self):
         """tests for Model base class"""
         model = sc.model.Model(sc.index.vacuum)
         with pytest.raises(NotImplementedError):
-            model.differential_cross_section(self.wavelen, self.angles)
+            model.differential_cross_section(self.coords)
 
     def test_formstructure_model(self):
         """tests for the FormStructureModel"""
@@ -63,7 +64,8 @@ class TestModel():
                                             self.ps_radius,
                                             sc.index.vacuum,
                                             sc.index.vacuum)
-        dscat = model.differential_cross_section(wavelen, self.angles)
+        coords = sc.make_input_coords(wavelen, self.angles)
+        dscat = model.differential_cross_section(coords)
 
         xr.testing.assert_equal(dscat, xr.ones_like(dscat)*const)
 
@@ -75,10 +77,8 @@ class TestModel():
                                             self.ps_radius,
                                             sc.index.vacuum,
                                             sc.index.vacuum)
-        dscat = model.differential_cross_section(wavelen,
-                                                     self.angles)
-        ff = self.ps_sphere.form_factor(wavelen, self.angles,
-                                        sc.index.vacuum)
+        dscat = model.differential_cross_section(coords)
+        ff = self.ps_sphere.form_factor(coords, sc.index.vacuum)
 
         # dscat contains avg polarization; ff does not
         xr.testing.assert_equal(dscat.loc["par":"perp"], ff)
@@ -92,8 +92,7 @@ class TestModel():
                                             self.ps_radius,
                                             index_matrix,
                                             sc.index.vacuum)
-        dscat = model.differential_cross_section(wavelen,
-                                                 self.angles)
+        dscat = model.differential_cross_section(coords)
 
         ql = sc.ql(index_matrix(wavelen), self.ps_radius, self.angles)
         s = structure_factor(ql).to_numpy().squeeze()
@@ -118,10 +117,9 @@ class TestModel():
 
         # make sure form factor is calculated correctly
         angles = sc.Quantity(np.linspace(0, 180., 19), 'deg')
-        form_model = glass.form_factor(self.wavelen, angles,
-                                               index_matrix)
-        form_sphere = glass.sphere.form_factor(self.wavelen, angles,
-                                               index_matrix)
+        coords = sc.make_input_coords(self.wavelen, angles)
+        form_model = glass.form_factor(coords, index_matrix)
+        form_sphere = glass.sphere.form_factor(coords, index_matrix)
         xr.testing.assert_equal(form_model, form_sphere)
 
         # make sure structure factor is calculated correctly
@@ -159,9 +157,9 @@ class TestModel():
         wavelen = sc.Quantity(400, 'nm')
         # start at a few degrees to avoid division by zero error
         angles = sc.Quantity(np.linspace(2, 180., 19), 'deg')
-        form_model = model.form_factor(wavelen, angles, index_matrix)
-        form_sphere = dist.spheres[0].form_factor(wavelen, angles,
-                                                  index_matrix)
+        coords = sc.make_input_coords(wavelen, angles)
+        form_model = model.form_factor(coords, index_matrix)
+        form_sphere = dist.spheres[0].form_factor(coords, index_matrix)
         # monodisperse and polydisperse form factors should be equal at low
         # polydispersity
         xr.testing.assert_allclose(form_model, form_sphere)
@@ -171,8 +169,8 @@ class TestModel():
         # polydispersity
         mono_model = sc.model.HardSpheres(self.ps_sphere, volume_fraction,
                                           index_matrix, index_medium)
-        dscat = model.differential_cross_section(wavelen, angles)
-        dscat_mono = mono_model.differential_cross_section(wavelen, angles)
+        dscat = model.differential_cross_section(coords)
+        dscat_mono = mono_model.differential_cross_section(coords)
         # dscat mono will have an extra "volfrac" scalar dimension because the
         # PY structure factor is a function of volume fraction.  The
         # interpolated structure factor is not
@@ -260,8 +258,9 @@ class TestModel():
         py_model = sc.model.HardSpheres(sphere, volume_fraction, index_matrix,
                                         index_medium)
 
-        fs_dscat = fs_model.differential_cross_section(wavelen, self.angles)
-        py_dscat = py_model.differential_cross_section(wavelen, self.angles)
+        coords = sc.make_input_coords(wavelen, self.angles)
+        fs_dscat = fs_model.differential_cross_section(coords)
+        py_dscat = py_model.differential_cross_section(coords)
 
         # with cubic interpolation, relative error is a little larger than
         # 1e-3 at 60% volume fraction and 750 data points.  It is higher at
@@ -292,7 +291,8 @@ class TestModel():
 
         model = sc.model.HardSpheres(sphere, volume_fraction, index_matrix,
                                      index_medium)
-        diff = model.differential_cross_section(wavelen, angles)
+        coords = sc.make_input_coords(wavelen, angles)
+        diff = model.differential_cross_section(coords)
 
         # Differential cross section for core-shells. Core is equal to
         # non-core-shell particle, and shell is made of vacuum
@@ -308,7 +308,7 @@ class TestModel():
 
         model_cs = sc.model.HardSpheres(sphere_cs, volume_fraction_cs,
                                         index_matrix, index_medium)
-        diff_cs = model_cs.differential_cross_section(wavelen, angles)
+        diff_cs = model_cs.differential_cross_section(coords)
 
         assert_allclose(diff[0], diff_cs[0], rtol=1e-4)
         assert_allclose(diff[1], diff_cs[1], rtol=1e-4)
@@ -343,7 +343,8 @@ class TestModel():
 
         # do the calculation using method from Model object
         ff_kwargs = {}
-        dscat = model.differential_cross_section(wavelen, angles, **ff_kwargs)
+        coords = sc.make_input_coords(wavelen, angles)
+        dscat = model.differential_cross_section(coords, **ff_kwargs)
         cscat = model.scattering_cross_section(dscat)
 
         # make sure we have correct coords and shape
@@ -443,16 +444,15 @@ class TestModel():
         # do the calculation using single-species polydisperse model
         n_matrix = single_model.index_matrix(wavelen)
         ff_kwargs = {}
-        dscat_1 = single_model.differential_cross_section(wavelen, angles,
-                                                          **ff_kwargs)
+        coords = sc.make_input_coords(wavelen, angles)
+        dscat_1 = single_model.differential_cross_section(coords, **ff_kwargs)
         cscat_1 = single_model.scattering_cross_section(dscat_1)
 
         # do the calculation using bidisperse polydisperse model
         n_matrix = binary_model.index_matrix(wavelen)
         ff_kwargs = {}
 
-        dscat_2 = binary_model.differential_cross_section(wavelen, angles,
-                                                               **ff_kwargs)
+        dscat_2 = binary_model.differential_cross_section(coords, **ff_kwargs)
         cscat_2 = binary_model.scattering_cross_section(dscat_2)
 
         xr.testing.assert_equal(dscat_2, dscat_1)
@@ -494,13 +494,14 @@ class TestModel():
         # and perpendicular components, which we do by specifying (1,1) for the
         # incident vector:
         ff_kwargs = {"incident_vector": (1, 1)}
-        dscat = model.differential_cross_section(wavelen, thetas, **ff_kwargs)
+        coords = sc.make_input_coords(wavelen, thetas)
+        dscat = model.differential_cross_section(coords, **ff_kwargs)
         cscat = model.scattering_cross_section(dscat)
 
         # to show that incident vector was passed through, we pass an incorrect
         # vector here.  Should get a different result
         ff_kwargs.update({"incident_vector": (1, 0)})
-        dscat = model.differential_cross_section(wavelen, thetas, **ff_kwargs)
+        dscat = model.differential_cross_section(coords, **ff_kwargs)
         cscat_wrong = model.scattering_cross_section(dscat)
 
         assert not np.allclose(cscat.to_numpy(), cscat_wrong.to_numpy())
@@ -508,7 +509,7 @@ class TestModel():
         # now do scattering plane calculation going through
         # mie.calc_ang_dist(), without specifying incident vector
         del ff_kwargs["incident_vector"]
-        dscat = model.differential_cross_section(wavelen, thetas, **ff_kwargs)
+        dscat = model.differential_cross_section(coords, **ff_kwargs)
         cscat_no_vector = model.scattering_cross_section(dscat)
 
         assert_allclose(cscat.to_numpy(), cscat_no_vector.to_numpy())
@@ -516,10 +517,9 @@ class TestModel():
         # now do cartesian.  Incident vector is polarized, but remember we're
         # integrating over both polarizations at each detector position, so we
         # should get all the scattered light.
-        ff_kwargs.update({"phis": phi_mesh, "cartesian": True,
-                          "incident_vector": (1, 0)})
-        dscat_cart = model.differential_cross_section(wavelen, theta_mesh,
-                                                      **ff_kwargs)
+        ff_kwargs.update({"cartesian": True, "incident_vector": (1, 0)})
+        coords = sc.make_input_coords(wavelen, theta_mesh, phis=phi_mesh)
+        dscat_cart = model.differential_cross_section(coords, **ff_kwargs)
         cscat_cart = model.scattering_cross_section(dscat_cart)
 
         # only the total cross section should be the same.  The x- and y-
@@ -545,7 +545,8 @@ class TestModel():
 
         # monodisperse calculation
         ff_kwargs = {}
-        dscat = model.differential_cross_section(wavelen, angles, **ff_kwargs)
+        coords = sc.make_input_coords(wavelen, angles)
+        dscat = model.differential_cross_section(coords, **ff_kwargs)
         cscat_mono = model.scattering_cross_section(dscat)
         phase_func_mono = model.phase_function(dscat)
 
@@ -556,7 +557,7 @@ class TestModel():
         model = sc.model.PolydisperseHardSpheres(dist, volume_fraction,
                                                  index_matrix, index_medium)
 
-        dscat = model.differential_cross_section(wavelen, angles, **ff_kwargs)
+        dscat = model.differential_cross_section(coords, **ff_kwargs)
         cscat_poly = model.scattering_cross_section(dscat)
         phase_func_poly = model.phase_function(dscat)
 

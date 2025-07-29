@@ -274,17 +274,16 @@ class Sphere(Particle):
             radius = self.radius_q
         return 3.0 * volume_fraction / (4.0 * np.pi * radius**3)
 
-    def form_factor(self, wavelen, angles, index_external, cartesian=False,
-                    incident_vector=None, phis=None):
+    def form_factor(self, coords, index_external, cartesian=False,
+                    incident_vector=None):
         """Calculate form factor from Mie theory.
 
         Parameters
         ----------
-        wavelen : array-like [sc.Quantity]
-            wavelengths at which to calculate form factor
-        angles : array-like
-            scattering angles at which to calculate form factor.  Specified in
-            radians.
+        coords : `xr.Coordinates` object
+            Parameters to vectorize the calculation over.  Must include
+            wavelength (sc.Coord.WAVELEN) and theta (sc.Coord.THETA).  Can also
+            include phi (sc.Coord.PHI).
         index_external : `sc.Index` object
             Index of refraction of the medium around the particle.  Can be an
             effective index.
@@ -314,13 +313,6 @@ class Sphere(Particle):
             because we want to do calculations using polarization, and these
             calculations are much easier to convert to measured quantities when
             in the cartesian coordinate system.
-        phis : ndarray (optional, default None)
-            Azimuthal angles. If `cartesian` is set to True, the scattering
-            matrix depends on phi, so an `phis` should be provided. In this
-            case both `angles` and `phis` should be 2D, as output from
-            `np.meshgrid`. In the default scattering plane coordinates
-            (`cartesian=False`), `phis` is ignored, since the scattering
-            matrix does not depend on phi.
 
         Returns
         -------
@@ -337,10 +329,18 @@ class Sphere(Particle):
         differential scattering cross-section nondimensionalized by k^2.
 
         """
-        wavelen = wavelen.to_preferred()
-        angles = angles.to("rad")
-        if phis is not None:
-            phis = phis.to("rad")
+        if (sc.Coord.WAVELEN not in coords) or (sc.Coord.THETA not in coords):
+            raise ValueError("Must specify at least wavelength and angles for "
+                             "form factor calculation")
+
+        units = sc.Quantity(1, "m").to_preferred().units
+        wavelen = sc.Quantity(coords[sc.Coord.WAVELEN].to_numpy(), units)
+        angles = sc.Quantity(coords[sc.Coord.THETA].to_numpy(), "rad")
+        if sc.Coord.PHI in coords:
+            phis = sc.Quantity(coords[sc.Coord.PHI].to_numpy(), "rad")
+            angles, phis = np.meshgrid(angles, phis, indexing="ij")
+        else:
+            phis = None
 
         n_ext = index_external(wavelen)
         n_particle = self.n(wavelen)
@@ -484,8 +484,8 @@ class SphereDistribution:
             rho = 3.0 * volume_fraction / (4.0 * np.pi) * (term1 + term2)
         return rho
 
-    def form_factor(self, wavelen, angles, index_external,
-                    cartesian=False, incident_vector=None, phis=None):
+    def form_factor(self, coords, index_external,
+                    cartesian=False, incident_vector=None):
         """
         Calculate the form factor for polydisperse systems.
 
@@ -494,8 +494,14 @@ class SphereDistribution:
         `Sphere.form_factor` for parameters and return values.
 
         """
-        wavelen = wavelen.to_preferred()
-        angles = angles.to('rad')
+        units = sc.Quantity(1, "m").to_preferred().units
+        wavelen = sc.Quantity(coords[sc.Coord.WAVELEN].to_numpy(), units)
+        angles = sc.Quantity(coords[sc.Coord.THETA].to_numpy(), "rad")
+        if sc.Coord.PHI in coords:
+            phis = sc.Quantity(coords[sc.Coord.PHI].to_numpy(), "rad")
+        else:
+            phis = None
+
         n_ext = index_external(wavelen)
         if cartesian:
             coordinate_system = 'cartesian'
