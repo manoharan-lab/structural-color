@@ -100,7 +100,8 @@ class Attr():
 # (specified using pint) are converted to the same units as the preferred and
 # are then nondimensionalized. We choose micrometers because all the dispersion
 # relations are expressed in terms of micrometers.
-ureg.default_preferred_units = [ureg.micrometer]
+LENGTH_UNIT = ureg.micrometer
+ureg.default_preferred_units = [LENGTH_UNIT]
 
 
 def make_input_coords(wavelen, thetas, phis=None):

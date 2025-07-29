@@ -64,7 +64,6 @@ class Particle:
         return sc.Quantity(self.size.to_numpy(),
                            self.size.attrs[sc.Attr.LENGTH_UNIT])
 
-    @sc.ureg.check(None, '[length]')
     def n(self, wavelen):
         """Calculate index as a function of vacuum wavelength
 

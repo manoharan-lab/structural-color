@@ -59,7 +59,7 @@ class TestIndex:
         assert_equal(my_index(self.wavelen), np.ones_like(self.wavelen) * 3.33)
 
         # check that wavelengths with no units give error
-        with pytest.raises(DimensionalityError):
+        with pytest.raises(ValueError, match="wavelen must be either"):
             my_index(np.linspace(400, 800, 100))
 
     def test_index_from_constant(self):
@@ -155,6 +155,11 @@ class TestIndex:
 
         assert_equal(my_index(sc.Quantity('5e-5 cm')),
                      my_index(sc.Quantity('5e-7 m')))
+
+        # test with xarray input
+        wavelen = xr.DataArray(np.linspace(0.4, 0.8, 11),
+                               dims=sc.Coord.WAVELEN)
+        my_index(wavelen)
 
     def test_add(self):
         """Test that addition of Index objects and addition of scalars to Index

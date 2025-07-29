@@ -42,6 +42,7 @@ http://refractiveindex.info (accessed August 14, 2016).
 import numpy as np
 import xarray as xr
 import structcol as sc
+from pint import DimensionalityError
 from scipy.optimize import fsolve
 from scipy.interpolate import interp1d
 from functools import partial
@@ -77,7 +78,6 @@ class Index:
         self._n = partial(index_func, **kwargs)
         self._n_args = kwargs
 
-    @sc.ureg.check(None, '[length]')
     def __call__(self, wavelen):
         """Calculate index of refraction over a set of wavelengths.
 
@@ -94,8 +94,11 @@ class Index:
 
         Parameters
         ----------
-        wavelen : array-like of structcol.Quantity[length]
-            Wavelengths (in vacuum) at which to calculate index
+        wavelen : array-like
+            Wavelengths (in vacuum) at which to calculate index.  Must be
+            specified as either an `sc.Quantity` object or `xr.DataArray`.  If
+            specified as `xr.DataArray`, units are assumed to be preferred
+            units.
 
         Returns
         -------
@@ -105,9 +108,17 @@ class Index:
             units stored as an attribute
 
         """
-        # returned xarray will always have wavelength as an array (not scalar)
-        # coordinate, even if only a single wavelength is given
-        wavelen = np.atleast_1d(wavelen)
+        if isinstance(wavelen, xr.DataArray):
+            wavelen = sc.Quantity(wavelen.to_numpy(), sc.LENGTH_UNIT)
+        elif isinstance(wavelen, sc.Quantity):
+            # We ensure that the returned xarray will always have wavelength as
+            # an array (not scalar) coordinate, even if only a single
+            # wavelength is given
+            if not wavelen.check('[length]'):
+                raise DimensionalityError(wavelen.units, "[length]")
+            wavelen = np.atleast_1d(wavelen).to_preferred()
+        else:
+            raise ValueError("wavelen must be either Quantity or DataArray")
 
         index = self._n(wavelen)
         if isinstance(index, sc.Quantity):
@@ -120,9 +131,9 @@ class Index:
             index = index.to_base_units().magnitude
 
         # set up DataArray to return
-        coords={sc.Coord.WAVELEN: wavelen.to_preferred().magnitude}
+        coords = {sc.Coord.WAVELEN: wavelen.magnitude}
         index_array = xr.DataArray(index, coords=coords)
-        index_array.attrs[sc.Attr.LENGTH_UNIT] = wavelen.to_preferred().units
+        index_array.attrs[sc.Attr.LENGTH_UNIT] = sc.LENGTH_UNIT
 
         return index_array
 
