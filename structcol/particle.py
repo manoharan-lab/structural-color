@@ -363,7 +363,7 @@ class Sphere(Particle):
                                    coordinate_system=coordinate_system,
                                    incident_vector=incident_vector,
                                    phis=phis)
-        coords = _make_coords(wavelen, angles, cartesian, phis=phis)
+        coords = _make_coords(coords, cartesian)
 
         # convert tuple to array, adding a dimension with size 1 if the
         # wavelength is a scalar
@@ -514,7 +514,7 @@ class SphereDistribution:
         num_components = 50
 
         # set up coords for DataArrays
-        scat_coords = _make_coords(wavelen, angles, cartesian, phis=phis)
+        scat_coords = _make_coords(coords, cartesian)
 
         if self.has_layered:
             raise ValueError("Cannot handle polydispersity in core-shell ",
@@ -641,25 +641,20 @@ class SphereDistribution:
         return f
 
 
-def _make_coords(wavelen, angles, cartesian, phis=None):
+def _make_coords(coords, cartesian):
     """Convenience function to make DataArray coordinates for outputs from
     scattering methods (e.g. form_factor()).
 
     """
     if cartesian:
-        coords = {sc.Coord.POL: ["x", "y"]}
+        newcoords = {sc.Coord.POL: ["x", "y"]}
     else:
-        coords = {sc.Coord.POL: ["par", "perp"]}
+        newcoords = {sc.Coord.POL: ["par", "perp"]}
 
     # set up coords for DataArray, avoiding scalar dimension for wavelen
-    coords[sc.Coord.WAVELEN] = np.atleast_1d(wavelen.magnitude)
-    if angles.ndim == 2:
-        coords[sc.Coord.THETA] = angles[:, 0].magnitude
-        coords[sc.Coord.PHI] = phis[0, :].magnitude
-    else:
-        coords[sc.Coord.THETA] = angles.magnitude
+    newcoords.update(coords)
 
-    return coords
+    return newcoords
 
 
 def _form_factor(m, x, angles, kd=None, coordinate_system=None,
