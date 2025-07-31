@@ -89,16 +89,31 @@ class FormStructureModel(Model):
         Refractive index of the material outside the particles, which is
         needed to calculate the form factor.  Can be an effective index
         (`sc.EffectiveIndex` object).
-
+    particle : `sc.Particle` or `sc.SphereDistribution` object
+        If specified, allows number density and index of particle to be
+        calculated.  Needed for calculations such as absoption and transport
+        length.  volume_fraction must also be specified.
+    volume_fraction : float
+        volume fraction of particles that make up the structure.
     """
     def __init__(self, form_factor, structure_factor, lengthscale,
-                 index_external, index_medium):
+                 index_external, index_medium, particle=None,
+                 volume_fraction=None):
         self.form_factor = form_factor
         if structure_factor is None:
             structure_factor = sc.structure.Constant(1.0)
         self.structure_factor = structure_factor
         self.lengthscale = lengthscale
         self.index_external = index_external
+        if particle is not None:
+            self.particle = particle
+            if volume_fraction is None:
+                raise ValueError("volume_fraction must be specified if "
+                                 "particle is specified")
+        if volume_fraction is not None:
+            if isinstance(volume_fraction, sc.Quantity):
+                volume_fraction = volume_fraction.magnitude
+            self.volume_fraction = volume_fraction
         super().__init__(index_medium)
 
     def differential_cross_section(self, coords, **ff_kwargs):
@@ -233,6 +248,15 @@ class FormStructureModel(Model):
         cscat_total = self.scattering_cross_section(diff_cscat).loc["avg"]
         return diff_cscat.loc["avg"] / cscat_total
 
+    @property
+    def number_density(self):
+        try:
+            return self.particle.number_density(self.volume_fraction)
+        except AttributeError:
+            raise ValueError("Number density cannot be calculated for "
+                             "this model.  Use a different model or specify "
+                             "particle and volume_fraction")
+
 
 class HardSpheres(FormStructureModel):
     """Model of scattering from a hard-sphere liquid or glass.
@@ -261,8 +285,6 @@ class HardSpheres(FormStructureModel):
     def __init__(self, sphere, volume_fraction, index_matrix, index_medium,
                  maxwell_garnett=False, ql_cutoff=None):
         self.sphere = sphere
-        if isinstance(volume_fraction, sc.Quantity):
-            volume_fraction = volume_fraction.magnitude
         self.volume_fraction = volume_fraction
         self.index_matrix = index_matrix
         self.maxwell_garnett = maxwell_garnett
@@ -285,7 +307,12 @@ class HardSpheres(FormStructureModel):
 
         form_factor = self.sphere.form_factor
         super().__init__(form_factor, structure_factor, lengthscale,
-                         index_external, index_medium)
+                         index_external, index_medium,
+                         volume_fraction=volume_fraction)
+
+    @property
+    def number_density(self):
+        return self.sphere.number_density(self.volume_fraction)
 
 
 class PolydisperseHardSpheres(FormStructureModel):
@@ -314,7 +341,6 @@ class PolydisperseHardSpheres(FormStructureModel):
     def __init__(self, sphere_dist, volume_fraction, index_matrix,
                  index_medium):
         self.sphere_dist = sphere_dist
-        self.volume_fraction = volume_fraction
         self.index_matrix = index_matrix
 
         # for a polydisperse system we use the first mean diameter (of the
@@ -328,11 +354,13 @@ class PolydisperseHardSpheres(FormStructureModel):
                                                          volume_fraction,
                                                          index_matrix)
 
-        structure_factor = sc.structure.Polydisperse(self.volume_fraction,
+        structure_factor = sc.structure.Polydisperse(volume_fraction,
                                                      self.sphere_dist)
         form_factor = self.sphere_dist.form_factor
         super().__init__(form_factor, structure_factor, lengthscale,
-                         index_external, index_medium)
+                         index_external, index_medium,
+                         volume_fraction=volume_fraction)
+
 
     def scattering_cross_section(self, diff_cscat):
         """Special routine to calculate scattering cross section for
@@ -360,6 +388,11 @@ class PolydisperseHardSpheres(FormStructureModel):
             cscat_total = super().scattering_cross_section(diff_cscat)
 
         return cscat_total
+
+    @property
+    def number_density(self):
+        return self.sphere_dist.number_density(self.volume_fraction)
+
 
 class Detector:
     """Class to describe far-field detector used in single-scattering

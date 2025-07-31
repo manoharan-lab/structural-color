@@ -57,6 +57,28 @@ class TestModel():
     def test_formstructure_model(self):
         """tests for the FormStructureModel"""
         wavelen = self.wavelen
+
+        # construction with particle and without volume_fraction should fail
+        with pytest.raises(ValueError, match="volume_fraction must be"):
+            model = sc.model.FormStructureModel(None, None, self.ps_radius,
+                                                sc.index.vacuum,
+                                                sc.index.vacuum,
+                                                particle = self.ps_sphere)
+
+        # not specifying particle/volume_fraction should lead
+        # to an error when calculating number density
+        model = sc.model.FormStructureModel(None, None, self.ps_radius,
+                                            sc.index.vacuum, sc.index.vacuum)
+        with pytest.raises(ValueError, match="Number density cannot"):
+            _ = model.number_density
+
+        # only specifying volume_fraction should also lead to an error
+        model = sc.model.FormStructureModel(None, None, self.ps_radius,
+                                            sc.index.vacuum, sc.index.vacuum,
+                                            volume_fraction = 0.5)
+        with pytest.raises(ValueError, match="Number density cannot"):
+            _ = model.number_density
+
         # if form factor is None and structure factor is a constant, should
         # have a constant differential scattering cross section
         const = 1.0
@@ -271,12 +293,54 @@ class TestModel():
         assert_allclose(fs_dscat[1], py_dscat[1], rtol=1e-2)
         # TODO: test reflectance as well
 
+    def test_number_density(self):
+        """tests that the number_density property works as expected for Model
+        objects.
+
+        """
+        index_matrix = sc.index.water
+        index_medium = sc.index.vacuum
+
+        # set density to 1 particle per cubic micrometer and calculate
+        # volume fraction
+        rho_expected = sc.Quantity(1, 'um^(-3)')
+        volume_fraction = (4/3)*np.pi*self.ps_radius**3 * rho_expected
+
+        # start with formstructure model
+        fs_model = sc.model.FormStructureModel(None, None, self.ps_radius,
+                                               sc.index.vacuum,
+                                               sc.index.vacuum,
+                                               particle = self.ps_sphere,
+                                               volume_fraction =
+                                               volume_fraction)
+        rho_fs = fs_model.number_density
+        assert isinstance(rho_fs, sc.Quantity)
+        assert rho_fs.magnitude == rho_expected.magnitude
+
+        # now for hard sphere model
+        hs_model = sc.model.HardSpheres(self.ps_sphere, volume_fraction,
+                                        index_matrix, index_medium)
+        rho_hs = hs_model.number_density
+        assert rho_hs.magnitude == rho_fs.magnitude
+
+        # now for polydisperse model (single species)
+        pdi = 0.15
+        sphere_dist = sc.SphereDistribution(self.ps_sphere, [1.0, 0], pdi)
+        poly_model = sc.model.PolydisperseHardSpheres(sphere_dist,
+                                                      volume_fraction,
+                                                      index_matrix,
+                                                      index_medium)
+        rho_poly = poly_model.number_density
+        assert rho_poly.magnitude == rho_hs.magnitude
+
     def test_differential_cross_section(self):
-        # Test that the differential cross sections for non-core-shell
-        # particles and core-shells are the same at low volume fractions,
-        # assuming that the particle diameter of the non-core-shells is the
-        # same as the core diameter in the core-shells (shell of the
-        # core-shells is vacuum)
+        """Test that the differential cross sections for non-core-shell
+        particles and core-shells are the same at low volume fractions,
+        assuming that the particle diameter of the non-core-shells is the same
+        as the core diameter in the core-shells (shell of the core-shells is
+        vacuum)
+
+        """
 
         wavelen = self.wavelen
         index_matrix = sc.Index.constant(1.0)
