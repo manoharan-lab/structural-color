@@ -30,6 +30,7 @@ Physical Review E 90, no. 6 (2014): 62302. doi:10.1103/PhysRevE.90.062302
 .. moduleauthor :: Victoria Hwang <vhwang@g.harvard.edu>
 """
 
+import warnings
 import numpy as np
 from pymie import mie
 from scipy.special import factorial
@@ -536,68 +537,32 @@ def _make_model(index_particle, index_matrix, index_medium, radius,
     return model
 
 
-@sc.ureg.check(None, None, None, '[length]', '[length]', '[]', None, None,
-               None, None, None, None, None, None, None, None, None, None,
-               None)
-def reflection(index_particle, index_matrix, index_medium, wavelen, radius,
-               volume_fraction,
-               radius2=None,
-               concentration=None,
-               pdi=None,
+@sc.ureg.check(None, '[length]', None, None, '[]', None, '[]')
+def reflection(model, wavelen,
                thickness=None,
                detector=HemisphericalReflectanceDetector(),
                incident_angle=sc.Quantity('0.0 deg'),
                num_angles=200,
-               small_angle=sc.Quantity('1.0 deg'),
-               structure_type='glass',
-               form_type='sphere',
-               maxwell_garnett=False,
-               structure_s_data=None,
-               structure_qd_data=None):
+               small_angle=sc.Quantity('1.0 deg')):
     """
     Calculate fraction of light reflected from an amorphous colloidal
     suspension (a "photonic glass").
 
     Parameters
     ----------
-    index_particle: `sc.Index` object or list of such
-        refractive index of particles or voids. In case of core-shell
-        particles, define indices from the innermost to the outermost layer.
-    index_matrix: `sc.Index` object
-        refractive index of the matrix surrounding the particles
-    index_medium: `sc.Index` object
-        refractive index of the medium surrounding the sample.  This is
-        usually air or vacuum
-    wavelen: structcol.Quantity [length]
-        wavelength of light in the medium (which is usually air or vacuum)
-    radius: array of structcol.Quantity [length]
-        radii of particles or voids. In case of core-shell particles, define
-        radii from the innermost to the outermost layer.
-    volume_fraction: array of structcol.Quantity [dimensionless]
-        volume fraction of particles or voids in matrix. If it's a core-shell
-        particle, must be the volume fraction of the entire core-shell particle
-        in the matrix.
-    radius2 : float (structcol.Quantity [length])
-        Mean radius of secondary scatterer. Specify only if the system is
-        binary, meaning that there are two mean particle radii (for example,
-        one small and one large).
-    concentration : 2-element array (structcol.Quantity [dimensionless])
-        Concentration of each scatterer if the system is binary. For
-        polydisperse monospecies systems, specify the concentration as
-        [0., 1.]. The concentrations must add up to 1.
-    pdi : 2-element array (structcol.Quantity [dimensionless])
-        Polydispersity index of each scatterer if the system is polydisperse.
-        For polydisperse monospecies systems, specify the pdi as a 2-element
-        array with repeating values (for example, [0.01, 0.01]).
-    thickness: structcol.Quantity [length] (optional)
-        thickness of photonic glass.  If unspecified, assumed to be infinite
+    model : `sc.Model` object
+        Model to use for calculating differential scattering cross-section
+    wavelen : array of structcol.Quantity [length]
+        Wavelength of light in the medium (which is usually air or vacuum)
+    thickness : structcol.Quantity [length] (optional)
+        Thickness of photonic glass.  If unspecified, assumed to be infinite
     detector : `sc.model.Detector` object (optional)
         Specifies the angles at which the reflectance is measured.  If
         unspecified, a hemispherical reflectance detector is used
-    incident_angle: structcol.Quantity [angle] (optional)
-        incident angle, measured from the normal
+    incident_angle : structcol.Quantity [angle] (optional)
+        Incident angle, measured from the normal
     num_angles: integer
-        number of angles to use in evaluation of the cross-section, which is
+        Number of angles to use in evaluation of the cross-section, which is
         done by numerical integration (fixed quadrature). The default value
         (200) seems to do OK for 280-nm-diameter spheres, but could use more
         testing.
@@ -612,26 +577,6 @@ def reflection(index_particle, index_matrix, index_medium, wavelen, radius,
         structure factor (and, by extension, the total cross-section). The
         default value is chosen to give good agreement with Mie theory for a
         single sphere, but it may not be reasonable for all calculations.
-    structure_type: string, dictionary, or None (optional)
-        Can be string specifying structure type. Current options are "glass",
-        "polydisperse", "data", or None. Can also set to None in order to only
-        visualize effect of form factor on reflectance spectrum. If set to
-        'data', you must also provide structure_s_data and structure_qd_data.
-    form_type: string or None (optional)
-        String specifying form factor type. Currently, 'sphere' or
-        'polydisperse' are the options. Can also set to None in order to only
-        visualize the effect of structure factor on reflectance spectrum.
-    maxwell_garnett: boolean
-        If true, the model uses Maxwell-Garnett's effective index for the
-        sample. In that case, the user must specify one refractive index for
-        the particle and one for the matrix. If false, the model uses
-        Bruggeman's formula, which can be used for multilayer particles.
-    structure_s_data: None or 1d array
-        if structure_type is 'data', the structure factor data must be provided
-        here in the form of a one dimensional array
-    structure_qd_data: None or 1d array
-        if structure_type is 'data', the qd data must be provided here in the
-        form of a one dimensional array
 
     Returns
     -------
@@ -658,37 +603,9 @@ def reflection(index_particle, index_matrix, index_medium, wavelen, radius,
     Beetles” Physical Review E 90, no. 6 (2014): 62302.
     doi:10.1103/PhysRevE.90.062302
     """
-    # make sure we're working in the same units
     wavelen = wavelen.to_preferred()
-    radius = radius.to_preferred()
-    if radius2 is not None:
-        radius2 = radius2.to_preferred()
-
-    particle = sc.Sphere(index_particle, radius)
-    n_particle = particle.n(wavelen)
-    n_medium = index_medium(wavelen)
-
-    if isinstance(concentration, sc.Quantity):
-        concentration = concentration.magnitude
-    if radius2 is None:
-        radius2 = radius
-
-    # define the mean diameters in case the system is polydisperse
-    mean_diameters = sc.Quantity(np.hstack([2*radius.magnitude,
-                                            2*radius2.magnitude]),
-                                    radius.units)
-
-    # check that the number of indices and radii is the same
-    if len(np.atleast_1d(index_particle)) != len(np.atleast_1d(radius)):
-        raise ValueError('Arrays of indices and radii must be the same length')
-
-    # use Bruggeman formula to calculate effective index of
-    # particle-matrix composite
-    index_external = sc.EffectiveIndex.from_particle(particle, volume_fraction,
-                                                     index_matrix,
-                                                     maxwell_garnett =
-                                                     maxwell_garnett)
-    n_sample = index_external(wavelen)
+    n_sample = model.index_external(wavelen)
+    n_medium = model.index_medium(wavelen)
 
     k = sc.wavevector(n_sample)
     k = sc.Quantity(k.to_numpy().squeeze(), 1/k.attrs[sc.Attr.LENGTH_UNIT])
@@ -755,10 +672,10 @@ def reflection(index_particle, index_matrix, index_medium, wavelen, radius,
     # (which is the default). Including near-fields leads to strange effects
     # when the calculation is done not over all angles but only a subset.
     # When there isn't absorption, the distance does not enter the calculation.
-    if form_type == 'polydisperse':
-        distance_arr = mean_diameters / 2
+    if isinstance(model, PolydisperseHardSpheres):
+        distance_arr = model.sphere_dist.diameters_q / 2
     else:
-        distance_arr = mean_diameters.max() / 2
+        distance_arr = model.lengthscale
     if np.ndim(distance_arr) == 0:
         distance = distance_arr
     else:
@@ -766,40 +683,10 @@ def reflection(index_particle, index_matrix, index_medium, wavelen, radius,
                                 coords={sc.Coord.SPECIES:
                                         range(len(distance_arr))})
 
-    model = _make_model(index_particle, index_matrix, index_medium,
-                        radius, volume_fraction, radius2=radius2,
-                        concentration=concentration, pdi=pdi,
-                        structure_type=structure_type, form_type=form_type,
-                        maxwell_garnett=maxwell_garnett,
-                        structure_s_data=structure_s_data,
-                        structure_qd_data=structure_qd_data)
     coords_det = sc.make_input_coords(wavelen, angles)
     diff_cs_detected = model.differential_cross_section(coords_det)
     coords_tot = sc.make_input_coords(wavelen, angles_tot)
     diff_cs_total = model.differential_cross_section(coords_tot)
-
-    # calculate the absorption cross section
-    if isinstance(model, PolydisperseHardSpheres):
-        # calculate number density
-        rho = model.sphere_dist.number_density(volume_fraction)
-    else:
-        rho = particle.number_density(volume_fraction)
-    if np.abs(n_sample.imag) > 0.0:
-        # The absorption coefficient can be calculated from the imaginary
-        # component of the samples's refractive index
-        mu_abs = 4 * np.pi * n_sample.imag.to_numpy().squeeze() / wavelen
-        cabs_total = mu_abs / rho
-    else:
-        if len(np.atleast_1d(radius)) > 1:
-            # particle is multilayer
-            m = sc.index.ratio(n_particle, n_sample).flatten()
-            x = sc.size_parameter(n_sample, radius).to_numpy().flatten()
-        else:
-            m = sc.index.ratio(n_particle, n_sample)
-            x = sc.size_parameter(n_sample, radius)
-        cross_sections = mie.calc_cross_sections(m, x,
-                            (wavelen/(n_sample.to_numpy().squeeze())))
-        cabs_total = cross_sections[2]
 
     # integrate the differential cross sections to get the total cross section
     integrand = diff_cs_detected * transmission
@@ -812,20 +699,25 @@ def reflection(index_particle, index_matrix, index_medium, wavelen, radius,
     # not currently returned, but could be useful in the future
     transport_cscat = _integrate_intensity(diff_cs_total * (1-cosines))
 
+    binary = False
+    if isinstance(model, PolydisperseHardSpheres):
+        if len(model.sphere_dist.concentrations) > 1:
+            binary = True
     if np.abs(n_sample.imag) > 0.:
-        if form_type == 'polydisperse' and len(concentration) > 1:
+        if isinstance(model, PolydisperseHardSpheres) and binary:
             # When the system is binary and absorbing, we integrate the
             # polydisperse differential cross section at the surface of each
-            # component (meaning at a distance of each mean radius). Then we
-            # do a number average the total cross sections.
+            # component (meaning at a distance of each mean radius). Then we do
+            # a number average the total cross sections.
+            concentration = model.sphere_dist.concentrations
             conc = xr.DataArray(distance**2 * concentration,
                                 coords = {sc.Coord.SPECIES:
                                           range(len(concentration))})
             cscat_detected = (cscat_detected * conc).sum(sc.Coord.SPECIES)
             cscat_total = (cscat_total * conc).sum(sc.Coord.SPECIES)
             # Similarly, we calculate the asymmetry parameter integrating at
-            # the surface of each mean component of the binary mixture and
-            # then average
+            # the surface of each mean component of the binary mixture and then
+            # average
             asymmetry_unpolarized = (asymmetry_unpolarized
                                      * conc).sum(sc.Coord.SPECIES)
             transport_cscat = (transport_cscat * conc).sum(sc.Coord.SPECIES)
@@ -872,10 +764,62 @@ def reflection(index_particle, index_matrix, index_medium, wavelen, radius,
 
     asymmetry_parameter = asymmetry_unpolarized/cscat_total
 
-    # Calculate the transport length for unpolarized light (see eq. 5 of
-    # Kaplan, Dinsmore, Yodh, Pine, PRE 50(6): 4827, 1994)
-    # TODO is this cscat or cext_tot?
-    transport_length = 1/(1.0-asymmetry_parameter)/rho/cscat_total
+    # calculate the transport length. Requires number density, which must be
+    # specified if using FormStructureModel
+    try:
+        rho = model.number_density
+    except ValueError:
+        warnings.warn("Number density cannot be calculated for model. "
+                      "Transport length will not be returned. ")
+        rho = None
+        transport_length = None
+    else:
+        # Calculate the transport length for unpolarized light (see eq. 5 of
+        # Kaplan, Dinsmore, Yodh, Pine, PRE 50(6): 4827, 1994)
+        # TODO is this cscat or cext_tot?
+        transport_length = 1/(1.0-asymmetry_parameter)/rho/cscat_total
+
+    if isinstance(model, HardSpheres):
+        n_particle = model.sphere.n(wavelen)
+    elif isinstance(model, PolydisperseHardSpheres):
+        n_particle = model.sphere_dist.spheres[0].n(wavelen)
+    else:
+        if hasattr(model, "particle"):
+            if isinstance(model.particle, sc.Sphere):
+                n_particle = model.particle.n(wavelen)
+            if isinstance(model.particle, sc.SphereDistribution):
+                n_particle = model.particle.spheres[0].n(wavelen)
+        else:
+            n_particle = None
+
+    # calculate the absorption cross section. Requires particle index or number
+    # density, which must be specified if using FormStructureModel
+    if np.abs(n_sample.imag) > 0.0 and rho is not None:
+        # The absorption coefficient can be calculated from the imaginary
+        # component of the samples's refractive index
+        mu_abs = 4 * np.pi * n_sample.imag.to_numpy().squeeze() / wavelen
+        cabs_total = mu_abs / rho
+    elif (np.abs(n_sample.imag) == 0.0) and n_particle is not None:
+        if isinstance(model, HardSpheres):
+            if model.sphere.layered:
+                # particle is multilayer
+                m = sc.index.ratio(n_particle, n_sample).flatten()
+                x = sc.size_parameter(n_sample,
+                                      model.sphere.radius_q)
+                x = x.to_numpy().flatten()
+            else:
+                m = sc.index.ratio(n_particle, n_sample)
+                x = sc.size_parameter(n_sample, model.sphere.radius_q)
+        else:
+            m = sc.index.ratio(n_particle, n_sample)
+            x = sc.size_parameter(n_sample, model.lengthscale)
+        cross_sections = mie.calc_cross_sections(m, x,
+            (wavelen/(n_sample.to_numpy().squeeze())))
+        cabs_total = cross_sections[2]
+    else:
+        warnings.warn("Absorption cross-section cannot be calculated for "
+                      "model.")
+        cabs_total = 0
 
     cext_total = cscat_total + cabs_total
 
@@ -883,10 +827,15 @@ def reflection(index_particle, index_matrix, index_medium, wavelen, radius,
     if thickness is None:
         # assume semi-infinite sample
         factor = 1.0
-    else:
+    elif rho is not None:
         # use Beer-Lambert law to account for attenuation
         factor = ((1.0 - np.exp(-rho*cext_total*thickness))
                   * cscat_total/cext_total)
+    else:
+        # Assume infinite thickness
+        warnings.warn("Number density cannot be calculated for model. "
+                      "Assuming infinite thickness")
+        factor = 1.0
 
     # one critical difference from Sofia's original code is that this code
     # calculates the reflected intensity in each polarization channel
@@ -900,7 +849,6 @@ def reflection(index_particle, index_matrix, index_medium, wavelen, radius,
                         factor + r_medium_sample[0]
     reflected_perp = t_medium_sample[1] * cscat_detected_perp/cext_total * \
                          factor + r_medium_sample[1]
-
     reflectance = (reflected_par + reflected_perp)/2
 
     return reflectance, reflected_par, reflected_perp, asymmetry_parameter, \

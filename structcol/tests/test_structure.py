@@ -273,6 +273,7 @@ def test_structure_factor_data_reflectances():
     index_particle = sc.index.fused_silica
     index_matrix = sc.index.vacuum
     index_medium = sc.index.vacuum
+    sphere = sc.Sphere(index_particle, radius)
     thickness = Quantity('50 um')
 
     # generate structure factor "data" from Percus-Yevick model
@@ -280,25 +281,26 @@ def test_structure_factor_data_reflectances():
     structure_factor = sc.structure.PercusYevick(volume_fraction)
     s_data = structure_factor(ql_data)
 
-    # make interpolation function
-    ql = np.arange(0, 70, 0.1)
+    # make interpolated structure factor
     structure_factor_interpolated = sc.structure.Interpolated(s_data, ql_data)
-    s = structure_factor_interpolated(ql)
+
+    # make model (we specify volume_fraction and particle to avoid warnings
+    # about not being able to calculate transport length).  Also need to
+    # explicitly calculate effective index.
+    index_external = sc.EffectiveIndex.from_particle(sphere, volume_fraction,
+                                                   index_matrix)
+    model = sc.model.FormStructureModel(sphere.form_factor,
+                                        structure_factor_interpolated,
+                                        sphere.radius_q,
+                                        index_external, index_medium,
+                                        particle=sphere,
+                                        volume_fraction=volume_fraction)
 
     # calculate reflectance from single-scattering model
     reflectance = np.zeros(len(wavelengths))
     for i in range(len(wavelengths)):
         reflectance[i],_,_,_,_ = \
-            sc.model.reflection(index_particle,
-                                index_matrix,
-                                index_medium,
-                                wavelengths[i],
-                                radius,
-                                volume_fraction,
-                                thickness=thickness,
-                                structure_type='data',
-                                structure_s_data=s_data,
-                                structure_qd_data=ql_data)
+            sc.model.reflection(model, wavelengths[i], thickness=thickness)
 
     reflectance_expected = [0.02776632370015263, 0.025862410582306178,
                             0.02804132579281817, 0.029567824927529483,
@@ -322,7 +324,6 @@ def test_structure_factor_data_reflectances():
     radius = sc.Quantity('0.5 um')
     volume_fraction = 0.5
     sphere = sc.Sphere(index_particle, radius)
-    n_particle = sphere.n(wavelengths)
     n_medium = index_medium(wavelengths)
     boundary = 'film'
     thickness = sc.Quantity('50 um')
