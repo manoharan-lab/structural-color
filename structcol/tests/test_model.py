@@ -1433,8 +1433,9 @@ def test_reflection_polydispersity_with_absorption():
     lstar4_before = 5.72414689861482e-05 #Before updating absorption in single scat: 8.8037552299275471e-09 #A/V:1.4399291096668534e-08
 
     # rtol here based on previous revision's (decimal) precision for
-    # assert_array_almost_equal
-    rtol = 1e-12
+    # assert_array_almost_equal.  Error is slightly higher on windows, so
+    # adjusted from 1e-12 to 1e-11
+    rtol = 1e-11
     assert_allclose(refl3.magnitude, refl3_before, rtol=rtol)
     assert_allclose(refl4.magnitude, refl4_before, rtol=rtol)
     assert_allclose(g3.magnitude, g3_before, rtol=rtol)
