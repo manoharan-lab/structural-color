@@ -325,7 +325,7 @@ class TestModel():
 
         # now for polydisperse model (single species)
         pdi = 0.15
-        sphere_dist = sc.SphereDistribution(self.ps_sphere, [1.0, 0], pdi)
+        sphere_dist = sc.SphereDistribution(self.ps_sphere, 1.0, pdi)
         poly_model = sc.model.PolydisperseHardSpheres(sphere_dist,
                                                       volume_fraction,
                                                       index_matrix,

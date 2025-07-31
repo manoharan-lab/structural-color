@@ -476,15 +476,16 @@ def _make_model(index_particle, index_matrix, index_medium, radius,
         if (np.ndim(radius) != 0) or (np.ndim(radius2) != 0):
             raise ValueError("cannot handle polydispersity for "
                              "layered spheres")
-        if len(np.atleast_1d(pdi)) == 2:
+        if np.any(concentration == 1.0):
+            radius2 = radius
+            sphere1 = sc.Sphere(index_particle, radius)
+            pdi = np.atleast_1d(pdi)[0]
+            dist = sc.SphereDistribution(sphere1, 1.0, pdi)
+        else:
             sphere1 = sc.Sphere(index_particle, radius)
             sphere2 = sc.Sphere(index_particle, radius2)
             dist = sc.SphereDistribution([sphere1, sphere2], concentration,
                                          pdi)
-        else:
-            radius2 = radius
-            sphere1 = sc.Sphere(index_particle, radius)
-            dist = sc.SphereDistribution(sphere1, concentration, pdi)
 
     if form_type == "sphere":
         if structure_type == "glass":

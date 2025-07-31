@@ -451,9 +451,7 @@ class Polydisperse(StructureFactor):
         # concentration c should always be a 2-element array because
         # polydisperse calculations assume the format of a bispecies particle
         # mixture, so if either element in c is 0, we assume the form factor is
-        # monospecies.  We include the second monospecies test in case the user
-        # enters a 1d concentration, even though the docstring advises that
-        # concentration should have two elements.
+        # monospecies.
         if (np.any(c == 0)
             or (len(np.atleast_1d(c)) == 1)):
             if len(np.atleast_1d(c)) == 1:

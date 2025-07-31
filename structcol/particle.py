@@ -413,6 +413,7 @@ class SphereDistribution:
         spheres = list(np.atleast_1d(spheres))
         if len(spheres) > 2:
             raise ValueError("Can only handle one or two species")
+
         self.spheres = spheres
         self.num_species = len(spheres)
 
@@ -424,6 +425,9 @@ class SphereDistribution:
         if isinstance(concentrations, sc.Quantity):
             concentrations = concentrations.to('').magnitude
         concentrations = np.atleast_1d(concentrations)
+        if len(self.diameters) == 1 and len(concentrations) !=1:
+                raise ValueError("Concentration overspecified; should be a "
+                                 "scalar equal to 1 for a single species")
         if np.sum(concentrations) != 1.0:
             raise ValueError("Concentrations must sum to 1")
         self.concentrations = concentrations
@@ -433,7 +437,7 @@ class SphereDistribution:
             polydispersities = polydispersities.to('').magnitude
         if not np.isscalar(polydispersities):
             if len(self.diameters) == 1 and len(polydispersities) !=1:
-                raise ValueError("polydispersity overspecified; only one "
+                raise ValueError("Polydispersity overspecified; only one "
                                  "value is needed for a single species")
         # if the pdi is zero, assume it's very small (we get the same results)
         # because otherwise we get a divide by zero error
@@ -473,7 +477,7 @@ class SphereDistribution:
 
         """
         radius = self.diameters_q/2.0
-        if np.any(self.concentrations == 0):
+        if self.num_species == 1:
             rho = self.spheres[0].number_density(volume_fraction)
         else:
             term1 = 1 / (radius[0] ** 3 + radius[1] ** 3

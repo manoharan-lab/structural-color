@@ -372,12 +372,12 @@ class TestSphereDistribution():
 
     def test_spheredistribution_construction(self):
         radius = sc.Quantity(130, 'nm')
-        concentrations = [1.0, 0.0]
+        concentration = 1.0
         pdi = 0.15
 
         # test construction with monospecies
         sphere1 = sc.Sphere(sc.index.polystyrene, radius)
-        dist = sc.SphereDistribution(sphere1, concentrations, pdi)
+        dist = sc.SphereDistribution(sphere1, concentration, pdi)
 
         with pytest.raises(ValueError, match=r"Concentrations must"):
             dist = sc.SphereDistribution(sphere1, 0.5, pdi)
@@ -390,7 +390,7 @@ class TestSphereDistribution():
         radii = sc.Quantity([0.15, 0.16], 'um')
 
         sphere2 = sc.Sphere(index, radii)
-        dist = sc.SphereDistribution(sphere2, concentrations, pdi)
+        dist = sc.SphereDistribution(sphere2, concentration, pdi)
         assert dist.has_layered
         outer_radii = xr.DataArray(radii[-1].to_preferred().magnitude)
         xr.testing.assert_equal(dist.outer_radii, outer_radii)
@@ -449,7 +449,7 @@ class TestSphereDistribution():
         index2 = [sc.index.vacuum, sc.index.polystyrene]
 
         sphere2 = sc.Sphere(index2, radius2)
-        dist = sc.SphereDistribution(sphere2, [1.0, 0], pdi[0])
+        dist = sc.SphereDistribution(sphere2, 1.0, pdi[0])
         with pytest.raises(ValueError, match=r"Cannot handle polydispersity"):
             dist.form_factor(coords, index_external)
 
