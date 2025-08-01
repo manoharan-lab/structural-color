@@ -679,10 +679,23 @@ class TestModel():
         assert sc.Coord.THETA in s.coords
         assert sc.Coord.VOLFRAC in s.coords
 
-        # check that model will also take an array of volume fractions
+        # check that model will also take an array of volume fractions. First
+        # with Maxwell-Garnett effective index
         model = sc.model.HardSpheres(self.ps_sphere, volume_fraction,
-                                     index_matrix, sc.index.vacuum)
-
+                                     index_matrix, sc.index.vacuum,
+                                     maxwell_garnett=True)
+        n_ext = model.index_external(wavelen)
+        n_ext_loop = []
+        for vf in volume_fraction:
+            model = sc.model.HardSpheres(self.ps_sphere, vf,
+                                         index_matrix, sc.index.vacuum,
+                                         maxwell_garnett=True)
+            n_ext_loop.append(model.index_external(wavelen))
+        n_ext_loop = xr.concat(n_ext_loop, sc.Coord.VOLFRAC)
+        # above will put volume fraction as first dimension since each element
+        # has volume fraction as a scalar coord.  Need to transpose.
+        n_ext_loop = n_ext_loop.transpose(sc.Coord.WAVELEN, ...)
+        xr.testing.assert_equal(n_ext, n_ext_loop)
 
 class TestDetector():
     """Tests for the Detector class and derived classes.

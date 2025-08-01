@@ -237,10 +237,13 @@ class Sphere(Particle):
         # volume fractions relative to sphere volume
         vf = (radii[1:]**3 - radii[:-1]**3) / radii[-1]**3
         if total_volume_fraction is not None:
-            total_vf = np.atleast_1d(total_volume_fraction)[:, np.newaxis]
+            total_volume_fraction = np.atleast_1d(total_volume_fraction)
+            total_vf = total_volume_fraction[:, np.newaxis]
+            # rescale by total volume fraction and add the remaining
+            # non-particle volume fraction
             vf = np.append(vf * total_vf, 1 - total_vf, axis=1)
             vf = xr.DataArray(vf, coords = {sc.Coord.VOLFRAC:
-                                            range(len(total_vf)),
+                                            total_volume_fraction,
                                             sc.Coord.MAT:
                                             range(self.layers+1)})
         else:

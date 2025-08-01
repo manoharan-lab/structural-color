@@ -130,12 +130,13 @@ class Index:
             # the "to_base_units()" converts units like nm/m to dimensionless
             index = index.to_base_units().magnitude
 
-        # set up DataArray to return
-        coords = {sc.Coord.WAVELEN: wavelen.magnitude}
-        index_array = xr.DataArray(index, coords=coords)
-        index_array.attrs[sc.Attr.LENGTH_UNIT] = sc.LENGTH_UNIT
+        # set up DataArray to return if called function does not already do so
+        if not isinstance(index, xr.DataArray):
+            coords = {sc.Coord.WAVELEN: wavelen.magnitude}
+            index = xr.DataArray(index, coords=coords)
+            index.attrs[sc.Attr.LENGTH_UNIT] = sc.LENGTH_UNIT
 
-        return index_array
+        return index
 
     def __add__(self, other_index):
         """Add two Index objects together, or add a scalar to an existing Index
@@ -734,9 +735,11 @@ def effective_index(index_list, volume_fractions, wavelen,
         the first element is the index of the inclusion and the second is the
         index of the host.  For Bruggeman, order need only be consistent with
         the order in volume_fractions.
-    volume_fractions : xr.DataArray
+    volume_fractions : `xr.DataArray`
         Volume fractions of the component materials in index_list, with
-        dimension name `sc.Coord.MAT`. Volume fractions must sum to 1.
+        dimension name `sc.Coord.MAT` and (possibly) dimension name
+        `sc.Coord.VOLFRAC` with the total volume fractions to be examined.
+        Volume fractions must sum to 1 over the material axis.
     wavelen : array-like of `sc.Quantity`[length]
         Wavelengths at which to calculate the indexes of refraction
     maxwell_garnett: boolean (optional)
@@ -760,11 +763,11 @@ def effective_index(index_list, volume_fractions, wavelen,
         Maxwell-Garnett relation in Eq. 18.
 
     """
-    if not np.isclose(volume_fractions.sum(dim=sc.Coord.MAT), 1):
+    if not np.all(np.isclose(volume_fractions.sum(dim=sc.Coord.MAT), 1)):
         raise ValueError("Volume fractions must sum to 1")
 
     # check that the number of volume fractions and of indices is the same
-    if len(index_list) != len(volume_fractions.coords[sc.Coord.MAT]):
+    if len(index_list) != volume_fractions.sizes[sc.Coord.MAT]:
         raise ValueError("Lists of indices and volume fractions "
                          "must have the same length")
 
@@ -782,11 +785,13 @@ def effective_index(index_list, volume_fractions, wavelen,
         ni = index_list[0](wavelen)
         nm = index_list[1](wavelen)
         # in MG, volume fraction is only for the inclusions
-        phi = volume_fractions[0]
+        phi = volume_fractions.isel({sc.Coord.MAT: 0})
         neff =  nm * np.sqrt((2*nm**2 + ni**2 + 2*phi*((ni**2)-(nm**2))) /
                          (2*nm**2 + ni**2 - phi*((ni**2)-(nm**2))))
 
-        return xr.DataArray(neff, coords=coords, attrs=attrs)
+        # neff is already a DataArray but will contain a scalar sc.Coord.MAT
+        # dimension, which we remove since it is noninformative
+        return neff.drop_vars(sc.Coord.MAT)
 
     # Bruggeman calculation is vectorized over both wavelengths and components
     # of particles.  Can handle multilayer spheres.
