@@ -458,7 +458,7 @@ class TestEffectiveIndex():
                        for wl in wavelen]
 
         # agreement shouldn't necessarily be exact because of tolerance of
-        # fsolve
+        # scipy.optimize.root
         xr.testing.assert_allclose(n_effective_vectorized,
                                    xr.concat(n_effective,
                                              dim=sc.Coord.WAVELEN))

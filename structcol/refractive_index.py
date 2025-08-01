@@ -43,7 +43,7 @@ import numpy as np
 import xarray as xr
 import structcol as sc
 from pint import DimensionalityError
-from scipy.optimize import fsolve
+from scipy.optimize import root
 from scipy.interpolate import interp1d
 from functools import partial
 
@@ -808,32 +808,35 @@ def effective_index(index_list, volume_fractions, wavelen,
     num_wavelengths = len(wavelen)
 
     # define a function for Bruggeman's equation
-    # scipy.fsolve looks only for real solutions, so we solve
+    # scipy.optimize.root looks only for real solutions, so we solve
     # simultaneously for the real and imaginary parts at each wavelength.
     def sum_bg(n_bg, vf, n_array):
         n_bg = n_bg.reshape(num_wavelengths, 2)
-        # real part: shape [num_wavelength, 1]
-        a = n_bg[:, 0].reshape(-1,1)
+        # real part: shape [num_wavelength, 1]. newaxis at ends adds dim after
+        # removing dim by indexing with 0
+        a = n_bg[..., 0, np.newaxis]
         # imaginary part: shape [num_wavelengths, 1]
-        b = n_bg[:, 1].reshape(-1,1)
+        b = n_bg[..., 1, np.newaxis]
         # sum S has shape [num_wavelengths] and is complex
         S = np.sum((vf[np.newaxis, :]*(n_array**2 - (a+b*1j)**2)
                     / (n_array**2 + 2*(a+b*1j)**2)), axis=1).squeeze()
-        # fsolve requires a 1-d array, so we return an array with
+        # root requires a 1-d array, so we return an array with
         # 2*num_wavelength components
         return np.array([S.real, S.imag]).flatten()
 
     # set an initial guess and solve for Bruggeman's refractive index of
     # the composite
     # most refractive indices range between 1 and 3
-    # fsolve requires a 1-d real array as input, so we split the initial
+    # root requires a 1-d real array as input, so we split the initial
     # guess 1.5 + 0j into two components [1.5, 0], stack by
     # num_wavelengths, and then flatten
     initial_guess = (np.ones((num_wavelengths, 2))
                      * np.array([1.5, 0])).flatten()
 
-    n_bg = fsolve(sum_bg, initial_guess.squeeze(),
-                  args=(vf_arr, index_arr))
+    result = root(sum_bg, initial_guess.squeeze(),
+                args=(vf_arr, index_arr))
+    n_bg = result.x
+
     n_bg_real = n_bg.reshape((num_wavelengths, 2))[:,0]
     n_bg_imag = n_bg.reshape((num_wavelengths, 2))[:,1]
 
