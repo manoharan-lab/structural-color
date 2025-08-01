@@ -250,6 +250,7 @@ class TestEffectiveIndex():
         neff_bg = sc.index.effective_index([index_particle, index_matrix], vf,
                                            wavelen, maxwell_garnett=False)
 
+        neff_mg = neff_mg.isel({sc.Coord.VOLFRAC: 0}, drop=True)
         xr.testing.assert_allclose(neff_mg, neff_bg)
 
         # test that the non-core-shell particle with Maxwell-Garnett matches
@@ -294,6 +295,8 @@ class TestEffectiveIndex():
                                                    wavelen,
                                                    maxwell_garnett=False)
 
+        neff_mg_complex = neff_mg_complex.isel({sc.Coord.VOLFRAC: 0},
+                                               drop=True)
         xr.testing.assert_allclose(neff_mg_complex, neff_bg_complex)
 
         # test that the non-core-shell particle with Maxwell-Garnett matches

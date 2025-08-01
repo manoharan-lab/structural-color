@@ -738,8 +738,10 @@ def effective_index(index_list, volume_fractions, wavelen,
     volume_fractions : `xr.DataArray`
         Volume fractions of the component materials in index_list, with
         dimension name `sc.Coord.MAT` and (possibly) dimension name
-        `sc.Coord.VOLFRAC` with the total volume fractions to be examined.
-        Volume fractions must sum to 1 over the material axis.
+        `sc.Coord.VOLFRAC` with the total volume fractions to be examined.  If
+        `sc.Coord.VOLFRAC` is not specified, the total volume fraction is
+        assumed to be 1.  Note that volume fractions must sum to 1 over the
+        material axis.
     wavelen : array-like of `sc.Quantity`[length]
         Wavelengths at which to calculate the indexes of refraction
     maxwell_garnett: boolean (optional)
@@ -771,8 +773,14 @@ def effective_index(index_list, volume_fractions, wavelen,
         raise ValueError("Lists of indices and volume fractions "
                          "must have the same length")
 
+    if sc.Coord.VOLFRAC not in volume_fractions.coords:
+        # assume total volume fraction is 1 and add dim
+        volume_fractions = volume_fractions.expand_dims({sc.Coord.VOLFRAC:
+                                                         [1]})
+
     wavelen = np.atleast_1d(wavelen)
     coords = {sc.Coord.WAVELEN: wavelen.to_preferred().magnitude}
+    coords[sc.Coord.VOLFRAC] = volume_fractions.coords[sc.Coord.VOLFRAC]
     attrs = {sc.Attr.LENGTH_UNIT: wavelen.to_preferred().units}
 
     # Maxwell-Garnett calculation is vectorized over wavelengths but currently
@@ -859,12 +867,9 @@ def effective_index(index_list, volume_fractions, wavelen,
 
     # for now, drop the length-1 volume fraction coordinate for
     # compatibility with downstream calculations
-    if n_bg.shape[-1] == 1:
-        n_bg = n_bg[..., 0]
-    elif (sc.Coord.VOLFRAC in volume_fractions.coords
-          and sc.Coord.VOLFRAC in volume_fractions.dims):
-        coords[sc.Coord.VOLFRAC] = volume_fractions.coords[sc.Coord.VOLFRAC]
     n_bg = xr.DataArray(n_bg, coords=coords, attrs=attrs)
+    if num_vf == 1:
+        n_bg = n_bg.isel({sc.Coord.VOLFRAC: 0}, drop=True)
 
     return n_bg
 
