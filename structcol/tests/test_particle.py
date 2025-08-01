@@ -180,14 +180,14 @@ class TestParticle():
         vf_expected = xr.DataArray([0.1**3, 0.2**3 - 0.1**3, 0.3**3 - 0.2**3,
                                     1 - 0.3**3, 0],
                                    coords = {sc.Coord.MAT : range(5)})
-        # drop the scalar volume fraction dim
-        xr.testing.assert_equal(vf.drop_vars(sc.Coord.VOLFRAC), vf_expected)
+        # drop the volume fraction dim, which has shape 1
+        xr.testing.assert_equal(vf.squeeze(drop=True), vf_expected)
 
         # try with a different value of total volume fraction
         vf = my_layered_sphere.volume_fraction(total_volume_fraction=0.5)
         vf_expected = vf_expected * 0.5
         vf_expected[-1] = 1-0.5
-        xr.testing.assert_equal(vf.drop_vars(sc.Coord.VOLFRAC), vf_expected)
+        xr.testing.assert_equal(vf.squeeze(drop=True), vf_expected)
 
         # test with a nonlayered sphere
         radius = sc.Quantity(150, 'nm')
@@ -195,18 +195,27 @@ class TestParticle():
 
         vf = sphere.volume_fraction()
         vf_expected = xr.DataArray([1.0], coords={sc.Coord.MAT: range(1)})
-        xr.testing.assert_equal(vf, vf_expected.squeeze())
+        xr.testing.assert_equal(vf.squeeze(drop=True),
+                                vf_expected.squeeze(drop=True))
 
         phi = 0.3256687
         vf = sphere.volume_fraction(total_volume_fraction=phi)
         vf_expected = xr.DataArray([phi, 1-phi],
                                    coords={sc.Coord.MAT: range(2)})
-        xr.testing.assert_equal(vf.drop_vars(sc.Coord.VOLFRAC), vf_expected)
+        xr.testing.assert_equal(vf.squeeze(drop=True), vf_expected)
 
         # should not work with a generic Particle
         particle = sc.Particle(sc.index.polystyrene, radius)
         with pytest.raises(NotImplementedError):
             particle.volume_fraction()
+
+        # test vectorization over total volume fraction for both sphere and
+        # layered sphere
+        volume_fractions = np.array([0.1, 0.25, 0.3, 0.5, 0.9, 1])
+        for particle in [sphere, my_layered_sphere]:
+            vf = particle.volume_fraction(volume_fractions)
+            assert vf.sizes[sc.Coord.MAT] == particle.layers+1
+            assert vf.sizes[sc.Coord.VOLFRAC] == volume_fractions.shape[0]
 
     def test_index_list(self):
         """test that index_list method reports correct results

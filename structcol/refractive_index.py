@@ -765,7 +765,7 @@ def effective_index(index_list, volume_fractions, wavelen,
     """
     if not np.all(np.isclose(volume_fractions.sum(dim=sc.Coord.MAT), 1)):
         raise ValueError("Volume fractions must sum to 1")
-
+    volume_fractions = volume_fractions.squeeze()
     # check that the number of volume fractions and of indices is the same
     if len(index_list) != volume_fractions.sizes[sc.Coord.MAT]:
         raise ValueError("Lists of indices and volume fractions "

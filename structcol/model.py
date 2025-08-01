@@ -286,7 +286,6 @@ class HardSpheres(FormStructureModel):
     def __init__(self, sphere, volume_fraction, index_matrix, index_medium,
                  maxwell_garnett=False, ql_cutoff=None):
         self.sphere = sphere
-        self.volume_fraction = volume_fraction
         self.index_matrix = index_matrix
         self.maxwell_garnett = maxwell_garnett
 
@@ -294,6 +293,8 @@ class HardSpheres(FormStructureModel):
         # size parameter x
         lengthscale = self.sphere.outer_radius_q
 
+        if isinstance(volume_fraction, sc.Quantity):
+            volume_fraction = volume_fraction.to('').magnitude
         index_external = sc.EffectiveIndex.from_particle(self.sphere,
                                                          volume_fraction,
                                                          index_matrix,

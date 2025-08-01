@@ -1100,7 +1100,7 @@ def test_calc_g():
     sphere = sc.Sphere(index, radius)
     n_particle = sphere.n(wavelength)
 
-    volume_fraction = Quantity(0.01, '')
+    volume_fraction = 0.01
     index_matrix = sc.Index.constant(1.0)
     index_medium = index_matrix
     index_sample = sc.EffectiveIndex.from_particle(sphere, volume_fraction,
@@ -1225,7 +1225,7 @@ def test_reflection_absorbing_matrix():
 
 def test_reflection_polydispersity():
     wavelength = Quantity(500.0, 'nm')
-    volume_fraction = Quantity(0.5, '')
+    volume_fraction = 0.5
     radius = Quantity('120.0 nm')
     index_matrix = sc.Index.constant(1.0)
     index_medium = sc.Index.constant(1.0)

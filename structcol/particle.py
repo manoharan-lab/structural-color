@@ -248,7 +248,8 @@ class Sphere(Particle):
                                             range(self.layers+1)})
         else:
             vf = xr.DataArray(vf, coords = {sc.Coord.MAT: range(self.layers)})
-        return vf.squeeze()
+
+        return vf
 
     def n(self, wavelen):
         """Calculate index as a function of vacuum wavelength
