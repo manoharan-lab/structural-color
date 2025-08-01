@@ -765,7 +765,7 @@ def effective_index(index_list, volume_fractions, wavelen,
     """
     if not np.all(np.isclose(volume_fractions.sum(dim=sc.Coord.MAT), 1)):
         raise ValueError("Volume fractions must sum to 1")
-    volume_fractions = volume_fractions.squeeze()
+
     # check that the number of volume fractions and of indices is the same
     if len(index_list) != volume_fractions.sizes[sc.Coord.MAT]:
         raise ValueError("Lists of indices and volume fractions "
@@ -807,21 +807,30 @@ def effective_index(index_list, volume_fractions, wavelen,
     vf_arr = volume_fractions.transpose(sc.Coord.MAT, ...).to_numpy()
     num_wavelengths = len(wavelen)
 
+    if (sc.Coord.VOLFRAC in volume_fractions.coords and sc.Coord.VOLFRAC in
+        volume_fractions.dims):
+        num_vf = volume_fractions.sizes[sc.Coord.VOLFRAC]
+    else:
+        num_vf = 1
+
+    vf_arr = vf_arr.transpose()
+    index_arr = index_arr[:, np.newaxis, :]
+
     # define a function for Bruggeman's equation
     # scipy.optimize.root looks only for real solutions, so we solve
     # simultaneously for the real and imaginary parts at each wavelength.
     def sum_bg(n_bg, vf, n_array):
-        n_bg = n_bg.reshape(num_wavelengths, 2)
-        # real part: shape [num_wavelength, 1]. newaxis at ends adds dim after
-        # removing dim by indexing with 0
+        n_bg = n_bg.reshape(num_wavelengths, num_vf, 2)
+        # real part: shape [num_wavelength, num_vf, 1]. newaxis at ends
+        # adds dim after removing dim by indexing with 0
         a = n_bg[..., 0, np.newaxis]
-        # imaginary part: shape [num_wavelengths, 1]
+        # imaginary part: shape [num_wavelengths, num_vf, 1]
         b = n_bg[..., 1, np.newaxis]
-        # sum S has shape [num_wavelengths] and is complex
-        S = np.sum((vf[np.newaxis, :]*(n_array**2 - (a+b*1j)**2)
-                    / (n_array**2 + 2*(a+b*1j)**2)), axis=1).squeeze()
+        # sum S has shape [num_wavelengths, num_vf] and is complex
+        S = np.sum((vf[np.newaxis, ...]*(n_array**2 - (a+b*1j)**2)
+                    / (n_array**2 + 2*(a+b*1j)**2)), axis=-1).squeeze()
         # root requires a 1-d array, so we return an array with
-        # 2*num_wavelength components
+        # 2*num_wavelength*num_vf components
         return np.array([S.real, S.imag]).flatten()
 
     # set an initial guess and solve for Bruggeman's refractive index of
@@ -830,15 +839,15 @@ def effective_index(index_list, volume_fractions, wavelen,
     # root requires a 1-d real array as input, so we split the initial
     # guess 1.5 + 0j into two components [1.5, 0], stack by
     # num_wavelengths, and then flatten
-    initial_guess = (np.ones((num_wavelengths, 2))
+    initial_guess = (np.ones((num_wavelengths, num_vf, 2))
                      * np.array([1.5, 0])).flatten()
 
     result = root(sum_bg, initial_guess.squeeze(),
                 args=(vf_arr, index_arr))
     n_bg = result.x
 
-    n_bg_real = n_bg.reshape((num_wavelengths, 2))[:,0]
-    n_bg_imag = n_bg.reshape((num_wavelengths, 2))[:,1]
+    n_bg_real = n_bg.reshape((num_wavelengths, num_vf, 2))[..., 0]
+    n_bg_imag = n_bg.reshape((num_wavelengths, num_vf, 2))[..., 1]
 
     if n_bg_imag.all() == 0:
         n_bg = n_bg_real
@@ -848,7 +857,16 @@ def effective_index(index_list, volume_fractions, wavelen,
     else:
         n_bg = (n_bg_real + n_bg_imag*1j)
 
-    return xr.DataArray(n_bg, coords=coords, attrs=attrs)
+    # for now, drop the length-1 volume fraction coordinate for
+    # compatibility with downstream calculations
+    if n_bg.shape[-1] == 1:
+        n_bg = n_bg[..., 0]
+    elif (sc.Coord.VOLFRAC in volume_fractions.coords
+          and sc.Coord.VOLFRAC in volume_fractions.dims):
+        coords[sc.Coord.VOLFRAC] = volume_fractions.coords[sc.Coord.VOLFRAC]
+    n_bg = xr.DataArray(n_bg, coords=coords, attrs=attrs)
+
+    return n_bg
 
 def ratio(n_particle, n_matrix):
     """Calculates the ratio of refractive indices (m in Mie theory).

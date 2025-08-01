@@ -630,7 +630,8 @@ class TestModel():
                                    phase_func_mono.drop_vars(sc.Coord.VOLFRAC),
                                    rtol=1e-5)
 
-    def test_vectorization(self):
+    @pytest.mark.parametrize("maxwell_garnett", [True, False])
+    def test_vectorization(self, maxwell_garnett):
         """Test that scattering methods and functions are vectorized over
         wavelength and other parameters
 
@@ -679,23 +680,25 @@ class TestModel():
         assert sc.Coord.THETA in s.coords
         assert sc.Coord.VOLFRAC in s.coords
 
-        # check that model will also take an array of volume fractions. First
-        # with Maxwell-Garnett effective index
+        # check that model will also take an array of volume fractions, both
+        # with Maxwell-Garnett and Bruggeman.
         model = sc.model.HardSpheres(self.ps_sphere, volume_fraction,
                                      index_matrix, sc.index.vacuum,
-                                     maxwell_garnett=True)
+                                     maxwell_garnett=maxwell_garnett)
         n_ext = model.index_external(wavelen)
         n_ext_loop = []
         for vf in volume_fraction:
             model = sc.model.HardSpheres(self.ps_sphere, vf,
                                          index_matrix, sc.index.vacuum,
-                                         maxwell_garnett=True)
+                                         maxwell_garnett=maxwell_garnett)
             n_ext_loop.append(model.index_external(wavelen))
         n_ext_loop = xr.concat(n_ext_loop, sc.Coord.VOLFRAC)
+        n_ext_loop = n_ext_loop.assign_coords({sc.Coord.VOLFRAC:
+                                               volume_fraction})
         # above will put volume fraction as first dimension since each element
         # has volume fraction as a scalar coord.  Need to transpose.
         n_ext_loop = n_ext_loop.transpose(sc.Coord.WAVELEN, ...)
-        xr.testing.assert_equal(n_ext, n_ext_loop)
+        xr.testing.assert_allclose(n_ext, n_ext_loop)
 
 class TestDetector():
     """Tests for the Detector class and derived classes.
