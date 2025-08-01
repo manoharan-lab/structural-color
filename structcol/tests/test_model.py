@@ -630,6 +630,59 @@ class TestModel():
                                    phase_func_mono.drop_vars(sc.Coord.VOLFRAC),
                                    rtol=1e-5)
 
+    def test_vectorization(self):
+        """Test that scattering methods and functions are vectorized over
+        wavelength and other parameters
+
+        """
+        wavelen = self.wavelen
+        # choose a matrix with dispersion
+        index_matrix = sc.index.water
+        angles = sc.Quantity(np.linspace(0, 180, 20), "deg")
+        volume_fraction = 0.6
+        coords = sc.make_input_coords(wavelen, angles)
+
+        # check that form factor is vectorized over wavelength by checking
+        # against loop values
+        ff = self.ps_sphere.form_factor(coords, index_matrix)
+        ff_loop = []
+        for i in range(len(wavelen)):
+            coords = sc.make_input_coords(wavelen[i], angles)
+            ff_loop.append(self.ps_sphere.form_factor(coords, index_matrix))
+        ff_loop = xr.concat(ff_loop, sc.Coord.WAVELEN)
+        xr.testing.assert_allclose(ff, ff_loop)
+
+        # check that cross-sections are vectorized over wavelength
+        model = sc.model.HardSpheres(self.ps_sphere, volume_fraction,
+                                     index_matrix, sc.index.vacuum)
+        coords = sc.make_input_coords(wavelen, angles)
+        dscat = model.differential_cross_section(coords)
+        cscat = model.scattering_cross_section(dscat)
+        dscat_loop = []
+        cscat_loop = []
+        for i in range(len(wavelen)):
+            coords = sc.make_input_coords(wavelen[i], angles)
+            dscat_loop.append(model.differential_cross_section(coords))
+            cscat_loop.append(model.scattering_cross_section(dscat_loop[i]))
+        dscat_loop = xr.concat(dscat_loop, sc.Coord.WAVELEN)
+        cscat_loop = xr.concat(cscat_loop, sc.Coord.WAVELEN)
+        xr.testing.assert_allclose(dscat, dscat_loop)
+        xr.testing.assert_allclose(cscat, cscat_loop)
+
+        # check that structure factor is vectorized over volume fraction
+        volume_fraction = np.array([0.05, 0.25, 0.35, 0.5, 0.6])
+        structure_factor = sc.structure.PercusYevick(volume_fraction)
+        ql = sc.ql(index_matrix(wavelen), self.ps_sphere.radius_q, angles)
+        s = structure_factor(ql)
+        assert np.ndim(s) == 3
+        assert sc.Coord.WAVELEN in s.coords
+        assert sc.Coord.THETA in s.coords
+        assert sc.Coord.VOLFRAC in s.coords
+
+        # check that model will also take an array of volume fractions
+        model = sc.model.HardSpheres(self.ps_sphere, volume_fraction,
+                                     index_matrix, sc.index.vacuum)
+
 
 class TestDetector():
     """Tests for the Detector class and derived classes.

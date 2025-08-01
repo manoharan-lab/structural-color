@@ -237,12 +237,15 @@ class Sphere(Particle):
         # volume fractions relative to sphere volume
         vf = (radii[1:]**3 - radii[:-1]**3) / radii[-1]**3
         if total_volume_fraction is not None:
-            vf = np.append(vf * total_volume_fraction,
-                           1 - total_volume_fraction)
-            materials = self.layers + 1
+            total_vf = np.atleast_1d(total_volume_fraction)[:, np.newaxis]
+            vf = np.append(vf * total_vf, 1 - total_vf, axis=1)
+            vf = xr.DataArray(vf, coords = {sc.Coord.VOLFRAC:
+                                            range(len(total_vf)),
+                                            sc.Coord.MAT:
+                                            range(self.layers+1)})
         else:
-            materials = self.layers
-        return xr.DataArray(vf, coords = {sc.Coord.MAT : range(materials)})
+            vf = xr.DataArray(vf, coords = {sc.Coord.MAT: range(self.layers)})
+        return vf.squeeze()
 
     def n(self, wavelen):
         """Calculate index as a function of vacuum wavelength

@@ -180,13 +180,14 @@ class TestParticle():
         vf_expected = xr.DataArray([0.1**3, 0.2**3 - 0.1**3, 0.3**3 - 0.2**3,
                                     1 - 0.3**3, 0],
                                    coords = {sc.Coord.MAT : range(5)})
-        xr.testing.assert_equal(vf, vf_expected)
+        # drop the scalar volume fraction dim
+        xr.testing.assert_equal(vf.drop_vars(sc.Coord.VOLFRAC), vf_expected)
 
         # try with a different value of total volume fraction
         vf = my_layered_sphere.volume_fraction(total_volume_fraction=0.5)
         vf_expected = vf_expected * 0.5
         vf_expected[-1] = 1-0.5
-        xr.testing.assert_equal(vf, vf_expected)
+        xr.testing.assert_equal(vf.drop_vars(sc.Coord.VOLFRAC), vf_expected)
 
         # test with a nonlayered sphere
         radius = sc.Quantity(150, 'nm')
@@ -194,13 +195,13 @@ class TestParticle():
 
         vf = sphere.volume_fraction()
         vf_expected = xr.DataArray([1.0], coords={sc.Coord.MAT: range(1)})
-        xr.testing.assert_equal(vf, vf_expected)
+        xr.testing.assert_equal(vf, vf_expected.squeeze())
 
         phi = 0.3256687
         vf = sphere.volume_fraction(total_volume_fraction=phi)
         vf_expected = xr.DataArray([phi, 1-phi],
                                    coords={sc.Coord.MAT: range(2)})
-        xr.testing.assert_equal(vf, vf_expected)
+        xr.testing.assert_equal(vf.drop_vars(sc.Coord.VOLFRAC), vf_expected)
 
         # should not work with a generic Particle
         particle = sc.Particle(sc.index.polystyrene, radius)
