@@ -805,37 +805,37 @@ def effective_index(index_list, volume_fractions, wavelen,
     # of particles.  Can handle multilayer spheres.
     indexes = _indexes_from_list(index_list, wavelen)
 
-    # Convert to numpy for numerical solution.  We use .transpose to ensure the
-    # labeled arrays are in the correct order for the subsequent numpy
-    # operations.
+    # Convert to numpy for numerical solution. We use expand_dims and transpose
+    # to ensure the labeled arrays have the right shape and axes are in the
+    # right order for the subsequent numpy operations.
     #
-    # index_arr should have shape [num_wavelengths, num_materials]
-    index_arr = indexes.transpose(sc.Coord.WAVELEN, ...).to_numpy()
-    # vf_arr should have shape [num_materials]
-    vf_arr = volume_fractions.transpose(sc.Coord.MAT, ...).to_numpy()
-    num_wavelengths = len(wavelen)
+    # index_arr should have shape [num_wavelengths, num_vf, num_materials]
+    index_arr = indexes.expand_dims(sc.Coord.VOLFRAC)
+    index_arr = index_arr.transpose(sc.Coord.WAVELEN, sc.Coord.VOLFRAC,
+                                    sc.Coord.MAT, ...)
+    index_arr = index_arr.to_numpy()
 
-    if (sc.Coord.VOLFRAC in volume_fractions.coords and sc.Coord.VOLFRAC in
-        volume_fractions.dims):
-        num_vf = volume_fractions.sizes[sc.Coord.VOLFRAC]
-    else:
-        num_vf = 1
+    # vf_arr should have same shape
+    vf_arr = volume_fractions.expand_dims(sc.Coord.WAVELEN)
+    vf_arr = vf_arr.transpose(sc.Coord.WAVELEN, sc.Coord.VOLFRAC,
+                              sc.Coord.MAT, ...)
+    vf_arr = vf_arr.to_numpy()
 
-    vf_arr = vf_arr.transpose()
-    index_arr = index_arr[:, np.newaxis, :]
+    num_wavelengths = indexes.sizes[sc.Coord.WAVELEN]
+    num_vf = volume_fractions.sizes[sc.Coord.VOLFRAC]
 
     # define a function for Bruggeman's equation
     # scipy.optimize.root looks only for real solutions, so we solve
     # simultaneously for the real and imaginary parts at each wavelength.
     def sum_bg(n_bg, vf, n_array):
         n_bg = n_bg.reshape(num_wavelengths, num_vf, 2)
-        # real part: shape [num_wavelength, num_vf, 1]. newaxis at ends
-        # adds dim after removing dim by indexing with 0
+        # real part: shape [num_wavelength, num_vf, 1]. newaxis at end
+        # adds dim after removing dim by indexing with 0.  This dim is MAT.
         a = n_bg[..., 0, np.newaxis]
         # imaginary part: shape [num_wavelengths, num_vf, 1]
         b = n_bg[..., 1, np.newaxis]
         # sum S has shape [num_wavelengths, num_vf] and is complex
-        S = np.sum((vf[np.newaxis, ...]*(n_array**2 - (a+b*1j)**2)
+        S = np.sum((vf * (n_array**2 - (a+b*1j)**2)
                     / (n_array**2 + 2*(a+b*1j)**2)), axis=-1).squeeze()
         # root requires a 1-d array, so we return an array with
         # 2*num_wavelength*num_vf components
