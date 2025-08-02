@@ -265,7 +265,7 @@ class TestParticle():
         sphere = sc.Sphere(index_particle, radius)
         angles = sc.Quantity(np.linspace(0, 180., 19), "deg")
 
-        coords = sc.make_input_coords(wavelen, angles)
+        coords = sc._make_input_coords(wavelen, angles)
         ff = sphere.form_factor(coords, index_matrix)
 
         m = sc.index.ratio(sphere.n(wavelen), index_matrix(wavelen))
@@ -288,7 +288,7 @@ class TestParticle():
         sphere = sc.Sphere(gold_index, radius)
         angles = sc.Quantity(np.linspace(0, 90., 10), "deg")
 
-        coords = sc.make_input_coords(wavelen, angles)
+        coords = sc._make_input_coords(wavelen, angles)
         ff = sphere.form_factor(coords, index_matrix)
 
         m = sc.index.ratio(sphere.n(wavelen), index_matrix(wavelen))
@@ -313,7 +313,7 @@ class TestParticle():
         k = 2 * np.pi * index_matrix(wavelen).to_numpy() / wavelen
         k = k.to_preferred()
 
-        coords = sc.make_input_coords(wavelen, angles)
+        coords = sc._make_input_coords(wavelen, angles)
         ff = sphere.form_factor(coords, index_matrix)
 
         # check shape (should include size-1 dimension for wavelength)
@@ -333,7 +333,7 @@ class TestParticle():
         angles = sc.Quantity(np.linspace(0, 180., 19), "deg")
         index_matrix = sc.index.water
 
-        coords = sc.make_input_coords(wavelen, angles)
+        coords = sc._make_input_coords(wavelen, angles)
         ff = sphere.form_factor(coords, index_matrix)
 
         m = sc.index.ratio(sphere.n(wavelen), index_matrix(wavelen))
@@ -354,7 +354,7 @@ class TestParticle():
         index_matrix = sc.index.water
         angles = sc.Quantity(np.linspace(0, 180., num_angles), "deg")
 
-        coords = sc.make_input_coords(wavelen, angles)
+        coords = sc._make_input_coords(wavelen, angles)
         form_sphere = sphere.form_factor(coords, index_matrix)
 
         # make sure shape is correct
@@ -363,7 +363,7 @@ class TestParticle():
         ff_loop = []
         # test that we get same values from a loop
         for i in range(num_wavelengths):
-            coords = sc.make_input_coords(wavelen[i], angles)
+            coords = sc._make_input_coords(wavelen[i], angles)
             ff = sphere.form_factor(coords, index_matrix)
             # have to convert the scalar wavelength dimension to a list so
             # xr.concat will work and put the dimensions in the right order
@@ -450,7 +450,7 @@ class TestSphereDistribution():
         dist = sc.SphereDistribution([sphere1, sphere2],
                                               concentrations, pdi)
 
-        coords = sc.make_input_coords(self.wavelen, self.angles)
+        coords = sc._make_input_coords(self.wavelen, self.angles)
         with pytest.raises(ValueError, match=r"Currently can handle"):
             dist.form_factor(coords, index_external)
 

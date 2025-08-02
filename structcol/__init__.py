@@ -104,29 +104,16 @@ LENGTH_UNIT = ureg.micrometer
 ureg.default_preferred_units = [LENGTH_UNIT]
 
 
-def make_input_coords(wavelen, thetas, phis=None):
+def _make_input_coords(wavelen, thetas, phis=None):
     """Convenience function to generate DataArray coordinates to be used as
-    inputs to differential_cross_section() and form_factor() methods.
+    inputs to differential_cross_section() and form_factor() methods.  Called
+    by `sc.model.FormStructureModel.make_input_coords()` but can also be called
+    by test functions.
 
-    Parameters
-    ----------
-    wavelen : array-like [`sc.Quantity`]
-        Wavelengths at which to calculate form factor
-    thetas : array-like [`sc.Quantity`]
-        Scattering angles (theta) at which to calculate form factor.
-    phis : array-like (optional, default None)
-        Azimuthal angles (phi)
-
-    Returns
-    -------
-    `xr.Coordinates` object :
-        can be used as input to scattering methods, which will then vectorize
-        the calculations over the specified coordinates.
-
-    Notes
-    -----
-    Standardizes units. All dimensional quantities are converted to preferred
-    units and then magnitudes.
+    Takes `sc.Quantity` objects for wavelen, thetas, and (optionally) phis, and
+    returns an `xr.Coordinates` object.  See
+    `sc.model.FormStructureModel.make_input_coords() for information on
+    parameters and return.
 
     """
     if isinstance(wavelen, Quantity):
@@ -154,7 +141,6 @@ def make_input_coords(wavelen, thetas, phis=None):
             coords[Coord.PHI] = phis
 
     return coords
-
 
 
 def refraction(angles, n_before, n_after):

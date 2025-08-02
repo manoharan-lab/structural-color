@@ -46,7 +46,7 @@ class TestModel():
     thickness = 0.050 * sc.ureg.millimeter
 
     angles = sc.Quantity(np.linspace(0, np.pi, 100), 'rad')
-    coords = sc.make_input_coords(wavelen, angles)
+    coords = sc._make_input_coords(wavelen, angles)
 
     def test_base_model(self):
         """tests for Model base class"""
@@ -86,7 +86,7 @@ class TestModel():
                                             self.ps_radius,
                                             sc.index.vacuum,
                                             sc.index.vacuum)
-        coords = sc.make_input_coords(wavelen, self.angles)
+        coords = model.make_input_coords(wavelen, self.angles)
         dscat = model.differential_cross_section(coords)
 
         xr.testing.assert_equal(dscat, xr.ones_like(dscat)*const)
@@ -139,7 +139,7 @@ class TestModel():
 
         # make sure form factor is calculated correctly
         angles = sc.Quantity(np.linspace(0, 180., 19), 'deg')
-        coords = sc.make_input_coords(self.wavelen, angles)
+        coords = glass.make_input_coords(self.wavelen, angles)
         form_model = glass.form_factor(coords, index_matrix)
         form_sphere = glass.sphere.form_factor(coords, index_matrix)
         xr.testing.assert_equal(form_model, form_sphere)
@@ -178,7 +178,7 @@ class TestModel():
         wavelen = sc.Quantity(400, 'nm')
         # start at a few degrees to avoid division by zero error
         angles = sc.Quantity(np.linspace(2, 180., 19), 'deg')
-        coords = sc.make_input_coords(wavelen, angles)
+        coords = model.make_input_coords(wavelen, angles)
         form_model = model.form_factor(coords, index_matrix)
         form_sphere = dist.spheres[0].form_factor(coords, index_matrix)
         # monodisperse and polydisperse form factors should be equal at low
@@ -278,7 +278,7 @@ class TestModel():
         py_model = sc.model.HardSpheres(sphere, volume_fraction, index_matrix,
                                         index_medium)
 
-        coords = sc.make_input_coords(wavelen, self.angles)
+        coords = py_model.make_input_coords(wavelen, self.angles)
         fs_dscat = fs_model.differential_cross_section(coords)
         py_dscat = py_model.differential_cross_section(coords)
 
@@ -353,7 +353,7 @@ class TestModel():
 
         model = sc.model.HardSpheres(sphere, volume_fraction, index_matrix,
                                      index_medium)
-        coords = sc.make_input_coords(wavelen, angles)
+        coords = model.make_input_coords(wavelen, angles)
         diff = model.differential_cross_section(coords)
 
         # Differential cross section for core-shells. Core is equal to
@@ -405,7 +405,7 @@ class TestModel():
 
         # do the calculation using method from Model object
         ff_kwargs = {}
-        coords = sc.make_input_coords(wavelen, angles)
+        coords = model.make_input_coords(wavelen, angles)
         dscat = model.differential_cross_section(coords, **ff_kwargs)
         cscat = model.scattering_cross_section(dscat)
 
@@ -505,7 +505,7 @@ class TestModel():
 
         # do the calculation using single-species polydisperse model
         ff_kwargs = {}
-        coords = sc.make_input_coords(wavelen, angles)
+        coords = single_model.make_input_coords(wavelen, angles)
         dscat_1 = single_model.differential_cross_section(coords, **ff_kwargs)
         cscat_1 = single_model.scattering_cross_section(dscat_1)
 
@@ -553,7 +553,7 @@ class TestModel():
         # and perpendicular components, which we do by specifying (1,1) for the
         # incident vector:
         ff_kwargs = {"incident_vector": (1, 1)}
-        coords = sc.make_input_coords(wavelen, thetas)
+        coords = model.make_input_coords(wavelen, thetas)
         dscat = model.differential_cross_section(coords, **ff_kwargs)
         cscat = model.scattering_cross_section(dscat)
 
@@ -577,7 +577,7 @@ class TestModel():
         # integrating over both polarizations at each detector position, so we
         # should get all the scattered light.
         ff_kwargs.update({"cartesian": True, "incident_vector": (1, 0)})
-        coords = sc.make_input_coords(wavelen, theta_mesh, phis=phi_mesh)
+        coords = model.make_input_coords(wavelen, theta_mesh, phis=phi_mesh)
         dscat_cart = model.differential_cross_section(coords, **ff_kwargs)
         cscat_cart = model.scattering_cross_section(dscat_cart)
 
@@ -604,7 +604,7 @@ class TestModel():
 
         # monodisperse calculation
         ff_kwargs = {}
-        coords = sc.make_input_coords(wavelen, angles)
+        coords = model.make_input_coords(wavelen, angles)
         dscat = model.differential_cross_section(coords, **ff_kwargs)
         cscat_mono = model.scattering_cross_section(dscat)
         phase_func_mono = model.phase_function(dscat)
@@ -641,14 +641,14 @@ class TestModel():
         index_matrix = sc.index.water
         angles = sc.Quantity(np.linspace(0, 180, 20), "deg")
         volume_fraction = 0.6
-        coords = sc.make_input_coords(wavelen, angles)
+        coords = sc._make_input_coords(wavelen, angles)
 
         # check that form factor is vectorized over wavelength by checking
         # against loop values
         ff = self.ps_sphere.form_factor(coords, index_matrix)
         ff_loop = []
         for i in range(len(wavelen)):
-            coords = sc.make_input_coords(wavelen[i], angles)
+            coords = sc._make_input_coords(wavelen[i], angles)
             ff_loop.append(self.ps_sphere.form_factor(coords, index_matrix))
         ff_loop = xr.concat(ff_loop, sc.Coord.WAVELEN)
         xr.testing.assert_allclose(ff, ff_loop)
@@ -656,13 +656,13 @@ class TestModel():
         # check that cross-sections are vectorized over wavelength
         model = sc.model.HardSpheres(self.ps_sphere, volume_fraction,
                                      index_matrix, sc.index.vacuum)
-        coords = sc.make_input_coords(wavelen, angles)
+        coords = model.make_input_coords(wavelen, angles)
         dscat = model.differential_cross_section(coords)
         cscat = model.scattering_cross_section(dscat)
         dscat_loop = []
         cscat_loop = []
         for i in range(len(wavelen)):
-            coords = sc.make_input_coords(wavelen[i], angles)
+            coords = model.make_input_coords(wavelen[i], angles)
             dscat_loop.append(model.differential_cross_section(coords))
             cscat_loop.append(model.scattering_cross_section(dscat_loop[i]))
         dscat_loop = xr.concat(dscat_loop, sc.Coord.WAVELEN)
@@ -1245,7 +1245,7 @@ def test_reflection_polydispersity():
     index_effective = sc.EffectiveIndex.from_particle(sphere, volume_fraction,
                                                       index_matrix)
     # first check that form factors agree
-    coords = sc.make_input_coords(wavelength, np.linspace(0, np.pi, 10))
+    coords = sc._make_input_coords(wavelength, np.linspace(0, np.pi, 10))
     sphere_ff = sphere.form_factor(coords, index_effective)
     sphere_dist_ff = sphere_dist.form_factor(coords, index_effective)
     assert_allclose(sphere_ff.to_numpy(), sphere_dist_ff.to_numpy(), rtol=1e-6)

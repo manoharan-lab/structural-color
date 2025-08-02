@@ -258,6 +258,34 @@ class FormStructureModel(Model):
                              "this model.  Use a different model or specify "
                              "particle and volume_fraction")
 
+    def make_input_coords(self, wavelen, thetas, phis=None):
+        """Generate DataArray coordinates to be used as inputs to
+        differential_cross_section() methods.
+
+        Parameters
+        ----------
+        wavelen : array-like [`sc.Quantity`]
+            Wavelengths at which to calculate form factor
+        thetas : array-like [`sc.Quantity`]
+            Scattering angles (theta) at which to calculate form factor.
+        phis : array-like (optional, default None)
+            Azimuthal angles (phi)
+
+        Returns
+        -------
+        `xr.Coordinates` object :
+            can be used as input to scattering methods, which will then
+            vectorize the calculations over the specified coordinates.
+
+        Notes
+        -----
+        Standardizes units. All dimensional quantities are converted to
+        preferred units and then magnitudes.
+
+        """
+        coords = sc._make_input_coords(wavelen, thetas, phis=phis)
+        return coords
+
 
 class HardSpheres(FormStructureModel):
     """Model of scattering from a hard-sphere liquid or glass.
@@ -684,9 +712,9 @@ def reflection(model, wavelen,
                                 coords={sc.Coord.SPECIES:
                                         range(len(distance_arr))})
 
-    coords_det = sc.make_input_coords(wavelen, angles)
+    coords_det = model.make_input_coords(wavelen, angles)
     diff_cs_detected = model.differential_cross_section(coords_det)
-    coords_tot = sc.make_input_coords(wavelen, angles_tot)
+    coords_tot = model.make_input_coords(wavelen, angles_tot)
     diff_cs_total = model.differential_cross_section(coords_tot)
 
     # integrate the differential cross sections to get the total cross section

@@ -1076,7 +1076,7 @@ def calc_scat(radius, index_particle, index_matrix, index_sample, index_medium,
     ff_kwargs = {}
     if cartesian:
         ff_kwargs["cartesian"] = True
-    coords = sc.make_input_coords(wavelen, thetas, phis=phis)
+    coords = model.make_input_coords(wavelen, thetas, phis=phis)
     dscat = model.differential_cross_section(coords, **ff_kwargs)
     cscat = model.scattering_cross_section(dscat)
     p = model.phase_function(dscat).to_numpy().squeeze()
