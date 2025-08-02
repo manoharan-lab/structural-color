@@ -56,6 +56,67 @@ def test_q():
     with pytest.raises(DimensionalityError):
         q(Quantity('450 nm'), Quantity('0.5 m'))
 
+
+# test both scalars and vectors
+@pytest.mark.parametrize("wavelen", [400, np.linspace(400, 800, 20)])
+@pytest.mark.parametrize("volume_fraction", [0.5, np.linspace(0, 1.0, 20)])
+def test_size_parameter(wavelen, volume_fraction):
+    wavelen = sc.Quantity(wavelen, "nm")
+
+    # first look at non-effective index, single-layer particle
+    index_matrix = sc.index.water
+    index_particle = sc.Index.constant(1.5 + 0.1j)
+    radius = sc.Quantity(0.2, "um")
+    sphere = sc.Sphere(index_particle, radius)
+    n_particle = sphere.n(wavelen)
+
+    x = sc.size_parameter(n_particle, radius)
+    # should be 1 material, no volume fraction dimension
+    assert x.sizes == {sc.Coord.WAVELEN: len(np.atleast_1d(wavelen)),
+                       sc.Coord.MAT: 1}
+
+    # now try effective index, single-layer particle
+    index_effective = sc.EffectiveIndex.from_particle(sphere, volume_fraction,
+                                                      index_matrix)
+    n_eff = index_effective(wavelen)
+    x = sc.size_parameter(n_eff, radius)
+    # should have MultiIndex if volume fraction is array
+    if not np.isscalar(volume_fraction):
+        assert "wavevf" in x.coords
+        x = x.unstack()
+        assert x.sizes[sc.Coord.VOLFRAC] == len(volume_fraction)
+    else:
+        assert x.sizes == {sc.Coord.WAVELEN: len(np.atleast_1d(wavelen)),
+                           sc.Coord.MAT: 1}
+
+    # now try core-shell, non-effective index
+    index_core = sc.index.polystyrene
+    index_shell = sc.index.water
+    index_matrix = sc.index.vacuum
+    radii = sc.Quantity(np.array([50, 100]), "nm")
+
+    cs_sphere = sc.Sphere([index_core, index_shell], radii)
+    n_particle = cs_sphere.n(wavelen)
+    x = sc.size_parameter(n_particle, radii)
+    # should be 2 materials, no volume fraction dimension
+    assert x.sizes == {sc.Coord.WAVELEN: len(np.atleast_1d(wavelen)),
+                       sc.Coord.MAT: 2}
+
+    # core-shell, effective index
+    index_effective = sc.EffectiveIndex.from_particle(cs_sphere,
+                                                      volume_fraction,
+                                                      index_matrix)
+    n_eff = index_effective(wavelen)
+    x = sc.size_parameter(n_eff, radii)
+    if not np.isscalar(volume_fraction):
+        assert "wavevf" in x.coords
+        x = x.unstack()
+        assert x.sizes[sc.Coord.VOLFRAC] == len(volume_fraction)
+    else:
+        assert x.sizes == {sc.Coord.WAVELEN: len(np.atleast_1d(wavelen)),
+                           sc.Coord.MAT: 2}
+
+
 @pytest.mark.parametrize("angles", [10, np.linspace(0, 180, 90)])
 @pytest.mark.parametrize("wavelen", [400, np.linspace(400, 800, 100)])
 def test_ql(wavelen, angles):

@@ -278,7 +278,7 @@ def size_parameter(n_medium, radius):
                          "Ensure that you are using the output from an Index "
                          "object as input to this function.")
 
-    wavelen = n_medium.coords[Coord.WAVELEN].to_numpy()
+    wavelen = n_medium.coords[Coord.WAVELEN]
     radius = np.atleast_1d(radius.to_preferred().magnitude)
     radius = xr.DataArray(radius, coords={Coord.LAYER: range(len(radius))})
 
