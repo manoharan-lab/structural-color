@@ -685,20 +685,7 @@ class TestModel():
         model = sc.model.HardSpheres(self.ps_sphere, volume_fraction,
                                      index_matrix, sc.index.vacuum,
                                      maxwell_garnett=maxwell_garnett)
-        n_ext = model.index_external(wavelen)
-        n_ext_loop = []
-        for vf in volume_fraction:
-            model = sc.model.HardSpheres(self.ps_sphere, vf,
-                                         index_matrix, sc.index.vacuum,
-                                         maxwell_garnett=maxwell_garnett)
-            n_ext_loop.append(model.index_external(wavelen))
-        n_ext_loop = xr.concat(n_ext_loop, sc.Coord.VOLFRAC)
-        n_ext_loop = n_ext_loop.assign_coords({sc.Coord.VOLFRAC:
-                                               volume_fraction})
-        # above will put volume fraction as first dimension since each element
-        # has volume fraction as a scalar coord.  Need to transpose.
-        n_ext_loop = n_ext_loop.transpose(sc.Coord.WAVELEN, ...)
-        xr.testing.assert_allclose(n_ext, n_ext_loop)
+
 
 class TestDetector():
     """Tests for the Detector class and derived classes.

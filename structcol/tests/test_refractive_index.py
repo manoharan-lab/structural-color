@@ -466,6 +466,42 @@ class TestEffectiveIndex():
                                    xr.concat(n_effective,
                                              dim=sc.Coord.WAVELEN))
 
+    @pytest.mark.parametrize("maxwell_garnett", [True, False])
+    def test_effective_index_vectorization_over_volfrac(self, maxwell_garnett):
+        """Test that effective index calculations can be vectorized over both
+        wavelength and volume fraction for both Maxwell-Garnett and Bruggeman.
+
+        """
+        wavelen = sc.Quantity(np.linspace(400, 800, 23), "nm")
+        # choose a matrix with dispersion
+        index_matrix = sc.index.water
+        volume_fraction = np.array([0.05, 0.25, 0.35, 0.5, 0.6])
+        sphere = sc.Sphere(sc.index.polystyrene, sc.Quantity(0.2, "um"))
+        index_effective = sc.EffectiveIndex.from_particle(sphere,
+                                                          volume_fraction,
+                                                          index_matrix,
+                                                          maxwell_garnett =
+                                                          maxwell_garnett)
+
+        # vectorized calculation
+        n_ext = index_effective(wavelen)
+
+        # check against loop
+        n_ext_loop = []
+        for vf in volume_fraction:
+            index_effective = sc.EffectiveIndex.from_particle(sphere, vf,
+                                                              index_matrix,
+                                                              maxwell_garnett =
+                                                              maxwell_garnett)
+            n_ext_loop.append(index_effective(wavelen))
+        n_ext_loop = xr.concat(n_ext_loop, sc.Coord.VOLFRAC)
+        n_ext_loop = n_ext_loop.assign_coords({sc.Coord.VOLFRAC:
+                                               volume_fraction})
+        # above will put volume fraction as first dimension since each element
+        # has volume fraction as a scalar coord.  Need to transpose.
+        n_ext_loop = n_ext_loop.transpose(sc.Coord.WAVELEN, ...)
+        xr.testing.assert_allclose(n_ext, n_ext_loop)
+
 
 def test_ratio():
     """Tests calculation of index ratios
