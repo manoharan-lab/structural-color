@@ -265,8 +265,11 @@ def size_parameter(n_medium, radius):
     Returns
     -------
     `xr.DataArray` (complex or float):
-        DataArray of size parameters with dimensions [wavelength, layers].  Use
-        .to_numpy() method to use with functions from pymie.
+        DataArray of size parameters with dimensions [wavelength, layers].  If
+        volume fraction is one of the coordinates of n_medium (which should be
+        the case if n_medium is an effective index), returns a stacked
+        DataArray with dimensions [wavelengths*volume_fractions, layers], so
+        that the array has the shape needed by pymie.
 
     """
 
@@ -275,18 +278,16 @@ def size_parameter(n_medium, radius):
                          "Ensure that you are using the output from an Index "
                          "object as input to this function.")
 
-    wavelen = Quantity(n_medium.coords[Coord.WAVELEN].to_numpy(),
-                       n_medium.attrs[Attr.LENGTH_UNIT])
-    units = n_medium.attrs[Attr.LENGTH_UNIT]
+    wavelen = n_medium.coords[Coord.WAVELEN].to_numpy()
+    radius = np.atleast_1d(radius.to_preferred().magnitude)
+    radius = xr.DataArray(radius, coords={Coord.LAYER: range(len(radius))})
 
-    sp = mie.size_parameter(wavelen, n_medium.to_numpy(), radius)
+    sp = (2 * np.pi * n_medium / wavelen * radius)
 
-    if np.isscalar(sp):
-        sp = np.atleast_2d(sp)
-    num_layers = len(np.atleast_1d(radius))
-    sp = xr.DataArray(sp, coords = {Coord.WAVELEN: wavelen.magnitude,
-                                    Coord.LAYER: np.arange(num_layers)})
-    sp.attrs[Attr.LENGTH_UNIT] = units
+    if Coord.VOLFRAC in sp.coords:
+        sp = sp.stack(wavevf=[Coord.WAVELEN,
+                              Coord.VOLFRAC]).transpose("wavevf", ...)
+
     return sp
 
 
@@ -301,7 +302,9 @@ def wavevector(n_medium, d=None):
     ----------
     n_medium : `xr.DataArray`
         refractive index of medium at various wavelengths, as calculated by an
-        `sc.Index` object.  Wavelengths are given in the coordinates.
+        `sc.Index` object.  Wavelengths (and possibly volume fractions, if an
+        effective index was used to generate n_medium) are given in the
+        coordinates.
     d : `sc.Quantity`
         length scale to nondimensionalize the wavevector.  If provided, the
         wavevector will be multiplied by this scale.
@@ -309,8 +312,9 @@ def wavevector(n_medium, d=None):
     Returns
     -------
     `xr.DataArray` :
-        DataArray [float or complex] of wavevectors with shape
-        [num_wavelengths]
+        DataArray [float or complex] of wavevectors as a function of the
+        coordinates in n_medium
+
     """
 
     if not isinstance(n_medium, xr.DataArray):
@@ -356,9 +360,10 @@ def ql(n_medium, lengthscale, angles):
 
     """
     # return 1-dimensional DataArray with coord [wavelength].  Use outer radius
-    # for multilayer particles.
+    # for multilayer particles (LAYER=-1) and unstack if size_parameter stacked
+    # WAVELEN, VOLFRAC dimensions
     x = size_parameter(n_medium, lengthscale).isel({Coord.LAYER: -1},
-                                                   drop=True)
+                                                   drop=True).unstack()
 
     # set up coordinates for ql DataArray.  Note that ql depends only on theta.
     angles = np.atleast_1d(angles.to('rad').magnitude)
