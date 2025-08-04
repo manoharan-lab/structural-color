@@ -923,18 +923,10 @@ def ratio(n_particle, n_matrix):
     if ((sc.Coord.WAVELEN not in m.dims)
          and (sc.Coord.WAVELEN in m.coords.keys())):
         m = m.expand_dims(sc.Coord.WAVELEN)
-    if sc.Coord.MAT in m.coords.keys():
-        # need to make sure we don't have a scalar coordinate
-        if m.coords[sc.Coord.MAT].size != 1:
-            # shape should be [num_wavelength, num_layers]. We make sure that
-            # dimensions are in the correct order before converting to numpy
-            m = m.transpose(sc.Coord.WAVELEN, sc.Coord.MAT)
-            m = m.to_numpy()
-    else:
+    if sc.Coord.MAT not in m.coords:
+        # make sure we don't have a scalar coordinate for layers as well
         # add a trailing dimension of 1 element if only wavelengths are present
-        m = m.expand_dims(sc.Coord.MAT, axis=-1).to_numpy()
-    if m.size == 1:
-        # if only a single wavelength and single material, return scalar
-        return m.item()
-    else:
-        return m
+        m = m.expand_dims({sc.Coord.MAT: [0]}, axis=-1)
+    m = m.transpose(..., sc.Coord.MAT)
+
+    return m

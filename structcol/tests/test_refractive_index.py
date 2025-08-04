@@ -511,27 +511,24 @@ def test_ratio():
     n_particle = sc.index.polystyrene(wavelen)
     n_matrix = sc.index.water(wavelen)
     ratio = sc.index.ratio(n_particle, n_matrix)
-    # make sure we get a plain numpy array
-    assert isinstance(ratio, np.ndarray)
-    assert not isinstance(ratio, xr.DataArray)
+    # make sure we get a DataArray with the right dimensions
+    assert isinstance(ratio, xr.DataArray)
+    assert ratio.sizes == {sc.Coord.WAVELEN: len(wavelen), sc.Coord.MAT: 1}
+    assert_equal(ratio.to_numpy().squeeze(), (n_particle/n_matrix).to_numpy())
 
-    # multiple wavelengths, single layer should give shape
-    # [num_wavelengths, 1]
-    assert ratio.shape == (len(wavelen), 1)
-    assert_equal(ratio.squeeze(), n_particle/n_matrix)
-
-    # single wavelength, single layer should give scalar
+    # single wavelength, single layer
     ratio = sc.index.ratio(n_particle[0], n_matrix[0])
-    assert np.isscalar(ratio)
-    assert_equal(ratio, (n_particle[0]/n_matrix[0]).to_numpy().item())
+    assert ratio.sizes == {sc.Coord.WAVELEN: 1, sc.Coord.MAT: 1}
+    assert_equal(ratio.to_numpy().squeeze(),
+                 (n_particle[0]/n_matrix[0]).to_numpy().item())
 
-    # single wavelength, multiple layers should give shape
+    # (single wavelength, multiple layers) should give shape
     # [1, num_layers]
     num_layers = 35
     index_particle = num_layers*[sc.index.polystyrene]
     n_particle = sc.index._indexes_from_list(index_particle, wavelen[0])
     ratio = sc.index.ratio(n_particle.isel(wavelength=0), n_matrix[0])
-    assert ratio.shape == (1, num_layers)
+    assert ratio.sizes == {sc.Coord.WAVELEN: 1, sc.Coord.MAT: num_layers}
 
     # make sure we get exceptions if we don't give the right inputs
     with pytest.raises(ValueError):

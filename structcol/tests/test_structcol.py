@@ -80,14 +80,11 @@ def test_size_parameter(wavelen, volume_fraction):
                                                       index_matrix)
     n_eff = index_effective(wavelen)
     x = sc.size_parameter(n_eff, radius)
-    # should have MultiIndex if volume fraction is array
+
     if not np.isscalar(volume_fraction):
-        assert "wavevf" in x.coords
-        x = x.unstack()
         assert x.sizes[sc.Coord.VOLFRAC] == len(volume_fraction)
-    else:
-        assert x.sizes == {sc.Coord.WAVELEN: len(np.atleast_1d(wavelen)),
-                           sc.Coord.MAT: 1}
+    assert x.sizes[sc.Coord.WAVELEN] == len(np.atleast_1d(wavelen))
+    assert x.sizes[sc.Coord.MAT] == 1
 
     # now try core-shell, non-effective index
     index_core = sc.index.polystyrene
@@ -109,12 +106,9 @@ def test_size_parameter(wavelen, volume_fraction):
     n_eff = index_effective(wavelen)
     x = sc.size_parameter(n_eff, radii)
     if not np.isscalar(volume_fraction):
-        assert "wavevf" in x.coords
-        x = x.unstack()
         assert x.sizes[sc.Coord.VOLFRAC] == len(volume_fraction)
-    else:
-        assert x.sizes == {sc.Coord.WAVELEN: len(np.atleast_1d(wavelen)),
-                           sc.Coord.MAT: 2}
+    assert x.sizes[sc.Coord.WAVELEN] == len(np.atleast_1d(wavelen))
+    assert x.sizes[sc.Coord.MAT] == 2
 
 
 @pytest.mark.parametrize("angles", [10, np.linspace(0, 180, 90)])

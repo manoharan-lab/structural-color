@@ -268,7 +268,7 @@ class TestParticle():
         coords = sc._make_input_coords(wavelen, angles)
         ff = sphere.form_factor(coords, index_matrix)
 
-        m = sc.index.ratio(sphere.n(wavelen), index_matrix(wavelen))
+        m = sc.index.ratio(sphere.n(wavelen), index_matrix(wavelen)).to_numpy()
         x = sc.size_parameter(index_matrix(wavelen), radius).to_numpy()
         ipar_mie, iperp_mie = mie.calc_ang_dist(m, x, angles)
 
@@ -291,7 +291,7 @@ class TestParticle():
         coords = sc._make_input_coords(wavelen, angles)
         ff = sphere.form_factor(coords, index_matrix)
 
-        m = sc.index.ratio(sphere.n(wavelen), index_matrix(wavelen))
+        m = sc.index.ratio(sphere.n(wavelen), index_matrix(wavelen)).to_numpy()
         ipar_mie, iperp_mie = mie.calc_ang_dist(m, x, angles)
 
         assert_equal(ff.loc["par"].to_numpy().squeeze(), ipar_mie)
@@ -308,8 +308,8 @@ class TestParticle():
         index_matrix = sc.Index.constant(1.0+0.001j)
         angles = sc.Quantity(np.linspace(0, 90., 10), "deg")
 
-        m = sc.index.ratio(sphere.n(wavelen), index_matrix(wavelen))
-        x = sc.size_parameter(index_matrix(wavelen), radius)
+        m = sc.index.ratio(sphere.n(wavelen), index_matrix(wavelen)).to_numpy()
+        x = sc.size_parameter(index_matrix(wavelen), radius).to_numpy()
         k = 2 * np.pi * index_matrix(wavelen).to_numpy() / wavelen
         k = k.to_preferred()
 
@@ -336,7 +336,7 @@ class TestParticle():
         coords = sc._make_input_coords(wavelen, angles)
         ff = sphere.form_factor(coords, index_matrix)
 
-        m = sc.index.ratio(sphere.n(wavelen), index_matrix(wavelen))
+        m = sc.index.ratio(sphere.n(wavelen), index_matrix(wavelen)).to_numpy()
         x = sc.size_parameter(index_matrix(wavelen), radii).to_numpy()
         ipar_mie, iperp_mie = mie.calc_ang_dist(m, x, angles)
 

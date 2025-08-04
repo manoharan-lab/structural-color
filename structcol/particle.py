@@ -341,10 +341,9 @@ class Sphere(Particle):
 
         wavelen = sc.Quantity(coords[sc.Coord.WAVELEN].to_numpy(),
                               sc.LENGTH_UNIT)
-        angles = sc.Quantity(coords[sc.Coord.THETA].to_numpy(), "rad")
+        angles = coords[sc.Coord.THETA]
         if sc.Coord.PHI in coords:
-            phis = sc.Quantity(coords[sc.Coord.PHI].to_numpy(), "rad")
-            angles, phis = np.meshgrid(angles, phis, indexing="ij")
+            phis = coords[sc.Coord.PHI]
         else:
             phis = None
 
@@ -352,33 +351,21 @@ class Sphere(Particle):
         n_particle = self.n(wavelen)
 
         m = sc.index.ratio(n_particle, n_ext)
-        x = sc.size_parameter(n_ext, self.radius_q).to_numpy()
-
-        if cartesian:
-            coordinate_system = "cartesian"
-        else:
-            coordinate_system = "scattering plane"
+        x = sc.size_parameter(n_ext, self.radius_q)
 
         # calculate form factor at radius of particle for absorbing systems
         if np.any(n_ext.imag > 0) or cartesian or incident_vector is not None:
-            # kd should be a 1D array with shape num_wavelengths
-            kd = sc.size_parameter(n_ext,
-                                   self.outer_radius_q).to_numpy().squeeze()
+            kd = sc.size_parameter(n_ext, self.outer_radius_q)
+            # don't need MAT coord on kd (which is always 0 because
+            # outer_radius() returns a scalar)
+            kd = kd.isel({sc.Coord.MAT: 0}, drop=True)
         else:
             kd = None
-        form_factor = _form_factor(m, x, angles, kd=kd,
-                                   coordinate_system=coordinate_system,
-                                   incident_vector=incident_vector,
-                                   phis=phis)
-        coords = _make_coords(coords, cartesian)
 
-        # convert tuple to array, adding a dimension with size 1 if the
-        # wavelength is a scalar
-        form_factor = np.array([*form_factor])
-        if len(np.atleast_1d(wavelen)) == 1:
-            form_factor = np.expand_dims(form_factor, axis=1)
+        form_factor = _form_factor(m, x, angles, kd=kd, cartesian=cartesian,
+                                   incident_vector=incident_vector, phis=phis)
 
-        form_factor = xr.DataArray(form_factor, coords=coords)
+        # add attributes to the DataArray
         if kd is not None:
             form_factor.attrs["kd"] = sc.wavevector(n_ext) * self.outer_radius
         if incident_vector is not None:
@@ -494,39 +481,33 @@ class SphereDistribution:
             rho = 3.0 * volume_fraction / (4.0 * np.pi) * (term1 + term2)
         return rho
 
-    def form_factor(self, coords, index_external,
-                    cartesian=False, incident_vector=None):
+    def form_factor(self, coords, index_external, cartesian=False,
+                    incident_vector=None, num_components = 50):
         """
         Calculate the form factor for polydisperse systems.
 
         This is a specialized version of `Sphere.form_factor` which is applied
         to polydisperse systems under some approximations. See the docstring of
-        `Sphere.form_factor` for parameters and return values.
+        `Sphere.form_factor` for parameters and return values.  num_components
+        is the number of components to use in discretizing the size
+        distribution.
 
         """
+        if (sc.Coord.WAVELEN not in coords) or (sc.Coord.THETA not in coords):
+            raise ValueError("Must specify at least wavelength and angles for "
+                             "form factor calculation")
+
         wavelen = sc.Quantity(coords[sc.Coord.WAVELEN].to_numpy(),
                               sc.LENGTH_UNIT)
-        angles = sc.Quantity(coords[sc.Coord.THETA].to_numpy(), "rad")
+        angles = coords[sc.Coord.THETA]
         if sc.Coord.PHI in coords:
-            phis = sc.Quantity(coords[sc.Coord.PHI].to_numpy(), "rad")
+            phis = coords[sc.Coord.PHI]
         else:
             phis = None
 
         n_ext = index_external(wavelen)
-        if cartesian:
-            coordinate_system = 'cartesian'
-        else:
-            coordinate_system = 'scattering plane'
-
-        num_wavelengths = np.atleast_1d(wavelen).shape[0]
-        num_angles = np.atleast_1d(angles).shape[0]
-
-        # number of components to use in discretizing the size distribution
-        num_components = 50
 
         # set up coords for DataArrays
-        scat_coords = _make_coords(coords, cartesian)
-
         if self.has_layered:
             raise ValueError("Cannot handle polydispersity in core-shell ",
                              "particles")
@@ -537,11 +518,6 @@ class SphereDistribution:
                                  "same refractive index.")
         index_particle = self.spheres[0].index
         n_particle = index_particle(wavelen)
-
-        m = sc.index.ratio(n_particle, n_ext)
-        # set up for vectorization (see below).  This will yield an array of
-        # shape [num_components * num_wavelengths, 1]
-        m = np.tile(m, [num_components, 1])
 
         # t is a measure of the width of the Schulz distribution, and
         # pdi is the polydispersity index
@@ -572,55 +548,26 @@ class SphereDistribution:
             units = self.spheres[0].current_units
 
             # for absorbing systems, calculate the differential cross-section
-            # at the mean diameter.  kd should have shape (num_wavelengths)
+            # at the mean diameter
             if np.any(np.abs(n_ext.imag) > 0) or cartesian:
                 kd = sc.size_parameter(n_ext, self.diameters[d]/2 * units)
-                kd = kd.to_numpy().squeeze()
             else:
                 kd = None
 
-            # we vectorize the calculation of the form factor for all the
-            # diameters in the discretized distribution by taking advantage of
-            # the ability to specify multiple values for m and x. Normally this
-            # feature is used for multiple wavelengths but we can also use for
-            # it for multiple diameters.  We've already set the shape of m to
-            # [num_components, 1].  Now we need to set the shape of x to
-            # [num_components, 1] as well.
-            #
-            # result from sc.size_parameter is [num_wavelengths,
-            # num_components] which would be interpreted as a layered sphere by
-            # pymie. So we reshape to [num_wavelengths*num_components, 1]
-            x = sc.size_parameter(n_ext, diameter_range/2 * units).to_numpy()
-            x = x.reshape((num_components * num_wavelengths, 1))
-            # also need to reshape kd to be [num_components * num_wavelengths]
-            kd = np.tile(kd, num_components)
+            # set up DataArrays for vectorized computation across all diameters
+            m = sc.index.ratio(n_particle, n_ext)
+            m = m.expand_dims({"diameter": diameter_range}, axis=1)
+            if kd is not None:
+                kd = kd.expand_dims({"diameter": diameter_range}, axis=1)
+                kd = kd.isel({sc.Coord.MAT: 0}, drop=True)
+            diameter_range = xr.DataArray(diameter_range,
+                                          coords={"diameter": diameter_range})
+            x = sc.size_parameter(n_ext, diameter_range/2)
 
-
-            ff_vec = _form_factor(m, x, angles,
-                                  kd=kd,
-                                  coordinate_system=coordinate_system,
+            ff_vec = _form_factor(m, x, angles, kd=kd,
+                                  cartesian=cartesian,
                                   incident_vector=incident_vector,
                                   phis=phis)
-
-            # Construct DataArray. _form_factor() will return a 2-tuple, each
-            # with shape (num_components*num_wavelengths, num_angle). We want
-            # an array with (num_components, 2, num_wavelengths, num_angle).
-            # We reshape first and then rearrange dimensions:
-            if phis is None:
-                ff_vec = np.array(ff_vec).reshape(2, num_components,
-                                                  num_wavelengths, num_angles)
-                ff_vec = np.transpose(ff_vec, (1, 0, 2, 3))
-            else:
-                ff_vec = np.array(ff_vec).reshape(2, num_components,
-                                                  num_wavelengths, num_angles,
-                                                  len(phis))
-                ff_vec = np.transpose(ff_vec, (1, 0, 2, 3, 4))
-
-            # set up coords in the same order
-            coords = {}
-            coords["diameter"] = diameter_range
-            coords.update(scat_coords)
-            ff_vec = xr.DataArray(ff_vec, coords=coords)
 
             # it might seem reasonable to calculate the form factor of each
             # individual radius in the Schulz distribution (meaning that we
@@ -652,36 +599,113 @@ class SphereDistribution:
         return f
 
 
-def _make_coords(coords, cartesian):
-    """Convenience function to make DataArray coordinates for outputs from
-    scattering methods (e.g. form_factor()).
+def _stack_mx(m, x):
+    """Convenience function to stack coordinates in m or x for input to pymie
+    methods.  Stacks so that the shape of the array is [num_values,
+    num_layers] and the dimensions are sc.Coord.VALUES, sc.Coord.MAT
+
+    """
+    # use same coords to stack both arrays so that we don't end up with
+    # MultiIndex objects with mismatched order of levels
+    coords_to_stack = [k for k in m.coords.keys() if k!=sc.Coord.MAT]
+
+    m = m.stack({sc.Coord.VALUE: coords_to_stack}).transpose(sc.Coord.VALUE,
+                                                             ...)
+    x = x.stack({sc.Coord.VALUE: coords_to_stack}).transpose(sc.Coord.VALUE,
+                                                             ...)
+    return m, x
+
+
+def _form_factor_adjusted(m, x, angles, kd=None, phis=None, cartesian=False,
+                          incident_vector=None):
+    """numpy ufunc to call pymie form factor functions (calc_ang_dist() and
+    diff_scat_complex_medium()), shifting order of arguments and changing
+    return values so that it is easier to use xr.apply_ufunc(). Could rearrange
+    inputs and outputs in pymie so as to eliminate this function.
 
     """
     if cartesian:
-        newcoords = {sc.Coord.POL: ["x", "y"]}
+        coordinate_system = "cartesian"
     else:
-        newcoords = {sc.Coord.POL: ["par", "perp"]}
+        coordinate_system = "scattering plane"
 
-    # set up coords for DataArray, avoiding scalar dimension for wavelen
-    newcoords.update(coords)
+    if phis is not None:
+        # handle broadcasting in case (thetas, phis) not specified as 2D
+        if np.ndim(phis) == 1:
+            angles, phis = np.meshgrid(angles, phis, indexing="ij")
 
-    return newcoords
+    if (np.any(x.imag > 0) or (coordinate_system=="cartesian")
+        or (incident_vector is not None)):
+        ff = mie.diff_scat_intensity_complex_medium(m, x, angles, kd,
+                                                    coordinate_system,
+                                                    phis,
+                                                    incident_vector =
+                                                    incident_vector,
+                                                    near_field=False)
+
+    else:
+        ff = mie.calc_ang_dist(m, x, angles)
+
+    # pymie functions return tuple; instead we should return an array
+    ff = np.array([*ff])
+
+    # add VALUES dimension if it has been squeezed out
+    if m.shape[0] == 1:
+        ff = np.expand_dims(ff, axis=1)
+
+    return ff
 
 
-def _form_factor(m, x, angles, kd=None, coordinate_system=None,
+def _form_factor(m, x, angles, kd=None, cartesian=False,
                  incident_vector=None, phis=None):
-    """Thin wrapper around pymie form-factor routines. Called internally by
-    form_factor() methods in cases where speed is important.
+    """Wrapper around pymie form-factor routines. Vectorizes calculation over
+    coordinates in m and x DataArrays using xr.apply_ufunc(). Called internally
+    by form_factor() methods.
 
     """
-    if (np.any(x.imag > 0) or (coordinate_system=='cartesian')
-        or (incident_vector is not None)):
-        form_factor = mie.diff_scat_intensity_complex_medium(
-                        m, x, angles, kd,
-                        coordinate_system=coordinate_system,
-                        incident_vector=incident_vector,
-                        phis=phis)
+    # pymie functions are vectorized in the first dimension ("values") only.
+    # Need to reshape arrays accordingly, so that every non-MAT coord
+    # (wavelength, volume fraction, component, etc) gets put in the first dim:
+    m, x = _stack_mx(m, x)
+    if kd is not None:
+        kd = kd.stack({sc.Coord.VALUE: kd.coords})
+        kd_dims = [sc.Coord.VALUE]
     else:
-        form_factor = mie.calc_ang_dist(m, x, angles)
+        kd_dims = []
+
+    # setup for xr.apply_ufunc()
+    mx_dims = [sc.Coord.VALUE, sc.Coord.MAT]
+
+    if phis is not None:
+        output_core_dims = [[sc.Coord.POL, sc.Coord.VALUE, sc.Coord.THETA,
+                             sc.Coord.PHI]]
+        phi_dims = [sc.Coord.PHI]
+    else:
+        output_core_dims = [[sc.Coord.POL, sc.Coord.VALUE, sc.Coord.THETA]]
+        phi_dims = []
+
+    input_core_dims = [mx_dims, mx_dims, [sc.Coord.THETA], kd_dims,
+                       phi_dims]
+
+    exclude_dims = set((sc.Coord.MAT,))
+
+    kwargs = {"cartesian": cartesian, "incident_vector": incident_vector}
+    form_factor = xr.apply_ufunc(_form_factor_adjusted,
+                                 m, x, angles, kd, phis,
+                                 kwargs=kwargs,
+                                 output_core_dims=output_core_dims,
+                                 input_core_dims=input_core_dims,
+                                 exclude_dims=exclude_dims)
+
+    # add polarization coordinates and unstack to recover original dims
+    if cartesian:
+        pol_coord = {sc.Coord.POL: ["x", "y"]}
+    else:
+        pol_coord = {sc.Coord.POL: ["par", "perp"]}
+    form_factor = form_factor.assign_coords(pol_coord)
+    form_factor = form_factor.unstack()
+
+    # standardize order of dims
+    form_factor = form_factor.transpose(sc.Coord.POL, sc.Coord.WAVELEN, ...)
 
     return form_factor

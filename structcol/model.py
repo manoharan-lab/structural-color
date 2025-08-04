@@ -830,18 +830,13 @@ def reflection(model, wavelen,
         cabs_total = mu_abs / rho
     elif (np.abs(n_sample.imag) == 0.0) and n_particle is not None:
         if isinstance(model, HardSpheres):
-            if model.sphere.layered:
-                # particle is multilayer
-                m = sc.index.ratio(n_particle, n_sample).flatten()
-                x = sc.size_parameter(n_sample,
-                                      model.sphere.radius_q)
-                x = x.to_numpy().flatten()
-            else:
-                m = sc.index.ratio(n_particle, n_sample)
-                x = sc.size_parameter(n_sample, model.sphere.radius_q)
+            x = sc.size_parameter(n_sample, model.sphere.radius_q)
         else:
-            m = sc.index.ratio(n_particle, n_sample)
             x = sc.size_parameter(n_sample, model.lengthscale)
+        m = sc.index.ratio(n_particle, n_sample)
+        m, x = sc.particle._stack_mx(m, x)
+        m = m.to_numpy()
+        x = x.to_numpy()
         cross_sections = mie.calc_cross_sections(m, x,
             (wavelen/(n_sample.to_numpy().squeeze())))
         cabs_total = cross_sections[2]

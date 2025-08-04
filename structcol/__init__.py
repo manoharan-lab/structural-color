@@ -83,7 +83,9 @@ class Coord():
     POL = "polarization"
     # Fresnel coefficient (should be either "r" or "t")
     FRESNEL = "fresnel"
-
+    # generic coord to refer to a MultiIndex describing stacked coordinates
+    # (such as wavelength/angle stacks)
+    VALUE = "values"
 
 class Attr():
     """Simple class to standardize metadata (attributes) used in xarray
@@ -241,7 +243,6 @@ def select_events(inarray, events):
     return outarray
 
 
-@ureg.check(None, "[length]")
 def size_parameter(n_medium, radius):
     """
     Calculates the size parameter x=k_medium*a needed for Mie calculations.
@@ -259,17 +260,17 @@ def size_parameter(n_medium, radius):
     n_medium : `xr.DataArray`
         refractive index of medium at various wavelengths, as calculated by an
         `sc.Index` object.
-    radius: array-like of structcol.Quantity [length]
-        radius of particle
+    radius: array-like of structcol.Quantity [length] or `xr.DataArray`
+        radius of particle.  If specified as DataArray, must be in preferred
+        units
 
     Returns
     -------
     `xr.DataArray` (complex or float):
-        DataArray of size parameters with dimensions [wavelength, layers].  If
+        DataArray of size parameters with dimensions WAVELEN and LAYER.  If
         volume fraction is one of the coordinates of n_medium (which should be
-        the case if n_medium is an effective index), returns a stacked
-        DataArray with dimensions [wavelengths*volume_fractions, layers], so
-        that the array has the shape needed by pymie.
+        the case if n_medium is an effective index), also returns VOLFRAC
+        dimension.
 
     """
 
@@ -279,14 +280,14 @@ def size_parameter(n_medium, radius):
                          "object as input to this function.")
 
     wavelen = n_medium.coords[Coord.WAVELEN]
-    radius = np.atleast_1d(radius.to_preferred().magnitude)
-    radius = xr.DataArray(radius, coords={Coord.LAYER: range(len(radius))})
+    if isinstance(radius, Quantity):
+        radius = np.atleast_1d(radius.to_preferred().magnitude)
+        radius = xr.DataArray(radius, coords={Coord.LAYER: range(len(radius))})
+    elif isinstance(radius, xr.DataArray):
+        if Coord.LAYER not in radius.coords:
+            radius = radius.expand_dims({Coord.LAYER: [0]}, axis=-1)
 
     sp = (2 * np.pi * n_medium / wavelen * radius)
-
-    if Coord.VOLFRAC in sp.coords:
-        sp = sp.stack(wavevf=[Coord.WAVELEN,
-                              Coord.VOLFRAC]).transpose("wavevf", ...)
 
     return sp
 

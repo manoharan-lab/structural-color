@@ -35,7 +35,7 @@ def test_cross_sections():
     radius = Quantity('0.85 um')
     n_matrix = sc.Index.constant(1.33)(wavelen)
     n_particle = sc.Index.constant(1.59 + 1e-4 * 1.0j)(wavelen)
-    m = sc.index.ratio(n_particle, n_matrix)
+    m = sc.index.ratio(n_particle, n_matrix).to_numpy()
     x = sc.size_parameter(n_matrix, radius).to_numpy()
     qscat, qext, qback = mie.calc_efficiencies(m, x)
     g = mie.calc_g(m,x)   # asymmetry parameter
@@ -68,7 +68,7 @@ def test_form_factor():
     radius = Quantity('0.85 um')
     n_matrix = sc.Index.constant(1.00)(wavelen)
     n_particle = sc.Index.constant(1.59 + 1e-4 * 1.0j)(wavelen)
-    m = sc.index.ratio(n_particle, n_matrix)
+    m = sc.index.ratio(n_particle, n_matrix).to_numpy()
     x = sc.size_parameter(n_matrix, radius).to_numpy()
 
     angles = Quantity(np.linspace(0, 180., 19), 'deg')
@@ -126,7 +126,7 @@ def test_efficiencies():
     wavelen = Quantity('658.0 nm')
     n_matrix = sc.Index.constant(1.00)(wavelen)
     n_particle = sc.Index.constant(1.59 + 1e-4 * 1.0j)(wavelen)
-    m = sc.index.ratio(n_particle, n_matrix)
+    m = sc.index.ratio(n_particle, n_matrix).to_numpy()
 
     effs = [mie.calc_efficiencies(m, x) for x in x]
     q_arr = np.asarray(effs)
@@ -153,7 +153,7 @@ def test_absorbing_materials():
     wavelen = Quantity('658.0 nm')
     n_matrix = sc.Index.constant(1.00)(wavelen)
     n_particle = sc.Index.constant(0.1425812 + 3.6813284 * 1.0j)(wavelen)
-    m = sc.index.ratio(n_particle, n_matrix)
+    m = sc.index.ratio(n_particle, n_matrix).to_numpy()
     x = 10.0
 
     angles = Quantity(np.linspace(0, 90., 10), 'deg')

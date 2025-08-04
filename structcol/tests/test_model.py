@@ -400,7 +400,7 @@ class TestModel():
         # for Mie calculations
         n_particle = self.index_particle(wavelen)
         n_matrix = index_matrix(wavelen)
-        m = sc.index.ratio(n_particle, n_matrix)
+        m = sc.index.ratio(n_particle, n_matrix).to_numpy()
         x = sc.size_parameter(n_matrix, self.ps_radius).to_numpy()
 
         # do the calculation using method from Model object
@@ -1109,7 +1109,7 @@ def test_calc_g():
 
     # calculate g using calc_g in pymie
     n_sample = index_sample(wavelength)
-    m = sc.index.ratio(n_particle, n_sample)
+    m = sc.index.ratio(n_particle, n_sample).to_numpy().squeeze()
     x = mie.size_parameter(wavelength, n_sample.to_numpy().squeeze(), radius)
     g2 = mie.calc_g(m,x)
 
@@ -1145,7 +1145,7 @@ def test_transport_length_dilute():
                                                          index_matrix)
     n_sample = index_sample(wavelength)
     n_particle = sphere.n(wavelength)
-    m = sc.index.ratio(n_particle, n_sample)
+    m = sc.index.ratio(n_particle, n_sample).to_numpy()
     x = mie.size_parameter(wavelength, n_sample.to_numpy().squeeze(), radius)
     g = mie.calc_g(m,x)
 
