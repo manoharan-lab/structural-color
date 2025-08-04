@@ -327,7 +327,7 @@ def wavevector(n_medium, d=None):
     return k
 
 
-@ureg.check(None, "[length]", "[]")
+@ureg.check(None, "[length]", None)
 def ql(n_medium, lengthscale, angles):
     """Calculates the nondimensional scattering wavevector in medium for
     structure factor calculations.
@@ -344,9 +344,8 @@ def ql(n_medium, lengthscale, angles):
         lengthscale to use to calculate the size parameter.  For a sphere,
         this is the radius (will lead to diameter being used to
         nondimensionalize q)
-    angles : ndarray(structcol.Quantity [dimensionless])
-        array of scattering angles. Must be entered as a Quantity to allow
-        specifying units (degrees or radians) explicitly
+    angles : `xr.DataArray`
+        array of scattering angles. Must be specified in radians.
 
     Returns
     -------
@@ -354,19 +353,14 @@ def ql(n_medium, lengthscale, angles):
         `xr.DataArray` with dimensions wavelength, angle
 
     """
-    # return 1-dimensional DataArray with coord [wavelength].  Use outer radius
-    # for multilayer particles (LAYER=-1) and unstack if size_parameter stacked
-    # WAVELEN, VOLFRAC dimensions
+    # Use outer radius for multilayer particles (LAYER=-1)
     x = size_parameter(n_medium, lengthscale).isel({Coord.LAYER: -1},
-                                                   drop=True).unstack()
-
-    # set up coordinates for ql DataArray.  Note that ql depends only on theta.
-    thetas = np.atleast_1d(angles.to('rad').magnitude)
-    thetas = xr.DataArray(thetas, coords={Coord.THETA: thetas})
+                                                   drop=True)
 
     # this should automatically broadcast since angles is a DataArray
     # TODO: should it be x.real or x.abs?
-    ql = 4*np.abs(x)*np.sin(thetas/2)
+    ql = 4*np.abs(x)*np.sin(angles/2)
+
     return ql
 
 

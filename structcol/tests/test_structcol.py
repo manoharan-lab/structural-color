@@ -120,6 +120,9 @@ def test_ql(wavelen, angles):
 
     """
     angles = sc.Quantity(angles, 'deg')
+    angles = np.atleast_1d(angles.to("rad").magnitude)
+    angles = xr.DataArray(angles, coords={sc.Coord.THETA: angles})
+
     index = sc.index.polystyrene
     wavelen = sc.Quantity(wavelen, 'nm')
     lengthscale = sc.Quantity(0.2, 'um')
@@ -131,7 +134,7 @@ def test_ql(wavelen, angles):
     # expected ql as calculated using numpy
     x = sc.size_parameter(n_medium, lengthscale).to_numpy()
     ql_expected = (4*np.abs(x).max(axis=1)[..., np.newaxis]
-                   * np.sin(angles.to('rad').magnitude/2))
+                   * np.sin(angles.to_numpy()/2))
 
     assert_equal(ql.to_numpy(), ql_expected)
     assert ql.dims == (sc.Coord.WAVELEN, sc.Coord.THETA)
@@ -139,9 +142,10 @@ def test_ql(wavelen, angles):
     # make sure ql represents the outer radius for layered particles
     radii = sc.Quantity(np.array([0.1, 0.2, 0.3]), 'um')
     ql = sc.ql(n_medium, radii, angles)
+
     x = sc.size_parameter(n_medium, radii).to_numpy()
     ql_expected = (4*np.abs(x).max(axis=1)[..., np.newaxis]
-                   * np.sin(angles.to('rad').magnitude/2))
+                   * np.sin(angles.to_numpy()/2))
 
     assert_equal(ql.to_numpy(), ql_expected)
     assert ql.dims == (sc.Coord.WAVELEN, sc.Coord.THETA)

@@ -158,7 +158,7 @@ class FormStructureModel(Model):
 
         # calculate structure factor
         n_ext = self.index_external(coords[sc.Coord.WAVELEN])
-        angles = sc.Quantity(coords[sc.Coord.THETA].to_numpy(), "rad")
+        angles = coords[sc.Coord.THETA]
         ql = sc.ql(n_ext, self.lengthscale, angles)
         sf = self.structure_factor(ql)
 
