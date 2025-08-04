@@ -806,7 +806,8 @@ def test_fresnel():
     # check for value error (can't go beyond 90 degree angle of incidence)
     with pytest.raises(ValueError):
         sc.model.fresnel_coeffs(n2, n1, angles)
-    angles = Quantity(np.linspace(0, 90., 10), 'deg')
+    angles = Quantity(np.linspace(0, 90., 10), 'deg').to("rad").magnitude
+    angles = xr.DataArray(angles, coords={sc.Coord.INCIDENT: angles})
     r, t = sc.model.fresnel_coeffs(n2, n1, angles)
     rpar_std = np.array([0.04, 0.0362780, 0.0243938, 0.00460754, 0.100064, 1.0,
                          1.0, 1.0, 1.0, 1])
@@ -828,7 +829,9 @@ def test_fresnel():
     index_high = sc.index.polystyrene
     n_low = index_low(wavelen)
     n_high = index_high(wavelen)
-    angles = Quantity(np.linspace(0, 90., 10), 'deg')
+    angles = Quantity(np.linspace(0, 90., 10), 'deg').to("rad").magnitude
+    angles = xr.DataArray(angles,
+                          coords={sc.Coord.INCIDENT: angles})
     # vectorized version
     rt = sc.model.fresnel_coeffs(n_high, n_low, angles)
     # check that dimensions are correct

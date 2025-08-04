@@ -684,17 +684,27 @@ def reflection(model, wavelen,
 
     # integrate form_factor*structure_factor*transmission
     # coefficient*sin(theta) over angles to get sigma_detected (eq 5)
-    angles = sc.Quantity(np.linspace(theta_min_refracted.to_numpy().squeeze(),
-                                     theta_max_refracted.to_numpy().squeeze(),
-                                     num_angles), 'rad')
+    #
+    # first calculate angular range for each wavelength (and other dimensions)
+    angles = sc.Quantity(np.linspace(theta_min_refracted.to_numpy(),
+                                     theta_max_refracted.to_numpy(),
+                                     num_angles, axis=-1), 'rad')
+    # the actual angles will vary with wavelength and other parameters, since
+    # the index of refraction varies with such.  Therefore the theta coordinate
+    # varies too.  We have to use an index for the theta coord.
+    coords = theta_min_refracted.coords.copy()
+    coords[sc.Coord.THETA] = range(angles.shape[-1])
+    angles = xr.DataArray(angles, coords=coords)
+
     angles_tot = sc.Quantity(np.linspace(0.0 + small_angle, np.pi, num_angles),
                              'rad')
 
+    # temporary fix to preserve previous (non-vectorized) behavior
+    angles = angles.squeeze(drop=True)
+    angles.coords[sc.Coord.THETA] = angles.to_numpy()
+    print(angles)
+
     transmission = fresnel_coeffs(n_sample, n_medium, np.pi-angles).loc["t"]
-    # replace coordinate (which is pi-angles) with angles so we can integrate
-    # with xarray
-    transmission = transmission.rename({sc.Coord.INCIDENT: sc.Coord.THETA})
-    transmission.coords[sc.Coord.THETA] = angles
 
     # calculate the differential cross section in the detected range of angles
     # and in the total angles. We calculate it at a distance = radius when
@@ -1089,23 +1099,25 @@ def fresnel_coeffs(n1, n2, incident_angle):
         as with n1, but for the second medium along the direction of
         propagation
     incident_angle: array-like
-        incident angle, measured from the normal.  If specified as anything
-        except an sc.Quantity object, must be in radians
+        incident angle, measured from the normal. If anything other than an
+        `sc.Quantity` object is passed, the values are assumed to be in
+        radians. Note that, depending on the geometry, the incident angle may
+        or may not be equal to the scattering angle.
 
     Returns
     -------
     `xr.DataArray` :
         Reflection and transmission coefficients for the intensity, as a
         function of polarization (parallel (p) or perpendicular (s)),
-        wavelength, and angle
+        wavelength, and incident angle
 
     """
     theta = incident_angle
-    if isinstance(theta, sc.Quantity):
-        theta = theta.to("rad").magnitude
-    if not isinstance(theta, xr.DataArray):
-        theta = xr.DataArray(theta, coords={sc.Coord.INCIDENT : theta})
-
+    if isinstance(incident_angle, sc.Quantity):
+        incident_angle = incident_angle.to("rad").magnitude
+    if not isinstance(incident_angle, xr.DataArray):
+        theta = xr.DataArray(incident_angle, coords={sc.Coord.INCIDENT:
+                                                     incident_angle})
     if np.any(theta > np.pi/2.0):
         raise ValueError("Unphysical angle of incidence.  Angle must be "
                          "less than or equal to 90 degrees with respect to "
