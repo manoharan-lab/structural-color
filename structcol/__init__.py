@@ -66,7 +66,7 @@ class Coord():
     """
 
     WAVELEN = "wavelength"
-    VOLFRAC = "volume fraction"
+    VOLFRAC = "volume_fraction"
     # both LAYER and MAT map to the same name, so that we can describe the
     # components of a multilayer sphere as layers and the components of a
     # multimaterial matrix as materials, but we can calculate an effective
@@ -76,6 +76,8 @@ class Coord():
     # polar and azimuthal angles for scattering
     THETA = "theta"
     PHI = "phi"
+    # incident angle for Fresnel calculations
+    INCIDENT = "incident_angle"
     # species index for multispecies systems
     SPECIES = "species"
     # polarization for scattering calculations (should take on values "x", "y"

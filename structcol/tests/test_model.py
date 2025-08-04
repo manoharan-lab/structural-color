@@ -833,7 +833,7 @@ def test_fresnel():
     rt = sc.model.fresnel_coeffs(n_high, n_low, angles)
     # check that dimensions are correct
     assert rt.dims == (sc.Coord.FRESNEL, sc.Coord.POL, sc.Coord.WAVELEN,
-                       sc.Coord.THETA)
+                       sc.Coord.INCIDENT)
     # loop-based version
     rt_list = []
     for wl in wavelen:

@@ -658,34 +658,34 @@ def reflection(model, wavelen,
     # (Snell's law: n_medium sin(alpha_medium) = n_sample sin(alpha_sample)
     # where alpha = pi - theta)
     # TODO: use n_sample.real or abs(n_sample)?
-    sin_alpha_sample_theta_min = (np.sin(np.pi-theta_min)
-                                  * n_medium.to_numpy().squeeze()
-                                  / np.abs(n_sample.to_numpy().squeeze()))
-    sin_alpha_sample_theta_max = (np.sin(np.pi-theta_max)
-                                  * n_medium.to_numpy().squeeze()
-                                  / np.abs(n_sample.to_numpy().squeeze()))
+    sin_alpha_sample_theta_min = (np.sin(np.pi-theta_min) * n_medium
+                                  / np.abs(n_sample))
+    sin_alpha_sample_theta_max = (np.sin(np.pi-theta_max) * n_medium
+                                  / np.abs(n_sample))
 
-    if sin_alpha_sample_theta_min >= 1:
-        # in this case, theta_min and the ratio of n_medium/n_sample are
-        # sufficiently large so that all the scattering from 90-180 degrees
-        # exits into the range of angles captured by the detector (assuming
-        # that the theta_max is set to pi)
-        theta_min_refracted = np.pi/2.0
-    else:
-        theta_min_refracted = np.pi - np.arcsin(sin_alpha_sample_theta_min)
+    # for sin_alpha_sample_theta_min >= 1, theta_min and the ratio of
+    # n_medium/n_sample are sufficiently large so that all the scattering from
+    # 90-180 degrees exits into the range of angles captured by the detector
+    # (assuming that the theta_max is set to pi)
+    theta_min_refracted = xr.where(sin_alpha_sample_theta_min >= 1,
+                                   np.pi/2.0,
+                                   (np.pi
+                                    - np.arcsin(sin_alpha_sample_theta_min)))
 
-    if sin_alpha_sample_theta_max >= 1:
-        # in this case, theta_max and the ratio of n_medium/n_sample are such
-        # that all of the scattering from 90-180 degrees exits into angles
-        # that are outside of the range of theta_min to theta_max. Thus, the
-        # reflectance will be ~0 (only fresnel will contribute to reflectance)
-        theta_max_refracted = np.pi/2.0
-    else:
-        theta_max_refracted = np.pi - np.arcsin(sin_alpha_sample_theta_max)
+    # for sin_alpha_sample_theta_max >= 1, theta_max and the ratio of
+    # n_medium/n_sample are such that all of the scattering from 90-180 degrees
+    # exits into angles that are outside of the range of theta_min to
+    # theta_max. Thus, the reflectance will be ~0 (only fresnel will contribute
+    # to reflectance)
+    theta_max_refracted = xr.where(sin_alpha_sample_theta_max >= 1,
+                                   np.pi/2.0,
+                                   (np.pi
+                                    - np.arcsin(sin_alpha_sample_theta_max)))
 
     # integrate form_factor*structure_factor*transmission
     # coefficient*sin(theta) over angles to get sigma_detected (eq 5)
-    angles = sc.Quantity(np.linspace(theta_min_refracted, theta_max_refracted,
+    angles = sc.Quantity(np.linspace(theta_min_refracted.to_numpy().squeeze(),
+                                     theta_max_refracted.to_numpy().squeeze(),
                                      num_angles), 'rad')
     angles_tot = sc.Quantity(np.linspace(0.0 + small_angle, np.pi, num_angles),
                              'rad')
@@ -693,6 +693,7 @@ def reflection(model, wavelen,
     transmission = fresnel_coeffs(n_sample, n_medium, np.pi-angles).loc["t"]
     # replace coordinate (which is pi-angles) with angles so we can integrate
     # with xarray
+    transmission = transmission.rename({sc.Coord.INCIDENT: sc.Coord.THETA})
     transmission.coords[sc.Coord.THETA] = angles
 
     # calculate the differential cross section in the detected range of angles
@@ -1103,7 +1104,7 @@ def fresnel_coeffs(n1, n2, incident_angle):
     if isinstance(theta, sc.Quantity):
         theta = theta.to("rad").magnitude
     if not isinstance(theta, xr.DataArray):
-        theta = xr.DataArray(theta, coords={sc.Coord.THETA : theta})
+        theta = xr.DataArray(theta, coords={sc.Coord.INCIDENT : theta})
 
     if np.any(theta > np.pi/2.0):
         raise ValueError("Unphysical angle of incidence.  Angle must be "
@@ -1131,7 +1132,7 @@ def fresnel_coeffs(n1, n2, incident_angle):
     if np.any(ms.real < 1):
         # theta < arcsin(n2/n1) is condition for no TIR. We keep the values
         # where this condition holds, and replace with 1 for TIR angles
-        r = r.where(r.theta < np.arcsin(ms), 1)
+        r = r.where(theta < np.arcsin(ms), 1)
 
     # assemble both r and t=1-r into a DataArray
     coeffs = xr.concat([r, 1-r], dim=sc.Coord.FRESNEL)
