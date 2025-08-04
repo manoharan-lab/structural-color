@@ -1199,24 +1199,3 @@ def _integrate_intensity(diff_cscat, phi_min=0, phi_max=2*np.pi):
         sigma = sigma.where(sigma.coords[sc.Coord.POL] != "avg", sigma_avg)
 
     return sigma
-
-def _integrate_cross_section(cross_section, factor, angles,
-                             azi_angle_range = 2*np.pi):
-    """
-    Integrate differential cross-section (multiplied by factor) over angles
-    using trapezoid rule
-    """
-    # add a dimension corresponding to wavelength if not present
-    if np.ndim(factor) == 1:
-        factor = np.atleast_1d(factor)[:, np.newaxis]
-    if np.ndim(cross_section) == 1:
-        cross_section = cross_section[np.newaxis, :]
-
-    integrand = cross_section * factor * np.sin(angles[np.newaxis, :])
-
-    integral = np.trapezoid(integrand, x=angles.magnitude, axis=-1)
-
-    # multiply by azimuthal angular range to account for integral over phi
-    sigma = azi_angle_range * integral
-
-    return sigma.squeeze()
