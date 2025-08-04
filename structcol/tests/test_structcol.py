@@ -162,15 +162,7 @@ def test_make_input_coords(wavelen):
     assert sc.Coord.THETA in coords
     assert sc.Coord.PHI not in coords
 
-    # ensure that coords work with thetas, phis specified from either meshgrid
-    # or as separate 1D arrays.  First 1D:
-    coords_1d = sc._make_input_coords(wavelen, thetas, phis=phis)
-    assert sc.Coord.THETA in coords_1d
-    assert sc.Coord.PHI in coords_1d
-
-    # we need to specify phis if thetas comes from meshgrid
-    thetas, phis = np.meshgrid(thetas, phis, indexing="ij")
-    with pytest.raises(ValueError, match="thetas specified as"):
-        coords = sc._make_input_coords(wavelen, thetas)
-    coords_2d = sc._make_input_coords(wavelen, thetas, phis=phis)
-    xr.testing.assert_equal(coords_2d, coords_1d)
+    # ensure that coords work with thetas, phis specified as 1D arrays
+    coords = sc._make_input_coords(wavelen, thetas, phis=phis)
+    assert sc.Coord.THETA in coords
+    assert sc.Coord.PHI in coords

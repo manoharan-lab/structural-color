@@ -1062,13 +1062,11 @@ def calc_scat(radius, index_particle, index_matrix, index_sample, index_medium,
     # set the minimum value of angles to be a small value, such as 0.01.
     angles = sc.Quantity(np.linspace(min_angle, np.pi, num_angles), 'rad')
 
+    thetas = angles
     if fields:
         cartesian = True
         phis = sc.Quantity(np.linspace(min_angle, 2*np.pi, num_phis), 'rad')
-        # theta dimension must come first
-        phis, thetas = np.meshgrid(phis, angles)
     else:
-        thetas = angles
         cartesian = False
         phis = None
 

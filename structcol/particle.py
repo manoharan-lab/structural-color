@@ -630,9 +630,8 @@ def _form_factor_adjusted(m, x, angles, kd=None, phis=None, cartesian=False,
         coordinate_system = "scattering plane"
 
     if phis is not None:
-        # handle broadcasting in case (thetas, phis) not specified as 2D
-        if np.ndim(phis) == 1:
-            angles, phis = np.meshgrid(angles, phis, indexing="ij")
+        # pymie function expect theta, phi to be 2D arrays from meshgrid
+        angles, phis = np.meshgrid(angles, phis, indexing="ij")
 
     if (np.any(x.imag > 0) or (coordinate_system=="cartesian")
         or (incident_vector is not None)):

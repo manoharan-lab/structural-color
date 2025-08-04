@@ -537,13 +537,6 @@ class TestModel():
 
         thetas = sc.Quantity(np.linspace(0, np.pi, 10), 'rad')
         phis = sc.Quantity(np.linspace(0, 2*np.pi, 20), 'rad')
-        # meshgrid gives [n_theta, n_phi] shape
-        phi_mesh, theta_mesh = np.meshgrid(phis, thetas)
-
-        # Must use the effective index to calculate the wavevector
-        index_external = sc.EffectiveIndex.from_particle(self.ps_sphere,
-                                                         volume_fraction,
-                                                         index_matrix)
 
         # do scattering plane calculation first.  Specifying incident vector
         # here forces the calculation to go through
@@ -581,7 +574,7 @@ class TestModel():
         # integrating over both polarizations at each detector position, so we
         # should get all the scattered light.
         ff_kwargs.update({"cartesian": True, "incident_vector": (1, 0)})
-        coords = model.make_input_coords(wavelen, theta_mesh, phis=phi_mesh)
+        coords = model.make_input_coords(wavelen, thetas, phis=phis)
         dscat_cart = model.differential_cross_section(coords, **ff_kwargs)
         cscat_cart = model.scattering_cross_section(dscat_cart)
 

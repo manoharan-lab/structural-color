@@ -130,17 +130,9 @@ def _make_input_coords(wavelen, thetas, phis=None):
 
     # set up coords for DataArray, avoiding scalar dimension for wavelen
     coords[Coord.WAVELEN] = np.atleast_1d(wavelen)
-    if thetas.ndim == 2:
-        # theta and phi were specified using meshgrid
-        if phis is None:
-            raise ValueError("thetas specified as 2D array, but no "
-                             "corresponding phis array was supplied.")
-        coords[Coord.THETA] = thetas[:, 0]
-        coords[Coord.PHI] = phis[0, :]
-    else:
-        coords[Coord.THETA] = thetas
-        if phis is not None:
-            coords[Coord.PHI] = phis
+    coords[Coord.THETA] = thetas
+    if phis is not None:
+        coords[Coord.PHI] = phis
 
     return coords
 
@@ -367,12 +359,7 @@ def ql(n_medium, lengthscale, angles):
                                                    drop=True).unstack()
 
     # set up coordinates for ql DataArray.  Note that ql depends only on theta.
-    angles = np.atleast_1d(angles.to('rad').magnitude)
-    if angles.ndim == 2:
-        # meshgrid has been provided for theta.  Ignore the phi dimension.
-        thetas = angles[:, 0]
-    else:
-        thetas = angles
+    thetas = np.atleast_1d(angles.to('rad').magnitude)
     thetas = xr.DataArray(thetas, coords={Coord.THETA: thetas})
 
     # this should automatically broadcast since angles is a DataArray
