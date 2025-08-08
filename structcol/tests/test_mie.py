@@ -50,18 +50,16 @@ def test_cross_sections():
     cscat = qscat * np.pi * radius**2
     cext = qext * np.pi * radius**2
     cback  = qback * np.pi * radius**2
-    cscat2, cext2, _, cback2, g2 = mie.calc_cross_sections(m, x, wavelen/n_matrix.to_numpy())
+    cscat2, cext2, _, cback2, g2 = mie.calc_cross_sections(m, x)
+    k = 2*np.pi*n_matrix.to_numpy()/wavelen
+    cscat2 = cscat2/k**2
+    cext2 = cext2/k**2
+    cback2 = cback2/k**2
     assert_almost_equal(cscat.to('m^2').magnitude, cscat2.to('m^2').magnitude)
     assert_almost_equal(cext.to('m^2').magnitude, cext2.to('m^2').magnitude)
     assert_almost_equal(cback.to('m^2').magnitude, cback2.to('m^2').magnitude)
-    assert_almost_equal(g, g2.magnitude)
+    assert_almost_equal(g, g2)
 
-    # test that calc_cross_sections throws an exception when given an argument
-    # with the wrong dimensions
-    raises(DimensionalityError, mie.calc_cross_sections,
-                  m, x, Quantity('0.25 J'))
-    raises(DimensionalityError, mie.calc_cross_sections,
-                  m, x, Quantity('0.25'))
 
 def test_form_factor():
     wavelen = Quantity('658.0 nm')
@@ -71,7 +69,7 @@ def test_form_factor():
     m = sc.index.ratio(n_particle, n_matrix).to_numpy()
     x = sc.size_parameter(n_matrix, radius).to_numpy()
 
-    angles = Quantity(np.linspace(0, 180., 19), 'deg')
+    angles = Quantity(np.linspace(0, 180., 19), 'deg').to("rad").magnitude
     # these values are calculated from MiePlot
     # (http://www.philiplaven.com/mieplot.htm), which uses BHMIE
     iperp_bhmie = np.array([2046.60203864487, 1282.28646423634, 299.631502275208,
@@ -89,7 +87,7 @@ def test_form_factor():
                            7.24176462105438, 76.2910238480798, 54.1983836607738,
                            93.5508557840006])
 
-    ipar, iperp = mie.calc_ang_dist(m, x, angles)
+    ipar, iperp = mie.calc_ang_scat(m, x, angles)
     assert_array_almost_equal(ipar, ipar_bhmie)
     assert_array_almost_equal(iperp, iperp_bhmie)
 
@@ -130,9 +128,9 @@ def test_efficiencies():
 
     effs = [mie.calc_efficiencies(m, x) for x in x]
     q_arr = np.asarray(effs)
-    qsca = q_arr[:,0]
-    qext = q_arr[:,1]
-    qback = q_arr[:,2]
+    qsca = q_arr[:,0].squeeze()
+    qext = q_arr[:,1].squeeze()
+    qback = q_arr[:,2].squeeze()
     # use two decimal places for the small size parameters because MiePlot
     # doesn't report sufficient precision
     assert_array_almost_equal(qsca[0:9], qsca_bhmie[0:9], decimal=2)
@@ -156,7 +154,7 @@ def test_absorbing_materials():
     m = sc.index.ratio(n_particle, n_matrix).to_numpy()
     x = 10.0
 
-    angles = Quantity(np.linspace(0, 90., 10), 'deg')
+    angles = Quantity(np.linspace(0, 90., 10), 'deg').to("rad").magnitude
     # these values are calculated from MiePlot
     # (http://www.philiplaven.com/mieplot.htm), which uses BHMIE
     iperp_bhmie = np.array([4830.51401095968, 2002.39671236719,
@@ -170,7 +168,7 @@ def test_absorbing_materials():
                            24.9801217735053, 53.2319915708624,
                            8.26505988320951, 47.4736966179677])
 
-    ipar, iperp = mie.calc_ang_dist(m, x, angles)
+    ipar, iperp = mie.calc_ang_scat(m, x, angles)
     assert_array_almost_equal(ipar, ipar_bhmie)
     assert_array_almost_equal(iperp, iperp_bhmie)
 

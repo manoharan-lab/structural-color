@@ -330,7 +330,7 @@ class Sphere(Particle):
         Notes
         -----
         The form factor is k^2 times the differential scattering cross-section.
-        The calculation is done by the pymie routines `mie.calc_ang_dist()` or
+        The calculation is done by the pymie routines `mie.calc_ang_scat()` or
         `mie.diff_scat_intensity_complex_medium()`, both of which return the
         differential scattering cross-section nondimensionalized by k^2.
 
@@ -618,39 +618,28 @@ def _stack_mx(m, x):
 
 def _form_factor_adjusted(m, x, angles, kd=None, phis=None, cartesian=False,
                           incident_vector=None):
-    """numpy ufunc to call pymie form factor functions (calc_ang_dist() and
+    """numpy ufunc to call pymie form factor functions (calc_ang_scat() and
     diff_scat_complex_medium()), shifting order of arguments and changing
     return values so that it is easier to use xr.apply_ufunc(). Could rearrange
     inputs and outputs in pymie so as to eliminate this function.
 
     """
-    if cartesian:
-        coordinate_system = "cartesian"
-    else:
-        coordinate_system = "scattering plane"
-
     if phis is not None:
         # pymie function expect theta, phi to be 2D arrays from meshgrid
         angles, phis = np.meshgrid(angles, phis, indexing="ij")
 
-    if (np.any(x.imag > 0) or (coordinate_system=="cartesian")
-        or (incident_vector is not None)):
-        ff = mie.diff_scat_intensity_complex_medium(m, x, angles, kd,
-                                                    coordinate_system,
-                                                    phis,
+    if np.any(x.imag > 0) or cartesian or (incident_vector is not None):
+        ff = mie.diff_scat_intensity_complex_medium(m, x, angles, kd, phis,
+                                                    cartesian=cartesian,
                                                     incident_vector =
                                                     incident_vector,
                                                     near_field=False)
 
     else:
-        ff = mie.calc_ang_dist(m, x, angles)
-
-    # pymie functions return tuple; instead we should return an array
-    ff = np.array([*ff])
-
-    # add VALUES dimension if it has been squeezed out
-    if m.shape[0] == 1:
-        ff = np.expand_dims(ff, axis=1)
+        ff = mie.calc_ang_scat(m, x, angles)
+        # add VALUES dimension if it has been squeezed out
+        if m.shape[0] == 1:
+            ff = np.expand_dims(ff, axis=1)
 
     return ff
 

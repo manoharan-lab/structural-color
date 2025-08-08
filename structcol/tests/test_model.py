@@ -455,16 +455,19 @@ class TestModel():
                                                           n_medium[i],
                                                           x[i], x_med[i],
                                                           wavelen[i])
-                c_fu_sca[i] = c_fu_loop[0].magnitude
-                c_fu_abs[i] = c_fu_loop[1].magnitude
-                c_fu_ext[i] = c_fu_loop[2].magnitude
+                # squeeze out the singleton wavelength dimension
+                c_fu_sca[i] = c_fu_loop[0].magnitude.squeeze()
+                c_fu_abs[i] = c_fu_loop[1].magnitude.squeeze()
+                c_fu_ext[i] = c_fu_loop[2].magnitude.squeeze()
 
             # first check that the Fu and Sudiarta calculations agree (note:
             # absorption cross-sections do not agree)
             assert_allclose(c_fu_sca, cscat_sud[0].magnitude)
 
         else:
-            cscat_sud = mie.calc_cross_sections(m, x, wavelen_media)
+            cscat_sud = mie.calc_cross_sections(m, x)
+            k = 2*np.pi/wavelen_media
+            cscat_sud = cscat_sud/k**2
 
         # Now check that the Mie calculation and Model method calculations
         # agree.
@@ -524,7 +527,7 @@ class TestModel():
         cscat_2 = binary_model.scattering_cross_section(dscat_2)
 
         xr.testing.assert_equal(dscat_2, dscat_1)
-        xr.testing.assert_equal(cscat_2, cscat_1)
+        xr.testing.assert_allclose(cscat_2, cscat_1, rtol=1e-15)
 
     @pytest.mark.parametrize("volume_fraction", [1e-7, 1e-4, 1e-1, 0.30, 0.50])
     def test_scattering_cross_section_polarization(self, volume_fraction):
@@ -546,7 +549,7 @@ class TestModel():
         # here forces the calculation to go through
         # mie.integrate_intensity_complex_medium(), which can handle an
         # incident vector.  If we don't specify it, the calculation would go
-        # through mie.calc_ang_dist().
+        # through mie.calc_ang_scat().
         #
         # For scattering plane coordinates, parallel and perpendicular
         # polarizations rotate with phi, so that the scattering is azimuthally
@@ -567,7 +570,7 @@ class TestModel():
         assert not np.allclose(cscat.to_numpy(), cscat_wrong.to_numpy())
 
         # now do scattering plane calculation going through
-        # mie.calc_ang_dist(), without specifying incident vector
+        # mie.calc_ang_scat(), without specifying incident vector
         del ff_kwargs["incident_vector"]
         dscat = model.differential_cross_section(coords, **ff_kwargs)
         cscat_no_vector = model.scattering_cross_section(dscat)
@@ -1178,7 +1181,9 @@ def test_transport_length_dilute():
     g = mie.calc_g(m,x)
 
     number_density = sphere.number_density(volume_fraction)
-    cscat = mie.calc_cross_sections(m, x, wavelength)[0]
+    cscat = mie.calc_cross_sections(m, x)[0]
+    k = 2*np.pi*(n_sample.to_numpy())/wavelength
+    cscat = cscat/k**2
 
     lstar_mie = 1 / (number_density * cscat * (1-g))
 

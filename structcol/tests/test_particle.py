@@ -263,14 +263,15 @@ class TestParticle():
         n_matrix = index_matrix(wavelen)
         index_particle = sc.Index.constant(1.59 + 1e-4 * 1.0j)
         sphere = sc.Sphere(index_particle, radius)
-        angles = sc.Quantity(np.linspace(0, 180., 19), "deg")
+        angles = sc.Quantity(np.linspace(0, 180., 19),
+                             "deg").to("rad").magnitude
 
         coords = sc._make_input_coords(wavelen, angles)
         ff = sphere.form_factor(coords, index_matrix)
 
         m = sc.index.ratio(sphere.n(wavelen), index_matrix(wavelen)).to_numpy()
         x = sc.size_parameter(index_matrix(wavelen), radius).to_numpy()
-        ipar_mie, iperp_mie = mie.calc_ang_dist(m, x, angles)
+        ipar_mie, iperp_mie = mie.calc_ang_scat(m, x, angles)
 
         assert_equal(ff.loc["par"].to_numpy().squeeze(), ipar_mie)
         assert_equal(ff.loc["perp"].to_numpy().squeeze(), iperp_mie)
@@ -286,13 +287,14 @@ class TestParticle():
         index_matrix = sc.Index.constant(1.00)
         gold_index = sc.Index.constant(0.1425812 + 3.6813284 * 1.0j)
         sphere = sc.Sphere(gold_index, radius)
-        angles = sc.Quantity(np.linspace(0, 90., 10), "deg")
+        angles = sc.Quantity(np.linspace(0, 90., 10),
+                             "deg").to("rad").magnitude
 
         coords = sc._make_input_coords(wavelen, angles)
         ff = sphere.form_factor(coords, index_matrix)
 
         m = sc.index.ratio(sphere.n(wavelen), index_matrix(wavelen)).to_numpy()
-        ipar_mie, iperp_mie = mie.calc_ang_dist(m, x, angles)
+        ipar_mie, iperp_mie = mie.calc_ang_scat(m, x, angles)
 
         assert_equal(ff.loc["par"].to_numpy().squeeze(), ipar_mie)
         assert_equal(ff.loc["perp"].to_numpy().squeeze(), iperp_mie)
@@ -306,12 +308,14 @@ class TestParticle():
         sphere = sc.Sphere(sc.Index.constant(1.5+0.001j), radius)
         distance = radius
         index_matrix = sc.Index.constant(1.0+0.001j)
-        angles = sc.Quantity(np.linspace(0, 90., 10), "deg")
+        angles = sc.Quantity(np.linspace(0, 90., 10),
+                             "deg").to("rad").magnitude
 
         m = sc.index.ratio(sphere.n(wavelen), index_matrix(wavelen)).to_numpy()
         x = sc.size_parameter(index_matrix(wavelen), radius).to_numpy()
         k = 2 * np.pi * index_matrix(wavelen).to_numpy() / wavelen
         k = k.to_preferred()
+        kd = (k*distance).to("").magnitude
 
         coords = sc._make_input_coords(wavelen, angles)
         ff = sphere.form_factor(coords, index_matrix)
@@ -320,17 +324,18 @@ class TestParticle():
         assert ff.shape == (2, 1, len(angles))
 
         ipar_mie, iperp_mie = mie.diff_scat_intensity_complex_medium(
-            m, x, angles, k*distance)
+            m, x, angles, kd)
 
-        assert_equal(ff.loc["par"].to_numpy().squeeze(), ipar_mie)
-        assert_equal(ff.loc["perp"].to_numpy().squeeze(), iperp_mie)
+        assert_equal(ff.loc["par"].to_numpy(), ipar_mie)
+        assert_equal(ff.loc["perp"].to_numpy(), iperp_mie)
 
         # test layered particle
         index = [sc.index.vacuum, sc.index.polystyrene, sc.index.pmma]
         wavelen = sc.Quantity("658.0 nm").to_preferred()
         radii = sc.Quantity([0.10, 0.16, 0.25], "um").to_preferred()
         sphere = sc.Sphere(index, radii)
-        angles = sc.Quantity(np.linspace(0, 180., 19), "deg")
+        angles = sc.Quantity(np.linspace(0, 180., 19),
+                             "deg").to("rad").magnitude
         index_matrix = sc.index.water
 
         coords = sc._make_input_coords(wavelen, angles)
@@ -338,7 +343,7 @@ class TestParticle():
 
         m = sc.index.ratio(sphere.n(wavelen), index_matrix(wavelen)).to_numpy()
         x = sc.size_parameter(index_matrix(wavelen), radii).to_numpy()
-        ipar_mie, iperp_mie = mie.calc_ang_dist(m, x, angles)
+        ipar_mie, iperp_mie = mie.calc_ang_scat(m, x, angles)
 
         assert_equal(ff.loc["par"].to_numpy().squeeze(), ipar_mie)
         assert_equal(ff.loc["perp"].to_numpy().squeeze(), iperp_mie)
@@ -352,7 +357,8 @@ class TestParticle():
         sphere = sc.Sphere(sc.index.polystyrene,
                                  sc.Quantity("0.125 um"))
         index_matrix = sc.index.water
-        angles = sc.Quantity(np.linspace(0, 180., num_angles), "deg")
+        angles = sc.Quantity(np.linspace(0, 180., num_angles),
+                             "deg").to("rad").magnitude
 
         coords = sc._make_input_coords(wavelen, angles)
         form_sphere = sphere.form_factor(coords, index_matrix)
@@ -378,7 +384,7 @@ class TestSphereDistribution():
     """Tests for the SphereDistribution class.
     """
     wavelen = sc.Quantity(400, 'nm')
-    angles = sc.Quantity(np.linspace(0, 180., 19), 'deg')
+    angles = sc.Quantity(np.linspace(0, 180., 19), 'deg').to("rad").magnitude
 
     def test_spheredistribution_construction(self):
         radius = sc.Quantity(130, 'nm')

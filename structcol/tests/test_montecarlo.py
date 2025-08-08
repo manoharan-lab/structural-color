@@ -130,16 +130,16 @@ def test_trajectories():
 # differential_cross_section() function was removed from model.py (all
 # differential cross sections are now evaluated using Model methods).  It
 # relied on the syntax of the function, whereby not specifying the wavevector k
-# allowed for the use of mie.calc_ang_dist(), even in absorbing media.  The
+# allowed for the use of mie.calc_ang_scat(), even in absorbing media.  The
 # object version of the code checks to see if the index is complex and will not
-# allow the use of mie.calc_ang_dist() if it is.
+# allow the use of mie.calc_ang_scat() if it is.
 #
 # TODO: rewrite this to test the underlying pymie functions and add to
 # test_mie.py instead.
 
 # def test_phase_function_absorbing_medium():
 #     # test that the phase function using the far-field Mie solutions
-#     # (mie.calc_ang_dist()) in an absorbing medium is the same as the phase
+#     # (mie.calc_ang_scat()) in an absorbing medium is the same as the phase
 #     # function using the Mie solutions with the asymptotic form of the
 #     # spherical Hankel functions but using a complex k
 #     # (mie.diff_scat_intensity_complex_medium() with near_fields=False)
@@ -153,7 +153,7 @@ def test_trajectories():
 #     ksquared = np.abs(k)**2
 
 #     ## Integrating at the surface of the particle
-#     # with mie.calc_ang_dist() (this is how it's currently implemented in
+#     # with mie.calc_ang_scat() (this is how it's currently implemented in
 #     # monte carlo)
 #     diff_cscat_par_ff, diff_cscat_perp_ff = \
 #         model.differential_cross_section(m, x, angles, volume_fraction,
@@ -195,7 +195,7 @@ def test_trajectories():
 
 #     ### Same thing but with a binary and polydisperse mixture
 #     ## Integrating at the surface of the particle
-#     # with mie.calc_ang_dist() (this is how it's currently implemented in
+#     # with mie.calc_ang_scat() (this is how it's currently implemented in
 #     # monte carlo)
 #     radius2 = sc.Quantity('150.0 nm')
 #     concentration = sc.Quantity(np.array([0.3, 0.7]), '')

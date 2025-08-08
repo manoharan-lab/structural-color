@@ -848,9 +848,10 @@ def reflection(model, wavelen,
         m, x = sc.particle._stack_mx(m, x)
         m = m.to_numpy()
         x = x.to_numpy()
-        cross_sections = mie.calc_cross_sections(m, x,
-            (wavelen/(n_sample.to_numpy().squeeze())))
-        cabs_total = cross_sections[2]
+        cross_sections = mie.calc_cross_sections(m, x)
+        k = 2*np.pi*(n_sample.to_numpy().squeeze())/wavelen
+        cabs_total = cross_sections[2]/k**2
+
     else:
         warnings.warn("Absorption cross-section cannot be calculated for "
                       "model.")
@@ -1173,6 +1174,7 @@ def _integrate_intensity(diff_cscat, phi_min=0, phi_max=2*np.pi):
     integrand = diff_cscat * np.sin(thetas)
     integral = integrand.integrate(sc.Coord.THETA)
 
+    # Integrate over phi
     if kd is not None:
         # absorbing medium: integrate at surface of sphere
         if sc.Coord.PHI not in diff_cscat.coords:

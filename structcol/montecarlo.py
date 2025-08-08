@@ -357,8 +357,8 @@ class Trajectory:
         # scattering amplitude, because each matrix element contributes to
         # the changes in E field
         S1, S2, S3, S4 = mie.amplitude_scattering_matrix(m, x, theta,
-                                                coordinate_system='cartesian',
-                                                phis=phi)
+                                                         cartesian=True,
+                                                         phis=phi)
 
         # mutliply the scat amp mats
         En = self.fields
