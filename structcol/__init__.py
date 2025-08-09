@@ -280,6 +280,9 @@ def size_parameter(n_medium, radius):
     elif isinstance(radius, xr.DataArray):
         if Coord.LAYER not in radius.coords:
             radius = radius.expand_dims({Coord.LAYER: [0]}, axis=-1)
+    else:
+        raise ValueError("radius must be specified as either sc.Quantity "
+                         f"or DataArray, not {type(radius)}")
 
     sp = (2 * np.pi * n_medium / wavelen * radius)
 

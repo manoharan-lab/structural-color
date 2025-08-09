@@ -110,6 +110,10 @@ def test_size_parameter(wavelen, volume_fraction):
     assert x.sizes[sc.Coord.WAVELEN] == len(np.atleast_1d(wavelen))
     assert x.sizes[sc.Coord.MAT] == 2
 
+    # test that specifying radius as array raises an error
+    with pytest.raises(ValueError, match="radius must be"):
+        x = sc.size_parameter(n_eff, radii.magnitude)
+
 
 @pytest.mark.parametrize("angles", [10, np.linspace(0, 180, 90)])
 @pytest.mark.parametrize("wavelen", [400, np.linspace(400, 800, 100)])
