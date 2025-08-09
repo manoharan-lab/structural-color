@@ -80,7 +80,9 @@ class TestModel():
             _ = model.number_density
 
         # if form factor is None and structure factor is a constant, should
-        # have a constant differential scattering cross section
+        # have a constant differential scattering cross section corresponding
+        # to 1/|k|^2
+        k = sc.wavevector(sc.index.vacuum(wavelen))
         const = 1.0
         model = sc.model.FormStructureModel(None, sc.structure.Constant(const),
                                             self.ps_radius,
@@ -89,7 +91,7 @@ class TestModel():
         coords = model.make_input_coords(wavelen, self.angles)
         dscat = model.differential_cross_section(coords)
 
-        xr.testing.assert_equal(dscat, xr.ones_like(dscat)*const)
+        xr.testing.assert_equal(dscat, xr.ones_like(dscat)*const/np.abs(k)**2)
 
         # Test that constant structure factor yields the same results as form
         # factor.  There is no effective index for a FormStructureModel, unless
@@ -102,8 +104,9 @@ class TestModel():
         dscat = model.differential_cross_section(coords)
         ff = self.ps_sphere.form_factor(coords, sc.index.vacuum)
 
-        # dscat contains avg polarization; ff does not
-        xr.testing.assert_equal(dscat.loc["par":"perp"], ff)
+        # dscat contains avg polarization; ff does not.  Also ff is
+        # nondimensional, so have to divide by k^2 to compare
+        xr.testing.assert_equal(dscat.loc["par":"perp"], ff/np.abs(k**2))
 
         # Test that constant form factor yields the same results as structure
         # factor.
@@ -121,12 +124,13 @@ class TestModel():
 
         # test numpy versions because DataArrays will have different coords
         #
-        # dscat for both polarizations should be equal to s
-        assert_allclose(dscat[0].to_numpy().squeeze(), s)
-        assert_allclose(dscat[1].to_numpy().squeeze(), s)
-        # TODO: figure out why these arrays are equal to within numerical
-        # precision for all wavelengths except 800 nm.  At 800 nm, the rtol is
-        # 1e-9.
+        # dscat for both polarizations should be equal to s, after
+        # nondimensionalizing dscat by k^2
+        k = sc.wavevector(index_matrix(wavelen))
+        assert_allclose((dscat[0]*np.abs(k)**2).to_numpy().squeeze(), s,
+                        rtol=1e-15)
+        assert_allclose((dscat[1]*np.abs(k)**2).to_numpy().squeeze(), s,
+                        rtol=1e-15)
 
     def test_hardsphere_model(self):
         """tests that HardSphere model construction and differential cross
@@ -1514,23 +1518,18 @@ def test_reflection_polydispersity_with_absorption():
     # Outputs before refactoring structcol. Changed a couple values after
     # re-implementing absorption into model.reflection() (now uses n_sample.imag
     # to calculate the absorption cross section, in the same way as montecarlo.py)
-    refl3_before = 0.629949154268635 #0.6311022445010561 #changed with new absorption implementation
-    refl4_before = 0.629949153206364 #0.6311022434374303 #changed with new absorption implementation
     g3_before = -0.6356307606571816 #A/V:-27901.50120849103
     g4_before = -0.6356307601051542 #A/V:-27901.50118425936
-    lstar3_before = 5.7241468935761515e-05 #Before updating absorption in single scat: 8.8037552221780592e-09 #A/V:1.4399291088853016e-08
-    lstar4_before = 5.72414689861482e-05 #Before updating absorption in single scat: 8.8037552299275471e-09 #A/V:1.4399291096668534e-08
 
-    # rtol here based on previous revision's (decimal) precision for
-    # assert_array_almost_equal.  Error is slightly higher on windows, so
-    # adjusted from 1e-12 to 1e-11
+    # we don't compare the reflection or transport length to what we had
+    # before, since without a form factor the scattering cross-section isn't
+    # well defined (the magnitude depends on the convention we use to assign a
+    # form factor when form_factor=None).  However, the asymmetry parameter
+    # does not depend on the magnitude of the cross-section, so can be compared
+    # to previous results.
     rtol = 1e-11
-    assert_allclose(refl3.magnitude, refl3_before, rtol=rtol)
-    assert_allclose(refl4.magnitude, refl4_before, rtol=rtol)
     assert_allclose(g3.magnitude, g3_before, rtol=rtol)
     assert_allclose(g4.magnitude, g4_before, rtol=rtol)
-    assert_allclose(lstar3.to('mm').magnitude, lstar3_before, rtol=rtol)
-    assert_allclose(lstar4.to('mm').magnitude, lstar4_before, rtol=rtol)
 
     # test that the reflectance using both the structure and form factors is
     # the same using the polydisperse formula vs using Mie and Percus-Yevick in

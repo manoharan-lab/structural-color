@@ -165,6 +165,10 @@ class FormStructureModel(Model):
         # differential cross-section is the product of form & structure factors
         diff_cscat = ff * sf
 
+        # multiply by 1/|k|^2 to get a dimensional differential cross-section
+        k = sc.wavevector(n_ext)
+        diff_cscat = diff_cscat/np.abs(k)**2
+
         # calculate average and add to the dataarray
         diff_cscat_avg = diff_cscat.sum(sc.Coord.POL)/2
         diff_cscat_avg.coords[sc.Coord.POL] = "avg"
@@ -179,8 +183,7 @@ class FormStructureModel(Model):
         diff_cscat.attrs.update(ff_kwargs)
         # add kd to the attributes in case there is absorption in the matrix
         if np.any(n_ext.imag > 0):
-            diff_cscat.attrs["kd"] = (sc.wavevector(n_ext)
-                                      * self.lengthscale.magnitude)
+            diff_cscat.attrs["kd"] = (k * self.lengthscale.magnitude)
         # and ensure length scale is present
         if sc.Attr.LENGTH_UNIT not in diff_cscat.attrs:
             diff_cscat.attrs[sc.Attr.LENGTH_UNIT] = sc.LENGTH_UNIT
@@ -205,21 +208,7 @@ class FormStructureModel(Model):
             cartesian coordinates)
 
         """
-        # dimensional factor for the cross-section is 1/k^2 for non-absorbing
-        # medium, distance^2 for absorbing
-        if diff_cscat.attrs.get("kd") is None:
-            wavelen = diff_cscat.coords[sc.Coord.WAVELEN].to_numpy()
-            wavelen = sc.Quantity(wavelen,
-                                  diff_cscat.attrs[sc.Attr.LENGTH_UNIT])
-            k = sc.wavevector(self.index_external(wavelen))
-            factor = 1/np.abs(k)**2
-        else:
-            distance = self.lengthscale
-            if np.ndim(distance) == 0:
-                distance = distance.item()
-            factor = distance.to_preferred().magnitude**2
-
-        cscat = _integrate_intensity(diff_cscat) * factor
+        cscat = _integrate_intensity(diff_cscat)
 
         return cscat
 
@@ -404,14 +393,12 @@ class PolydisperseHardSpheres(FormStructureModel):
         conc = self.sphere_dist.concentrations
         conc = xr.DataArray(conc,
                             coords={sc.Coord.SPECIES: range(len(conc))})
-        distance = self.sphere_dist.diameters_q/2
-        distance = xr.DataArray(distance.magnitude, coords=conc.coords)
 
         # TODO make cartesian work for polydisperse
         if (np.any(np.abs(k.imag) > 0)
             and (len(self.sphere_dist.spheres) > 1)):
             # do concentration-average over components
-            cscat = _integrate_intensity(diff_cscat) * distance**2
+            cscat = _integrate_intensity(diff_cscat)
             cscat_total = (cscat * conc).sum(sc.Coord.SPECIES)
             cscat_total.attrs[sc.Attr.LENGTH_UNIT] = wavelen.units
         else:
@@ -686,9 +673,9 @@ def reflection(model, wavelen,
     # coefficient*sin(theta) over angles to get sigma_detected (eq 5)
     #
     # first calculate angular range for each wavelength (and other dimensions)
-    angles = sc.Quantity(np.linspace(theta_min_refracted.to_numpy(),
-                                     theta_max_refracted.to_numpy(),
-                                     num_angles, axis=-1), 'rad')
+    angles = np.linspace(theta_min_refracted.to_numpy(),
+                         theta_max_refracted.to_numpy(),
+                         num_angles, axis=-1)
     # the actual angles will vary with wavelength and other parameters, since
     # the index of refraction varies with such.  Therefore the theta coordinate
     # varies too.  We have to use an index for the theta coord.
@@ -696,13 +683,11 @@ def reflection(model, wavelen,
     coords[sc.Coord.THETA] = range(angles.shape[-1])
     angles = xr.DataArray(angles, coords=coords)
 
-    angles_tot = sc.Quantity(np.linspace(0.0 + small_angle, np.pi, num_angles),
-                             'rad')
+    angles_tot = np.linspace(0.0 + small_angle, np.pi, num_angles)
 
     # temporary fix to preserve previous (non-vectorized) behavior
     angles = angles.squeeze(drop=True)
     angles.coords[sc.Coord.THETA] = angles.to_numpy()
-    print(angles)
 
     transmission = fresnel_coeffs(n_sample, n_medium, np.pi-angles).loc["t"]
 
@@ -712,17 +697,6 @@ def reflection(model, wavelen,
     # (which is the default). Including near-fields leads to strange effects
     # when the calculation is done not over all angles but only a subset.
     # When there isn't absorption, the distance does not enter the calculation.
-    if isinstance(model, PolydisperseHardSpheres):
-        distance_arr = model.sphere_dist.diameters_q / 2
-    else:
-        distance_arr = model.lengthscale
-    if np.ndim(distance_arr) == 0:
-        distance = distance_arr
-    else:
-        distance = xr.DataArray(distance_arr,
-                                coords={sc.Coord.SPECIES:
-                                        range(len(distance_arr))})
-
     coords_det = model.make_input_coords(wavelen, angles)
     diff_cs_detected = model.differential_cross_section(coords_det)
     coords_tot = model.make_input_coords(wavelen, angles_tot)
@@ -739,18 +713,15 @@ def reflection(model, wavelen,
     # not currently returned, but could be useful in the future
     transport_cscat = _integrate_intensity(diff_cs_total * (1-cosines))
 
-    binary = False
-    if isinstance(model, PolydisperseHardSpheres):
-        if len(model.sphere_dist.concentrations) > 1:
-            binary = True
     if np.abs(n_sample.imag) > 0.:
-        if isinstance(model, PolydisperseHardSpheres) and binary:
+        if (isinstance(model, PolydisperseHardSpheres) and
+            len(model.sphere_dist.concentrations) > 1):
             # When the system is binary and absorbing, we integrate the
             # polydisperse differential cross section at the surface of each
             # component (meaning at a distance of each mean radius). Then we do
             # a number average the total cross sections.
             concentration = model.sphere_dist.concentrations
-            conc = xr.DataArray(distance**2 * concentration,
+            conc = xr.DataArray(concentration,
                                 coords = {sc.Coord.SPECIES:
                                           range(len(concentration))})
             cscat_detected = (cscat_detected * conc).sum(sc.Coord.SPECIES)
@@ -761,9 +732,6 @@ def reflection(model, wavelen,
             asymmetry_unpolarized = (asymmetry_unpolarized
                                      * conc).sum(sc.Coord.SPECIES)
             transport_cscat = (transport_cscat * conc).sum(sc.Coord.SPECIES)
-            # we already included the dimensional factor (had to include it
-            # before summing over species because it is species-dependent).
-            factor = 1
         else:
             # We calculate the detected and total cross sections using the full
             # Mie solutions with the asymptotic form of the spherical Hankel
@@ -773,17 +741,11 @@ def reflection(model, wavelen,
             # decay over distance, we integrate them at the surface of the
             # particle. The decay through the sample is accounted for later
             # with Beer- Lambert's law.
-            factor = distance**2
+            pass
     else:
         # if there is no absorption in the system, differential scattering
-        # cross-sections are calculated in the far field, and 1/k^2 is the
-        # dimensional factor
-        factor = 1.0/np.abs(k)**2
-
-    cscat_detected = cscat_detected * factor
-    cscat_total = cscat_total * factor
-    asymmetry_unpolarized = asymmetry_unpolarized * factor
-    transport_cscat = transport_cscat * factor
+        # cross-sections are calculated in the far field
+        pass
 
     # convert to numpy and add dimensions
     cscat_detected_par = cscat_detected.loc["par"].to_numpy().squeeze()
@@ -850,8 +812,7 @@ def reflection(model, wavelen,
         x = x.to_numpy()
         cross_sections = mie.calc_cross_sections(m, x)
         k = 2*np.pi*(n_sample.to_numpy().squeeze())/wavelen
-        cabs_total = cross_sections[2]/k**2
-
+        cabs_total = cross_sections[2]/np.abs(k)**2
     else:
         warnings.warn("Absorption cross-section cannot be calculated for "
                       "model.")
@@ -1159,12 +1120,10 @@ def _integrate_intensity(diff_cscat, phi_min=0, phi_max=2*np.pi):
     DataArray (or a factor times such a DataArray) from
     Model.differential_cross_section(). For absorbing medium, we integrate at
     the dimensionless distance (kd) that was used to calculate the differential
-    cross_section. Result must be multiplied by the distance^2 (usually the
-    radius of the particle) to calculate the dimensional cross section. This
-    routine is based on mie.integrate_intensity_complex_medium. For
-    nonabsorbing systems, we integrate the far-field differential
-    cross-sections. In this case, the result must be multiplied by 1/k^2 to get
-    the dimensional cross-section.
+    cross_section. This routine is based on
+    mie.integrate_intensity_complex_medium. For nonabsorbing systems, we
+    integrate the far-field differential cross-sections. This routine is based
+    on mie.calc_ang_scat.
 
     """
     kd = diff_cscat.attrs.get("kd")

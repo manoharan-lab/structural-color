@@ -22,9 +22,7 @@ Tests for the mie module
 
 from .. import Quantity, np, mie
 import structcol as sc
-from pytest import raises
 from numpy.testing import assert_almost_equal, assert_array_almost_equal
-from pint.errors import DimensionalityError
 
 def test_cross_sections():
     # Test cross sections against values calculated from BHMIE code (originally
