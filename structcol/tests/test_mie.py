@@ -86,8 +86,8 @@ def test_form_factor():
                            93.5508557840006])
 
     ipar, iperp = mie.calc_ang_scat(m, x, angles)
-    assert_array_almost_equal(ipar, ipar_bhmie)
-    assert_array_almost_equal(iperp, iperp_bhmie)
+    assert_array_almost_equal(ipar.squeeze(), ipar_bhmie)
+    assert_array_almost_equal(iperp.squeeze(), iperp_bhmie)
 
 def test_efficiencies():
     x = np.array([0.01, 0.01778279, 0.03162278, 0.05623413, 0.1, 0.17782794,
@@ -167,6 +167,6 @@ def test_absorbing_materials():
                            8.26505988320951, 47.4736966179677])
 
     ipar, iperp = mie.calc_ang_scat(m, x, angles)
-    assert_array_almost_equal(ipar, ipar_bhmie)
-    assert_array_almost_equal(iperp, iperp_bhmie)
+    assert_array_almost_equal(ipar.squeeze(), ipar_bhmie)
+    assert_array_almost_equal(iperp.squeeze(), iperp_bhmie)
 

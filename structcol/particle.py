@@ -637,9 +637,6 @@ def _form_factor_adjusted(m, x, angles, kd=None, phis=None, cartesian=False,
 
     else:
         ff = mie.calc_ang_scat(m, x, angles)
-        # add VALUES dimension if it has been squeezed out
-        if m.shape[0] == 1:
-            ff = np.expand_dims(ff, axis=1)
 
     return ff
 

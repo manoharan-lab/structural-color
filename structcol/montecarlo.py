@@ -360,6 +360,13 @@ class Trajectory:
                                                          cartesian=True,
                                                          phis=phi)
 
+        # because this function is not vectorized yet, need to remove the
+        # wavelength axis from each scattering matrix element:
+        S1 = S1[0]
+        S2 = S2[0]
+        S3 = S3[0]
+        S4 = S4[0]
+
         # mutliply the scat amp mats
         En = self.fields
         if isinstance(En, sc.Quantity):

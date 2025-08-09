@@ -812,7 +812,7 @@ def reflection(model, wavelen,
         x = x.to_numpy()
         cross_sections = mie.calc_cross_sections(m, x)
         k = 2*np.pi*(n_sample.to_numpy().squeeze())/wavelen
-        cabs_total = cross_sections[2]/np.abs(k)**2
+        cabs_total = (cross_sections[2]/np.abs(k)**2).squeeze()
     else:
         warnings.warn("Absorption cross-section cannot be calculated for "
                       "model.")

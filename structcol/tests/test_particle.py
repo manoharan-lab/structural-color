@@ -273,8 +273,8 @@ class TestParticle():
         x = sc.size_parameter(index_matrix(wavelen), radius).to_numpy()
         ipar_mie, iperp_mie = mie.calc_ang_scat(m, x, angles)
 
-        assert_equal(ff.loc["par"].to_numpy().squeeze(), ipar_mie)
-        assert_equal(ff.loc["perp"].to_numpy().squeeze(), iperp_mie)
+        assert_equal(ff.loc["par"].to_numpy(), ipar_mie)
+        assert_equal(ff.loc["perp"].to_numpy(), iperp_mie)
 
         # test calculations for gold, which has a high imaginary refractive
         # index.  Again, pymie/tests/test_mie.py::test_absorbing_materials()
@@ -296,8 +296,8 @@ class TestParticle():
         m = sc.index.ratio(sphere.n(wavelen), index_matrix(wavelen)).to_numpy()
         ipar_mie, iperp_mie = mie.calc_ang_scat(m, x, angles)
 
-        assert_equal(ff.loc["par"].to_numpy().squeeze(), ipar_mie)
-        assert_equal(ff.loc["perp"].to_numpy().squeeze(), iperp_mie)
+        assert_equal(ff.loc["par"].to_numpy(), ipar_mie)
+        assert_equal(ff.loc["perp"].to_numpy(), iperp_mie)
 
         # Test absorbing matrix.
         # Although Sphere.form_factor() calls the same function
@@ -345,8 +345,8 @@ class TestParticle():
         x = sc.size_parameter(index_matrix(wavelen), radii).to_numpy()
         ipar_mie, iperp_mie = mie.calc_ang_scat(m, x, angles)
 
-        assert_equal(ff.loc["par"].to_numpy().squeeze(), ipar_mie)
-        assert_equal(ff.loc["perp"].to_numpy().squeeze(), iperp_mie)
+        assert_equal(ff.loc["par"].to_numpy(), ipar_mie)
+        assert_equal(ff.loc["perp"].to_numpy(), iperp_mie)
 
     def test_vectorized_form_factor(self):
         # test that we can calculate the form factor for several wavelengths
