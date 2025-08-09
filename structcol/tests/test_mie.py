@@ -124,7 +124,7 @@ def test_efficiencies():
     n_particle = sc.Index.constant(1.59 + 1e-4 * 1.0j)(wavelen)
     m = sc.index.ratio(n_particle, n_matrix).to_numpy()
 
-    effs = [mie.calc_efficiencies(m, x) for x in x]
+    effs = [mie.calc_efficiencies(m, np.array([[x]])) for x in x]
     q_arr = np.asarray(effs)
     qsca = q_arr[:,0].squeeze()
     qext = q_arr[:,1].squeeze()
@@ -150,7 +150,7 @@ def test_absorbing_materials():
     n_matrix = sc.Index.constant(1.00)(wavelen)
     n_particle = sc.Index.constant(0.1425812 + 3.6813284 * 1.0j)(wavelen)
     m = sc.index.ratio(n_particle, n_matrix).to_numpy()
-    x = 10.0
+    x = np.array([[10.0]])
 
     angles = Quantity(np.linspace(0, 90., 10), 'deg').to("rad").magnitude
     # these values are calculated from MiePlot

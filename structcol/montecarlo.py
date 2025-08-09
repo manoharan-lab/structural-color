@@ -338,7 +338,7 @@ class Trajectory:
         if isinstance(n_sample, xr.DataArray):
             n_sample = n_sample.to_numpy().squeeze()
 
-        m = n_particle/n_sample
+        m = np.atleast_2d(n_particle/n_sample)
         x = size_parameter(wavelen, n_sample, radius)
         k = 2 * np.pi * n_sample / wavelen.magnitude
         step = step.magnitude

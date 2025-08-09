@@ -282,7 +282,7 @@ class TestParticle():
         # parameters. Here we just check to see if we get the same results as
         # pymie
         wavelen = sc.Quantity("658.0 nm")
-        x = 10.0
+        x = np.array([[10.0]])
         radius = x/(2*np.pi/wavelen)
         index_matrix = sc.Index.constant(1.00)
         gold_index = sc.Index.constant(0.1425812 + 3.6813284 * 1.0j)

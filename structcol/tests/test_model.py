@@ -1144,7 +1144,7 @@ def test_calc_g():
 
     # calculate g using calc_g in pymie
     n_sample = index_sample(wavelength)
-    m = sc.index.ratio(n_particle, n_sample).to_numpy().squeeze()
+    m = sc.index.ratio(n_particle, n_sample).to_numpy()
     x = mie.size_parameter(wavelength, n_sample.to_numpy().squeeze(), radius)
     g2 = mie.calc_g(m,x)
 
