@@ -362,8 +362,8 @@ class Sphere(Particle):
         else:
             kd = None
 
-        form_factor = _form_factor(m, x, angles, kd=kd, cartesian=cartesian,
-                                   incident_vector=incident_vector, phis=phis)
+        form_factor = _form_factor(m, x, angles, kd=kd, phis=phis,
+                                   incident_vector=incident_vector)
 
         # add attributes to the DataArray
         if kd is not None:
@@ -564,10 +564,8 @@ class SphereDistribution:
                                           coords={"diameter": diameter_range})
             x = sc.size_parameter(n_ext, diameter_range/2)
 
-            ff_vec = _form_factor(m, x, angles, kd=kd,
-                                  cartesian=cartesian,
-                                  incident_vector=incident_vector,
-                                  phis=phis)
+            ff_vec = _form_factor(m, x, angles, kd=kd, phis=phis,
+                                  incident_vector=incident_vector)
 
             # it might seem reasonable to calculate the form factor of each
             # individual radius in the Schulz distribution (meaning that we
@@ -616,33 +614,7 @@ def _stack_mx(m, x):
     return m, x
 
 
-def _form_factor_adjusted(m, x, angles, kd=None, phis=None, cartesian=False,
-                          incident_vector=None):
-    """numpy ufunc to call pymie form factor functions (calc_ang_scat() and
-    diff_scat_complex_medium()), shifting order of arguments and changing
-    return values so that it is easier to use xr.apply_ufunc(). Could rearrange
-    inputs and outputs in pymie so as to eliminate this function.
-
-    """
-    if phis is not None:
-        # pymie function expect theta, phi to be 2D arrays from meshgrid
-        angles, phis = np.meshgrid(angles, phis, indexing="ij")
-
-    if np.any(x.imag > 0) or cartesian or (incident_vector is not None):
-        ff = mie.diff_scat_intensity_complex_medium(m, x, angles, kd, phis,
-                                                    cartesian=cartesian,
-                                                    incident_vector =
-                                                    incident_vector,
-                                                    near_field=False)
-
-    else:
-        ff = mie.calc_ang_scat(m, x, angles)
-
-    return ff
-
-
-def _form_factor(m, x, angles, kd=None, cartesian=False,
-                 incident_vector=None, phis=None):
+def _form_factor(m, x, angles, kd=None, phis=None, incident_vector=None):
     """Wrapper around pymie form-factor routines. Vectorizes calculation over
     coordinates in m and x DataArrays using xr.apply_ufunc(). Called internally
     by form_factor() methods.
@@ -674,8 +646,8 @@ def _form_factor(m, x, angles, kd=None, cartesian=False,
 
     exclude_dims = set((sc.Coord.MAT,))
 
-    kwargs = {"cartesian": cartesian, "incident_vector": incident_vector}
-    form_factor = xr.apply_ufunc(_form_factor_adjusted,
+    kwargs = {"incident_vector": incident_vector}
+    form_factor = xr.apply_ufunc(mie.calc_ang_scat,
                                  m, x, angles, kd, phis,
                                  kwargs=kwargs,
                                  output_core_dims=output_core_dims,
@@ -683,7 +655,7 @@ def _form_factor(m, x, angles, kd=None, cartesian=False,
                                  exclude_dims=exclude_dims)
 
     # add polarization coordinates and unstack to recover original dims
-    if cartesian:
+    if phis is not None:
         pol_coord = {sc.Coord.POL: ["x", "y"]}
     else:
         pol_coord = {sc.Coord.POL: ["par", "perp"]}
