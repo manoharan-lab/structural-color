@@ -280,8 +280,7 @@ class Sphere(Particle):
             radius = self.radius_q
         return 3.0 * volume_fraction / (4.0 * np.pi * radius**3)
 
-    def form_factor(self, coords, index_external, cartesian=False,
-                    incident_vector=None):
+    def form_factor(self, coords, index_external, incident_vector=None):
         """Calculate form factor from Mie theory.
 
         Parameters
@@ -293,32 +292,26 @@ class Sphere(Particle):
         index_external : `sc.Index` object
             Index of refraction of the medium around the particle.  Can be an
             effective index.
-        cartesian : boolean (default False)
-            If set to True, calculation will be done in the basis defined by
-            basis vectors x and y in the lab frame, with z as the direction of
-            propagation. If False (default), calculation will be carried out in
-            the basis defined by basis vectors parallel and perpendicular to
-            scattering plane.
         incident_vector : tuple (optional, default None)
             vector describing the incident electric field. It is multiplied by
             the amplitude scattering matrix to find the vector scattering
-            amplitude. Unless `cartesian` is set, this vector should be in the
-            scattering plane basis, where the first element is the parallel
+            amplitude. If phis are not provided, then this vector should be in
+            the scattering plane basis, where the first element is the parallel
             component and the second element is the perpendicular component. If
-            `cartesian` is set to True, this vector should be in the Cartesian
+            phis are provided, then this vector should be in the cartesian
             basis, where the first element is the x-component and the second
             element is the y-component. Note that the vector for unpolarized
             light is the same in either basis, since either way it should be an
-            equal mix between the two othogonal polarizations: (1,1). Note that
-            if indicent_vector is None, the function assigns a value based on
-            the coordinate system. For scattering plane coordinates, the
-            assigned value is (1,1) because most scattering plane calculations
-            we're interested in involve unpolarized light. For Cartesian
-            coordinates, the assigned value is (1,0) because if we are going to
-            the trouble to use the cartesian coordinate system, it is usually
-            because we want to do calculations using polarization, and these
-            calculations are much easier to convert to measured quantities when
-            in the cartesian coordinate system.
+            equal mix between the two othogonal polarizations: (1,1). If
+            incident_vector is None, the function assigns a value based on the
+            coordinate system. For the scattering plane basis, the assigned
+            value is (1,1) because most scattering plane calculations we're
+            interested in involve unpolarized light. For the cartesian basis,
+            the assigned value is (1,0) because if we are going to the trouble
+            to use the cartesian coordinate system, it is usually because we
+            want to do calculations using polarization, and these calculations
+            are much easier to convert to measured quantities when in the
+            cartesian coordinate system.
 
         Returns
         -------
@@ -354,7 +347,7 @@ class Sphere(Particle):
         x = sc.size_parameter(n_ext, self.radius_q)
 
         # calculate form factor at radius of particle for absorbing systems
-        if np.any(n_ext.imag > 0) or cartesian or incident_vector is not None:
+        if np.any(n_ext.imag > 0) or (phis is not None):
             kd = sc.size_parameter(n_ext, self.outer_radius_q)
             # don't need MAT coord on kd (which is always 0 because
             # outer_radius() returns a scalar)
@@ -370,8 +363,6 @@ class Sphere(Particle):
             form_factor.attrs["kd"] = sc.wavevector(n_ext) * self.outer_radius
         if incident_vector is not None:
             form_factor.attrs["incident_vector"] = incident_vector
-        if cartesian is True:
-            form_factor.attrs["cartesian"] = cartesian
         form_factor.attrs[sc.Attr.LENGTH_UNIT] = wavelen.units
 
         return form_factor
@@ -481,8 +472,9 @@ class SphereDistribution:
             rho = 3.0 * volume_fraction / (4.0 * np.pi) * (term1 + term2)
         return rho
 
-    def form_factor(self, coords, index_external, cartesian=False,
-                    incident_vector=None, num_components = 50):
+    def form_factor(self, coords, index_external,
+                    incident_vector=None,
+                    num_components=50):
         """
         Calculate the form factor for polydisperse systems.
 
@@ -549,7 +541,7 @@ class SphereDistribution:
 
             # for absorbing systems, calculate the differential cross-section
             # at the mean diameter
-            if np.any(np.abs(n_ext.imag) > 0) or cartesian:
+            if np.any(np.abs(n_ext.imag) > 0) or phis is not None:
                 kd = sc.size_parameter(n_ext, self.diameters[d]/2 * units)
             else:
                 kd = None
@@ -590,7 +582,7 @@ class SphereDistribution:
         d = xr.DataArray(self.diameters/2,
                          coords={sc.Coord.SPECIES: range(len(self.diameters))})
         kd = sc.wavevector(n_ext) * d
-        if np.any(np.abs(n_ext.imag) > 0) or cartesian:
+        if np.any(np.abs(n_ext.imag) > 0) or phis is not None:
             f.attrs["kd"] = kd
         f.attrs[sc.Attr.LENGTH_UNIT] = wavelen.units
 

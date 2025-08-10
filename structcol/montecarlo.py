@@ -357,7 +357,6 @@ class Trajectory:
         # scattering amplitude, because each matrix element contributes to
         # the changes in E field
         S1, S2, S3, S4 = mie.amplitude_scattering_matrix(m, x, theta,
-                                                         cartesian=True,
                                                          phis=phi)
 
         # because this function is not vectorized yet, need to remove the
@@ -1071,18 +1070,13 @@ def calc_scat(radius, index_particle, index_matrix, index_sample, index_medium,
 
     thetas = angles
     if fields:
-        cartesian = True
         phis = sc.Quantity(np.linspace(min_angle, 2*np.pi, num_phis), 'rad')
     else:
-        cartesian = False
         phis = None
 
     # calculate scattering quantities using the Model object
-    ff_kwargs = {}
-    if cartesian:
-        ff_kwargs["cartesian"] = True
     coords = model.make_input_coords(wavelen, thetas, phis=phis)
-    dscat = model.differential_cross_section(coords, **ff_kwargs)
+    dscat = model.differential_cross_section(coords)
     cscat = model.scattering_cross_section(dscat)
     p = model.phase_function(dscat).to_numpy().squeeze()
 
@@ -1106,7 +1100,7 @@ def calc_scat(radius, index_particle, index_matrix, index_sample, index_medium,
         model.index_external = index_matrix
         model.structure_factor = sc.structure.Constant(1.0)
 
-        dscat = model.differential_cross_section(coords, **ff_kwargs)
+        dscat = model.differential_cross_section(coords)
         cscat_total_mie = model.scattering_cross_section(dscat)
         mu_scat_mie = (number_density
                        * (cscat_total_mie.loc["avg"].to_numpy().squeeze()

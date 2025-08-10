@@ -567,7 +567,7 @@ class TestModel():
 
         # to show that incident vector was passed through, we pass an incorrect
         # vector here.  Should get a different result
-        ff_kwargs.update({"incident_vector": (1, 0)})
+        ff_kwargs["incident_vector"] = (1, 0)
         dscat = model.differential_cross_section(coords, **ff_kwargs)
         cscat_wrong = model.scattering_cross_section(dscat)
 
@@ -584,7 +584,7 @@ class TestModel():
         # now do cartesian.  Incident vector is polarized, but remember we're
         # integrating over both polarizations at each detector position, so we
         # should get all the scattered light.
-        ff_kwargs.update({"cartesian": True, "incident_vector": (1, 0)})
+        ff_kwargs.update({"incident_vector": (1, 0)})
         coords = model.make_input_coords(wavelen, thetas, phis=phis)
         dscat_cart = model.differential_cross_section(coords, **ff_kwargs)
         cscat_cart = model.scattering_cross_section(dscat_cart)

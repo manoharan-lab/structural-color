@@ -130,7 +130,7 @@ class FormStructureModel(Model):
             include phi (sc.Coord.PHI).
         **ff_kwargs :
             Keyword arguments to pass to `form_factor()` method. Includes
-            cartesian flag and incident_vector. See `Sphere.form_factor()` and
+            incident_vector. See `Sphere.form_factor()` and
             `SphereDistribution.form_factor()` for descriptions.
 
         Returns
@@ -153,8 +153,7 @@ class FormStructureModel(Model):
             ff = xr.DataArray([1, 1], coords={sc.Coord.POL: ["par", "perp"]})
             ff = ff.expand_dims(dim=coords)
         else:
-            ff = self.form_factor(coords, self.index_external,
-                                  **ff_kwargs)
+            ff = self.form_factor(coords, self.index_external, **ff_kwargs)
 
         # calculate structure factor
         n_ext = self.index_external(coords[sc.Coord.WAVELEN])
