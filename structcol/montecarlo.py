@@ -356,15 +356,28 @@ class Trajectory:
         # we need to calculate the full matrix, rather than just the vector
         # scattering amplitude, because each matrix element contributes to
         # the changes in E field
-        S1, S2, S3, S4 = mie.amplitude_scattering_matrix(m, x, theta,
-                                                         phis=phi)
+        #
+        # amplitude_scattering_matrix() is set up to broadcast over phi (for
+        # each theta we calculate all the matrix for all phi values). Here we
+        # want to calculate the matrix for every event (for each trajectory i
+        # and event j we calculate the matrix for the combination of (theta_ij,
+        # phi_ij) in that event).  We therefore calculate the matrix for each
+        # theta (passing a flat array), then reshape and modify for each phi
+        S = mie.amplitude_scattering_matrix(m, x, theta.ravel())
 
-        # because this function is not vectorized yet, need to remove the
-        # wavelength axis from each scattering matrix element:
-        S1 = S1[0]
-        S2 = S2[0]
-        S3 = S3[0]
-        S4 = S4[0]
+        # for clarity of indexing (0->1) we add a zero element to the list
+        S = [0] + list(S)
+        # Reshape to (..., nevents, ntraj). Also because calc_fields() is not
+        # yet vectorized, we remove the wavelength axis from each element
+        for i in (1,2,3,4):
+            S[i] = S[i][0].reshape(theta.shape)
+        # now account for phi
+        cosphi = np.cos(phi)
+        sinphi = np.sin(phi)
+        S1 = S[2]*(sinphi)**2 + S[1]*(cosphi)**2
+        S2 = S[2]*(cosphi)**2 + S[1]*(sinphi)**2
+        S3 = S[2]*sinphi*cosphi - S[1]*sinphi*cosphi
+        S4 = S[2]*cosphi*sinphi - S[1]*cosphi*sinphi
 
         # mutliply the scat amp mats
         En = self.fields
