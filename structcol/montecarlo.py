@@ -384,6 +384,7 @@ class Trajectory:
         if isinstance(En, sc.Quantity):
             En = En.magnitude
 
+        # En has shape (3, nevents+1, ntraj)
         Ex = En[0, 0, :]
         Ey = En[1, 0, :]
 
@@ -395,15 +396,12 @@ class Trajectory:
         # the first event propogates straight into the sample.
         # Note: this basis assumes that
         # the direction of propagation is the +z direction.
-        for n in np.arange(0, self.nevents - 1):
-            Ex = S2[n, :] * Ex + S3[n, :] * Ey
-            Ey = S4[n, :] * Ex + S1[n, :] * Ey
-            if n + 2 > self.nevents:
-                break
-            else:
-                # 0th event is before sample, the 1st event has no rotation
-                En[0, n + 2, :] = Ex
-                En[1, n + 2, :] = Ey
+        for n in np.arange(2, self.nevents + 1):
+            Ex = S2[n-2, :] * Ex + S3[n-2, :] * Ey
+            Ey = S4[n-2, :] * Ex + S1[n-2, :] * Ey
+            # 0th event is before sample, the 1st event has no rotation
+            En[0, n, :] = Ex
+            En[1, n, :] = Ey
 
         # Deal with tir
         if tir_refl_bool is not None:
