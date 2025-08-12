@@ -621,6 +621,18 @@ def reflection(model, wavelen,
     wavelen = wavelen.to_preferred()
     n_sample = model.index_external(wavelen)
     n_medium = model.index_medium(wavelen)
+    if isinstance(model, HardSpheres):
+        n_particle = model.sphere.n(wavelen)
+    elif isinstance(model, PolydisperseHardSpheres):
+        n_particle = model.sphere_dist.spheres[0].n(wavelen)
+    else:
+        if hasattr(model, "particle"):
+            if isinstance(model.particle, sc.Sphere):
+                n_particle = model.particle.n(wavelen)
+            if isinstance(model.particle, sc.SphereDistribution):
+                n_particle = model.particle.spheres[0].n(wavelen)
+        else:
+            n_particle = None
 
     k = sc.wavevector(n_sample)
     k = sc.Quantity(k.to_numpy().squeeze(), 1/k.attrs[sc.Attr.LENGTH_UNIT])
@@ -712,39 +724,24 @@ def reflection(model, wavelen,
     # not currently returned, but could be useful in the future
     transport_cscat = _integrate_intensity(diff_cs_total * (1-cosines))
 
-    if np.abs(n_sample.imag) > 0.:
-        if (isinstance(model, PolydisperseHardSpheres) and
-            len(model.sphere_dist.concentrations) > 1):
-            # When the system is binary and absorbing, we integrate the
-            # polydisperse differential cross section at the surface of each
-            # component (meaning at a distance of each mean radius). Then we do
-            # a number average the total cross sections.
-            concentration = model.sphere_dist.concentrations
-            conc = xr.DataArray(concentration,
-                                coords = {sc.Coord.SPECIES:
-                                          range(len(concentration))})
-            cscat_detected = (cscat_detected * conc).sum(sc.Coord.SPECIES)
-            cscat_total = (cscat_total * conc).sum(sc.Coord.SPECIES)
-            # Similarly, we calculate the asymmetry parameter integrating at
-            # the surface of each mean component of the binary mixture and then
-            # average
-            asymmetry_unpolarized = (asymmetry_unpolarized
-                                     * conc).sum(sc.Coord.SPECIES)
-            transport_cscat = (transport_cscat * conc).sum(sc.Coord.SPECIES)
-        else:
-            # We calculate the detected and total cross sections using the full
-            # Mie solutions with the asymptotic form of the spherical Hankel
-            # functions (see mie.diff_scat_intensity_complex_medium()). By
-            # doing so, we ignore near-field effects but still include the
-            # complex k into the Mie solutions. Since the cross sections then
-            # decay over distance, we integrate them at the surface of the
-            # particle. The decay through the sample is accounted for later
-            # with Beer- Lambert's law.
-            pass
-    else:
-        # if there is no absorption in the system, differential scattering
-        # cross-sections are calculated in the far field
-        pass
+    if (isinstance(model, PolydisperseHardSpheres) and
+        len(model.sphere_dist.concentrations) > 1):
+        # When the system is binary and absorbing, we integrate the
+        # polydisperse differential cross section at the surface of each
+        # component (meaning at a distance of each mean radius). Then we do
+        # a number average the total cross sections.
+        concentration = model.sphere_dist.concentrations
+        conc = xr.DataArray(concentration,
+                            coords = {sc.Coord.SPECIES:
+                                      range(len(concentration))})
+        cscat_detected = (cscat_detected * conc).sum(sc.Coord.SPECIES)
+        cscat_total = (cscat_total * conc).sum(sc.Coord.SPECIES)
+        # Similarly, we calculate the asymmetry parameter integrating at
+        # the surface of each mean component of the binary mixture and then
+        # average
+        asymmetry_unpolarized = (asymmetry_unpolarized
+                                 * conc).sum(sc.Coord.SPECIES)
+        transport_cscat = (transport_cscat * conc).sum(sc.Coord.SPECIES)
 
     # convert to numpy and add dimensions
     cscat_detected_par = cscat_detected.loc["par"].to_numpy().squeeze()
@@ -780,27 +777,14 @@ def reflection(model, wavelen,
         # TODO is this cscat or cext_tot?
         transport_length = 1/(1.0-asymmetry_parameter)/rho/cscat_total
 
-    if isinstance(model, HardSpheres):
-        n_particle = model.sphere.n(wavelen)
-    elif isinstance(model, PolydisperseHardSpheres):
-        n_particle = model.sphere_dist.spheres[0].n(wavelen)
-    else:
-        if hasattr(model, "particle"):
-            if isinstance(model.particle, sc.Sphere):
-                n_particle = model.particle.n(wavelen)
-            if isinstance(model.particle, sc.SphereDistribution):
-                n_particle = model.particle.spheres[0].n(wavelen)
-        else:
-            n_particle = None
-
     # calculate the absorption cross section. Requires particle index or number
     # density, which must be specified if using FormStructureModel
-    if np.abs(n_sample.imag) > 0.0 and rho is not None:
+    if np.any(np.abs(n_sample.imag) > 0.0) and rho is not None:
         # The absorption coefficient can be calculated from the imaginary
         # component of the samples's refractive index
         mu_abs = 4 * np.pi * n_sample.imag.to_numpy().squeeze() / wavelen
         cabs_total = mu_abs / rho
-    elif (np.abs(n_sample.imag) == 0.0) and n_particle is not None:
+    elif np.all(np.abs(n_sample.imag) == 0.0) and n_particle is not None:
         if isinstance(model, HardSpheres):
             x = sc.size_parameter(n_sample, model.sphere.radius_q)
         else:
