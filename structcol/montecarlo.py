@@ -426,17 +426,33 @@ class Trajectory:
         # values from before the field enters the sample. The 1st event
         # contains the values for the field after entering the sample, but
         # before scattering
+
+        # this is the product of the rotation matrices R_z(phi).R_y(theta)
+        # calculated for each event in each trajectory
+        # shape of kn is [3,nevents,ntraj]
+        # shape of R is [3,3,nevents,ntraj]
+        R = np.array([[costheta*cosphi, -sinphi, sintheta*cosphi],
+                      [costheta*sinphi, cosphi, sintheta*sinphi],
+                      [-sintheta, np.zeros(sinphi.shape), costheta]])
+
         for n in np.arange(2, self.nevents + 1):
             # Calculate the new x, y, z coordinates of the propagation
             # direction using the following equations, which can be derived by
             # using matrix operations to perform a rotation about the y-axis by
             # angle theta followed by a rotation about the z-axis by angle phi
-            Ex = ((En[0,n:,:]*costheta[n-2,:] + En[2,n:,:]*sintheta[n-2,:])*
-                    cosphi[n-2,:]) - En[1,n:,:]*sinphi[n-2,:]
-            Ey = ((En[0,n:,:]*costheta[n-2,:] + En[2,n:,:]*sintheta[n-2,:])*
-                  sinphi[n-2,:]) + En[1,n:,:]*cosphi[n-2,:]
-            Ez =  -En[0,n:,:]*sintheta[n-2,:] + En[2,n:,:]*costheta[n-2,:]
-            En[:,n:,:] = Ex, Ey, Ez
+            #
+            # Einstein summation to take the dot product of each rotation
+            # matrix at each event in each trajectory with the wavevector
+            # (the n: ensures that all subsequent fields are also rotated)
+            En[:, n:, :] = np.einsum('ijl,jkl->ikl',
+                                     R[:, :, n-2, :], En[:, n:, :])
+            # Annie's equivalent code:
+            # Ex = ((En[0,n:,:]*costheta[n-2,:] + En[2,n:,:]*sintheta[n-2,:])*
+            #         cosphi[n-2,:]) - En[1,n:,:]*sinphi[n-2,:]
+            # Ey = ((En[0,n:,:]*costheta[n-2,:] + En[2,n:,:]*sintheta[n-2,:])*
+            #       sinphi[n-2,:]) + En[1,n:,:]*cosphi[n-2,:]
+            # Ez =  -En[0,n:,:]*sintheta[n-2,:] + En[2,n:,:]*costheta[n-2,:]
+            # En[:,n:,:] = Ex, Ey, Ez
 
         # Calculate the structure factor field contribution.
         # Insert a row of zeros since first event does not change direction
