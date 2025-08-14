@@ -85,9 +85,11 @@ def test_form_factor():
                            7.24176462105438, 76.2910238480798, 54.1983836607738,
                            93.5508557840006])
 
-    ipar, iperp = mie.calc_ang_scat(m, x, angles)
-    assert_array_almost_equal(ipar.squeeze(), ipar_bhmie)
-    assert_array_almost_equal(iperp.squeeze(), iperp_bhmie)
+    iparperp = mie.calc_ang_scat(m, x, angles)
+    # squeeze to remove singlet wavelength dimension
+    assert_array_almost_equal(iparperp[..., 0].squeeze(), ipar_bhmie)
+    assert_array_almost_equal(iparperp[..., 1].squeeze(), iperp_bhmie)
+
 
 def test_efficiencies():
     x = np.array([0.01, 0.01778279, 0.03162278, 0.05623413, 0.1, 0.17782794,
@@ -166,7 +168,7 @@ def test_absorbing_materials():
                            24.9801217735053, 53.2319915708624,
                            8.26505988320951, 47.4736966179677])
 
-    ipar, iperp = mie.calc_ang_scat(m, x, angles)
-    assert_array_almost_equal(ipar.squeeze(), ipar_bhmie)
-    assert_array_almost_equal(iperp.squeeze(), iperp_bhmie)
-
+    iparperp = mie.calc_ang_scat(m, x, angles)
+    # squeeze to remove singlet wavelen axis before comparison
+    assert_array_almost_equal(iparperp[..., 0].squeeze(), ipar_bhmie)
+    assert_array_almost_equal(iparperp[..., 1].squeeze(), iperp_bhmie)

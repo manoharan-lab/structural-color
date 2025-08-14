@@ -710,11 +710,9 @@ class TestModel():
             dscat_loop.append(model.differential_cross_section(coords))
             cscat_loop.append(model.scattering_cross_section(dscat_loop[i]))
         dscat_loop = xr.concat(dscat_loop, sc.Coord.VOLFRAC)
-        dscat_loop = dscat_loop.transpose(sc.Coord.POL, sc.Coord.WAVELEN,
-                                          sc.Coord.THETA, sc.Coord.VOLFRAC)
+        dscat_loop = dscat_loop.transpose(*dscat.dims)
         cscat_loop = xr.concat(cscat_loop, sc.Coord.VOLFRAC)
-        cscat_loop = cscat_loop.transpose(sc.Coord.POL, sc.Coord.WAVELEN,
-                                          sc.Coord.VOLFRAC)
+        cscat_loop = cscat_loop.transpose(*cscat.dims)
         xr.testing.assert_allclose(dscat, dscat_loop)
         xr.testing.assert_allclose(cscat, cscat_loop)
 

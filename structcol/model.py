@@ -173,9 +173,8 @@ class FormStructureModel(Model):
         diff_cscat_avg.coords[sc.Coord.POL] = "avg"
         diff_cscat = xr.concat([diff_cscat, diff_cscat_avg], dim=sc.Coord.POL)
 
-        # ensure dimension order is correct, for routines that convert to numpy
-        diff_cscat = diff_cscat.transpose(sc.Coord.POL, sc.Coord.WAVELEN,
-                                          sc.Coord.THETA, ...)
+        # change to canonical dimension order
+        diff_cscat = diff_cscat.transpose(sc.Coord.POL, ...)
 
         # store form-factor options in attributes, so that we don't have to
         # pass them again
@@ -790,7 +789,6 @@ def reflection(model, wavelen,
         else:
             x = sc.size_parameter(n_sample, model.lengthscale)
         m = sc.index.ratio(n_particle, n_sample)
-        m, x = sc.particle._stack_mx(m, x)
         m = m.to_numpy()
         x = x.to_numpy()
         cross_sections = mie.calc_cross_sections(m, x)

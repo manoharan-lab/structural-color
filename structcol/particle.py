@@ -589,54 +589,24 @@ class SphereDistribution:
         return f
 
 
-def _stack_mx(m, x):
-    """Convenience function to stack coordinates in m or x for input to pymie
-    methods.  Stacks so that the shape of the array is [num_values,
-    num_layers] and the dimensions are sc.Coord.VALUES, sc.Coord.MAT
-
-    """
-    # use same coords to stack both arrays so that we don't end up with
-    # MultiIndex objects with mismatched order of levels
-    coords_to_stack = [k for k in m.coords.keys() if k!=sc.Coord.MAT]
-
-    m = m.stack({sc.Coord.VALUE: coords_to_stack}).transpose(sc.Coord.VALUE,
-                                                             ...)
-    x = x.stack({sc.Coord.VALUE: coords_to_stack}).transpose(sc.Coord.VALUE,
-                                                             ...)
-    return m, x
-
-
 def _form_factor(m, x, angles, kd=None, phis=None, incident_vector=None):
     """Wrapper around pymie form-factor routines. Vectorizes calculation over
     coordinates in m and x DataArrays using xr.apply_ufunc(). Called internally
     by form_factor() methods.
 
     """
-    # pymie functions are vectorized in the first dimension ("values") only.
-    # Need to reshape arrays accordingly, so that every non-MAT coord
-    # (wavelength, volume fraction, component, etc) gets put in the first dim:
-    m, x = _stack_mx(m, x)
-    if kd is not None:
-        kd = kd.stack({sc.Coord.VALUE: kd.coords})
-        kd_dims = [sc.Coord.VALUE]
+    # need to add the angular coords to the list of input_core_dims and
+    # output_core_dims because they are not part of m or x, and thus are
+    # technically not being broadcast over
+    input_core_dims = [[sc.Coord.MAT], [sc.Coord.MAT], [sc.Coord.THETA], []]
+    if phis is None:
+        output_core_dims = [[sc.Coord.THETA, sc.Coord.POL]]
+        input_core_dims.append([])
     else:
-        kd_dims = []
+        output_core_dims = [[sc.Coord.THETA, sc.Coord.PHI, sc.Coord.POL]]
+        input_core_dims.append([sc.Coord.PHI])
 
-    # setup for xr.apply_ufunc()
-    mx_dims = [sc.Coord.VALUE, sc.Coord.MAT]
-
-    if phis is not None:
-        output_core_dims = [[sc.Coord.POL, sc.Coord.VALUE, sc.Coord.THETA,
-                             sc.Coord.PHI]]
-        phi_dims = [sc.Coord.PHI]
-    else:
-        output_core_dims = [[sc.Coord.POL, sc.Coord.VALUE, sc.Coord.THETA]]
-        phi_dims = []
-
-    input_core_dims = [mx_dims, mx_dims, [sc.Coord.THETA], kd_dims,
-                       phi_dims]
-
-    exclude_dims = set((sc.Coord.MAT,))
+    exclude_dims = {sc.Coord.MAT}
 
     kwargs = {"incident_vector": incident_vector}
     form_factor = xr.apply_ufunc(mie.calc_ang_scat,
@@ -646,15 +616,14 @@ def _form_factor(m, x, angles, kd=None, phis=None, incident_vector=None):
                                  input_core_dims=input_core_dims,
                                  exclude_dims=exclude_dims)
 
-    # add polarization coordinates and unstack to recover original dims
+    # add polarization coordinates
     if phis is not None:
         pol_coord = {sc.Coord.POL: ["x", "y"]}
     else:
         pol_coord = {sc.Coord.POL: ["par", "perp"]}
     form_factor = form_factor.assign_coords(pol_coord)
-    form_factor = form_factor.unstack()
 
     # standardize order of dims
-    form_factor = form_factor.transpose(sc.Coord.POL, sc.Coord.WAVELEN, ...)
+    form_factor = form_factor.transpose(sc.Coord.POL, ...)
 
     return form_factor
