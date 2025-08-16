@@ -85,9 +85,7 @@ class Coord():
     POL = "polarization"
     # Fresnel coefficient (should be either "r" or "t")
     FRESNEL = "fresnel"
-    # generic coord to refer to a MultiIndex describing stacked coordinates
-    # (such as wavelength/angle stacks)
-    VALUE = "values"
+
 
 class Attr():
     """Simple class to standardize metadata (attributes) used in xarray

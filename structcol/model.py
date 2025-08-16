@@ -569,7 +569,7 @@ def reflection(model, wavelen,
     wavelen : array of structcol.Quantity [length]
         Wavelength of light in the medium (which is usually air or vacuum)
     thickness : structcol.Quantity [length] (optional)
-        Thickness of photonic glass.  If unspecified, assumed to be infinite
+        Thickness of system.  If unspecified, assumed to be infinite.
     detector : `sc.model.Detector` object (optional)
         Specifies the angles at which the reflectance is measured.  If
         unspecified, a hemispherical reflectance detector is used
@@ -1095,7 +1095,8 @@ def fresnel_coeffs(n1, n2, incident_angle):
 
     return coeffs
 
-def _integrate_intensity(diff_cscat, phi_min=0, phi_max=2*np.pi):
+def _integrate_intensity(diff_cscat, thetas=None, phis=None, phi_min=0,
+                         phi_max=2*np.pi):
     """xarray-based integrator to calculate total cross-sections from
     differential cross-sections. Takes differential scattering cross-section
     DataArray (or a factor times such a DataArray) from
@@ -1110,8 +1111,15 @@ def _integrate_intensity(diff_cscat, phi_min=0, phi_max=2*np.pi):
     kd = diff_cscat.attrs.get("kd")
 
     # Integrate over theta, including Jacobian
-    thetas = diff_cscat.coords[sc.Coord.THETA]
-    integrand = diff_cscat * np.sin(thetas)
+    if thetas is None:
+        thetas = diff_cscat.coords[sc.Coord.THETA]
+        dx = 1
+    else:
+        # sc.Coord.THETA is an index, and we need to specify a dx to integrate
+        dx = 1/thetas.diff(sc.Coord.THETA)
+        print(dx)
+        raise Exception
+    integrand = diff_cscat * np.sin(thetas) * dx
     integral = integrand.integrate(sc.Coord.THETA)
 
     # Integrate over phi
@@ -1128,7 +1136,8 @@ def _integrate_intensity(diff_cscat, phi_min=0, phi_max=2*np.pi):
             sigma = factor * integral
         else:
             # cartesian
-            sigma = integral.integrate(sc.Coord.PHI)
+            if phis is None:
+                sigma = integral.integrate(sc.Coord.PHI)
 
         # multiply by attenuation factor; see original function in mie.py
         exponent = np.exp(2 * kd.imag)
