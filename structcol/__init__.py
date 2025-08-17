@@ -107,6 +107,20 @@ class Attr():
 LENGTH_UNIT = ureg.micrometer
 ureg.default_preferred_units = [LENGTH_UNIT]
 
+# patch pint's to_preferred(), which is now broken
+def patched_to_preferred(self):
+    # we really only have three cases to handle (wavelengths, cross sections
+    # and wavevectors), so we don't need to handle the general case of length
+    # units mixed with other units
+    if self.check("[length]"):
+        new_q = self.to(LENGTH_UNIT)
+    if self.check("[length]^2"):
+        new_q = self.to(LENGTH_UNIT**2)
+    if self.check("[length]^-1"):
+        new_q = self.to(1/LENGTH_UNIT)
+    return new_q
+Quantity.to_preferred = patched_to_preferred
+
 
 def _make_input_coords(wavelen, thetas, phis=None):
     """Convenience function to generate DataArray coordinates to be used as
