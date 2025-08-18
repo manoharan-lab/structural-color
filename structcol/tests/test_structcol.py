@@ -166,11 +166,11 @@ def test_make_input_coords(wavelen):
     phis = sc.Quantity(np.linspace(0, 360, 12), "deg")
 
     coords = sc._make_input_coords(wavelen, thetas)
-    assert np.ndim(coords[sc.Coord.WAVELEN]) == 1
-    assert sc.Coord.THETA in coords
-    assert sc.Coord.PHI not in coords
+    assert np.ndim(coords[0].coords) == 1
+    assert sc.Coord.THETAIDX in coords[1].coords
+    assert coords[2] is None
 
     # ensure that coords work with thetas, phis specified as 1D arrays
     coords = sc._make_input_coords(wavelen, thetas, phis=phis)
-    assert sc.Coord.THETA in coords
-    assert sc.Coord.PHI in coords
+    assert sc.Coord.THETAIDX in coords[1].coords
+    assert sc.Coord.PHIIDX in coords[2].coords

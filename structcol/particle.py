@@ -328,17 +328,9 @@ class Sphere(Particle):
         differential scattering cross-section nondimensionalized by k^2.
 
         """
-        if (sc.Coord.WAVELEN not in coords) or (sc.Coord.THETA not in coords):
-            raise ValueError("Must specify at least wavelength and angles for "
-                             "form factor calculation")
-
-        wavelen = sc.Quantity(coords[sc.Coord.WAVELEN].to_numpy(),
-                              sc.LENGTH_UNIT)
-        angles = coords[sc.Coord.THETA]
-        if sc.Coord.PHI in coords:
-            phis = coords[sc.Coord.PHI]
-        else:
-            phis = None
+        wavelen = sc.Quantity(coords[0].to_numpy(), sc.LENGTH_UNIT)
+        angles = coords[1]
+        phis = coords[2]
 
         n_ext = index_external(wavelen)
         n_particle = self.n(wavelen)
@@ -485,17 +477,9 @@ class SphereDistribution:
         distribution.
 
         """
-        if (sc.Coord.WAVELEN not in coords) or (sc.Coord.THETA not in coords):
-            raise ValueError("Must specify at least wavelength and angles for "
-                             "form factor calculation")
-
-        wavelen = sc.Quantity(coords[sc.Coord.WAVELEN].to_numpy(),
-                              sc.LENGTH_UNIT)
-        angles = coords[sc.Coord.THETA]
-        if sc.Coord.PHI in coords:
-            phis = coords[sc.Coord.PHI]
-        else:
-            phis = None
+        wavelen = sc.Quantity(coords[0].to_numpy(), sc.LENGTH_UNIT)
+        angles = coords[1]
+        phis = coords[2]
 
         n_ext = index_external(wavelen)
 
@@ -598,13 +582,13 @@ def _form_factor(m, x, angles, kd=None, phis=None, incident_vector=None):
     # need to add the angular coords to the list of input_core_dims and
     # output_core_dims because they are not part of m or x, and thus are
     # technically not being broadcast over
-    input_core_dims = [[sc.Coord.MAT], [sc.Coord.MAT], [sc.Coord.THETA], []]
+    input_core_dims = [[sc.Coord.MAT], [sc.Coord.MAT], [sc.Coord.THETAIDX], []]
     if phis is None:
-        output_core_dims = [[sc.Coord.THETA, sc.Coord.POL]]
+        output_core_dims = [[sc.Coord.THETAIDX, sc.Coord.POL]]
         input_core_dims.append([])
     else:
-        output_core_dims = [[sc.Coord.THETA, sc.Coord.PHI, sc.Coord.POL]]
-        input_core_dims.append([sc.Coord.PHI])
+        output_core_dims = [[sc.Coord.THETAIDX, sc.Coord.PHIIDX, sc.Coord.POL]]
+        input_core_dims.append([sc.Coord.PHIIDX])
 
     exclude_dims = {sc.Coord.MAT}
 
@@ -622,6 +606,12 @@ def _form_factor(m, x, angles, kd=None, phis=None, incident_vector=None):
     else:
         pol_coord = {sc.Coord.POL: ["par", "perp"]}
     form_factor = form_factor.assign_coords(pol_coord)
+
+    # add non-index coordinate corresponding to angles (this is to allow
+    # angles to be specified as 2D or higher array)
+    form_factor = form_factor.assign_coords({sc.Coord.THETA: angles})
+    if phis is not None:
+        form_factor = form_factor.assign_coords({sc.Coord.PHI: phis})
 
     # standardize order of dims
     form_factor = form_factor.transpose(sc.Coord.POL, ...)

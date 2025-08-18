@@ -76,6 +76,10 @@ class Coord():
     # polar and azimuthal angles for scattering
     THETA = "theta"
     PHI = "phi"
+    # coords THETA and PHI refer to the actual values of the angles.  THETAIDX
+    # and PHIIDX refer to integer indexes of the angles
+    THETAIDX = "theta_index"
+    PHIIDX = "phi_index"
     # incident angle for Fresnel calculations
     INCIDENT = "incident_angle"
     # species index for multispecies systems
@@ -121,34 +125,44 @@ Quantity.to_preferred = patched_to_preferred
 
 
 def _make_input_coords(wavelen, thetas, phis=None):
-    """Convenience function to generate DataArray coordinates to be used as
-    inputs to differential_cross_section() and form_factor() methods.  Called
-    by `sc.model.FormStructureModel.make_input_coords()` but can also be called
-    by test functions.
+    """Convenience function to generate DataArrays to be used as inputs to
+    differential_cross_section() and form_factor() methods. Called by
+    `sc.model.FormStructureModel.make_input_coords()` but can also be called by
+    test functions.
 
     Takes `sc.Quantity` objects for wavelen, thetas, and (optionally) phis, and
-    returns an `xr.Coordinates` object.  See
+    returns `xr.DataArray` objects. See
     `sc.model.FormStructureModel.make_input_coords() for information on
     parameters and return.
 
     """
     if isinstance(wavelen, Quantity):
-        wavelen = wavelen.to_preferred().magnitude
+        # use np.atleast_1d to avoid scalar dimension for wavelen
+        wavelen = np.atleast_1d(wavelen).to_preferred().magnitude
     if isinstance(thetas, Quantity):
         thetas = thetas.to("rad").magnitude
     if phis is not None:
         if isinstance(phis, Quantity):
             phis = phis.to("rad").magnitude
 
-    coords = xr.Coordinates()
+    # coords = xr.Coordinates()
 
-    # set up coords for DataArray, avoiding scalar dimension for wavelen
-    coords[Coord.WAVELEN] = np.atleast_1d(wavelen)
-    coords[Coord.THETA] = thetas
+    # set up DataArrays, avoiding scalar dimension for wavelen
+    # coords[Coord.WAVELEN] = np.atleast_1d(wavelen)
+    wavelen = xr.DataArray(wavelen, coords={Coord.WAVELEN: wavelen})
+    wavelen.attrs[Attr.LENGTH_UNIT] = LENGTH_UNIT
+    # coords[Coord.THETA] = thetas
+    if not isinstance(thetas, xr.DataArray):
+        # if thetas not specified already as DataArray, assume 1D and index
+        thetas = xr.DataArray(thetas,
+                              coords={Coord.THETAIDX: range(len(thetas))})
     if phis is not None:
-        coords[Coord.PHI] = phis
+        if not isinstance(phis, xr.DataArray):
+            # as with thetas
+            phis = xr.DataArray(phis,
+                                coords={Coord.PHIIDX: range(len(phis))})
 
-    return coords
+    return wavelen, thetas, phis
 
 
 def refraction(angles, n_before, n_after):

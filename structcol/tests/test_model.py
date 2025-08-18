@@ -45,8 +45,8 @@ class TestModel():
 
     angles = sc.Quantity(np.linspace(0, np.pi, 100), 'rad')
     coords = sc._make_input_coords(wavelen, angles)
-    angles_da = xr.DataArray(angles.magnitude, {sc.Coord.THETA:
-                                                angles.magnitude})
+    angles_da = xr.DataArray(angles.magnitude, {sc.Coord.THETAIDX:
+                                                range(len(angles))})
 
     def test_base_model(self):
         """tests for Model base class"""
@@ -187,7 +187,8 @@ class TestModel():
         # start at a few degrees to avoid division by zero error
         angles = sc.Quantity(np.linspace(2, 180., 19),
                              'deg').to("rad").magnitude
-        angles = xr.DataArray(angles, coords={sc.Coord.THETA: angles})
+        angles = xr.DataArray(angles,
+                              coords={sc.Coord.THETAIDX: range(len(angles))})
         coords = model.make_input_coords(wavelen, angles)
         form_model = model.form_factor(coords, index_matrix)
         form_sphere = dist.spheres[0].form_factor(coords, index_matrix)
@@ -651,7 +652,8 @@ class TestModel():
         index_matrix = sc.index.water
         angles = sc.Quantity(np.linspace(0, 180, 20), "deg")
         angles = angles.to("rad").magnitude
-        angles = xr.DataArray(angles, coords={sc.Coord.THETA: angles})
+        angles = xr.DataArray(angles,
+                              coords={sc.Coord.THETAIDX: range(len(angles))})
         volume_fraction = 0.6
         coords = sc._make_input_coords(wavelen, angles)
 
@@ -689,7 +691,7 @@ class TestModel():
         s = structure_factor(ql)
         assert np.ndim(s) == 3
         assert sc.Coord.WAVELEN in s.coords
-        assert sc.Coord.THETA in s.coords
+        assert sc.Coord.THETAIDX in s.coords
         assert sc.Coord.VOLFRAC in s.coords
 
         # check that model will also take an array of volume fractions, both
