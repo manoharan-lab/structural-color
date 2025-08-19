@@ -297,10 +297,11 @@ def test_structure_factor_data_reflectances():
                                         volume_fraction=volume_fraction)
 
     # calculate reflectance from single-scattering model
-    reflectance = np.zeros(len(wavelengths))
-    for i in range(len(wavelengths)):
-        reflectance[i],_,_,_,_ = \
-            sc.model.reflection(model, wavelengths[i], thickness=thickness)
+    reflectance = []
+    for wavelen in wavelengths:
+        r = sc.model.reflection(model, wavelen, thickness=thickness)
+        reflectance.append(r[0])
+    reflectance = xr.concat(reflectance, dim=sc.Coord.WAVELEN)
 
     reflectance_expected = [0.02776632370015263, 0.025862410582306178,
                             0.02804132579281817, 0.029567824927529483,

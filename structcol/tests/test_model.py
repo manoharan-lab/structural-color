@@ -903,9 +903,13 @@ def test_theta_refraction():
 
     # these can differ at the 1e-5 level because we are dividing two small
     # numbers, cscat_detected and cext_total
-    assert_allclose(refl1.magnitude, r_fresnel_avg.to_numpy(), rtol=1e-5)
-    assert_allclose(refl2.magnitude, r_fresnel_avg.to_numpy(), rtol=1e-5)
-    assert_allclose(refl1.magnitude, refl2.magnitude, rtol=1e-5)
+    xr.testing.assert_allclose(refl1,
+                               r_fresnel_avg.drop_vars(sc.Coord.FRESNEL),
+                               rtol=1e-5)
+    xr.testing.assert_allclose(refl2,
+                               r_fresnel_avg.drop_vars(sc.Coord.FRESNEL),
+                               rtol=1e-5)
+    xr.testing.assert_allclose(refl1, refl2, rtol=1e-5)
 
 
 def test_reflection_core_shell():
@@ -964,13 +968,13 @@ def test_reflection_core_shell():
 
     # Compare old outputs (before adding core-shell capability) and new outputs
     # for a non-core-shell using Maxwell-Garnett
-    assert_allclose(refl1.magnitude, refl.magnitude)
+    assert_allclose(refl1.to_numpy(), refl.magnitude)
     assert_allclose(g1.magnitude, g.magnitude)
     assert_allclose(lstar1.to('nm').magnitude, lstar.magnitude)
 
     # Compare a non-core-shell and a core-shell with shell index of air using
     # Bruggeman
-    assert_allclose(refl2.magnitude, refl3.magnitude, rtol=1e-5)
+    xr.testing.assert_allclose(refl2, refl3, rtol=1e-5)
     assert_allclose(g2.magnitude, g3.magnitude, rtol=1e-5)
     assert_allclose(lstar2.to('mm').magnitude, lstar3.to('mm').magnitude,
                     rtol=1e-5)
@@ -995,7 +999,7 @@ def test_reflection_core_shell():
                                  index_medium)
     refl5 = sc.model.reflection(model, wavelength, thickness=thickness)[0]
 
-    assert_allclose(refl4.magnitude, refl5.magnitude)
+    xr.testing.assert_allclose(refl4, refl5)
 
     # Same as previous test but with absorbing matrix
     # Non-core-shell
@@ -1016,7 +1020,7 @@ def test_reflection_core_shell():
                                  index_medium)
     refl7 = sc.model.reflection(model, wavelength, thickness=thickness)[0]
 
-    assert_allclose(refl6.magnitude, refl7.magnitude)
+    xr.testing.assert_allclose(refl6, refl7)
 
 
 def test_reflection_absorbing_particle():
@@ -1042,7 +1046,7 @@ def test_reflection_absorbing_particle():
 
     # these should be pretty close
     rtol = 1e-13
-    assert_allclose(refl_mg1.magnitude, refl_mg2.magnitude, rtol=rtol)
+    xr.testing.assert_allclose(refl_mg1, refl_mg2, rtol=rtol)
     assert_allclose(g_mg1.magnitude, g_mg2.magnitude, rtol=rtol)
     assert_allclose(lstar_mg1.magnitude, lstar_mg2.magnitude, rtol=rtol)
 
@@ -1057,8 +1061,8 @@ def test_reflection_absorbing_particle():
     # lstar_mg2 and lstar_mg1 are now equal, so we don't need to compare to
     # lstar_mg2_before
 
-    assert_allclose(refl_mg1.magnitude, refl_mg1_before)
-    assert_allclose(refl_mg2.magnitude, refl_mg2_before)
+    assert_allclose(refl_mg1.to_numpy(), refl_mg1_before)
+    assert_allclose(refl_mg2.to_numpy(), refl_mg2_before)
     assert_allclose(g_mg1.magnitude, g_mg1_before)
     assert_allclose(g_mg2.magnitude, g_mg2_before)
     assert_allclose(lstar_mg1.to('nm').magnitude, lstar_mg1_before)
@@ -1073,7 +1077,7 @@ def test_reflection_absorbing_particle():
     refl_bg2, _, _, g_bg2, lstar_bg2 = sc.model.reflection(model, wavelength)
 
     rtol = 1e-13
-    assert_allclose(refl_bg1.magnitude, refl_bg2.magnitude, rtol=rtol)
+    xr.testing.assert_allclose(refl_bg1, refl_bg2, rtol=rtol)
     assert_allclose(g_bg1.magnitude, g_bg2.magnitude, rtol=rtol)
     assert_allclose(lstar_bg1.magnitude, lstar_bg2.magnitude, rtol=rtol)
 
@@ -1086,8 +1090,8 @@ def test_reflection_absorbing_particle():
     lstar_bg1_before = 11593.280877304634
     lstar_bg2_before = 11593.280877304634
 
-    assert_allclose(refl_bg1.magnitude, refl_bg1_before)
-    assert_allclose(refl_bg2.magnitude, refl_bg2_before)
+    assert_allclose(refl_bg1.to_numpy(), refl_bg1_before)
+    assert_allclose(refl_bg2.to_numpy(), refl_bg2_before)
     assert_allclose(g_bg1.magnitude, g_bg1_before)
     assert_allclose(g_bg2.magnitude, g_bg2_before)
     assert_allclose(lstar_bg1.to('nm').magnitude, lstar_bg1_before)
@@ -1108,7 +1112,7 @@ def test_reflection_absorbing_particle():
                                                            thickness=thickness)
 
     rtol = 1e-3
-    assert_allclose(refl_bg1.magnitude, refl_bg3.magnitude, rtol=rtol)
+    xr.testing.assert_allclose(refl_bg1, refl_bg3, rtol=rtol)
     assert_allclose(g_bg1.magnitude, g_bg3.magnitude, rtol=rtol)
     assert_allclose(lstar_bg1.to('mm').magnitude, lstar_bg3.to('mm').magnitude,
                     rtol=rtol)
@@ -1216,7 +1220,7 @@ def test_reflection_absorbing_matrix():
 
     # should be very close
     rtol = 1e-13
-    assert_allclose(refl_mg1.magnitude, refl_mg2.magnitude, rtol=rtol)
+    xr.testing.assert_allclose(refl_mg1, refl_mg2, rtol=rtol)
     assert_allclose(g_mg1.magnitude, g_mg2.magnitude, rtol=rtol)
     assert_allclose(lstar_mg1.magnitude, lstar_mg2.magnitude, rtol=rtol)
 
@@ -1228,7 +1232,7 @@ def test_reflection_absorbing_matrix():
                                  index_medium, maxwell_garnett=False)
     refl_bg2, _, _, g_bg2, lstar_bg2 = sc.model.reflection(model, wavelength)
 
-    assert_allclose(refl_bg1.magnitude, refl_bg2.magnitude, rtol=rtol)
+    xr.testing.assert_allclose(refl_bg1, refl_bg2, rtol=rtol)
     assert_allclose(g_bg1.magnitude, g_bg2.magnitude, rtol=rtol)
     assert_allclose(lstar_bg1.magnitude, lstar_bg2.magnitude, rtol=rtol)
 
@@ -1244,7 +1248,7 @@ def test_reflection_absorbing_matrix():
                                                            thickness=thickness)
 
     rtol=1e-3
-    assert_allclose(refl_bg1.magnitude, refl_bg3.magnitude, rtol=rtol)
+    xr.testing.assert_allclose(refl_bg1, refl_bg3, rtol=rtol)
     assert_allclose(g_bg1.magnitude, g_bg3.magnitude, rtol=rtol)
     assert_allclose(lstar_bg1.to('mm').magnitude, lstar_bg3.to('mm').magnitude,
                     rtol=rtol)
@@ -1292,7 +1296,7 @@ def test_reflection_polydispersity():
                                         volume_fraction=volume_fraction)
     refl2, _, _, g2, lstar2 = sc.model.reflection(model, wavelength)
 
-    assert_allclose(refl.magnitude, refl2.magnitude)
+    xr.testing.assert_allclose(refl, refl2)
     assert_allclose(g.magnitude, g2.magnitude)
     assert_allclose(lstar.to('mm').magnitude, lstar2.to('mm').magnitude)
 
@@ -1305,8 +1309,8 @@ def test_reflection_polydispersity():
     lstar2_before = 0.0037795694345017063 # V: 0.0037899271938978255, A: 0.0037899271967178523
 
     rtol = 1e-13
-    assert_allclose(refl.magnitude, refl_before, rtol=rtol)
-    assert_allclose(refl2.magnitude, refl2_before, rtol=rtol)
+    assert_allclose(refl.to_numpy(), refl_before, rtol=rtol)
+    assert_allclose(refl2.to_numpy(), refl2_before, rtol=rtol)
     assert_allclose(g.magnitude, g_before, rtol=rtol)
     assert_allclose(g2.magnitude, g2_before, rtol=rtol)
     # lstar results aren't quite as close
@@ -1332,7 +1336,7 @@ def test_reflection_polydispersity():
     refl4, _, _, g4, lstar4 = sc.model.reflection(model, wavelength)
 
 
-    assert_allclose(refl3.magnitude, refl4.magnitude)
+    xr.testing.assert_allclose(refl3, refl4)
     assert_allclose(g3.magnitude, g4.magnitude)
     assert_array_almost_equal(lstar3.to('mm').magnitude,
                               lstar4.to('mm').magnitude)
@@ -1346,8 +1350,8 @@ def test_reflection_polydispersity():
     lstar4_before = 0.00020056044751316733
 
     rtol = 1e-13
-    assert_allclose(refl3.magnitude, refl3_before)
-    assert_allclose(refl4.magnitude, refl4_before)
+    assert_allclose(refl3.to_numpy(), refl3_before)
+    assert_allclose(refl4.to_numpy(), refl4_before)
     assert_allclose(g3.magnitude, g3_before)
     assert_allclose(g4.magnitude, g4_before)
     assert_allclose(lstar3.to('mm').magnitude, lstar3_before, rtol=rtol)
@@ -1363,7 +1367,7 @@ def test_reflection_polydispersity():
                                              index_matrix, index_medium)
     refl6, _, _, g6, lstar6 = sc.model.reflection(model, wavelength)
 
-    assert_allclose(refl5.magnitude, refl6.magnitude)
+    xr.testing.assert_allclose(refl5, refl6)
     assert_allclose(g5.magnitude, g6.magnitude)
     assert_allclose(lstar5.to('mm').magnitude, lstar6.to('mm').magnitude)
 
@@ -1375,8 +1379,8 @@ def test_reflection_polydispersity():
     lstar5_before = 0.011593280877304636
     lstar6_before = 0.011593280876210265 # A/V: 0.011625051809100308
 
-    assert_allclose(refl5.magnitude, refl5_before)
-    assert_allclose(refl6.magnitude, refl6_before)
+    assert_allclose(refl5.to_numpy(), refl5_before)
+    assert_allclose(refl6.to_numpy(), refl6_before)
     assert_allclose(g5.magnitude, g5_before)
     assert_allclose(g6.magnitude, g6_before)
     assert_allclose(lstar5.to('mm').magnitude, lstar5_before)
@@ -1401,7 +1405,7 @@ def test_reflection_polydispersity():
 
     # these should be almost exactly the same
     rtol = 1e-14
-    assert_allclose(refl7.magnitude, refl8.magnitude, rtol=rtol)
+    xr.testing.assert_allclose(refl7, refl8, rtol=rtol)
     assert_allclose(g7.magnitude, g8.magnitude, rtol=rtol)
     assert_allclose(lstar7.to('mm').magnitude, lstar8.to('mm').magnitude,
                     rtol=rtol)
@@ -1423,7 +1427,7 @@ def test_reflection_polydispersity():
 
     # these should be almost exactly the same
     rtol = 1e-13
-    assert_allclose(refl9.magnitude, refl10.magnitude, rtol=rtol)
+    xr.testing.assert_allclose(refl9, refl10, rtol=rtol)
     assert_allclose(g9.magnitude, g10.magnitude, rtol=rtol)
     assert_allclose(lstar9.to('mm').magnitude, lstar10.to('mm').magnitude,
                     rtol=rtol)
@@ -1471,7 +1475,7 @@ def test_reflection_polydispersity_with_absorption():
                                         volume_fraction=volume_fraction)
     refl2, _, _, g2, lstar2 = sc.model.reflection(model, wavelength)
 
-    assert_allclose(refl.magnitude, refl2.magnitude)
+    xr.testing.assert_allclose(refl, refl2)
     assert_allclose(g.magnitude, g2.magnitude)
     assert_allclose(lstar.to('mm').magnitude, lstar2.to('mm').magnitude)
 
@@ -1485,8 +1489,8 @@ def test_reflection_polydispersity_with_absorption():
 
     # rtols here are based on decimal precisions of assert_array_almost_equal
     # tests in previous revision
-    assert_allclose(refl.magnitude, refl_before, rtol=1e-2)
-    assert_allclose(refl2.magnitude, refl2_before, rtol=1e-2)
+    assert_allclose(refl.to_numpy(), refl_before, rtol=1e-2)
+    assert_allclose(refl2.to_numpy(), refl2_before, rtol=1e-2)
     assert_allclose(g.magnitude, g_before)
     assert_allclose(g2.magnitude, g2_before)
     assert_allclose(lstar.to('mm').magnitude, lstar_before, rtol=1e-2)
@@ -1511,7 +1515,7 @@ def test_reflection_polydispersity_with_absorption():
     refl4, _, _, g4, lstar4 = sc.model.reflection(model, wavelength,
                                                   thickness=thickness)
 
-    assert_allclose(refl3.magnitude, refl4.magnitude)
+    xr.testing.assert_allclose(refl3, refl4)
     assert_allclose(g3.magnitude, g4.magnitude)
     assert_allclose(lstar3.to('mm').magnitude, lstar4.to('mm').magnitude)
 
@@ -1543,7 +1547,7 @@ def test_reflection_polydispersity_with_absorption():
     refl6, _, _, g6, lstar6 = sc.model.reflection(model, wavelength,
                                                   thickness=thickness)
 
-    assert_allclose(refl5.magnitude, refl6.magnitude)
+    xr.testing.assert_allclose(refl5, refl6)
     assert_allclose(g5.magnitude, g6.magnitude)
     assert_allclose(lstar5.to('mm').magnitude, lstar6.to('mm').magnitude)
 
@@ -1558,8 +1562,8 @@ def test_reflection_polydispersity_with_absorption():
     # output values above for reflectances are off by almost 10%. rtols based
     # on previous revision's (decimal) tolerances for
     # assert_array_almost_equal()
-    assert_allclose(refl5.magnitude, refl5_before, rtol=1e-1)
-    assert_allclose(refl6.magnitude, refl6_before, rtol=1e-1)
+    assert_allclose(refl5.to_numpy(), refl5_before, rtol=1e-1)
+    assert_allclose(refl6.to_numpy(), refl6_before, rtol=1e-1)
     assert_allclose(g5.magnitude, g5_before)
     assert_allclose(g6.magnitude, g6_before)
     assert_allclose(lstar5.to('mm').magnitude, lstar5_before, rtol=1e-2)
@@ -1592,7 +1596,7 @@ def test_reflection_polydispersity_with_absorption():
                                                   thickness=thickness)
 
     rtol = 1e-13
-    assert_allclose(refl7.magnitude, refl8.magnitude, rtol=rtol)
+    xr.testing.assert_allclose(refl7, refl8, rtol=rtol)
     assert_allclose(g7.magnitude, g8.magnitude, rtol=rtol)
     assert_allclose(lstar7.to('mm').magnitude, lstar8.to('mm').magnitude,
                     rtol=rtol)
@@ -1613,7 +1617,7 @@ def test_reflection_polydispersity_with_absorption():
     refl10, _, _, g10, lstar10 = sc.model.reflection(model, wavelength,
                                                      thickness=thickness)
 
-    assert_allclose(refl9.magnitude, refl10.magnitude, rtol=1e-2)
+    xr.testing.assert_allclose(refl9, refl10, rtol=1e-2)
     assert_allclose(g9.magnitude, g10.magnitude, rtol=1e-1)
     assert_allclose(lstar9.to('mm').magnitude, lstar10.to('mm').magnitude,
                     rtol=1e-2)

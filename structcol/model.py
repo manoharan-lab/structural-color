@@ -645,8 +645,8 @@ def reflection(model, wavelen,
     # sample)
     r_medium_sample, t_medium_sample = fresnel_coeffs(n_medium, n_sample,
                                                       incident_angle)
-    r_medium_sample = r_medium_sample.to_numpy().squeeze()
-    t_medium_sample = t_medium_sample.to_numpy().squeeze()
+    r_medium_sample = r_medium_sample
+    t_medium_sample = t_medium_sample
 
     theta_min = detector.theta_min
     theta_max = detector.theta_max
@@ -812,7 +812,7 @@ def reflection(model, wavelen,
     elif rho is not None:
         # use Beer-Lambert law to account for attenuation
         factor = ((1.0 - np.exp(-rho*cext_total*thickness))
-                  * cscat_total/cext_total)
+                  * cscat_total/cext_total).to("").magnitude
     else:
         # Assume infinite thickness
         warnings.warn("Number density cannot be calculated for model. "
@@ -827,10 +827,13 @@ def reflection(model, wavelen,
     # the reflection cross-sections (that is, we use sigma_total rather than
     # sigma_total_par or sigma_total_perp).
 
-    reflected_par = t_medium_sample[0] * cscat_detected_par/cext_total * \
-                        factor + r_medium_sample[0]
-    reflected_perp = t_medium_sample[1] * cscat_detected_perp/cext_total * \
-                         factor + r_medium_sample[1]
+    cscat_par_ratio = (cscat_detected_par/cext_total).to("").magnitude
+    cscat_perp_ratio = (cscat_detected_perp/cext_total).to("").magnitude
+
+    reflected_par = (t_medium_sample[0] * cscat_par_ratio * factor
+                     + r_medium_sample[0])
+    reflected_perp = (t_medium_sample[1] * cscat_perp_ratio * factor
+                      + r_medium_sample[1])
     reflectance = (reflected_par + reflected_perp)/2
 
     return reflectance, reflected_par, reflected_perp, asymmetry_parameter, \
