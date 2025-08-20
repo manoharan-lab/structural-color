@@ -1102,60 +1102,44 @@ def fresnel_coeffs(n1, n2, incident_angle):
 
     return coeffs
 
+
 def _integrate_intensity(diff_cscat, phi_min=0, phi_max=2*np.pi):
-    """xarray-based integrator to calculate total cross-sections from
-    differential cross-sections. Takes differential scattering cross-section
-    DataArray (or a factor times such a DataArray) from
-    Model.differential_cross_section(). For absorbing medium, we integrate at
-    the dimensionless distance (kd) that was used to calculate the differential
-    cross_section. This routine is based on
-    mie.integrate_intensity_complex_medium. For nonabsorbing systems, we
-    integrate the far-field differential cross-sections. This routine is based
-    on mie.calc_ang_scat.
+    """xarray wrapper around mie.integrate_intensity_complex_medium()
 
     """
     kd = diff_cscat.attrs.get("kd")
+    if kd is None:
+        kd = 1
     thetas = diff_cscat.coords[sc.Coord.THETA]
-    integrand = diff_cscat * np.sin(thetas)
-    integral = integrand.integrate(sc.Coord.THETA)
-
-    # Integrate over phi
-    if kd is not None:
-        # absorbing medium: integrate at surface of sphere
-        if sc.Coord.PHI not in diff_cscat.coords:
-            # see mie.integrate_intensity_complex_medium() for explanation of
-            # the azimuthal factor here
-            factor = xr.DataArray([(phi_max/2 + np.sin(2*phi_max)/4
-                                    - phi_min/2 - np.sin(2*phi_min)/4),
-                                   (phi_max/2 - np.sin(2*phi_max)/4 -
-                                    phi_min/2 + np.sin(2*phi_min)/4)],
-                                  coords = {sc.Coord.POL: ["par", "perp"]})
-            sigma = factor * integral
-        else:
-            # cartesian
-            sigma = integral.integrate(sc.Coord.PHI)
-
-        # multiply by attenuation factor; see original function in mie.py
-        exponent = np.exp(2 * kd.imag)
-        factor_limit = 2
-        with np.errstate(divide='ignore', invalid='ignore'):
-            factor = xr.where(kd.imag <= 1e-6, factor_limit,
-                              1 / (exponent / (2*kd.imag)
-                                   + (1 - exponent) / (2*kd.imag)**2))
-            sigma = sigma * factor
+    dscat_input_dims = [sc.Coord.THETAIDX]
+    if sc.Coord.PHI in diff_cscat.coords:
+        phis = diff_cscat.coords[sc.Coord.PHI]
+        dscat_input_dims.append(sc.Coord.PHIIDX)
     else:
-        # nonabsorbing medium
-        sigma = integral * (phi_max - phi_min)
+        phis = None
+    dscat_input_dims.append(sc.Coord.POL)
 
-    # include average over polarizations; if it already exists, overwrite,
-    # since integral of average is not necessarily average of integrals (the
-    # integration could have included a polarization-dependent factor)
-    sigma_avg = sigma.isel({sc.Coord.POL: [0,1]}).sum(sc.Coord.POL)/2
-    sigma_avg.coords[sc.Coord.POL] = "avg"
-    if "avg" not in sigma.coords[sc.Coord.POL]:
-        sigma = xr.concat([sigma, sigma_avg], dim=sc.Coord.POL)
+    input_core_dims = [dscat_input_dims, [sc.Coord.THETAIDX], [], [], []]
+    if phis is None:
+        input_core_dims.append([])
     else:
-        # replace (using where instead of loc so dask will work)
-        sigma = sigma.where(sigma.coords[sc.Coord.POL] != "avg", sigma_avg)
+        input_core_dims.append([sc.Coord.PHIIDX])
+
+    output_core_dims = [[], [], []]
+    exclude_dims = {sc.Coord.POL}
+
+    sigmas = xr.apply_ufunc(mie.integrate_intensity_complex_medium,
+                            diff_cscat.isel({sc.Coord.POL: [0, 1]}),
+                            thetas, kd, phi_min, phi_max, phis,
+                            output_core_dims=output_core_dims,
+                            input_core_dims=input_core_dims,
+                            exclude_dims=exclude_dims)
+
+    sigma = xr.concat((sigmas[1], sigmas[2], sigmas[0]), dim=sc.Coord.POL)
+    if phis is not None:
+        pol_coord = {sc.Coord.POL: ["x", "y", "avg"]}
+    else:
+        pol_coord = {sc.Coord.POL: ["par", "perp", "avg"]}
+    sigma = sigma.assign_coords(pol_coord)
 
     return sigma
