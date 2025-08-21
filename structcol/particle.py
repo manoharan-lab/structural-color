@@ -324,8 +324,8 @@ class Sphere(Particle):
         -----
         The form factor is k^2 times the differential scattering cross-section.
         The calculation is done by the pymie routines `mie.calc_ang_scat()` or
-        `mie.diff_scat_intensity_complex_medium()`, both of which return the
-        differential scattering cross-section nondimensionalized by k^2.
+        `mie.diff_scat_intensity()`, both of which return the differential
+        scattering cross-section nondimensionalized by k^2.
 
         """
         wavelen = sc.Quantity(coords[0].to_numpy(), sc.LENGTH_UNIT)

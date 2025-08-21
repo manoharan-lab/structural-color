@@ -1104,7 +1104,7 @@ def fresnel_coeffs(n1, n2, incident_angle):
 
 
 def _integrate_intensity(diff_cscat, phi_min=0, phi_max=2*np.pi):
-    """xarray wrapper around mie.integrate_intensity_complex_medium()
+    """xarray wrapper around mie.integrate_intensity()
 
     """
     kd = diff_cscat.attrs.get("kd")
@@ -1125,21 +1125,23 @@ def _integrate_intensity(diff_cscat, phi_min=0, phi_max=2*np.pi):
     else:
         input_core_dims.append([sc.Coord.PHIIDX])
 
-    output_core_dims = [[], [], []]
+    output_core_dims = [[sc.Coord.POL]]
     exclude_dims = {sc.Coord.POL}
 
-    sigmas = xr.apply_ufunc(mie.integrate_intensity_complex_medium,
+    sigmas = xr.apply_ufunc(mie.integrate_intensity,
                             diff_cscat.isel({sc.Coord.POL: [0, 1]}),
                             thetas, kd, phi_min, phi_max, phis,
                             output_core_dims=output_core_dims,
                             input_core_dims=input_core_dims,
                             exclude_dims=exclude_dims)
 
-    sigma = xr.concat((sigmas[1], sigmas[2], sigmas[0]), dim=sc.Coord.POL)
     if phis is not None:
         pol_coord = {sc.Coord.POL: ["x", "y", "avg"]}
     else:
         pol_coord = {sc.Coord.POL: ["par", "perp", "avg"]}
-    sigma = sigma.assign_coords(pol_coord)
+    sigmas = sigmas.assign_coords(pol_coord)
 
-    return sigma
+    # move POL axis to front for ease of using .loc
+    sigmas = sigmas.transpose(sc.Coord.POL, ...)
+
+    return sigmas

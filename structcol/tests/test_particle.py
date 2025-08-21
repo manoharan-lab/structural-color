@@ -301,9 +301,9 @@ class TestParticle():
 
         # Test absorbing matrix.
         # Although Sphere.form_factor() calls the same function
-        # (diff_scat_intensity_complex_medium) used here, the results may not
-        # be equal if units are converted in different ways.  So to test for
-        # equality, we first convert radius and distance to preferred units.
+        # (diff_scat_intensity) used here, the results may not be equal if
+        # units are converted in different ways. So to test for equality, we
+        # first convert radius and distance to preferred units.
         radius = sc.Quantity("120.0 nm").to_preferred()
         sphere = sc.Sphere(sc.Index.constant(1.5+0.001j), radius)
         distance = radius
@@ -323,7 +323,7 @@ class TestParticle():
         # check shape (should include size-1 dimension for wavelength)
         assert ff.shape == (2, 1, len(angles))
 
-        iparperp_mie = mie.diff_scat_intensity_complex_medium(m, x, angles, kd)
+        iparperp_mie = mie.diff_scat_intensity(m, x, angles, kd)
 
         assert_equal(ff.loc["par"].to_numpy(), iparperp_mie[..., 0])
         assert_equal(ff.loc["perp"].to_numpy(), iparperp_mie[..., 1])
