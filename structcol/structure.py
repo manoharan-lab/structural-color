@@ -114,7 +114,7 @@ class Constant(StructureFactor):
         # quick way to ensure we have the right shape
         s = self.constant + 0*ql
 
-        return s.squeeze()
+        return s
 
 
 class PercusYevick(StructureFactor):
@@ -202,9 +202,7 @@ class PercusYevick(StructureFactor):
         # Structure factor at ql (eq. 1 of [1]_)
         s = 1.0/(1-rho_c)
 
-        # squeeze but keep coordinates as scalar values so that the returned
-        # DataArray still has the value of the volume fraction recorded
-        return s.squeeze()
+        return s
 
     def approximate_dcf(self, ql, phi, alpha, beta, gamma):
         r"""Calculates an approximation to the direct correlation function
@@ -345,7 +343,7 @@ class Paracrystal(StructureFactor):
         r = np.exp(-(ql*phi**(-1/3) * self.sigma)**2/2)
         s = (1 - r**2) / (1 + r**2 - 2*r*np.cos(ql*phi**(-1/3)))
 
-        return s.squeeze()
+        return s
 
 
 class Polydisperse(StructureFactor):
@@ -614,7 +612,7 @@ class Polydisperse(StructureFactor):
         # Shape will in general be (num_wavelengths, num_volfrac, num_angles)
         SM = xr.DataArray(SM.reshape(qd.shape), coords=qd.coords)
 
-        return SM.squeeze()
+        return SM
 
 
 class Interpolated(StructureFactor):
@@ -657,7 +655,7 @@ class Interpolated(StructureFactor):
 
         """
         return self.data.interp(ql=ql, method=self.method,
-                                kwargs=self.interp_kwargs).squeeze()
+                                kwargs=self.interp_kwargs)
 
 
 def field_phase_data(qd, filename='spf.dat'):

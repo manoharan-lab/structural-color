@@ -164,7 +164,7 @@ class TestStructureFactor():
         polydisperse_structure_factor = sc.structure.Polydisperse(phi, dist)
         s_poly = polydisperse_structure_factor(ql)
 
-        assert_almost_equal(s_py, s_poly.to_numpy())
+        assert_almost_equal(s_py, s_poly)
 
         # test that structure factor matches the calculations in Figure 1 of
         # Ginoza and Yasutomi, Journal of the Physical Society of Japan 1999.
@@ -202,7 +202,7 @@ class TestStructureFactor():
         polydisperse_structure_factor = sc.structure.Polydisperse(phi, dist)
         s_poly = polydisperse_structure_factor(ql)
         # since plot is digitized, we expect agreement only to 1 decimal place
-        assert_almost_equal(s_poly.to_numpy(), s_expected, decimal=1)
+        assert_almost_equal(s_poly.to_numpy().squeeze(), s_expected, decimal=1)
 
         # test vectorization over phi and ql
         structure_factor = sc.structure.Polydisperse(self.phi, dist)
@@ -244,7 +244,7 @@ class TestStructureFactor():
                                                     volume_fraction)
         n_sample = sc.index.effective_index([index_particle, index_matrix],
                                             volume_fraction_da, wavelen)
-        x = sc.size_parameter(n_sample, radius).to_numpy().squeeze()
+        x = sc.size_parameter(n_sample, radius)
         qa = 4*x*np.sin(angles/2)
         structure_factor = sc.structure.PercusYevick(volume_fraction)
         s = structure_factor(qa)
@@ -259,7 +259,7 @@ class TestStructureFactor():
 
         n_sample_cs = sc.index.effective_index(index_particle + [index_matrix],
                                                volume_fraction_da, wavelen)
-        x_cs = sc.size_parameter(n_sample_cs, radius_cs[1]).to_numpy().squeeze()
+        x_cs = sc.size_parameter(n_sample_cs, radius_cs[1])
         qa_cs = 4*x_cs*np.sin(angles/2)
         structure_factor_cs = sc.structure.PercusYevick(volume_fraction)
         s_cs = structure_factor_cs(qa_cs)
