@@ -843,8 +843,7 @@ def test_fresnel():
     n_low = index_low(wavelen)
     n_high = index_high(wavelen)
     angles = Quantity(np.linspace(0, 90., 10), 'deg').to("rad").magnitude
-    angles = xr.DataArray(angles,
-                          coords={sc.Coord.INCIDENT: angles})
+    angles = xr.DataArray(angles, coords={sc.Coord.INCIDENT: angles})
     # vectorized version
     rt = sc.model.fresnel_coeffs(n_high, n_low, angles)
     # check that dimensions are correct
@@ -1208,9 +1207,9 @@ def test_transport_length_dilute():
 def test_reflection_absorbing_matrix():
     # test that the reflections with a real n_matrix and with a complex
     # n_matrix with a 0 imaginary component are the same
-    wavelength = Quantity(500.0, 'nm')
+    wavelength = sc.Quantity(np.linspace(400, 800, 11), "nm")
     volume_fraction = 0.5
-    radius = Quantity('120.0 nm')
+    radius = sc.Quantity("120.0 nm")
     index_matrix_real = sc.Index.constant(1.0)
     index_matrix_imag = sc.Index.constant(1.0 + 0j)
     index_medium = sc.Index.constant(1.0)
@@ -1245,16 +1244,14 @@ def test_reflection_absorbing_matrix():
 
     # test that the reflectance is (almost) the same when using an
     # almost-non-absorbing index vs a non-absorbing index
-    thickness = Quantity('100.0 um')
     index_matrix_imag2 = sc.Index.constant(1.0 + 1e-8j)
 
     # With Bruggeman
     model = sc.model.HardSpheres(sphere, volume_fraction, index_matrix_imag2,
                                  index_medium, maxwell_garnett=False)
-    refl_bg3, _, _, g_bg3, lstar_bg3 = sc.model.reflection(model, wavelength,
-                                                           thickness=thickness)
+    refl_bg3, _, _, g_bg3, lstar_bg3 = sc.model.reflection(model, wavelength)
 
-    rtol=1e-3
+    rtol=1e-5
     xr.testing.assert_allclose(refl_bg1, refl_bg3, rtol=rtol)
     assert_allclose(g_bg1.magnitude, g_bg3.magnitude, rtol=rtol)
     assert_allclose(lstar_bg1.to('mm').magnitude, lstar_bg3.to('mm').magnitude,

@@ -296,13 +296,7 @@ def test_structure_factor_data_reflectances():
                                         particle=sphere,
                                         volume_fraction=volume_fraction)
 
-    # calculate reflectance from single-scattering model
-    reflectance = []
-    for wavelen in wavelengths:
-        r = sc.model.reflection(model, wavelen, thickness=thickness)
-        reflectance.append(r[0])
-    reflectance = xr.concat(reflectance, dim=sc.Coord.WAVELEN)
-
+    reflectance = sc.model.reflection(model, wavelengths, thickness=thickness)
     reflectance_expected = [0.02776632370015263, 0.025862410582306178,
                             0.02804132579281817, 0.029567824927529483,
                             0.02883201740020668, 0.02489322299891402,
@@ -314,7 +308,7 @@ def test_structure_factor_data_reflectances():
                             0.040166711576661615, 0.037305165165199786,
                             0.03432092904706069, 0.03218808662896649]
 
-    assert_almost_equal(reflectance, reflectance_expected)
+    assert_almost_equal(reflectance[0], reflectance_expected)
 
     # calculate reflectance from Monte Carlo model
     seed = 1

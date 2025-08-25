@@ -778,7 +778,8 @@ def reflection(model, wavelen,
     if np.any(np.abs(n_sample.imag) > 0.0) and rho is not None:
         # The absorption coefficient can be calculated from the imaginary
         # component of the samples's refractive index
-        mu_abs = 4 * np.pi * n_sample.imag.to_numpy().squeeze() / wavelen
+        mu_abs = 4 * np.pi * n_sample.imag / wavelen
+        mu_abs = sc.Quantity(mu_abs.to_numpy(), 1/sc.LENGTH_UNIT)
         cabs_total = mu_abs / rho
     elif np.all(np.abs(n_sample.imag) == 0.0) and n_particle is not None:
         if isinstance(model, HardSpheres):
@@ -789,8 +790,8 @@ def reflection(model, wavelen,
         m = m.to_numpy()
         x = x.to_numpy()
         cross_sections = mie.calc_cross_sections(m, x)
-        k = 2*np.pi*(n_sample.to_numpy())/wavelen
-        cabs_total = (cross_sections[2]/np.abs(k)**2).squeeze()
+        k = sc.Quantity(sc.wavevector(n_sample).to_numpy(), 1/sc.LENGTH_UNIT)
+        cabs_total = (cross_sections[2]/np.abs(k)**2)
     else:
         warnings.warn("Absorption cross-section cannot be calculated for "
                       "model.")
