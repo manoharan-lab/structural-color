@@ -637,8 +637,6 @@ def reflection(model, wavelen,
         else:
             n_particle = None
 
-    k = sc.wavevector(n_sample)
-    k = sc.Quantity(k.to_numpy().squeeze(), 1/k.attrs[sc.Attr.LENGTH_UNIT])
     # calculate transmission and reflection coefficients at first interface
     # between medium and sample
     # (TODO: include correction for reflection off the back interface of the
@@ -648,60 +646,58 @@ def reflection(model, wavelen,
     r_medium_sample = r_medium_sample
     t_medium_sample = t_medium_sample
 
-    theta_min = detector.theta_min
-    theta_max = detector.theta_max
+    theta_refr_min = detector.theta_min
+    theta_refr_max = detector.theta_max
     phi_min = detector.phi_min
     phi_max = detector.phi_max
     small_angle = small_angle.to('rad').magnitude
-    # calculate the min theta, taking into account refraction at the interface
-    # between the medium and the sample. This is the scattering angle at which
-    # light exits into the medium at (180-theta_min) degrees from the normal.
-    # (Snell's law: n_medium sin(alpha_medium) = n_sample sin(alpha_sample)
+    # Because the detector is in the medium, it captures only the scattered
+    # light that is refracted into its angular range. Here we map the range of
+    # angles captured by the detector (theta_refr_min, theta_refr_max) to a
+    # range of scattering angles in the sample (theta_scat_min, theta_scat_max)
+    # by accounting for refraction at the sample-medium interface.
+    # (Snell's law: n_medium sin(theta_refr) = n_sample sin(alpha),
     # where alpha = pi - theta)
     # TODO: use n_sample.real or abs(n_sample)?
-    sin_alpha_sample_theta_min = (np.sin(np.pi-theta_min) * n_medium
-                                  / np.abs(n_sample))
-    sin_alpha_sample_theta_max = (np.sin(np.pi-theta_max) * n_medium
-                                  / np.abs(n_sample))
-
-    # for sin_alpha_sample_theta_min >= 1, theta_min and the ratio of
-    # n_medium/n_sample are sufficiently large so that all the scattering from
-    # 90-180 degrees exits into the range of angles captured by the detector
-    # (assuming that the theta_max is set to pi)
-    theta_min_refracted = xr.where(sin_alpha_sample_theta_min >= 1,
-                                   np.pi/2.0,
-                                   (np.pi
-                                    - np.arcsin(sin_alpha_sample_theta_min)))
-
-    # for sin_alpha_sample_theta_max >= 1, theta_max and the ratio of
-    # n_medium/n_sample are such that all of the scattering from 90-180 degrees
-    # exits into angles that are outside of the range of theta_min to
-    # theta_max. Thus, the reflectance will be ~0 (only fresnel will contribute
-    # to reflectance)
-    theta_max_refracted = xr.where(sin_alpha_sample_theta_max >= 1,
-                                   np.pi/2.0,
-                                   (np.pi
-                                    - np.arcsin(sin_alpha_sample_theta_max)))
+    sin_alpha_min = np.sin(np.pi-theta_refr_min) * n_medium / np.abs(n_sample)
+    sin_alpha_max = np.sin(np.pi-theta_refr_max) * n_medium / np.abs(n_sample)
+    # calculate the corresponding scattered angles, where they exist.  Note
+    # that the following code also handles two special cases:
+    #
+    # 1. if sin_alpha_min >= 1, any backscattered light will exit the medium at
+    # an angle larger than theta_min. Thus theta_scat_min is pi/2.
+    #
+    # 2. If sin_alpha_max >= 1, any backscattered light will exit the medium at
+    # angles larger than theta_max (this can only happen if theta_max is less
+    # than pi, i.e. dark-field detection, and n_medium>n_sample). In this case,
+    # we set theta_scat_max = np.pi/2, and only fresnel reflection can
+    # contribute to the signal.
+    out_min = np.ones_like(sin_alpha_min) * np.pi/2
+    asin_alpha_min = np.arcsin(sin_alpha_min, where = (sin_alpha_min <= 1),
+                               out=out_min)
+    out_max = np.ones_like(sin_alpha_max) * np.pi/2
+    asin_alpha_max = np.arcsin(sin_alpha_max, where = (sin_alpha_max <= 1),
+                               out=out_max)
+    theta_scat_min = np.pi - asin_alpha_min
+    theta_scat_max = np.pi - asin_alpha_max
 
     # integrate form_factor*structure_factor*transmission
     # coefficient*sin(theta) over angles to get sigma_detected (eq 5)
     #
     # first calculate angular range for each wavelength (and other dimensions)
-    angles = np.linspace(theta_min_refracted.to_numpy(),
-                         theta_max_refracted.to_numpy(),
+    angles = np.linspace(theta_scat_min.to_numpy(),
+                         theta_scat_max.to_numpy(),
                          num_angles, axis=-1)
     # the actual angles will vary with wavelength and other parameters, since
-    # the index of refraction varies with such.  Therefore the theta coordinate
-    # varies too.  We have to use an index for the theta coord.
-    coords = theta_min_refracted.coords.copy()
+    # the index of refraction varies with such. Therefore the theta coordinate
+    # varies too. pymie (which uses numpy) can handle a multidimensional theta,
+    # but for xarray to convert properly to numpy, we need to specify theta as
+    # an index in the coords.
+    coords = theta_scat_min.coords.copy()
     coords[sc.Coord.THETAIDX] = range(angles.shape[-1])
     angles = xr.DataArray(angles, coords=coords)
 
     angles_tot = np.linspace(0.0 + small_angle, np.pi, num_angles)
-
-    # temporary fix to preserve previous (non-vectorized) behavior
-    angles = angles.squeeze(drop=True)
-    angles.coords[sc.Coord.THETAIDX] = angles.to_numpy()
 
     transmission = fresnel_coeffs(n_sample, n_medium, np.pi-angles).loc["t"]
 
@@ -747,17 +743,14 @@ def reflection(model, wavelen,
         transport_cscat = (transport_cscat * conc).sum(sc.Coord.SPECIES)
 
     # convert to numpy and add dimensions
-    cscat_detected_par = cscat_detected.loc["par"].to_numpy().squeeze()
-    cscat_detected_perp = \
-        cscat_detected.loc["perp"].to_numpy().squeeze()
-    cscat_detected = cscat_detected.loc["avg"].to_numpy().squeeze()
-    cscat_total = cscat_total.loc["avg"].to_numpy().squeeze()
-    asymmetry_unpolarized = \
-        asymmetry_unpolarized.loc["avg"].to_numpy().squeeze()
+    cscat_detected_par = cscat_detected.loc["par"].to_numpy()
+    cscat_detected_perp = cscat_detected.loc["perp"].to_numpy()
+    cscat_detected = cscat_detected.loc["avg"].to_numpy()
+    cscat_total = cscat_total.loc["avg"].to_numpy()
+    asymmetry_unpolarized = asymmetry_unpolarized.loc["avg"].to_numpy()
 
     cscat_detected_par = sc.Quantity(cscat_detected_par, wavelen.units**2)
-    cscat_detected_perp = sc.Quantity(cscat_detected_perp,
-                                      wavelen.units**2)
+    cscat_detected_perp = sc.Quantity(cscat_detected_perp, wavelen.units**2)
     cscat_detected = sc.Quantity(cscat_detected, wavelen.units**2)
     cscat_total = sc.Quantity(cscat_total, wavelen.units**2)
     asymmetry_unpolarized = sc.Quantity(asymmetry_unpolarized,
@@ -796,7 +789,7 @@ def reflection(model, wavelen,
         m = m.to_numpy()
         x = x.to_numpy()
         cross_sections = mie.calc_cross_sections(m, x)
-        k = 2*np.pi*(n_sample.to_numpy().squeeze())/wavelen
+        k = 2*np.pi*(n_sample.to_numpy())/wavelen
         cabs_total = (cross_sections[2]/np.abs(k)**2).squeeze()
     else:
         warnings.warn("Absorption cross-section cannot be calculated for "
@@ -830,14 +823,19 @@ def reflection(model, wavelen,
     cscat_par_ratio = (cscat_detected_par/cext_total).to("").magnitude
     cscat_perp_ratio = (cscat_detected_perp/cext_total).to("").magnitude
 
-    reflected_par = (t_medium_sample[0] * cscat_par_ratio * factor
-                     + r_medium_sample[0])
-    reflected_perp = (t_medium_sample[1] * cscat_perp_ratio * factor
-                      + r_medium_sample[1])
+    reflected_par = t_medium_sample[0] * cscat_par_ratio * factor
+    reflected_perp = t_medium_sample[1] * cscat_perp_ratio * factor
+
+    # if the detector captures specular reflections, include them in the
+    # reflectance
+    specular_angle = np.pi - incident_angle
+    if theta_refr_min < specular_angle <= theta_refr_max:
+        reflected_par = reflected_par + r_medium_sample[0]
+        reflected_perp = reflected_perp +  r_medium_sample[1]
     reflectance = (reflected_par + reflected_perp)/2
 
-    return reflectance, reflected_par, reflected_perp, asymmetry_parameter, \
-           transport_length
+    return (reflectance, reflected_par, reflected_perp, asymmetry_parameter,
+            transport_length)
 
 
 def absorption_cross_section(form_type, m, diameters, n_matrix, x,

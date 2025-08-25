@@ -865,10 +865,10 @@ def test_theta_refraction():
     # medium-sample interface. When n_sample < n_medium, the scattered angles
     # in the reflection hemisphere (90-180 deg) are refracted at the interface
     # into a smaller range of angles (>90-180 deg). This test checks that the
-    # the reflectance is close to 0 when the angles between theta_min and
-    # theta_max are outside the range of refracted scattered angles.
+    # the reflectance is 0 when the angles between theta_min and theta_max are
+    # outside the range of refracted scattered angles.
     incident_angle = Quantity('0.0 deg')
-    wavelength = Quantity(500.0, 'nm')
+    wavelength = Quantity(np.linspace(500, 800, 11), "nm")
     radius = Quantity('100.0 nm')
     volume_fraction = 0.5
     index_particle = sc.Index.constant(1.0)
@@ -876,39 +876,46 @@ def test_theta_refraction():
     index_matrix =  sc.Index.constant(1.0)
     index_medium = sc.Index.constant(2.0)
     n_medium = index_medium(wavelength)
-    theta_min = Quantity(np.pi/2, 'deg')
+    theta_min = Quantity(np.pi/2, "rad")
 
     model = sc.model.HardSpheres(particle, volume_fraction, index_matrix,
                                  index_medium)
-    # set theta_max to be slightly smaller than the theta corresponding to
-    # total internal reflection (calculated manually to be 2.61799388)
-    theta_max = Quantity(2.617, 'deg')
-    detector = sc.model.Detector(theta_min, theta_max)
-    refl1, _, _, _, _ = sc.model.reflection(model, wavelength,
-                                            detector=detector)
 
-    # try a different range of thetas (but keeping theta_max < total internal
-    # reflection angle)
-    theta_max = Quantity(2., 'deg')
+    # when theta_max is pi, the detector captures the specular light. Since
+    # there is no scattering from the sample (particles are index matched
+    # here), specular reflection is the only contribution to the reflectance.
+    theta_max = Quantity(np.pi, "rad")
     detector = sc.model.Detector(theta_min, theta_max)
-    refl2, _, _, _, _ = sc.model.reflection(model, wavelength,
-                                            detector=detector)
+    # note that we have to specify a finite thickness here.  Otherwise
+    # thickness is infinite, and all light is scattered, even under
+    # index-matching conditions
+    refl = sc.model.reflection(model, wavelength, detector=detector,
+                               thickness=sc.Quantity(10, 'um'))[0]
 
-    # the reflection should be zero plus the fresnel reflection term
+    # make sure the reflectance is equal to fresnel
     index_sample = sc.EffectiveIndex.from_particle(particle, volume_fraction,
                                                    index_matrix)
     n_sample = index_sample(wavelength)
     r_fresnel, _ = sc.model.fresnel_coeffs(n_medium, n_sample, incident_angle)
     r_fresnel_avg = (r_fresnel[0] + r_fresnel[1]) / 2
+    xr.testing.assert_equal(refl, r_fresnel_avg.drop_vars(sc.Coord.FRESNEL))
 
-    # these can differ at the 1e-5 level because we are dividing two small
-    # numbers, cscat_detected and cext_total
-    xr.testing.assert_allclose(refl1,
-                               r_fresnel_avg.drop_vars(sc.Coord.FRESNEL),
-                               rtol=1e-5)
-    xr.testing.assert_allclose(refl2,
-                               r_fresnel_avg.drop_vars(sc.Coord.FRESNEL),
-                               rtol=1e-5)
+    # set theta_max to be slightly smaller than the theta at which light
+    # scattered at pi/2 is refracted (= pi - arcsin(1/2) = 2.61799388, where
+    # 1/2 is the ratio of the refractive indices)
+    theta_max = Quantity(2.617, "rad")
+    detector = sc.model.Detector(theta_min, theta_max)
+    refl1, _, _, _, _ = sc.model.reflection(model, wavelength,
+                                            detector=detector)
+
+    # try a different range of thetas (but keeping theta_max < pi-arcsin(1/2))
+    theta_max = Quantity(2., "rad")
+    detector = sc.model.Detector(theta_min, theta_max)
+    refl2, _, _, _, _ = sc.model.reflection(model, wavelength,
+                                            detector=detector)
+
+    # reflectance should be zero in both cases
+    assert_equal(refl1.to_numpy(), 0)
     xr.testing.assert_allclose(refl1, refl2, rtol=1e-5)
 
 
