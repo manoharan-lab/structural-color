@@ -858,16 +858,16 @@ def test_theta_refraction():
     # into a smaller range of angles (>90-180 deg). This test checks that the
     # the reflectance is 0 when the angles between theta_min and theta_max are
     # outside the range of refracted scattered angles.
-    incident_angle = Quantity('0.0 deg')
-    wavelength = Quantity(np.linspace(500, 800, 11), "nm")
-    radius = Quantity('100.0 nm')
+    incident_angle = sc.Quantity('0.0 deg')
+    wavelength = sc.Quantity(np.linspace(400, 800, 11), "nm")
+    radius = sc.Quantity('100.0 nm')
     volume_fraction = 0.5
     index_particle = sc.Index.constant(1.0)
     particle = sc.Sphere(index_particle, radius)
     index_matrix =  sc.Index.constant(1.0)
     index_medium = sc.Index.constant(2.0)
     n_medium = index_medium(wavelength)
-    theta_min = Quantity(np.pi/2, "rad")
+    theta_min = sc.Quantity(np.pi/2, "rad")
 
     model = sc.model.HardSpheres(particle, volume_fraction, index_matrix,
                                  index_medium)
@@ -875,7 +875,7 @@ def test_theta_refraction():
     # when theta_max is pi, the detector captures the specular light. Since
     # there is no scattering from the sample (particles are index matched
     # here), specular reflection is the only contribution to the reflectance.
-    theta_max = Quantity(np.pi, "rad")
+    theta_max = sc.Quantity(np.pi, "rad")
     detector = sc.model.Detector(theta_min, theta_max)
     # note that we have to specify a finite thickness here.  Otherwise
     # thickness is infinite, and all light is scattered, even under
@@ -894,13 +894,13 @@ def test_theta_refraction():
     # set theta_max to be slightly smaller than the theta at which light
     # scattered at pi/2 is refracted (= pi - arcsin(1/2) = 2.61799388, where
     # 1/2 is the ratio of the refractive indices)
-    theta_max = Quantity(2.617, "rad")
+    theta_max = sc.Quantity(2.617, "rad")
     detector = sc.model.Detector(theta_min, theta_max)
     refl1, _, _, _, _ = sc.model.reflection(model, wavelength,
                                             detector=detector)
 
     # try a different range of thetas (but keeping theta_max < pi-arcsin(1/2))
-    theta_max = Quantity(2., "rad")
+    theta_max = sc.Quantity(2., "rad")
     detector = sc.model.Detector(theta_min, theta_max)
     refl2, _, _, _, _ = sc.model.reflection(model, wavelength,
                                             detector=detector)
@@ -908,6 +908,41 @@ def test_theta_refraction():
     # reflectance should be zero in both cases
     assert_equal(refl1.to_numpy(), 0)
     xr.testing.assert_allclose(refl1, refl2, rtol=1e-5)
+
+
+def test_vectorized_reflection():
+    """Test that model.reflection() vectorizes over wavelength and volume
+    fraction.
+
+    """
+    # choose a small number of wavelengths and volume fractions because looping
+    # over both is slow
+    wavelength = sc.Quantity(np.linspace(400, 800, 5), "nm")
+    volume_fraction = np.linspace(0.2, 0.6, 3)
+    radius = sc.Quantity("0.125 um")
+    index_particle = sc.index.polystyrene
+    sphere = sc.Sphere(index_particle, radius)
+
+    # choose a matrix with dispersion
+    index_matrix = sc.index.water
+    index_medium = sc.index.vacuum
+
+    model = sc.model.HardSpheres(sphere, volume_fraction, index_matrix,
+                                 index_medium)
+
+    refl = sc.model.reflection(model, wavelength)[0]
+
+    # test that loop gives same values
+    refl_loop = []
+    for phi in volume_fraction:
+        refl_loop_wl = []
+        model = sc.model.HardSpheres(sphere, phi, index_matrix, index_medium)
+        for wavelen in wavelength:
+            refl_loop_wl.append(sc.model.reflection(model, wavelen)[0])
+        refl_loop.append(xr.concat(refl_loop_wl, sc.Coord.WAVELEN))
+    refl_loop = xr.concat(refl_loop, sc.Coord.VOLFRAC)
+
+    xr.testing.assert_allclose(refl, refl_loop, rtol=1e-9)
 
 
 def test_reflection_core_shell():
