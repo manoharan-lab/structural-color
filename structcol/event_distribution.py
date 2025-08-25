@@ -283,9 +283,14 @@ def calc_tir(tir_refl_bool, refl_indices, trans_indices, inc_refl_per_traj,
     '''
     # until refactoring, convert DataArrays to numpy
     if isinstance(n_sample, xr.DataArray):
+        # drop VOLFRAC dimension, which will be included in all effective index
+        # calculations.
+        if sc.Coord.VOLFRAC in n_sample.coords:
+            n_sample = n_sample.isel({sc.Coord.VOLFRAC: 0}, drop=True)
         n_sample = n_sample.to_numpy()
     if isinstance(n_medium, xr.DataArray):
         n_medium = n_medium.to_numpy()
+
     weights = trajectories.weight
     nevents = trajectories.nevents
     ntraj = trajectories.direction.shape[2]

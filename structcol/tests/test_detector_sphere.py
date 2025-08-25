@@ -41,8 +41,9 @@ ntrajectories = 4
 radius = sc.Quantity('150.0 nm')
 assembly_radius = 5
 volume_fraction = 0.5
-volume_fraction_da = xr.DataArray([volume_fraction, 1-volume_fraction],
-                                  coords={sc.Coord.MAT: range(2)})
+volume_fraction_da = xr.DataArray([[volume_fraction, 1-volume_fraction]],
+                                  coords={sc.Coord.VOLFRAC: [volume_fraction],
+                                          sc.Coord.MAT: range(2)})
 angles = sc.Quantity(np.linspace(0.01,np.pi, 200), 'rad')
 wavelen = sc.Quantity('400.0 nm')
 index_particle = sc.Index.constant(1.5)
@@ -221,9 +222,6 @@ def test_reflection_sphere_mc():
     wavelen = sc.Quantity('600 nm')
     radius = sc.Quantity('0.125 um')
     assembly_diameter = sc.Quantity('10 um')
-    volume_fraction = 0.5
-    volume_fraction_da = xr.DataArray([volume_fraction, 1-volume_fraction],
-                                  coords={sc.Coord.MAT: range(2)})
     index_particle = sc.Index.constant(1.54)
     n_particle = index_particle(wavelen)
     index_matrix = sc.index.vacuum

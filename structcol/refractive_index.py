@@ -865,11 +865,7 @@ def effective_index(index_list, volume_fractions, wavelen,
     else:
         n_bg = (n_bg_real + n_bg_imag*1j)
 
-    # for now, drop the length-1 volume fraction coordinate for
-    # compatibility with downstream calculations
     n_bg = xr.DataArray(n_bg, coords=coords, attrs=attrs)
-    if num_vf == 1:
-        n_bg = n_bg.isel({sc.Coord.VOLFRAC: 0}, drop=True)
 
     return n_bg
 
@@ -909,8 +905,8 @@ def ratio(n_particle, n_matrix):
         raise ValueError("Index of particle and matrix must be DataArrays. "
                          "Ensure that you are using the output from an Index "
                          "object as input to this function.")
-    n_particle_wl = n_particle.coords[sc.Coord.WAVELEN].to_numpy().squeeze()
-    n_matrix_wl = n_matrix.coords[sc.Coord.WAVELEN].to_numpy().squeeze()
+    n_particle_wl = n_particle.coords[sc.Coord.WAVELEN].to_numpy()
+    n_matrix_wl = n_matrix.coords[sc.Coord.WAVELEN].to_numpy()
     if not (np.array_equal(n_particle_wl, n_matrix_wl)):
         raise ValueError("Cannot calculate index ratio when Indexes of "
                          "particle and matrix are evaluated at different "

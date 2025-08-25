@@ -250,7 +250,6 @@ class TestEffectiveIndex():
         neff_bg = sc.index.effective_index([index_particle, index_matrix], vf,
                                            wavelen, maxwell_garnett=False)
 
-        neff_mg = neff_mg.isel({sc.Coord.VOLFRAC: 0}, drop=True)
         xr.testing.assert_allclose(neff_mg, neff_bg)
 
         # test that the non-core-shell particle with Maxwell-Garnett matches
@@ -295,8 +294,6 @@ class TestEffectiveIndex():
                                                    wavelen,
                                                    maxwell_garnett=False)
 
-        neff_mg_complex = neff_mg_complex.isel({sc.Coord.VOLFRAC: 0},
-                                               drop=True)
         xr.testing.assert_allclose(neff_mg_complex, neff_bg_complex)
 
         # test that the non-core-shell particle with Maxwell-Garnett matches
@@ -333,7 +330,7 @@ class TestEffectiveIndex():
         # test construction of an EffectiveIndex object from a Sphere object
         wavelen = sc.Quantity(np.linspace(400, 800, 20), 'nm')
 
-        radius = sc.Quantity(0.35, 'um')
+        radius = sc.Quantity(0.35, "um")
         sphere = sc.Sphere(index_particle, radius)
         volume_fraction = 0.2
         index_matrix = sc.index.water
@@ -343,8 +340,9 @@ class TestEffectiveIndex():
 
         # here's what we should get
         index_list = [index_particle, index_matrix]
-        vf_array = xr.DataArray([volume_fraction, 1-volume_fraction],
-                                coords={sc.Coord.MAT: np.arange(2)})
+        vf_array = xr.DataArray([[volume_fraction, 1-volume_fraction]],
+                                coords={sc.Coord.VOLFRAC: [volume_fraction],
+                                        sc.Coord.MAT: np.arange(2)})
         index_eff_calculated = sc.EffectiveIndex(index_list, vf_array)
         n_eff_calculated = index_eff_calculated(wavelen)
 
@@ -364,6 +362,8 @@ class TestEffectiveIndex():
                           coords={sc.Coord.MAT: range(layers+1)})
         n_eff = sc.index.effective_index(index_particle + [index_matrix], vf,
                                          wavelen)
+        # drop volume fraction dimension before comparing
+        n_eff = n_eff.isel({sc.Coord.VOLFRAC: 0}, drop=True)
         xr.testing.assert_allclose(n_eff, index(wavelen))
 
         wavelen = sc.Quantity(np.linspace(400, 800, 10), 'nm')
@@ -433,10 +433,11 @@ class TestEffectiveIndex():
         # test that we get the right values; since the matrix volume fraction
         # is zero, the effective index should be 1.33. Test also that coords
         # are correct.
-        coords = {sc.Coord.WAVELEN: wavelen.to_preferred().magnitude}
+        coords = {sc.Coord.WAVELEN: wavelen.to_preferred().magnitude,
+                  sc.Coord.VOLFRAC: np.atleast_1d(1.0)}
+        expected = np.ones((num_wavelengths, 1))*1.33
         xr.testing.assert_equal(n_effective,
-                                xr.DataArray(np.ones(num_wavelengths)*1.33,
-                                             coords = coords))
+                                xr.DataArray(expected, coords=coords))
 
         # now test that this works with an actual dispersion relation
         wavelen = sc.Quantity(np.linspace(400, 800, 10), 'nm')
@@ -495,11 +496,6 @@ class TestEffectiveIndex():
                                                               maxwell_garnett)
             n_ext_loop.append(index_effective(wavelen))
         n_ext_loop = xr.concat(n_ext_loop, sc.Coord.VOLFRAC)
-        n_ext_loop = n_ext_loop.assign_coords({sc.Coord.VOLFRAC:
-                                               volume_fraction})
-        # above will put volume fraction as first dimension since each element
-        # has volume fraction as a scalar coord.  Need to transpose.
-        n_ext_loop = n_ext_loop.transpose(sc.Coord.WAVELEN, ...)
         xr.testing.assert_allclose(n_ext, n_ext_loop)
 
 

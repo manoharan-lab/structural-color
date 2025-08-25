@@ -203,11 +203,7 @@ class TestModel():
                                           index_matrix, index_medium)
         dscat = model.differential_cross_section(coords)
         dscat_mono = mono_model.differential_cross_section(coords)
-        # dscat mono will have an extra "volfrac" scalar dimension because the
-        # PY structure factor is a function of volume fraction.  The
-        # interpolated structure factor is not
-        xr.testing.assert_allclose(dscat,
-                                   dscat_mono.drop_vars(sc.Coord.VOLFRAC))
+        xr.testing.assert_allclose(dscat, dscat_mono)
 
         # and structure factor should be close to 1
         n_ext = index_matrix(wavelen)
@@ -220,11 +216,11 @@ class TestModel():
         # monodisperse and polydisperse models
         cscat = model.scattering_cross_section(dscat)
         cscat_mono = mono_model.scattering_cross_section(dscat_mono)
-        xr.testing.assert_allclose(cscat,
-                                   cscat_mono.drop_vars(sc.Coord.VOLFRAC))
+        xr.testing.assert_allclose(cscat, cscat_mono)
 
         # now finite volume fraction, low polydispersity
-        volume_fraction = 0.5
+        # note that we also test vectorization over volume fraction here
+        volume_fraction = [0.4, 0.5, 0.6]
         dist = sc.SphereDistribution(self.ps_sphere, concentration, pdi)
         model = sc.model.PolydisperseHardSpheres(dist, volume_fraction,
                                                  index_matrix, index_medium)
@@ -238,7 +234,8 @@ class TestModel():
         s_mono = mono_model.structure_factor(ql)
         # tolerance would be 1e-7 but error at 444 nm is about a factor of 10
         # higher, for some reason
-        assert_allclose(s, s_mono, rtol=1e-5)
+        # (note: position of VOLFRAC dim is different, so we ignore order)
+        xr.testing.assert_allclose(s, s_mono, rtol=1e-5, check_dim_order=False)
 
         # and the same as would be calculated from creating a structure factor
         # directly
@@ -423,12 +420,13 @@ class TestModel():
         cscat = model.scattering_cross_section(dscat)
 
         # make sure we have correct coords and shape
-        assert cscat.shape == (3, len(np.atleast_1d(wavelen)))
+        assert cscat.shape == (3, len(np.atleast_1d(wavelen)), 1)
+        assert sc.Coord.VOLFRAC in cscat.coords
         assert sc.Coord.POL in cscat.coords
 
         # now do calculation using Mie theory, using appropriate function for
         # the cross-section
-        wavelen_media = wavelen/n_matrix.to_numpy().squeeze()
+        wavelen_media = wavelen/n_matrix.to_numpy()
         if np.any(n_matrix.imag > 0):
             nstop = mie._nstop(np.array(x).max())
             albl = mie._scatcoeffs(m, x, nstop)
@@ -475,9 +473,10 @@ class TestModel():
             cscat_sud = cscat_sud/k**2
 
         # Now check that the Mie calculation and Model method calculations
-        # agree.
-        assert_allclose(cscat.loc["avg"],
-                        cscat_sud[0].to_preferred().magnitude, rtol=1e-2)
+        # agree.  We drop VOLFRAC dim, which is not in cscat_sud
+        cscat_avg = cscat.loc["avg"].isel({sc.Coord.VOLFRAC: 0}, drop=True)
+        cscat_sud0 = cscat_sud[0].to_preferred().magnitude
+        assert_allclose(cscat_avg, cscat_sud0, rtol=1e-2)
         # Agreement is to within 1e-2 relative error for absorbing media
         # (around 1e-3 but a little higher for certain wavelengths, and 1e-5
         # for non-absorbing. The discrepancy in absorbing media doesn't seem to
@@ -629,15 +628,8 @@ class TestModel():
         cscat_poly = model.scattering_cross_section(dscat)
         phase_func_poly = model.phase_function(dscat)
 
-        # monodisperse quantities will have an extra "volfrac" scalar
-        # dimension because the PY structure factor is a function of volume
-        # fraction. The polydiserse structure factor is not
-        xr.testing.assert_allclose(cscat_poly,
-                                   cscat_mono.drop_vars(sc.Coord.VOLFRAC),
-                                   rtol=1e-5)
-        np.testing.assert_allclose(phase_func_poly,
-                                   phase_func_mono.drop_vars(sc.Coord.VOLFRAC),
-                                   rtol=1e-3)
+        xr.testing.assert_allclose(cscat_poly, cscat_mono, rtol=1e-5)
+        np.testing.assert_allclose(phase_func_poly, phase_func_mono, rtol=1e-3)
         # note: rtol would be 1e-5 but error at 444 nm is much larger for
         # some reason
 
@@ -979,8 +971,17 @@ def test_reflection_core_shell():
     assert_allclose(lstar1.to('nm').magnitude, lstar.magnitude)
 
     # Compare a non-core-shell and a core-shell with shell index of air using
-    # Bruggeman
-    xr.testing.assert_allclose(refl2, refl3, rtol=1e-5)
+    # Bruggeman.
+    #
+    # first show that the volume fractions are NOT equal for the two
+    # calculations: the non-core-shell will have a lower volume fraction than
+    # the core-shell, even though the shell is air, because we don't account
+    # for the material of the shell when calculating volume fraction
+    volfrac_refl2 = refl2.coords[sc.Coord.VOLFRAC][0]
+    volfrac_refl3 = refl3.coords[sc.Coord.VOLFRAC][0]
+    assert volfrac_refl2 != volfrac_refl3
+    # next do numpy comparison on values
+    assert_allclose(refl2, refl3, rtol=1e-5)
     assert_allclose(g2.magnitude, g3.magnitude, rtol=1e-5)
     assert_allclose(lstar2.to('mm').magnitude, lstar3.to('mm').magnitude,
                     rtol=1e-5)

@@ -36,8 +36,9 @@ nevents = 3
 ntrajectories = 4
 radius = sc.Quantity('150.0 nm')
 volume_fraction = 0.5
-volume_fraction_da = xr.DataArray([0.5, 1-0.5],
-                                  coords = {sc.Coord.MAT: range(2)})
+volume_fraction_da = xr.DataArray([[0.5, 1-0.5]],
+                                  coords={sc.Coord.VOLFRAC: [volume_fraction],
+                                          sc.Coord.MAT: range(2)})
 angles = sc.Quantity(np.linspace(0.01, np.pi, 200), 'rad')
 wavelen = sc.Quantity('400.0 nm')
 index_particle = sc.Index.constant(1.5)

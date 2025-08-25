@@ -336,7 +336,11 @@ class Trajectory:
         if isinstance(n_particle, xr.DataArray):
             n_particle = n_particle.to_numpy().squeeze()
         if isinstance(n_sample, xr.DataArray):
-            n_sample = n_sample.to_numpy().squeeze()
+            # drop VOLFRAC dimension, which will be included in all effective
+            # index calculations.
+            if sc.Coord.VOLFRAC in n_sample.coords:
+                n_sample = n_sample.isel({sc.Coord.VOLFRAC: 0}, drop=True)
+            n_sample = n_sample.to_numpy()
 
         m = np.atleast_2d(n_particle/n_sample)
         x = size_parameter(wavelen, n_sample, radius)
@@ -727,6 +731,10 @@ def initialize(nevents, ntraj, n_medium, n_sample, boundary, rng=None,
     if isinstance(n_medium, xr.DataArray):
         n_medium = n_medium.to_numpy()
     if isinstance(n_sample, xr.DataArray):
+        # drop VOLFRAC dimension, which will be included in all effective index
+        # calculations.
+        if sc.Coord.VOLFRAC in n_sample.coords:
+            n_sample = n_sample.isel({sc.Coord.VOLFRAC: 0}, drop=True)
         n_sample = n_sample.to_numpy()
 
     if rng is None:

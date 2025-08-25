@@ -59,10 +59,8 @@ class TestStructureFactor():
 
         # test how function handles dimensionless arguments
         structure_factor = sc.structure.PercusYevick(Quantity('0.4'))
-        # specifying quantities is not allowed when calculating
-        with pytest.raises(AttributeError):
-            s = structure_factor(Quantity('0.1'))
-        # but scalars should work
+        s = structure_factor(Quantity('0.1'))
+        # scalars should work
         structure_factor = sc.structure.PercusYevick(0.4)
         s = structure_factor(0.1)
 
@@ -206,6 +204,26 @@ class TestStructureFactor():
         # since plot is digitized, we expect agreement only to 1 decimal place
         assert_almost_equal(s_poly.to_numpy(), s_expected, decimal=1)
 
+        # test vectorization over phi and ql
+        structure_factor = sc.structure.Polydisperse(self.phi, dist)
+        s = structure_factor(self.ql)
+        assert s.sizes == {sc.Coord.VOLFRAC: self.phi.shape[0],
+                           "ql": self.ql.shape[0]}
+
+        # make sure that calculation works with ql specified as DataArray
+        ql = xr.DataArray(self.ql, coords = {"ql": self.ql})
+        s = structure_factor(ql)
+        assert s.sizes == {sc.Coord.VOLFRAC: self.phi.shape[0],
+                           "ql": self.ql.shape[0]}
+
+        # ensure that we get same results from a loop
+        s_loop = []
+        for phi in self.phi:
+            structure_factor = sc.structure.Polydisperse(phi, dist)
+            s_loop.append(structure_factor(self.ql))
+        s_loop = xr.concat(s_loop, sc.Coord.VOLFRAC)
+        xr.testing.assert_equal(s, s_loop)
+
     def test_structure_factor_percus_yevick_core_shell(self):
         """Test that the structure factor is the same for core-shell particles
         and non-core-shell particles at low volume fraction (assuming the core
@@ -308,7 +326,8 @@ def test_structure_factor_data_reflectances():
                             0.040166711576661615, 0.037305165165199786,
                             0.03432092904706069, 0.03218808662896649]
 
-    assert_almost_equal(reflectance[0], reflectance_expected)
+    # squeeze out the singlet volume fraction dimension before comparing
+    assert_almost_equal(reflectance[0].squeeze(), reflectance_expected)
 
     # calculate reflectance from Monte Carlo model
     seed = 1

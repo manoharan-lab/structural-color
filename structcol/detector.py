@@ -1791,6 +1791,10 @@ def calc_refl_trans(trajectories, thickness, n_medium, n_sample, boundary,
     if isinstance(n_medium, xr.DataArray):
         n_medium = n_medium.to_numpy()
     if isinstance(n_sample, xr.DataArray):
+        # drop VOLFRAC dimension, which will be included in all effective index
+        # calculations.
+        if sc.Coord.VOLFRAC in n_sample.coords:
+            n_sample = n_sample.isel({sc.Coord.VOLFRAC: 0}, drop=True)
         n_sample = n_sample.to_numpy()
 
     # make sure roughness-related values make sense

@@ -44,8 +44,9 @@ wavelen = sc.Quantity('400.0 nm')
 index_particle = sc.Index.constant(1.5)
 index_matrix = sc.Index.constant(1.0)
 index_medium = sc.Index.constant(1.0)
-volume_fraction_da = xr.DataArray([0.5, 1-0.5],
-                                  coords={sc.Coord.MAT: range(2)})
+volume_fraction_da = xr.DataArray([[0.5, 1-0.5]],
+                                  coords={sc.Coord.VOLFRAC: [volume_fraction],
+                                          sc.Coord.MAT: range(2)})
 n_particle = index_particle(wavelen)
 n_matrix = index_matrix(wavelen)
 n_medium = index_medium(wavelen)
@@ -180,8 +181,6 @@ def test_reflection_mc():
     index_particle = sc.Index.constant(1.54)
     index_matrix = sc.index.vacuum
     index_medium = sc.index.vacuum
-    volume_fraction_da = xr.DataArray([0.5, 1-0.5],
-                                      coords = {sc.Coord.MAT: range(2)})
     index_sample = sc.EffectiveIndex([index_particle, index_matrix],
                                      volume_fraction_da)
 
@@ -218,10 +217,8 @@ def test_surface_roughness_mc():
     n_particle = index_particle(wavelen)
     n_medium = index_medium(wavelen)
     n_matrix = index_matrix(wavelen)
-    volume_fraction_da = xr.DataArray([0.5, 1-0.5],
-                                      coords = {sc.Coord.MAT: range(2)})
     index_sample = sc.EffectiveIndex([index_particle, index_matrix],
-                                        volume_fraction_da)
+                                     volume_fraction_da)
     n_sample = index_sample(wavelen)
     boundary = 'film'
 
@@ -773,8 +770,6 @@ def test_reflection_polydispersity_mc():
     wavelen = sc.Quantity('600 nm')
     radius = sc.Quantity('0.125 um')
     volume_fraction = 0.5
-    volume_fraction_da = xr.DataArray([0.5, 1-0.5],
-                                      coords = {sc.Coord.MAT : range(2)})
     index_particle = sc.Index.constant(1.54)
     n_particle = index_particle(wavelen)
     index_matrix = sc.index.vacuum
@@ -816,8 +811,9 @@ def test_detectors_mc():
 
     radius = sc.Quantity('0.140 um')
     volume_fraction = 0.55
-    volume_fraction_da = xr.DataArray([0.55, 1-0.55],
-                                      coords = {sc.Coord.MAT: range(2)})
+    volume_fraction_da = xr.DataArray([[0.55, 1-0.55]],
+                                      coords = {sc.Coord.VOLFRAC: [0.55],
+                                                sc.Coord.MAT: range(2)})
     n_imag = 2.1e-4 * 1j
     index_particle = sc.index.polystyrene + sc.Index.constant(n_imag)
     index_matrix = sc.index.vacuum

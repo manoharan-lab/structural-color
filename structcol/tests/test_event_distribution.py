@@ -41,8 +41,9 @@ wavelength = sc.Quantity(np.array(550.0),'nm')
 # sample properties
 particle_radius = sc.Quantity('140.0 nm')
 volume_fraction = 0.56
-volume_fraction_da = xr.DataArray([volume_fraction, 1-volume_fraction],
-                                  coords={sc.Coord.MAT: range(2)})
+volume_fraction_da = xr.DataArray([[volume_fraction, 1-volume_fraction]],
+                                  coords={sc.Coord.VOLFRAC: [volume_fraction],
+                                          sc.Coord.MAT: range(2)})
 thickness = sc.Quantity('10.0 um')
 boundary = 'film'
 

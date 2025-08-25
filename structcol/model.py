@@ -778,7 +778,11 @@ def reflection(model, wavelen,
     if np.any(np.abs(n_sample.imag) > 0.0) and rho is not None:
         # The absorption coefficient can be calculated from the imaginary
         # component of the samples's refractive index
-        mu_abs = 4 * np.pi * n_sample.imag / wavelen
+        # (below, we ensure proper broadcasting against other dims in n_sample,
+        # such as volume_fraction)
+        wavelen_da = xr.DataArray(wavelen.magnitude,
+                                  coords={sc.Coord.WAVELEN: wavelen.magnitude})
+        mu_abs = 4 * np.pi * n_sample.imag / wavelen_da
         mu_abs = sc.Quantity(mu_abs.to_numpy(), 1/sc.LENGTH_UNIT)
         cabs_total = mu_abs / rho
     elif np.all(np.abs(n_sample.imag) == 0.0) and n_particle is not None:

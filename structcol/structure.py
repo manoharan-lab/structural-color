@@ -54,7 +54,10 @@ class StructureFactor:
         # ensure ql is one-dimensional DataArray so that we can
         # generate results for all combinations of ql and structural
         # parameters.
+        if isinstance(ql, sc.Quantity):
+            ql = ql.magnitude
         if not isinstance(ql, xr.DataArray):
+            ql = np.atleast_1d(ql)
             ql = xr.DataArray(ql, coords={"ql": ql})
 
         return self.calculate(ql)
@@ -369,7 +372,9 @@ class Polydisperse(StructureFactor):
     """
 
     def __init__(self, volume_fraction, sphere_dist):
-        # this structure factor doesn't broadcast
+        # this structure factor vectorizes over volume_fraction and wavelength,
+        # but calculation does not use DataArrays. So we keep volume_fraction
+        # as a numpy array
         phi = np.atleast_1d(volume_fraction)
         self.volume_fraction = phi
 
@@ -389,11 +394,12 @@ class Polydisperse(StructureFactor):
         normalized moment of the distribution, defined by eq. 24.
 
         """
-        # second axis is for wavelengths, third for angles
-        t = np.reshape(t, (len(np.atleast_1d(t)), 1, 1))
-        tm = np.reshape(tm, (len(tm),1, 1))
-        # x has shape [num_components, num_wavelengths, num_angles].  Return
-        # product has same shape.
+        # second axis is for wavelengths, third for volume fraction, fourth for
+        # angles
+        t = np.reshape(t, (len(np.atleast_1d(t)), 1, 1, 1))
+        tm = np.reshape(tm, (len(tm), 1, 1, 1))
+        # x has shape (num_species, num_wavelengths, num_volfrac,
+        # num_angles).  Return product has same shape.
         return (tm * (1 + x/(t+1))**(-(t+1+m)))
 
     def tm(self, m, t):
@@ -402,11 +408,11 @@ class Polydisperse(StructureFactor):
         # new dim is for m
         t = np.reshape(t, (len(np.atleast_1d(t)), 1))
         # next 2 lines calculate (t+m)!/t! = prod_0^m (t+m). The addition
-        # broadcasts to [num_species, number of m]
+        # broadcasts to (num_species, number of m)
         num_array = np.arange(m, 0, -1) + t
         # new axis here is just to so that we broadcast with t
         prod = np.prod(num_array, axis=-1)[..., np.newaxis]
-        # return product has shape [num_components, 1]
+        # return product has shape (num_species, 1)
         return (prod / (t + 1)**m)
 
     def calculate(self, qd):
@@ -419,27 +425,27 @@ class Polydisperse(StructureFactor):
 
         # by convention we nondimensionalize q using the first diameter.
         # However, this function requires a dimensional q, so we
-        # re-dimensionalize here. q should have shape [num_wavelengths,
-        # num_angles]
-        if isinstance(qd, xr.DataArray):
-            q = qd.to_numpy()/diameters[0]
-        else:
-            q = qd/diameters[0]
+        # re-dimensionalize here. q should have shape (num_wavelengths,
+        # num_volfrac, num_angles)
+        if sc.Coord.VOLFRAC not in qd.coords:
+            qd = qd.expand_dims({sc.Coord.VOLFRAC: np.atleast_1d(phi)},
+                                axis=-2)
+        q = qd.to_numpy()/diameters[0]
 
         # D_sigma is the size polydispersity parameter (sec. 5).  Shape
-        # [num_species]
+        # (num_species)
         Dsigma = self.pdi**2
-        # eq 14b (scalar)
-        Delta = 1 - phi
+        # eq 14b.  Shape (num_volfrac, 1) for broadcasting over angles
+        Delta = (1 - phi)[..., np.newaxis]
         # t^(tau) is one of the two parameters of the Schulz distribution.  It
         # should in principle be a non-negative integer (does pdi have to be
-        # chosen so that t is in fact an integer?).  Shape [num_species]
+        # chosen so that t is in fact an integer?).  Shape (num_species)
         t = 1/Dsigma - 1
 
-        # shape [num_components, 1]
+        # shape (num_species, 1)
         t0 = self.tm(0, t)
         t1 = self.tm(1, t)
-        # from eq. 24 of reference and simplifying.  Shape [num_components, 1]
+        # from eq. 24 of reference and simplifying.  Shape (num_species, 1)
         t2 = (Dsigma + 1)[..., np.newaxis]
         # from eq. 24 and also on page 2295.  Don't need to add axis since t3
         # is only used for number density calculation
@@ -471,19 +477,23 @@ class Polydisperse(StructureFactor):
             rho_tau0 = 6*phi_tau0/(t3[0]*np.pi*diameters[0]**3)
             rho_tau1 = 6*phi_tau1/(t3[1]*np.pi*diameters[1]**3)
             rho = rho_tau0 + rho_tau1
+        # number density should have shape (num_volfrac, 1) for broadcasting
+        rho = rho[..., np.newaxis]
 
-        # this is the "effective" mean interparticle spacing
-        sigma0 = (6*phi / (np.pi*rho))**(1/3)
+        # this is the "effective" mean interparticle spacing.  Should have
+        # shape (num_volfrac, 1) for broadcasting
+        sigma0 = (6*phi[:, np.newaxis] / (np.pi*rho))**(1/3)
 
-        # add two axis: one for wavelength and one for angles.  Shape should be
-        # [num_components, 1, 1]
-        c = np.expand_dims(c, axis=(1, 2))
+        # add three axes: one for wavelength, one for volume fraction, and one
+        # for angles.  Shape should be
+        # [num_species, 1, 1, 1]
+        c = np.expand_dims(c, axis=(1, 2, 3))
         diameters = np.reshape(diameters, shape=c.shape)
         t2 = np.reshape(t2, shape=c.shape)
 
-        # s shape is same as q: [num_wavelengths, num_angles]
+        # s shape is same as q: (num_wavelengths, num_volfrac, num_angles)
         s = 1j*q
-        # x shape should be [num_components, num_wavelengths, 1]
+        # x shape should be (num_species, num_wavelengths, num_volfrac, 1)
         x = s*diameters
 
         # F0 is the k=0 scattering from scattering amplitude per unit volume.
@@ -503,7 +513,7 @@ class Polydisperse(StructureFactor):
         # F0 = np.array([rho_tau0, rho_tau1])
         #
         # so that we can handle the more general case when the concentrations
-        # differ. In the current code below, F0 is a scalar array: shape (1,)
+        # differ. In the current code below, F0 has shape (num_volfrac, 1)
         F0 = rho
         # zeta2 is from equation 14a and is the number-density weighted square
         # diameter.  Should therefore probably be written as
@@ -513,27 +523,27 @@ class Polydisperse(StructureFactor):
         #
         # In the code below, zeta is slightly different: it is the total number
         # density times the mean interparticle spacing.  In either case
-        # (summing over particle diameters or not), zeta2 is a scalar array:
-        # shape (1,)
+        # (summing over particle diameters or not), zeta2 has shape
+        # (num_volfrac, 1)
         zeta2 = rho * sigma0**2
 
         # f0, f1, f2 are the first three values of the f function defined in
         # equation 25, evaluated for x=s*diameter. These are used in the
         # expressions for I_alpha^(1) and I_alpha^(2) in equations 26a and 26b.
-        # f0, f1, and f2 have shape (num_components, num_wavelengths,
+        # f0, f1, and f2 have shape (num_species, num_wavelengths, num_volfrac,
         # num_angles)
         f0 = self.fm(x,t,t0,0)
         f1 = self.fm(x,t,t1,1)
         f2 = self.fm(x,t,t2,2)
         # f0_inv, f1_inv, f2_inv are as above, but evaluated for x=-s*diameter.
         # These are used in the evaluation of I_0, given in equation 27.  Shape
-        # is (num_components, num_wavelengths, num_angles)
+        # is (num_species, num_wavelengths, num_volfrac, num_angles)
         f0_inv = self.fm(-x,t,t0,0)
         f1_inv = self.fm(-x,t,t1,1)
         f2_inv = self.fm(-x,t,t2,2)
 
-        # from eqs 29a-29d. Shapes are (num_components, num_wavelengths,
-        # num_angles).
+        # from eqs 29a-29d. Shapes are (num_species, num_wavelengths,
+        # num_volfrac, num_angles).
         fa = 1/x**3 * (1 - x/2 - f0 - x/2 * f1)
         fb = 1/x**3 * (1 - x/2 * t2 - f1 - x/2 * f2)
         fc = 1/x**2 * (1 - x - f0)
@@ -541,19 +551,19 @@ class Polydisperse(StructureFactor):
 
         # eqs 26a, 26b.  We sum over the component axis (axis=0), corresponding
         # to the tau summation in the equations.  Resulting shapes are
-        # (num_wavelengths, num_angles)
+        # (num_wavelengths, num_volfrac, num_angles)
         Ialpha1 = 24/s**3 * np.sum(c * F0 * (-1/2*(1-f0) + x/4 * (1 + f1)),
                                    axis=0)
         Ialpha2 = 24/s**3 * np.sum(c * F0 * (-diameters/2 * (1-f1) +
                                    s*diameters**2/4 * (t2 + f2)), axis=0)
 
-        # eqs 27a, 27b.  Shapes are (num_wavelengths, num_angles)
+        # eqs 27a, 27b.  Shapes are (num_wavelengths, num_volfrac, num_angles)
         Iw1 = 2*np.pi*rho/(Delta*s**3) * (Ialpha1 + s/2*Ialpha2)
         Iw2 = (np.pi*rho/(Delta*s**2) * (1 + np.pi*zeta2/(Delta*s))*Ialpha1 +
                np.pi**2*zeta2*rho/(2*Delta**2*s**2) * Ialpha2)
 
         # eqs 28a-d.  Sum is over the component (tau) axis=0.  Resulting shapes
-        # are (num_wavelengths, num_angles)
+        # are (num_wavelengths, num_volfrac, num_angles)
         F11 = np.sum(c*2*np.pi*rho*diameters**3/Delta * fa, axis=0)
         F21 = np.sum(c * diameters * 2*np.pi*rho*diameters**3/Delta * fb,
                      axis=0)
@@ -572,7 +582,7 @@ class Polydisperse(StructureFactor):
 
         # per eq 15, G = (I-F)^-1 (matrix inverse). Elements of G follow from
         # general formula for 2x2 matrix inverse.  Shape of each element is
-        # (num_wavelengths, num_angles)
+        # (num_wavelengths, num_volfrac, num_angles)
         denom = (FF11 * FF22 - FF12 * FF21)
         G11 = FF22 / denom
         G12 = -FF12 / denom
@@ -580,7 +590,7 @@ class Polydisperse(StructureFactor):
         G22 = FF11 / denom
 
         # equation 27c.  Sum is over the component axis=0.  Resulting shape is
-        # (num_wavelengths, num_angles)
+        # (num_wavelengths, num_volfrac, num_angles)
         I0 = -9/2*(2/s)**6 * np.sum(c * F0**2 * (1-1/2*(f0_inv + f0) +
                                     x/2 *(f1_inv - f1) -
                                     (s**2*diameters**2)/8
@@ -588,7 +598,7 @@ class Polydisperse(StructureFactor):
                                     axis=0)
 
         # These are the four combinations of n and m that go into equation 18
-        # for S_M(k).  Shapes are (num_wavelengths, num_angles)
+        # for S_M(k).  Shapes are (num_wavelengths, num_volfrac, num_angles)
         term1 = Iw1 * G11 * Ialpha1 / I0
         term2 = Iw1 * G12 * Ialpha2 / I0
         term3 = Iw2 * G21 * Ialpha1 / I0
@@ -601,7 +611,7 @@ class Polydisperse(StructureFactor):
         SM[SM<0] = 0
 
         # return a DataArray using the coordinates of q as our coordinates.
-        # Shape will in general be (num_wavelengths, num_angles)
+        # Shape will in general be (num_wavelengths, num_volfrac, num_angles)
         SM = xr.DataArray(SM.reshape(qd.shape), coords=qd.coords)
 
         return SM.squeeze()
