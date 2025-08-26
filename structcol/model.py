@@ -636,6 +636,8 @@ def reflection(model, wavelen,
                 n_particle = model.particle.spheres[0].n(wavelen)
         else:
             n_particle = None
+    if thickness is not None:
+        thickness = thickness.to_preferred().magnitude
 
     # calculate transmission and reflection coefficients at first interface
     # between medium and sample
@@ -718,7 +720,7 @@ def reflection(model, wavelen,
                                           phi_max=phi_max)
     cscat_total = _integrate_intensity(diff_cs_total)
     cosines = np.cos(diff_cs_total.coords[sc.Coord.THETA])
-    asymmetry_unpolarized = _integrate_intensity(diff_cs_total * cosines)
+    asymmetry = _integrate_intensity(diff_cs_total * cosines)
     # calculate transport cscat
     # not currently returned, but could be useful in the future
     transport_cscat = _integrate_intensity(diff_cs_total * (1-cosines))
@@ -738,30 +740,17 @@ def reflection(model, wavelen,
         # Similarly, we calculate the asymmetry parameter integrating at
         # the surface of each mean component of the binary mixture and then
         # average
-        asymmetry_unpolarized = (asymmetry_unpolarized
-                                 * conc).sum(sc.Coord.SPECIES)
+        asymmetry = (asymmetry * conc).sum(sc.Coord.SPECIES)
         transport_cscat = (transport_cscat * conc).sum(sc.Coord.SPECIES)
 
-    # convert to numpy and add dimensions
-    cscat_detected_par = cscat_detected.loc["par"].to_numpy()
-    cscat_detected_perp = cscat_detected.loc["perp"].to_numpy()
-    cscat_detected = cscat_detected.loc["avg"].to_numpy()
-    cscat_total = cscat_total.loc["avg"].to_numpy()
-    asymmetry_unpolarized = asymmetry_unpolarized.loc["avg"].to_numpy()
-
-    cscat_detected_par = sc.Quantity(cscat_detected_par, wavelen.units**2)
-    cscat_detected_perp = sc.Quantity(cscat_detected_perp, wavelen.units**2)
-    cscat_detected = sc.Quantity(cscat_detected, wavelen.units**2)
-    cscat_total = sc.Quantity(cscat_total, wavelen.units**2)
-    asymmetry_unpolarized = sc.Quantity(asymmetry_unpolarized,
-                                        wavelen.units**2)
-
-    asymmetry_parameter = asymmetry_unpolarized/cscat_total
+    cscat_total = cscat_total.loc["avg"]
+    asymmetry = asymmetry.loc["avg"]
+    asymmetry_parameter = asymmetry/cscat_total
 
     # calculate the transport length. Requires number density, which must be
     # specified if using FormStructureModel
     try:
-        rho = model.number_density
+        rho = model.number_density.magnitude
     except ValueError:
         warnings.warn("Number density cannot be calculated for model. "
                       "Transport length will not be returned. ")
@@ -783,7 +772,6 @@ def reflection(model, wavelen,
         wavelen_da = xr.DataArray(wavelen.magnitude,
                                   coords={sc.Coord.WAVELEN: wavelen.magnitude})
         mu_abs = 4 * np.pi * n_sample.imag / wavelen_da
-        mu_abs = sc.Quantity(mu_abs.to_numpy(), 1/sc.LENGTH_UNIT)
         cabs_total = mu_abs / rho
     elif np.all(np.abs(n_sample.imag) == 0.0) and n_particle is not None:
         if isinstance(model, HardSpheres):
@@ -791,10 +779,8 @@ def reflection(model, wavelen,
         else:
             x = sc.size_parameter(n_sample, model.lengthscale)
         m = sc.index.ratio(n_particle, n_sample)
-        m = m.to_numpy()
-        x = x.to_numpy()
-        cross_sections = mie.calc_cross_sections(m, x)
-        k = sc.Quantity(sc.wavevector(n_sample).to_numpy(), 1/sc.LENGTH_UNIT)
+        cross_sections = mie.calc_cross_sections(m.to_numpy(), x.to_numpy())
+        k = sc.wavevector(n_sample)
         cabs_total = (cross_sections[2]/np.abs(k)**2)
     else:
         warnings.warn("Absorption cross-section cannot be calculated for "
@@ -810,7 +796,7 @@ def reflection(model, wavelen,
     elif rho is not None:
         # use Beer-Lambert law to account for attenuation
         factor = ((1.0 - np.exp(-rho*cext_total*thickness))
-                  * cscat_total/cext_total).to("").magnitude
+                  * cscat_total/cext_total)
     else:
         # Assume infinite thickness
         warnings.warn("Number density cannot be calculated for model. "
@@ -825,21 +811,16 @@ def reflection(model, wavelen,
     # the reflection cross-sections (that is, we use sigma_total rather than
     # sigma_total_par or sigma_total_perp).
 
-    cscat_par_ratio = (cscat_detected_par/cext_total).to("").magnitude
-    cscat_perp_ratio = (cscat_detected_perp/cext_total).to("").magnitude
-
-    reflected_par = t_medium_sample[0] * cscat_par_ratio * factor
-    reflected_perp = t_medium_sample[1] * cscat_perp_ratio * factor
+    reflected = t_medium_sample * (cscat_detected/cext_total) * factor
 
     # if the detector captures specular reflections, include them in the
     # reflectance
     specular_angle = np.pi - incident_angle
     if theta_refr_min < specular_angle <= theta_refr_max:
-        reflected_par = reflected_par + r_medium_sample[0]
-        reflected_perp = reflected_perp +  r_medium_sample[1]
-    reflectance = (reflected_par + reflected_perp)/2
+        reflected = reflected + r_medium_sample
+    reflectance = (reflected[0] + reflected[1])/2
 
-    return (reflectance, reflected_par, reflected_perp, asymmetry_parameter,
+    return (reflectance, reflected[0], reflected[1], asymmetry_parameter,
             transport_length)
 
 

@@ -1002,8 +1002,8 @@ def test_reflection_core_shell():
     # Compare old outputs (before adding core-shell capability) and new outputs
     # for a non-core-shell using Maxwell-Garnett
     assert_allclose(refl1.to_numpy(), refl.magnitude)
-    assert_allclose(g1.magnitude, g.magnitude)
-    assert_allclose(lstar1.to('nm').magnitude, lstar.magnitude)
+    assert_allclose(g1, g.magnitude)
+    assert_allclose(lstar1, lstar.to_preferred().magnitude)
 
     # Compare a non-core-shell and a core-shell with shell index of air using
     # Bruggeman.
@@ -1017,9 +1017,8 @@ def test_reflection_core_shell():
     assert volfrac_refl2 != volfrac_refl3
     # next do numpy comparison on values
     assert_allclose(refl2, refl3, rtol=1e-5)
-    assert_allclose(g2.magnitude, g3.magnitude, rtol=1e-5)
-    assert_allclose(lstar2.to('mm').magnitude, lstar3.to('mm').magnitude,
-                    rtol=1e-5)
+    assert_allclose(g2, g3, rtol=1e-5)
+    assert_allclose(lstar2, lstar3, rtol=1e-5)
 
     # Test that the reflectance is the same for a core-shell that absorbs (with
     # the same refractive indices for all layers) and a non-core-shell that
@@ -1089,8 +1088,8 @@ def test_reflection_absorbing_particle():
     # these should be pretty close
     rtol = 1e-13
     xr.testing.assert_allclose(refl_mg1, refl_mg2, rtol=rtol)
-    assert_allclose(g_mg1.magnitude, g_mg2.magnitude, rtol=rtol)
-    assert_allclose(lstar_mg1.magnitude, lstar_mg2.magnitude, rtol=rtol)
+    xr.testing.assert_allclose(g_mg1, g_mg2, rtol=rtol)
+    xr.testing.assert_allclose(lstar_mg1, lstar_mg2, rtol=rtol)
 
     # Outputs before refactoring structcol
     refl_mg1_before = 0.2963964709617333
@@ -1098,17 +1097,17 @@ def test_reflection_absorbing_particle():
     g_mg1_before = -0.18774057969370997
     g_mg2_before = -0.18774057969370903
     # this is in nm
-    lstar_mg1_before = 10810.069633192961
+    lstar_mg1_before = sc.Quantity(10810.069633192961, "nm")
     # lstar_mg2_before = 10810.069633193001
     # lstar_mg2 and lstar_mg1 are now equal, so we don't need to compare to
     # lstar_mg2_before
 
     assert_allclose(refl_mg1.to_numpy(), refl_mg1_before)
     assert_allclose(refl_mg2.to_numpy(), refl_mg2_before)
-    assert_allclose(g_mg1.magnitude, g_mg1_before)
-    assert_allclose(g_mg2.magnitude, g_mg2_before)
-    assert_allclose(lstar_mg1.to('nm').magnitude, lstar_mg1_before)
-    assert_allclose(lstar_mg1.magnitude, lstar_mg2.magnitude)
+    assert_allclose(g_mg1.to_numpy(), g_mg1_before)
+    assert_allclose(g_mg2.to_numpy(), g_mg2_before)
+    assert_allclose(lstar_mg1, lstar_mg1_before.to_preferred().magnitude)
+    xr.testing.assert_allclose(lstar_mg1, lstar_mg2)
 
     # With Bruggeman
     model = sc.model.HardSpheres(sphere_real, volume_fraction, index_matrix,
@@ -1120,8 +1119,8 @@ def test_reflection_absorbing_particle():
 
     rtol = 1e-13
     xr.testing.assert_allclose(refl_bg1, refl_bg2, rtol=rtol)
-    assert_allclose(g_bg1.magnitude, g_bg2.magnitude, rtol=rtol)
-    assert_allclose(lstar_bg1.magnitude, lstar_bg2.magnitude, rtol=rtol)
+    xr.testing.assert_allclose(g_bg1, g_bg2, rtol=rtol)
+    xr.testing.assert_allclose(lstar_bg1, lstar_bg2, rtol=rtol)
 
     # Outputs before refactoring structcol
     refl_bg1_before = 0.2685710414987676
@@ -1129,15 +1128,15 @@ def test_reflection_absorbing_particle():
     g_bg1_before = -0.17681566915117486
     g_bg2_before = -0.17681566915117486
     # these are in nm
-    lstar_bg1_before = 11593.280877304634
-    lstar_bg2_before = 11593.280877304634
+    lstar_bg1_before = sc.Quantity(11593.280877304634, "nm")
+    lstar_bg2_before = sc.Quantity(11593.280877304634, "nm")
 
     assert_allclose(refl_bg1.to_numpy(), refl_bg1_before)
     assert_allclose(refl_bg2.to_numpy(), refl_bg2_before)
-    assert_allclose(g_bg1.magnitude, g_bg1_before)
-    assert_allclose(g_bg2.magnitude, g_bg2_before)
-    assert_allclose(lstar_bg1.to('nm').magnitude, lstar_bg1_before)
-    assert_allclose(lstar_bg2.to('nm').magnitude, lstar_bg2_before)
+    assert_allclose(g_bg1.to_numpy(), g_bg1_before)
+    assert_allclose(g_bg2.to_numpy(), g_bg2_before)
+    assert_allclose(lstar_bg1, lstar_bg1_before.to_preferred().magnitude)
+    assert_allclose(lstar_bg2, lstar_bg2_before.to_preferred().magnitude)
 
     # test that the reflectance is (almost) the same when using an
     # almost-non-absorbing index vs a non-absorbing index
@@ -1155,9 +1154,8 @@ def test_reflection_absorbing_particle():
 
     rtol = 1e-3
     xr.testing.assert_allclose(refl_bg1, refl_bg3, rtol=rtol)
-    assert_allclose(g_bg1.magnitude, g_bg3.magnitude, rtol=rtol)
-    assert_allclose(lstar_bg1.to('mm').magnitude, lstar_bg3.to('mm').magnitude,
-                    rtol=rtol)
+    xr.testing.assert_allclose(g_bg1, g_bg3, rtol=rtol)
+    xr.testing.assert_allclose(lstar_bg1, lstar_bg3, rtol=rtol)
 
 
 def test_calc_g():
@@ -1194,13 +1192,13 @@ def test_calc_g():
     x = mie.size_parameter(wavelength, n_sample.to_numpy().squeeze(), radius)
     g2 = mie.calc_g(m,x)
 
-    assert_array_almost_equal(g1.magnitude, g2)
+    assert_array_almost_equal(g1, g2)
 
     # Outputs before refactoring structcol
     g1_before = 0.5064750277811477
     g2_before = 0.5064757158664487
 
-    assert_allclose(g1.magnitude, g1_before)
+    assert_allclose(g1, g1_before)
     assert_allclose(g2, g2_before)
 
 def test_transport_length_dilute():
@@ -1237,8 +1235,7 @@ def test_transport_length_dilute():
 
     lstar_mie = 1 / (number_density * cscat * (1-g))
 
-    assert_allclose(lstar_model.to('m').magnitude, lstar_mie.to('m').magnitude,
-                    rtol=1e-5)
+    assert_allclose(lstar_model, lstar_mie.to_preferred().magnitude, rtol=1e-5)
 
 def test_reflection_absorbing_matrix():
     # test that the reflections with a real n_matrix and with a complex
@@ -1263,8 +1260,8 @@ def test_reflection_absorbing_matrix():
     # should be very close
     rtol = 1e-13
     xr.testing.assert_allclose(refl_mg1, refl_mg2, rtol=rtol)
-    assert_allclose(g_mg1.magnitude, g_mg2.magnitude, rtol=rtol)
-    assert_allclose(lstar_mg1.magnitude, lstar_mg2.magnitude, rtol=rtol)
+    xr.testing.assert_allclose(g_mg1, g_mg2, rtol=rtol)
+    xr.testing.assert_allclose(lstar_mg1, lstar_mg2, rtol=rtol)
 
     # With Bruggeman
     model = sc.model.HardSpheres(sphere, volume_fraction, index_matrix_real,
@@ -1275,8 +1272,8 @@ def test_reflection_absorbing_matrix():
     refl_bg2, _, _, g_bg2, lstar_bg2 = sc.model.reflection(model, wavelength)
 
     xr.testing.assert_allclose(refl_bg1, refl_bg2, rtol=rtol)
-    assert_allclose(g_bg1.magnitude, g_bg2.magnitude, rtol=rtol)
-    assert_allclose(lstar_bg1.magnitude, lstar_bg2.magnitude, rtol=rtol)
+    xr.testing.assert_allclose(g_bg1, g_bg2, rtol=rtol)
+    xr.testing.assert_allclose(lstar_bg1, lstar_bg2, rtol=rtol)
 
     # test that the reflectance is (almost) the same when using an
     # almost-non-absorbing index vs a non-absorbing index
@@ -1289,9 +1286,8 @@ def test_reflection_absorbing_matrix():
 
     rtol=1e-5
     xr.testing.assert_allclose(refl_bg1, refl_bg3, rtol=rtol)
-    assert_allclose(g_bg1.magnitude, g_bg3.magnitude, rtol=rtol)
-    assert_allclose(lstar_bg1.to('mm').magnitude, lstar_bg3.to('mm').magnitude,
-                    rtol=rtol)
+    xr.testing.assert_allclose(g_bg1, g_bg3, rtol=rtol)
+    xr.testing.assert_allclose(lstar_bg1, lstar_bg3, rtol=rtol)
 
 
 def test_reflection_polydispersity():
@@ -1337,25 +1333,26 @@ def test_reflection_polydispersity():
     refl2, _, _, g2, lstar2 = sc.model.reflection(model, wavelength)
 
     xr.testing.assert_allclose(refl, refl2)
-    assert_allclose(g.magnitude, g2.magnitude)
-    assert_allclose(lstar.to('mm').magnitude, lstar2.to('mm').magnitude)
+    xr.testing.assert_allclose(g, g2)
+    xr.testing.assert_allclose(lstar, lstar2)
 
     # Outputs before refactoring structcol
     refl_before = 0.021202873774022364
     refl2_before = 0.0212028737585751
     g_before = 0.6149959692900278
     g2_before = 0.6149959696365628 # A: 0.6149959692900626
-    lstar_before = 0.0037795694345017063
-    lstar2_before = 0.0037795694345017063 # V: 0.0037899271938978255, A: 0.0037899271967178523
+    lstar_before = sc.Quantity(0.0037795694345017063, "mm")
+    # V: 0.0037899271938978255, A: 0.0037899271967178523
+    lstar2_before = sc.Quantity(0.0037795694345017063, "mm")
 
     rtol = 1e-13
     assert_allclose(refl.to_numpy(), refl_before, rtol=rtol)
     assert_allclose(refl2.to_numpy(), refl2_before, rtol=rtol)
-    assert_allclose(g.magnitude, g_before, rtol=rtol)
-    assert_allclose(g2.magnitude, g2_before, rtol=rtol)
+    assert_allclose(g.to_numpy(), g_before, rtol=rtol)
+    assert_allclose(g2.to_numpy(), g2_before, rtol=rtol)
     # lstar results aren't quite as close
-    assert_allclose(lstar.to('mm').magnitude, lstar_before)
-    assert_allclose(lstar2.to('mm').magnitude, lstar2_before)
+    assert_allclose(lstar, lstar_before.to_preferred())
+    assert_allclose(lstar2, lstar2_before.to_preferred())
 
     # test that the reflectance using only the structure factor is the same
     # using the polydisperse formula vs using Percus-Yevick in the limit of
@@ -1377,25 +1374,24 @@ def test_reflection_polydispersity():
 
 
     xr.testing.assert_allclose(refl3, refl4)
-    assert_allclose(g3.magnitude, g4.magnitude)
-    assert_array_almost_equal(lstar3.to('mm').magnitude,
-                              lstar4.to('mm').magnitude)
+    xr.testing.assert_allclose(g3, g4)
+    assert_array_almost_equal(lstar3, lstar4)
 
     # Outputs before refactoring structcol
     refl3_before= 0.6310965269823348
     refl4_before = 0.6310965259195878
     g3_before = -0.635630839621477
     g4_before = -0.6356308390717892
-    lstar3_before = 0.0002005604473366244
-    lstar4_before = 0.00020056044751316733
+    lstar3_before = sc.Quantity(0.0002005604473366244, "mm")
+    lstar4_before = sc.Quantity(0.00020056044751316733, "mm")
 
     rtol = 1e-13
     assert_allclose(refl3.to_numpy(), refl3_before)
     assert_allclose(refl4.to_numpy(), refl4_before)
-    assert_allclose(g3.magnitude, g3_before)
-    assert_allclose(g4.magnitude, g4_before)
-    assert_allclose(lstar3.to('mm').magnitude, lstar3_before, rtol=rtol)
-    assert_allclose(lstar4.to('mm').magnitude, lstar4_before, rtol=rtol)
+    assert_allclose(g3.to_numpy(), g3_before)
+    assert_allclose(g4.to_numpy(), g4_before)
+    assert_allclose(lstar3, lstar3_before.to_preferred(), rtol=rtol)
+    assert_allclose(lstar4, lstar4_before.to_preferred(), rtol=rtol)
 
     # test that the reflectance using both the structure and form factors is
     # the same using the polydisperse formula vs using Mie and Percus-Yevick in
@@ -1408,23 +1404,24 @@ def test_reflection_polydispersity():
     refl6, _, _, g6, lstar6 = sc.model.reflection(model, wavelength)
 
     xr.testing.assert_allclose(refl5, refl6)
-    assert_allclose(g5.magnitude, g6.magnitude)
-    assert_allclose(lstar5.to('mm').magnitude, lstar6.to('mm').magnitude)
+    xr.testing.assert_allclose(g5, g6)
+    xr.testing.assert_allclose(lstar5, lstar6)
 
     # Outputs before refactoring structcol
     refl5_before = 0.2685710414987676
     refl6_before = 0.2685710407296461
     g5_before = -0.17681566915117486
     g6_before = -0.1768156684026972
-    lstar5_before = 0.011593280877304636
-    lstar6_before = 0.011593280876210265 # A/V: 0.011625051809100308
+    lstar5_before = sc.Quantity(0.011593280877304636, "mm")
+    # A/V: 0.011625051809100308
+    lstar6_before = sc.Quantity(0.011593280876210265, "mm")
 
     assert_allclose(refl5.to_numpy(), refl5_before)
     assert_allclose(refl6.to_numpy(), refl6_before)
-    assert_allclose(g5.magnitude, g5_before)
-    assert_allclose(g6.magnitude, g6_before)
-    assert_allclose(lstar5.to('mm').magnitude, lstar5_before)
-    assert_allclose(lstar6.to('mm').magnitude, lstar6_before)
+    assert_allclose(g5.to_numpy(), g5_before)
+    assert_allclose(g6.to_numpy(), g6_before)
+    assert_allclose(lstar5, lstar5_before.to_preferred())
+    assert_allclose(lstar6, lstar6_before.to_preferred())
 
     # test that the reflectance is the same for a polydisperse monospecies
     # and a bispecies with equal types of particles
@@ -1446,9 +1443,8 @@ def test_reflection_polydispersity():
     # these should be almost exactly the same
     rtol = 1e-14
     xr.testing.assert_allclose(refl7, refl8, rtol=rtol)
-    assert_allclose(g7.magnitude, g8.magnitude, rtol=rtol)
-    assert_allclose(lstar7.to('mm').magnitude, lstar8.to('mm').magnitude,
-                    rtol=rtol)
+    xr.testing.assert_allclose(g7, g8, rtol=rtol)
+    xr.testing.assert_allclose(lstar7, lstar8, rtol=rtol)
 
     # test that the reflectance is the same regardless of the order in which
     # the radii are specified
@@ -1468,9 +1464,8 @@ def test_reflection_polydispersity():
     # these should be almost exactly the same
     rtol = 1e-13
     xr.testing.assert_allclose(refl9, refl10, rtol=rtol)
-    assert_allclose(g9.magnitude, g10.magnitude, rtol=rtol)
-    assert_allclose(lstar9.to('mm').magnitude, lstar10.to('mm').magnitude,
-                    rtol=rtol)
+    xr.testing.assert_allclose(g9, g10, rtol=rtol)
+    xr.testing.assert_allclose(lstar9, lstar10, rtol=rtol)
 
 # many tests are repeated here from test_reflection_polydispersity, but some
 # have variations (for example, finite thickness). Also tolerances on the
@@ -1516,25 +1511,30 @@ def test_reflection_polydispersity_with_absorption():
     refl2, _, _, g2, lstar2 = sc.model.reflection(model, wavelength)
 
     xr.testing.assert_allclose(refl, refl2)
-    assert_allclose(g.magnitude, g2.magnitude)
-    assert_allclose(lstar.to('mm').magnitude, lstar2.to('mm').magnitude)
+    xr.testing.assert_allclose(g, g2)
+    xr.testing.assert_allclose(lstar, lstar2)
 
     # Outputs before refactoring structcol
     refl_before = 0.020910087489548684 # A/V:0.020791487299024698
     refl2_before = 0.020909855930303707 # A:0.020909855944662756 # A/V:0.02079125872215926
     g_before = 0.6150771860765984 # A/V:0.61562921974002 # A/V:726274264.1349005
     g2_before = 0.6150771864230516# A:0.6150771860766332 #A/V:0.6156292197400548 #A/V:726274264.1349416
-    lstar_before = 0.0037892294836040373 #Before updating absorption in single scat:0.0044653875445681166 #A/V:0.0044717814146885779 #A/V:0.006279358811781641
-    lstar2_before = 0.0037996137159816796 #Before updating absorption in single scat: 0.00447762476116312 #A:0.0044776247644925321 #A/V:0.0044840361567639936 #A/V:0.006296567149019748
+    #Before updating absorption in single scat:0.0044653875445681166
+    #A/V:0.0044717814146885779 #A/V:0.006279358811781641
+    lstar_before = sc.Quantity(0.0037892294836040373, "mm")
+    #Before updating absorption in single scat: 0.00447762476116312
+    #A:0.0044776247644925321 #A/V:0.0044840361567639936
+    #A/V:0.006296567149019748
+    lstar2_before = sc.Quantity(0.0037996137159816796, "mm")
 
     # rtols here are based on decimal precisions of assert_array_almost_equal
     # tests in previous revision
     assert_allclose(refl.to_numpy(), refl_before, rtol=1e-2)
     assert_allclose(refl2.to_numpy(), refl2_before, rtol=1e-2)
-    assert_allclose(g.magnitude, g_before)
-    assert_allclose(g2.magnitude, g2_before)
-    assert_allclose(lstar.to('mm').magnitude, lstar_before, rtol=1e-2)
-    assert_allclose(lstar2.to('mm').magnitude, lstar2_before, rtol=1e-2)
+    assert_allclose(g.to_numpy(), g_before)
+    assert_allclose(g2.to_numpy(), g2_before)
+    assert_allclose(lstar.to_numpy(), lstar_before.to_preferred(), rtol=1e-2)
+    assert_allclose(lstar2.to_numpy(), lstar2_before.to_preferred(), rtol=1e-2)
 
     # test that the reflectance using only the structure factor is the same
     # using the polydisperse formula vs using Percus-Yevick in the limit of
@@ -1556,8 +1556,8 @@ def test_reflection_polydispersity_with_absorption():
                                                   thickness=thickness)
 
     xr.testing.assert_allclose(refl3, refl4)
-    assert_allclose(g3.magnitude, g4.magnitude)
-    assert_allclose(lstar3.to('mm').magnitude, lstar4.to('mm').magnitude)
+    xr.testing.assert_allclose(g3, g4)
+    xr.testing.assert_allclose(lstar3, lstar4)
 
     # Outputs before refactoring structcol. Changed a couple values after
     # re-implementing absorption into model.reflection() (now uses n_sample.imag
@@ -1572,8 +1572,8 @@ def test_reflection_polydispersity_with_absorption():
     # does not depend on the magnitude of the cross-section, so can be compared
     # to previous results.
     rtol = 1e-11
-    assert_allclose(g3.magnitude, g3_before, rtol=rtol)
-    assert_allclose(g4.magnitude, g4_before, rtol=rtol)
+    assert_allclose(g3.to_numpy(), g3_before, rtol=rtol)
+    assert_allclose(g4.to_numpy(), g4_before, rtol=rtol)
 
     # test that the reflectance using both the structure and form factors is
     # the same using the polydisperse formula vs using Mie and Percus-Yevick in
@@ -1588,26 +1588,30 @@ def test_reflection_polydispersity_with_absorption():
                                                   thickness=thickness)
 
     xr.testing.assert_allclose(refl5, refl6)
-    assert_allclose(g5.magnitude, g6.magnitude)
-    assert_allclose(lstar5.to('mm').magnitude, lstar6.to('mm').magnitude)
+    xr.testing.assert_allclose(g5, g6)
+    xr.testing.assert_allclose(lstar5, lstar6)
 
     # Outputs before refactoring structcol
     refl5_before = 0.11395667616828457 # A/V:0.11277597784758357
     refl6_before = 0.11377420192668616 #A/V:0.11259532698024184
     g5_before = -0.176272600668118 # A/V:-0.17376384100464944 #A/V:-209.15733480514967
     g6_before = -0.1762725998533963 # A/V:-0.17376384019461683 #A/V:-209.1573338372998
-    lstar5_before = 0.01163694691 #Before updating absorption in single scat: A/V:0.013809880819376879 #A/V:0.013405648948885825
-    lstar6_before = 0.011668837507 #Before updating absorption in single scat: A/V:0.013847726256293521 #A/V:0.013442386605693767
+    #Before updating absorption in single scat: A/V:0.013809880819376879
+    #A/V:0.013405648948885825
+    lstar5_before = sc.Quantity(0.01163694691, "mm")
+    #Before updating absorption in single scat: A/V:0.013847726256293521
+    #A/V:0.013442386605693767
+    lstar6_before = sc.Quantity(0.011668837507, "mm")
 
     # output values above for reflectances are off by almost 10%. rtols based
     # on previous revision's (decimal) tolerances for
     # assert_array_almost_equal()
     assert_allclose(refl5.to_numpy(), refl5_before, rtol=1e-1)
     assert_allclose(refl6.to_numpy(), refl6_before, rtol=1e-1)
-    assert_allclose(g5.magnitude, g5_before)
-    assert_allclose(g6.magnitude, g6_before)
-    assert_allclose(lstar5.to('mm').magnitude, lstar5_before, rtol=1e-2)
-    assert_allclose(lstar6.to('mm').magnitude, lstar6_before, rtol=1e-2)
+    assert_allclose(g5.to_numpy(), g5_before)
+    assert_allclose(g6.to_numpy(), g6_before)
+    assert_allclose(lstar5, lstar5_before.to_preferred(), rtol=1e-2)
+    assert_allclose(lstar6, lstar6_before.to_preferred(), rtol=1e-2)
 
     # test that the reflectances are (almost) the same when using an
     # almost-non-absorbing vs an non-absorbing polydisperse system
@@ -1637,9 +1641,8 @@ def test_reflection_polydispersity_with_absorption():
 
     rtol = 1e-13
     xr.testing.assert_allclose(refl7, refl8, rtol=rtol)
-    assert_allclose(g7.magnitude, g8.magnitude, rtol=rtol)
-    assert_allclose(lstar7.to('mm').magnitude, lstar8.to('mm').magnitude,
-                    rtol=rtol)
+    xr.testing.assert_allclose(g7, g8, rtol=rtol)
+    xr.testing.assert_allclose(lstar7, lstar8, rtol=rtol)
 
     ## When there are 2 mean diameters
     sphere2_real = sc.Sphere(index_particle2_real, radius2)
@@ -1658,9 +1661,8 @@ def test_reflection_polydispersity_with_absorption():
                                                      thickness=thickness)
 
     xr.testing.assert_allclose(refl9, refl10, rtol=1e-2)
-    assert_allclose(g9.magnitude, g10.magnitude, rtol=1e-1)
-    assert_allclose(lstar9.to('mm').magnitude, lstar10.to('mm').magnitude,
-                    rtol=1e-2)
+    xr.testing.assert_allclose(g9, g10, rtol=1e-1)
+    xr.testing.assert_allclose(lstar9, lstar10, rtol=1e-2)
     # TODO: we should be careful with this last test. Interestingly, the values
     # for refl9 and refl10 become incrasingly closer to each other when the pdi
     # becomes large (~33%). No bugs were found after a careful examination, so
@@ -1693,8 +1695,8 @@ def test_g_transport_length():
     _, _, _, g2, lstar2 = sc.model.reflection(model, wavelength,
                                               thickness=thickness2)
 
-    assert_equal(g.magnitude, g2.magnitude)
-    assert_equal(lstar.to('mm').magnitude, lstar2.to('mm').magnitude)
+    xr.testing.assert_equal(g, g2)
+    xr.testing.assert_equal(lstar, lstar2)
 
 def test_reflection_throws_warnings_for_unspecified_parameters():
     # test that warnings are thrown when trying to calculate values for
