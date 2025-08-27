@@ -858,9 +858,9 @@ def test_theta_refraction():
     # into a smaller range of angles (>90-180 deg). This test checks that the
     # the reflectance is 0 when the angles between theta_min and theta_max are
     # outside the range of refracted scattered angles.
-    incident_angle = sc.Quantity('0.0 deg')
+    incident_angle = sc.Quantity("0.0 deg")
     wavelength = sc.Quantity(np.linspace(400, 800, 11), "nm")
-    radius = sc.Quantity('100.0 nm')
+    radius = sc.Quantity("100.0 nm")
     volume_fraction = 0.5
     index_particle = sc.Index.constant(1.0)
     particle = sc.Sphere(index_particle, radius)
@@ -881,7 +881,7 @@ def test_theta_refraction():
     # thickness is infinite, and all light is scattered, even under
     # index-matching conditions
     refl = sc.model.reflection(model, wavelength, detector=detector,
-                               thickness=sc.Quantity(10, 'um'))[0]
+                               thickness=sc.Quantity(10, "um"))[0]
 
     # make sure the reflectance is equal to fresnel
     index_sample = sc.EffectiveIndex.from_particle(particle, volume_fraction,
@@ -889,7 +889,8 @@ def test_theta_refraction():
     n_sample = index_sample(wavelength)
     r_fresnel, _ = sc.model.fresnel_coeffs(n_medium, n_sample, incident_angle)
     r_fresnel_avg = (r_fresnel[0] + r_fresnel[1]) / 2
-    xr.testing.assert_equal(refl, r_fresnel_avg.drop_vars(sc.Coord.FRESNEL))
+    xr.testing.assert_equal(refl.drop_vars(sc.Coord.POL),
+                            r_fresnel_avg.drop_vars(sc.Coord.FRESNEL))
 
     # set theta_max to be slightly smaller than the theta at which light
     # scattered at pi/2 is refracted (= pi - arcsin(1/2) = 2.61799388, where

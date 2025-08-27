@@ -645,13 +645,9 @@ def reflection(model, wavelen,
     # sample)
     r_medium_sample, t_medium_sample = fresnel_coeffs(n_medium, n_sample,
                                                       incident_angle)
-    r_medium_sample = r_medium_sample
-    t_medium_sample = t_medium_sample
 
-    theta_refr_min = detector.theta_min
-    theta_refr_max = detector.theta_max
-    phi_min = detector.phi_min
-    phi_max = detector.phi_max
+    theta_refr_min, theta_refr_max = detector.theta_min, detector.theta_max
+    phi_min, phi_max = detector.phi_min, detector.phi_max
     small_angle = small_angle.to('rad').magnitude
     # Because the detector is in the medium, it captures only the scattered
     # light that is refracted into its angular range. Here we map the range of
@@ -743,8 +739,6 @@ def reflection(model, wavelen,
         asymmetry = (asymmetry * conc).sum(sc.Coord.SPECIES)
         transport_cscat = (transport_cscat * conc).sum(sc.Coord.SPECIES)
 
-    cscat_total = cscat_total.loc["avg"]
-    asymmetry = asymmetry.loc["avg"]
     asymmetry_parameter = asymmetry/cscat_total
 
     # calculate the transport length. Requires number density, which must be
@@ -781,13 +775,13 @@ def reflection(model, wavelen,
         m = sc.index.ratio(n_particle, n_sample)
         cross_sections = mie.calc_cross_sections(m.to_numpy(), x.to_numpy())
         k = sc.wavevector(n_sample)
-        cabs_total = (cross_sections[2]/np.abs(k)**2)
+        cabs_total = cross_sections[2] / np.abs(k)**2
     else:
         warnings.warn("Absorption cross-section cannot be calculated for "
                       "model.")
         cabs_total = 0
 
-    cext_total = cscat_total + cabs_total
+    cext_total = (cscat_total + cabs_total).loc["avg"]
 
     # now eq. 6 for the total reflection
     if thickness is None:
@@ -795,33 +789,36 @@ def reflection(model, wavelen,
         factor = 1.0
     elif rho is not None:
         # use Beer-Lambert law to account for attenuation
-        factor = ((1.0 - np.exp(-rho*cext_total*thickness))
+        factor = ((1.0 - np.exp(-rho * cext_total * thickness))
                   * cscat_total/cext_total)
+        factor = factor.sel({sc.Coord.POL: "avg"})
     else:
         # Assume infinite thickness
         warnings.warn("Number density cannot be calculated for model. "
                       "Assuming infinite thickness")
         factor = 1.0
 
-    # one critical difference from Sofia's original code is that this code
-    # calculates the reflected intensity in each polarization channel
-    # separately, then averages them. The original code averaged the
-    # transmission coefficients for the two polarization channels before
-    # integrating. However, we do average the total cross section to normalize
-    # the reflection cross-sections (that is, we use sigma_total rather than
-    # sigma_total_par or sigma_total_perp).
-
-    reflected = t_medium_sample * (cscat_detected/cext_total) * factor
+    # Calculate the reflected intensity in each polarization channel
+    # separately, then average them. Note, however, we do average the
+    # extinction cross-section to normalize
+    reflectance = t_medium_sample * (cscat_detected/cext_total) * factor
 
     # if the detector captures specular reflections, include them in the
     # reflectance
     specular_angle = np.pi - incident_angle
     if theta_refr_min < specular_angle <= theta_refr_max:
-        reflected = reflected + r_medium_sample
-    reflectance = (reflected[0] + reflected[1])/2
+        reflectance = reflectance + r_medium_sample
+    reflectance_avg = reflectance.sum(sc.Coord.POL) / 2
+    reflectance = xr.concat((reflectance.isel({sc.Coord.POL: 0}, drop=True),
+                             reflectance.isel({sc.Coord.POL: 1}, drop=True),
+                             reflectance_avg), sc.Coord.POL)
+    reflectance.coords[sc.Coord.POL] = ["par", "perp", "avg"]
 
-    return (reflectance, reflected[0], reflected[1], asymmetry_parameter,
-            transport_length)
+    if transport_length is not None:
+        transport_length = transport_length.loc["avg"]
+    asymmetry_parameter = asymmetry_parameter.loc["avg"]
+    return (reflectance[2], reflectance[0], reflectance[1],
+            asymmetry_parameter, transport_length)
 
 
 def absorption_cross_section(form_type, m, diameters, n_matrix, x,
