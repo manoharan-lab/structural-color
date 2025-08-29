@@ -579,12 +579,12 @@ def reflection(model, wavelen,
         unspecified, a hemispherical reflectance detector is used
     incident_angle : structcol.Quantity [angle] (optional)
         Incident angle, measured from the normal
-    num_angles: integer
+    num_angles : integer
         Number of angles to use in evaluation of the cross-section, which is
         done by numerical integration (fixed quadrature). The default value
         (200) seems to do OK for 280-nm-diameter spheres, but could use more
         testing.
-    small_angle: structcol.Quantity [dimensionless] (optional)
+    small_angle : structcol.Quantity [dimensionless] (optional)
         Because of numerical instabilities, some structure factor calculations
         may return nan when evaluated at q=0. This doesn't matter when
         calculating the scattering cross section because sin(0) = 0, so the
@@ -598,10 +598,14 @@ def reflection(model, wavelen,
 
     Returns
     -------
-    float (5-tuple):
-        fraction of light reflected from sample for unpolarized light, parallel
-        polarization, and perpendicular polarization; asymmetry parameter and
-        transport length for unpolarized light
+    `xr.Dataset`: containing the following DataArrays, all as a function of
+        input wavelengths, volume fractions, and of polarization: parallel
+        ("par"), perpendicular ("perp"), and unpolarized ("avg"):
+        - "reflectance": fraction of light reflected
+        - "g": asymmetry parameter
+        - "lstar": transport length
+        - "cscat": integrated scattering cross-section
+        - "cscat_transport": transport cross-section
 
     Notes
     -----
@@ -718,7 +722,6 @@ def reflection(model, wavelen,
     cosines = np.cos(diff_cs_total.coords[sc.Coord.THETA])
     asymmetry = _integrate_intensity(diff_cs_total * cosines)
     # calculate transport cscat
-    # not currently returned, but could be useful in the future
     transport_cscat = _integrate_intensity(diff_cs_total * (1-cosines))
 
     if (isinstance(model, PolydisperseHardSpheres) and
@@ -808,17 +811,24 @@ def reflection(model, wavelen,
     specular_angle = np.pi - incident_angle
     if theta_refr_min < specular_angle <= theta_refr_max:
         reflectance = reflectance + r_medium_sample
+
+    # calculate average of polarization and add to DataArray
     reflectance_avg = reflectance.sum(sc.Coord.POL) / 2
     reflectance = xr.concat((reflectance.isel({sc.Coord.POL: 0}, drop=True),
                              reflectance.isel({sc.Coord.POL: 1}, drop=True),
                              reflectance_avg), sc.Coord.POL)
     reflectance.coords[sc.Coord.POL] = ["par", "perp", "avg"]
 
-    if transport_length is not None:
-        transport_length = transport_length.loc["avg"]
-    asymmetry_parameter = asymmetry_parameter.loc["avg"]
-    return (reflectance[2], reflectance[0], reflectance[1],
-            asymmetry_parameter, transport_length)
+    # arrange dims to canonical order so that .loc["avg"] works
+    reflectance = reflectance.transpose(sc.Coord.POL, ...)
+
+    model_output = xr.Dataset({"reflectance": reflectance,
+                               "g": asymmetry_parameter,
+                               "lstar": transport_length,
+                               "cscat": cscat_total,
+                               "cscat_transport": transport_cscat})
+
+    return model_output
 
 
 def absorption_cross_section(form_type, m, diameters, n_matrix, x,

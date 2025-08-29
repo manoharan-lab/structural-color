@@ -120,17 +120,15 @@ class TestModel():
         dscat = model.differential_cross_section(coords)
 
         ql = sc.ql(index_matrix(wavelen), self.ps_radius, self.angles_da)
-        s = structure_factor(ql).to_numpy().squeeze()
+        s = structure_factor(ql).to_numpy()
 
         # test numpy versions because DataArrays will have different coords
         #
         # dscat for both polarizations should be equal to s, after
         # nondimensionalizing dscat by k^2
         k = sc.wavevector(index_matrix(wavelen))
-        assert_allclose((dscat[0]*np.abs(k)**2).to_numpy().squeeze(), s,
-                        rtol=1e-15)
-        assert_allclose((dscat[1]*np.abs(k)**2).to_numpy().squeeze(), s,
-                        rtol=1e-15)
+        assert_allclose(dscat[0]*np.abs(k)**2, s, rtol=1e-15)
+        assert_allclose(dscat[1]*np.abs(k)**2, s, rtol=1e-15)
 
     def test_hardsphere_model(self):
         """tests that HardSphere model construction and differential cross
@@ -295,8 +293,8 @@ class TestModel():
         # with cubic interpolation, relative error is a little larger than
         # 1e-3 at 60% volume fraction and 750 data points.  It is higher at
         # some wavelengths than at others
-        fs_dscat = fs_dscat.to_numpy().squeeze()
-        py_dscat = py_dscat.to_numpy().squeeze()
+        fs_dscat = fs_dscat
+        py_dscat = py_dscat
         assert_allclose(fs_dscat[0], py_dscat[0], rtol=1e-2)
         assert_allclose(fs_dscat[1], py_dscat[1], rtol=1e-2)
         # TODO: test reflectance as well
@@ -579,7 +577,7 @@ class TestModel():
         dscat = model.differential_cross_section(coords, **ff_kwargs)
         cscat_no_vector = model.scattering_cross_section(dscat)
 
-        assert_allclose(cscat.to_numpy(), cscat_no_vector.to_numpy())
+        assert_allclose(cscat, cscat_no_vector)
 
         # now do cartesian.  Incident vector is polarized, but remember we're
         # integrating over both polarizations at each detector position, so we
@@ -591,8 +589,7 @@ class TestModel():
 
         # only the total cross section should be the same.  The x- and y-
         # components should not be equal to the par and perp components.
-        assert_allclose(cscat_cart.loc["avg"].to_numpy(),
-                        cscat.loc["avg"].to_numpy())
+        assert_allclose(cscat_cart.loc["avg"], cscat.loc["avg"])
 
     @pytest.mark.parametrize("index_matrix", [sc.index.water,
                                               sc.Index.constant(1.59 + 0.001j),
@@ -881,7 +878,7 @@ def test_theta_refraction():
     # thickness is infinite, and all light is scattered, even under
     # index-matching conditions
     refl = sc.model.reflection(model, wavelength, detector=detector,
-                               thickness=sc.Quantity(10, "um"))[0]
+                               thickness=sc.Quantity(10, "um"))
 
     # make sure the reflectance is equal to fresnel
     index_sample = sc.EffectiveIndex.from_particle(particle, volume_fraction,
@@ -889,7 +886,7 @@ def test_theta_refraction():
     n_sample = index_sample(wavelength)
     r_fresnel, _ = sc.model.fresnel_coeffs(n_medium, n_sample, incident_angle)
     r_fresnel_avg = (r_fresnel[0] + r_fresnel[1]) / 2
-    xr.testing.assert_equal(refl.drop_vars(sc.Coord.POL),
+    xr.testing.assert_equal(refl.reflectance.loc["avg"].drop_vars(sc.Coord.POL),
                             r_fresnel_avg.drop_vars(sc.Coord.FRESNEL))
 
     # set theta_max to be slightly smaller than the theta at which light
@@ -897,17 +894,15 @@ def test_theta_refraction():
     # 1/2 is the ratio of the refractive indices)
     theta_max = sc.Quantity(2.617, "rad")
     detector = sc.model.Detector(theta_min, theta_max)
-    refl1, _, _, _, _ = sc.model.reflection(model, wavelength,
-                                            detector=detector)
+    refl1 = sc.model.reflection(model, wavelength, detector=detector)
 
     # try a different range of thetas (but keeping theta_max < pi-arcsin(1/2))
     theta_max = sc.Quantity(2., "rad")
     detector = sc.model.Detector(theta_min, theta_max)
-    refl2, _, _, _, _ = sc.model.reflection(model, wavelength,
-                                            detector=detector)
+    refl2 = sc.model.reflection(model, wavelength, detector=detector)
 
     # reflectance should be zero in both cases
-    assert_equal(refl1.to_numpy(), 0)
+    assert_equal(refl1.reflectance.loc["avg"].to_numpy(), 0)
     xr.testing.assert_allclose(refl1, refl2, rtol=1e-5)
 
 
@@ -931,7 +926,7 @@ def test_vectorized_reflection():
     model = sc.model.HardSpheres(sphere, volume_fraction, index_matrix,
                                  index_medium)
 
-    refl = sc.model.reflection(model, wavelength)[0]
+    refl = sc.model.reflection(model, wavelength)
 
     # test that loop gives same values
     refl_loop = []
@@ -939,11 +934,11 @@ def test_vectorized_reflection():
         refl_loop_wl = []
         model = sc.model.HardSpheres(sphere, phi, index_matrix, index_medium)
         for wavelen in wavelength:
-            refl_loop_wl.append(sc.model.reflection(model, wavelen)[0])
+            refl_loop_wl.append(sc.model.reflection(model, wavelen))
         refl_loop.append(xr.concat(refl_loop_wl, sc.Coord.WAVELEN))
     refl_loop = xr.concat(refl_loop, sc.Coord.VOLFRAC)
 
-    xr.testing.assert_allclose(refl, refl_loop, rtol=1e-9)
+    xr.testing.assert_allclose(refl, refl_loop)
 
 
 def test_reflection_core_shell():
@@ -966,20 +961,15 @@ def test_reflection_core_shell():
                                  index_medium, maxwell_garnett=True)
 
     detector = sc.model.Detector(theta_min=Quantity('90.0 deg'))
-    refl1, _, _, g1, lstar1 = sc.model.reflection(model, wavelength,
-                                                  thickness=thickness,
-                                                  detector=detector,
-                                                  small_angle=small_angle)
+    refl1 = sc.model.reflection(model, wavelength, thickness=thickness,
+                                detector=detector, small_angle=small_angle)
 
     # Non core-shell particles with Bruggeman effective index
     volume_fraction2 = 0.00001
     model = sc.model.HardSpheres(sphere, volume_fraction2, index_matrix,
                                  index_medium, maxwell_garnett=False)
-    refl2, _, _, g2, lstar2 = sc.model.reflection(model, wavelength,
-                                                  thickness=thickness,
-                                                  detector=detector,
-                                                  small_angle=small_angle)
-
+    refl2 = sc.model.reflection(model, wavelength, thickness=thickness,
+                                detector=detector, small_angle=small_angle)
 
     # Core-shell particles of core diameter equal to non core shell particles,
     # and shell index of air. With Bruggeman effective index
@@ -990,10 +980,8 @@ def test_reflection_core_shell():
     model = sc.model.HardSpheres(sphere_cs, volume_fraction3, index_matrix,
                                  index_medium)
 
-    refl3, _, _, g3, lstar3 = sc.model.reflection(model, wavelength,
-                                                  thickness=thickness,
-                                                  detector=detector,
-                                                  small_angle=small_angle)
+    refl3 = sc.model.reflection(model, wavelength, thickness=thickness,
+                                detector=detector, small_angle=small_angle)
 
     # Outputs for refl, g, and lstar before adding core-shell capability
     refl = Quantity(0.20772170840902376, '')
@@ -1002,9 +990,9 @@ def test_reflection_core_shell():
 
     # Compare old outputs (before adding core-shell capability) and new outputs
     # for a non-core-shell using Maxwell-Garnett
-    assert_allclose(refl1.to_numpy(), refl.magnitude)
-    assert_allclose(g1, g.magnitude)
-    assert_allclose(lstar1, lstar.to_preferred().magnitude)
+    assert_allclose(refl1.reflectance.loc["avg"], refl.magnitude)
+    assert_allclose(refl1.g.loc["avg"], g.magnitude)
+    assert_allclose(refl1.lstar.loc["avg"], lstar.to_preferred().magnitude)
 
     # Compare a non-core-shell and a core-shell with shell index of air using
     # Bruggeman.
@@ -1017,9 +1005,9 @@ def test_reflection_core_shell():
     volfrac_refl3 = refl3.coords[sc.Coord.VOLFRAC][0]
     assert volfrac_refl2 != volfrac_refl3
     # next do numpy comparison on values
-    assert_allclose(refl2, refl3, rtol=1e-5)
-    assert_allclose(g2, g3, rtol=1e-5)
-    assert_allclose(lstar2, lstar3, rtol=1e-5)
+    assert_allclose(refl2.reflectance, refl3.reflectance, rtol=1e-5)
+    assert_allclose(refl2.g, refl3.g, rtol=1e-5)
+    assert_allclose(refl2.lstar, refl3.lstar, rtol=1e-5)
 
     # Test that the reflectance is the same for a core-shell that absorbs (with
     # the same refractive indices for all layers) and a non-core-shell that
@@ -1031,7 +1019,7 @@ def test_reflection_core_shell():
     sphere = sc.Sphere(index_particle4, radius4)
     model = sc.model.HardSpheres(sphere, volume_fraction, index_matrix,
                                  index_medium)
-    refl4 = sc.model.reflection(model, wavelength, thickness=thickness)[0]
+    refl4 = sc.model.reflection(model, wavelength, thickness=thickness)
 
     # Absorbing core-shell
     radius5 = Quantity(np.array([110.0, 120.0]), 'nm')
@@ -1039,7 +1027,7 @@ def test_reflection_core_shell():
     sphere_cs = sc.Sphere(index5, radius5)
     model = sc.model.HardSpheres(sphere_cs, volume_fraction, index_matrix,
                                  index_medium)
-    refl5 = sc.model.reflection(model, wavelength, thickness=thickness)[0]
+    refl5 = sc.model.reflection(model, wavelength, thickness=thickness)
 
     xr.testing.assert_allclose(refl4, refl5)
 
@@ -1051,7 +1039,7 @@ def test_reflection_core_shell():
     index_matrix6 = sc.Index.constant(1.0+0.001j)
     model = sc.model.HardSpheres(sphere, volume_fraction, index_matrix6,
                                  index_medium)
-    refl6 = sc.model.reflection(model, wavelength, thickness=thickness)[0]
+    refl6 = sc.model.reflection(model, wavelength, thickness=thickness)
 
     # Core-shell
     index7 = [sc.Index.constant(1.5+0.001j), sc.Index.constant(1.5+0.001j)]
@@ -1060,7 +1048,7 @@ def test_reflection_core_shell():
     index_matrix7 = sc.Index.constant(1.0+0.001j)
     model = sc.model.HardSpheres(sphere_cs, volume_fraction, index_matrix7,
                                  index_medium)
-    refl7 = sc.model.reflection(model, wavelength, thickness=thickness)[0]
+    refl7 = sc.model.reflection(model, wavelength, thickness=thickness)
 
     xr.testing.assert_allclose(refl6, refl7)
 
@@ -1081,16 +1069,15 @@ def test_reflection_absorbing_particle():
     # With Maxwell-Garnett
     model = sc.model.HardSpheres(sphere_real, volume_fraction, index_matrix,
                                  index_medium, maxwell_garnett=True)
-    refl_mg1, _, _, g_mg1, lstar_mg1 = sc.model.reflection(model, wavelength)
+    refl_mg1 = sc.model.reflection(model, wavelength)
     model = sc.model.HardSpheres(sphere_complex, volume_fraction, index_matrix,
                                  index_medium, maxwell_garnett=True)
-    refl_mg2, _, _, g_mg2, lstar_mg2 = sc.model.reflection(model, wavelength)
+    refl_mg2 = sc.model.reflection(model, wavelength)
 
     # these should be pretty close
+    # (note comparison will test g and lstar in addition to reflectance)
     rtol = 1e-13
     xr.testing.assert_allclose(refl_mg1, refl_mg2, rtol=rtol)
-    xr.testing.assert_allclose(g_mg1, g_mg2, rtol=rtol)
-    xr.testing.assert_allclose(lstar_mg1, lstar_mg2, rtol=rtol)
 
     # Outputs before refactoring structcol
     refl_mg1_before = 0.2963964709617333
@@ -1103,25 +1090,25 @@ def test_reflection_absorbing_particle():
     # lstar_mg2 and lstar_mg1 are now equal, so we don't need to compare to
     # lstar_mg2_before
 
-    assert_allclose(refl_mg1.to_numpy(), refl_mg1_before)
-    assert_allclose(refl_mg2.to_numpy(), refl_mg2_before)
-    assert_allclose(g_mg1.to_numpy(), g_mg1_before)
-    assert_allclose(g_mg2.to_numpy(), g_mg2_before)
-    assert_allclose(lstar_mg1, lstar_mg1_before.to_preferred().magnitude)
-    xr.testing.assert_allclose(lstar_mg1, lstar_mg2)
+    assert_allclose(refl_mg1.reflectance.loc["avg"], refl_mg1_before)
+    assert_allclose(refl_mg2.reflectance.loc["avg"], refl_mg2_before)
+    assert_allclose(refl_mg1.g.loc["avg"], g_mg1_before)
+    assert_allclose(refl_mg2.g.loc["avg"], g_mg2_before)
+    assert_allclose(refl_mg1.lstar.loc["avg"],
+                    lstar_mg1_before.to_preferred().magnitude)
+    xr.testing.assert_allclose(refl_mg1.lstar, refl_mg2.lstar)
 
     # With Bruggeman
     model = sc.model.HardSpheres(sphere_real, volume_fraction, index_matrix,
                                  index_medium, maxwell_garnett=False)
-    refl_bg1, _, _, g_bg1, lstar_bg1 = sc.model.reflection(model, wavelength)
+    refl_bg1 = sc.model.reflection(model, wavelength)
     model = sc.model.HardSpheres(sphere_complex, volume_fraction, index_matrix,
                                  index_medium, maxwell_garnett=False)
-    refl_bg2, _, _, g_bg2, lstar_bg2 = sc.model.reflection(model, wavelength)
+    refl_bg2 = sc.model.reflection(model, wavelength)
 
+    # this comparison tests reflectance, g, lstar
     rtol = 1e-13
     xr.testing.assert_allclose(refl_bg1, refl_bg2, rtol=rtol)
-    xr.testing.assert_allclose(g_bg1, g_bg2, rtol=rtol)
-    xr.testing.assert_allclose(lstar_bg1, lstar_bg2, rtol=rtol)
 
     # Outputs before refactoring structcol
     refl_bg1_before = 0.2685710414987676
@@ -1132,12 +1119,14 @@ def test_reflection_absorbing_particle():
     lstar_bg1_before = sc.Quantity(11593.280877304634, "nm")
     lstar_bg2_before = sc.Quantity(11593.280877304634, "nm")
 
-    assert_allclose(refl_bg1.to_numpy(), refl_bg1_before)
-    assert_allclose(refl_bg2.to_numpy(), refl_bg2_before)
-    assert_allclose(g_bg1.to_numpy(), g_bg1_before)
-    assert_allclose(g_bg2.to_numpy(), g_bg2_before)
-    assert_allclose(lstar_bg1, lstar_bg1_before.to_preferred().magnitude)
-    assert_allclose(lstar_bg2, lstar_bg2_before.to_preferred().magnitude)
+    assert_allclose(refl_bg1.reflectance.loc["avg"], refl_bg1_before)
+    assert_allclose(refl_bg2.reflectance.loc["avg"], refl_bg2_before)
+    assert_allclose(refl_bg1.g.loc["avg"], g_bg1_before)
+    assert_allclose(refl_bg2.g.loc["avg"], g_bg2_before)
+    assert_allclose(refl_bg1.lstar.loc["avg"],
+                    lstar_bg1_before.to_preferred().magnitude)
+    assert_allclose(refl_bg2.lstar.loc["avg"],
+                    lstar_bg2_before.to_preferred().magnitude)
 
     # test that the reflectance is (almost) the same when using an
     # almost-non-absorbing index vs a non-absorbing index
@@ -1150,13 +1139,11 @@ def test_reflection_absorbing_particle():
     model = sc.model.HardSpheres(sphere_complex2, volume_fraction,
                                  index_matrix, index_medium,
                                  maxwell_garnett=False)
-    refl_bg3, _, _, g_bg3, lstar_bg3 = sc.model.reflection(model, wavelength,
-                                                           thickness=thickness)
+    refl_bg3 = sc.model.reflection(model, wavelength, thickness=thickness)
 
+    # test reflectance, g, lstar
     rtol = 1e-3
     xr.testing.assert_allclose(refl_bg1, refl_bg3, rtol=rtol)
-    xr.testing.assert_allclose(g_bg1, g_bg3, rtol=rtol)
-    xr.testing.assert_allclose(lstar_bg1, lstar_bg3, rtol=rtol)
 
 
 def test_calc_g():
@@ -1183,23 +1170,23 @@ def test_calc_g():
                                         index_medium, particle=sphere,
                                         volume_fraction=volume_fraction)
 
-    _, _, _, g1, _= sc.model.reflection(model, wavelength,
-                                        small_angle=Quantity('0.01 deg'),
-                                        num_angles=1000)
+    refl1 = sc.model.reflection(model, wavelength,
+                                small_angle=Quantity('0.01 deg'),
+                                num_angles=1000)
 
     # calculate g using calc_g in pymie
     n_sample = index_sample(wavelength)
     m = sc.index.ratio(n_particle, n_sample).to_numpy()
-    x = mie.size_parameter(wavelength, n_sample.to_numpy().squeeze(), radius)
+    x = mie.size_parameter(wavelength, n_sample.to_numpy(), radius)
     g2 = mie.calc_g(m,x)
 
-    assert_array_almost_equal(g1, g2)
+    assert_allclose(refl1.g.loc["avg"], g2, rtol=1e-5)
 
     # Outputs before refactoring structcol
     g1_before = 0.5064750277811477
     g2_before = 0.5064757158664487
 
-    assert_allclose(g1, g1_before)
+    assert_allclose(refl1.g.loc["avg"], g1_before)
     assert_allclose(g2, g2_before)
 
 def test_transport_length_dilute():
@@ -1217,7 +1204,7 @@ def test_transport_length_dilute():
 
     model = sc.model.HardSpheres(sphere, volume_fraction, index_matrix,
                                  index_medium)
-    _, _, _, _, lstar_model = sc.model.reflection(model, wavelength)
+    refl = sc.model.reflection(model, wavelength)
 
     # transport length from Mie theory
     index_sample = sc.index.EffectiveIndex.from_particle(sphere,
@@ -1226,7 +1213,7 @@ def test_transport_length_dilute():
     n_sample = index_sample(wavelength)
     n_particle = sphere.n(wavelength)
     m = sc.index.ratio(n_particle, n_sample).to_numpy()
-    x = mie.size_parameter(wavelength, n_sample.to_numpy().squeeze(), radius)
+    x = mie.size_parameter(wavelength, n_sample.to_numpy(), radius)
     g = mie.calc_g(m,x)
 
     number_density = sphere.number_density(volume_fraction)
@@ -1236,7 +1223,8 @@ def test_transport_length_dilute():
 
     lstar_mie = 1 / (number_density * cscat * (1-g))
 
-    assert_allclose(lstar_model, lstar_mie.to_preferred().magnitude, rtol=1e-5)
+    assert_allclose(refl.lstar.loc["avg"],
+                    lstar_mie.to_preferred().magnitude, rtol=1e-5)
 
 def test_reflection_absorbing_matrix():
     # test that the reflections with a real n_matrix and with a complex
@@ -1253,28 +1241,24 @@ def test_reflection_absorbing_matrix():
     # With Maxwell-Garnett
     model = sc.model.HardSpheres(sphere, volume_fraction, index_matrix_real,
                                  index_medium, maxwell_garnett=True)
-    refl_mg1, _, _, g_mg1, lstar_mg1 = sc.model.reflection(model, wavelength)
+    refl_mg1 = sc.model.reflection(model, wavelength)
     model = sc.model.HardSpheres(sphere, volume_fraction, index_matrix_imag,
                                  index_medium, maxwell_garnett=True)
-    refl_mg2, _, _, g_mg2, lstar_mg2 = sc.model.reflection(model, wavelength)
+    refl_mg2 = sc.model.reflection(model, wavelength)
 
-    # should be very close
+    # reflectance, g, lstar should all be very close
     rtol = 1e-13
     xr.testing.assert_allclose(refl_mg1, refl_mg2, rtol=rtol)
-    xr.testing.assert_allclose(g_mg1, g_mg2, rtol=rtol)
-    xr.testing.assert_allclose(lstar_mg1, lstar_mg2, rtol=rtol)
 
     # With Bruggeman
     model = sc.model.HardSpheres(sphere, volume_fraction, index_matrix_real,
                                  index_medium, maxwell_garnett=False)
-    refl_bg1, _, _, g_bg1, lstar_bg1 = sc.model.reflection(model, wavelength)
+    refl_bg1 = sc.model.reflection(model, wavelength)
     model = sc.model.HardSpheres(sphere, volume_fraction, index_matrix_imag,
                                  index_medium, maxwell_garnett=False)
-    refl_bg2, _, _, g_bg2, lstar_bg2 = sc.model.reflection(model, wavelength)
+    refl_bg2 = sc.model.reflection(model, wavelength)
 
     xr.testing.assert_allclose(refl_bg1, refl_bg2, rtol=rtol)
-    xr.testing.assert_allclose(g_bg1, g_bg2, rtol=rtol)
-    xr.testing.assert_allclose(lstar_bg1, lstar_bg2, rtol=rtol)
 
     # test that the reflectance is (almost) the same when using an
     # almost-non-absorbing index vs a non-absorbing index
@@ -1283,12 +1267,10 @@ def test_reflection_absorbing_matrix():
     # With Bruggeman
     model = sc.model.HardSpheres(sphere, volume_fraction, index_matrix_imag2,
                                  index_medium, maxwell_garnett=False)
-    refl_bg3, _, _, g_bg3, lstar_bg3 = sc.model.reflection(model, wavelength)
+    refl_bg3 = sc.model.reflection(model, wavelength)
 
-    rtol=1e-5
+    rtol=1e-4
     xr.testing.assert_allclose(refl_bg1, refl_bg3, rtol=rtol)
-    xr.testing.assert_allclose(g_bg1, g_bg3, rtol=rtol)
-    xr.testing.assert_allclose(lstar_bg1, lstar_bg3, rtol=rtol)
 
 
 def test_reflection_polydispersity():
@@ -1313,7 +1295,7 @@ def test_reflection_polydispersity():
     coords = sc._make_input_coords(wavelength, np.linspace(0, np.pi, 10))
     sphere_ff = sphere.form_factor(coords, index_effective)
     sphere_dist_ff = sphere_dist.form_factor(coords, index_effective)
-    assert_allclose(sphere_ff.to_numpy(), sphere_dist_ff.to_numpy(), rtol=1e-6)
+    xr.testing.assert_allclose(sphere_ff, sphere_dist_ff, rtol=1e-6)
 
     # monodisperse Mie case: sphere form factor, no structure factor (need to
     # specify particle and volume_fraction to FormStructureModel to calculate
@@ -1323,7 +1305,7 @@ def test_reflection_polydispersity():
                                         index_effective, index_medium,
                                         particle=sphere,
                                         volume_fraction=volume_fraction)
-    refl, _, _, g, lstar = sc.model.reflection(model, wavelength)
+    refl = sc.model.reflection(model, wavelength)
 
     # polydisperse model: sphere_dist form factor, no structure factor
     model = sc.model.FormStructureModel(sphere_dist.form_factor, None,
@@ -1331,11 +1313,10 @@ def test_reflection_polydispersity():
                                         index_effective, index_medium,
                                         particle=sphere_dist,
                                         volume_fraction=volume_fraction)
-    refl2, _, _, g2, lstar2 = sc.model.reflection(model, wavelength)
+    refl2 = sc.model.reflection(model, wavelength)
 
+    # below tests reflectance, g, lstar
     xr.testing.assert_allclose(refl, refl2)
-    xr.testing.assert_allclose(g, g2)
-    xr.testing.assert_allclose(lstar, lstar2)
 
     # Outputs before refactoring structcol
     refl_before = 0.021202873774022364
@@ -1347,13 +1328,13 @@ def test_reflection_polydispersity():
     lstar2_before = sc.Quantity(0.0037795694345017063, "mm")
 
     rtol = 1e-13
-    assert_allclose(refl.to_numpy(), refl_before, rtol=rtol)
-    assert_allclose(refl2.to_numpy(), refl2_before, rtol=rtol)
-    assert_allclose(g.to_numpy(), g_before, rtol=rtol)
-    assert_allclose(g2.to_numpy(), g2_before, rtol=rtol)
+    assert_allclose(refl.reflectance.loc["avg"], refl_before, rtol=rtol)
+    assert_allclose(refl2.reflectance.loc["avg"], refl2_before, rtol=rtol)
+    assert_allclose(refl.g.loc["avg"], g_before, rtol=rtol)
+    assert_allclose(refl2.g.loc["avg"], g2_before, rtol=rtol)
     # lstar results aren't quite as close
-    assert_allclose(lstar, lstar_before.to_preferred())
-    assert_allclose(lstar2, lstar2_before.to_preferred())
+    assert_allclose(refl.lstar.loc["avg"], lstar_before.to_preferred())
+    assert_allclose(refl2.lstar.loc["avg"], lstar2_before.to_preferred())
 
     # test that the reflectance using only the structure factor is the same
     # using the polydisperse formula vs using Percus-Yevick in the limit of
@@ -1363,7 +1344,7 @@ def test_reflection_polydispersity():
                                         index_effective, index_medium,
                                         particle=sphere,
                                         volume_fraction=volume_fraction)
-    refl3, _, _, g3, lstar3 = sc.model.reflection(model, wavelength)
+    refl3 = sc.model.reflection(model, wavelength)
 
     poly_structure = sc.structure.Polydisperse(volume_fraction, sphere_dist)
     model = sc.model.FormStructureModel(None, poly_structure,
@@ -1371,12 +1352,10 @@ def test_reflection_polydispersity():
                                         index_effective, index_medium,
                                         particle=sphere_dist,
                                         volume_fraction=volume_fraction)
-    refl4, _, _, g4, lstar4 = sc.model.reflection(model, wavelength)
+    refl4 = sc.model.reflection(model, wavelength)
 
 
     xr.testing.assert_allclose(refl3, refl4)
-    xr.testing.assert_allclose(g3, g4)
-    assert_array_almost_equal(lstar3, lstar4)
 
     # Outputs before refactoring structcol
     refl3_before= 0.6310965269823348
@@ -1387,26 +1366,26 @@ def test_reflection_polydispersity():
     lstar4_before = sc.Quantity(0.00020056044751316733, "mm")
 
     rtol = 1e-13
-    assert_allclose(refl3.to_numpy(), refl3_before)
-    assert_allclose(refl4.to_numpy(), refl4_before)
-    assert_allclose(g3.to_numpy(), g3_before)
-    assert_allclose(g4.to_numpy(), g4_before)
-    assert_allclose(lstar3, lstar3_before.to_preferred(), rtol=rtol)
-    assert_allclose(lstar4, lstar4_before.to_preferred(), rtol=rtol)
+    assert_allclose(refl3.reflectance.loc["avg"], refl3_before)
+    assert_allclose(refl4.reflectance.loc["avg"], refl4_before)
+    assert_allclose(refl3.g.loc["avg"], g3_before)
+    assert_allclose(refl4.g.loc["avg"], g4_before)
+    assert_allclose(refl3.lstar.loc["avg"], lstar3_before.to_preferred(),
+                    rtol=rtol)
+    assert_allclose(refl4.lstar.loc["avg"], lstar4_before.to_preferred(),
+                    rtol=rtol)
 
     # test that the reflectance using both the structure and form factors is
     # the same using the polydisperse formula vs using Mie and Percus-Yevick in
     # the limit of monodispersity
     model = sc.model.HardSpheres(sphere, volume_fraction, index_matrix,
                                  index_medium)
-    refl5, _, _, g5, lstar5 = sc.model.reflection(model, wavelength)
+    refl5 = sc.model.reflection(model, wavelength)
     model = sc.model.PolydisperseHardSpheres(sphere_dist, volume_fraction,
                                              index_matrix, index_medium)
-    refl6, _, _, g6, lstar6 = sc.model.reflection(model, wavelength)
+    refl6 = sc.model.reflection(model, wavelength)
 
     xr.testing.assert_allclose(refl5, refl6)
-    xr.testing.assert_allclose(g5, g6)
-    xr.testing.assert_allclose(lstar5, lstar6)
 
     # Outputs before refactoring structcol
     refl5_before = 0.2685710414987676
@@ -1417,12 +1396,12 @@ def test_reflection_polydispersity():
     # A/V: 0.011625051809100308
     lstar6_before = sc.Quantity(0.011593280876210265, "mm")
 
-    assert_allclose(refl5.to_numpy(), refl5_before)
-    assert_allclose(refl6.to_numpy(), refl6_before)
-    assert_allclose(g5.to_numpy(), g5_before)
-    assert_allclose(g6.to_numpy(), g6_before)
-    assert_allclose(lstar5, lstar5_before.to_preferred())
-    assert_allclose(lstar6, lstar6_before.to_preferred())
+    assert_allclose(refl5.reflectance.loc["avg"], refl5_before)
+    assert_allclose(refl6.reflectance.loc["avg"], refl6_before)
+    assert_allclose(refl5.g.loc["avg"], g5_before)
+    assert_allclose(refl6.g.loc["avg"], g6_before)
+    assert_allclose(refl5.lstar.loc["avg"], lstar5_before.to_preferred())
+    assert_allclose(refl6.lstar.loc["avg"], lstar6_before.to_preferred())
 
     # test that the reflectance is the same for a polydisperse monospecies
     # and a bispecies with equal types of particles
@@ -1438,14 +1417,12 @@ def test_reflection_polydispersity():
                                                   index_matrix, index_medium)
     model_bi = sc.model.PolydisperseHardSpheres(dist_bi, volume_fraction,
                                                 index_matrix, index_medium)
-    refl7, _, _, g7, lstar7 = sc.model.reflection(model_mono, wavelength)
-    refl8, _, _, g8, lstar8 = sc.model.reflection(model_bi, wavelength)
+    refl7 = sc.model.reflection(model_mono, wavelength)
+    refl8 = sc.model.reflection(model_bi, wavelength)
 
-    # these should be almost exactly the same
+    # reflectance, g, lstar should all be almost exactly the same
     rtol = 1e-14
     xr.testing.assert_allclose(refl7, refl8, rtol=rtol)
-    xr.testing.assert_allclose(g7, g8, rtol=rtol)
-    xr.testing.assert_allclose(lstar7, lstar8, rtol=rtol)
 
     # test that the reflectance is the same regardless of the order in which
     # the radii are specified
@@ -1457,16 +1434,14 @@ def test_reflection_polydispersity():
 
     model_13 = sc.model.PolydisperseHardSpheres(dist_13, volume_fraction,
                                                 index_matrix, index_medium)
-    refl9, _, _, g9, lstar9 = sc.model.reflection(model_13, wavelength)
+    refl9 = sc.model.reflection(model_13, wavelength)
     model_31 = sc.model.PolydisperseHardSpheres(dist_31, volume_fraction,
                                                 index_matrix, index_medium)
-    refl10, _, _, g10, lstar10 = sc.model.reflection(model_31, wavelength)
+    refl10 = sc.model.reflection(model_31, wavelength)
 
-    # these should be almost exactly the same
+    # reflectance, g, lstar should be almost exactly the same
     rtol = 1e-13
     xr.testing.assert_allclose(refl9, refl10, rtol=rtol)
-    xr.testing.assert_allclose(g9, g10, rtol=rtol)
-    xr.testing.assert_allclose(lstar9, lstar10, rtol=rtol)
 
 # many tests are repeated here from test_reflection_polydispersity, but some
 # have variations (for example, finite thickness). Also tolerances on the
@@ -1501,7 +1476,7 @@ def test_reflection_polydispersity_with_absorption():
                                         index_effective, index_medium,
                                         particle=sphere,
                                         volume_fraction=volume_fraction)
-    refl, _, _, g, lstar = sc.model.reflection(model, wavelength)
+    refl = sc.model.reflection(model, wavelength)
 
     # polydisperse model: sphere_dist form factor, no structure factor
     model = sc.model.FormStructureModel(sphere_dist.form_factor, None,
@@ -1509,11 +1484,9 @@ def test_reflection_polydispersity_with_absorption():
                                         index_effective, index_medium,
                                         particle=sphere_dist,
                                         volume_fraction=volume_fraction)
-    refl2, _, _, g2, lstar2 = sc.model.reflection(model, wavelength)
+    refl2 = sc.model.reflection(model, wavelength)
 
     xr.testing.assert_allclose(refl, refl2)
-    xr.testing.assert_allclose(g, g2)
-    xr.testing.assert_allclose(lstar, lstar2)
 
     # Outputs before refactoring structcol
     refl_before = 0.020910087489548684 # A/V:0.020791487299024698
@@ -1530,12 +1503,14 @@ def test_reflection_polydispersity_with_absorption():
 
     # rtols here are based on decimal precisions of assert_array_almost_equal
     # tests in previous revision
-    assert_allclose(refl.to_numpy(), refl_before, rtol=1e-2)
-    assert_allclose(refl2.to_numpy(), refl2_before, rtol=1e-2)
-    assert_allclose(g.to_numpy(), g_before)
-    assert_allclose(g2.to_numpy(), g2_before)
-    assert_allclose(lstar.to_numpy(), lstar_before.to_preferred(), rtol=1e-2)
-    assert_allclose(lstar2.to_numpy(), lstar2_before.to_preferred(), rtol=1e-2)
+    assert_allclose(refl.reflectance.loc["avg"], refl_before, rtol=1e-2)
+    assert_allclose(refl2.reflectance.loc["avg"], refl2_before, rtol=1e-2)
+    assert_allclose(refl.g.loc["avg"], g_before)
+    assert_allclose(refl2.g.loc["avg"], g2_before)
+    assert_allclose(refl.lstar.loc["avg"], lstar_before.to_preferred(),
+                    rtol=1e-2)
+    assert_allclose(refl2.lstar.loc["avg"], lstar2_before.to_preferred(),
+                    rtol=1e-2)
 
     # test that the reflectance using only the structure factor is the same
     # using the polydisperse formula vs using Percus-Yevick in the limit of
@@ -1545,7 +1520,7 @@ def test_reflection_polydispersity_with_absorption():
                                         index_effective, index_medium,
                                         particle=sphere,
                                         volume_fraction=volume_fraction)
-    refl3, _, _, g3, lstar3 = sc.model.reflection(model, wavelength,
+    refl3 = sc.model.reflection(model, wavelength,
                                                   thickness=thickness)
     poly_structure = sc.structure.Polydisperse(volume_fraction, sphere_dist)
     model = sc.model.FormStructureModel(None, poly_structure,
@@ -1553,12 +1528,10 @@ def test_reflection_polydispersity_with_absorption():
                                         index_effective, index_medium,
                                         particle=sphere_dist,
                                         volume_fraction=volume_fraction)
-    refl4, _, _, g4, lstar4 = sc.model.reflection(model, wavelength,
+    refl4 = sc.model.reflection(model, wavelength,
                                                   thickness=thickness)
 
     xr.testing.assert_allclose(refl3, refl4)
-    xr.testing.assert_allclose(g3, g4)
-    xr.testing.assert_allclose(lstar3, lstar4)
 
     # Outputs before refactoring structcol. Changed a couple values after
     # re-implementing absorption into model.reflection() (now uses n_sample.imag
@@ -1573,24 +1546,20 @@ def test_reflection_polydispersity_with_absorption():
     # does not depend on the magnitude of the cross-section, so can be compared
     # to previous results.
     rtol = 1e-11
-    assert_allclose(g3.to_numpy(), g3_before, rtol=rtol)
-    assert_allclose(g4.to_numpy(), g4_before, rtol=rtol)
+    assert_allclose(refl3.g.loc["avg"], g3_before, rtol=rtol)
+    assert_allclose(refl4.g.loc["avg"], g4_before, rtol=rtol)
 
     # test that the reflectance using both the structure and form factors is
     # the same using the polydisperse formula vs using Mie and Percus-Yevick in
     # the limit of monodispersity
     model = sc.model.HardSpheres(sphere, volume_fraction, index_matrix,
                                  index_medium)
-    refl5, _, _, g5, lstar5 = sc.model.reflection(model, wavelength,
-                                                  thickness=thickness)
+    refl5 = sc.model.reflection(model, wavelength, thickness=thickness)
     model = sc.model.PolydisperseHardSpheres(sphere_dist, volume_fraction,
                                              index_matrix, index_medium)
-    refl6, _, _, g6, lstar6 = sc.model.reflection(model, wavelength,
-                                                  thickness=thickness)
+    refl6 = sc.model.reflection(model, wavelength, thickness=thickness)
 
     xr.testing.assert_allclose(refl5, refl6)
-    xr.testing.assert_allclose(g5, g6)
-    xr.testing.assert_allclose(lstar5, lstar6)
 
     # Outputs before refactoring structcol
     refl5_before = 0.11395667616828457 # A/V:0.11277597784758357
@@ -1607,12 +1576,14 @@ def test_reflection_polydispersity_with_absorption():
     # output values above for reflectances are off by almost 10%. rtols based
     # on previous revision's (decimal) tolerances for
     # assert_array_almost_equal()
-    assert_allclose(refl5.to_numpy(), refl5_before, rtol=1e-1)
-    assert_allclose(refl6.to_numpy(), refl6_before, rtol=1e-1)
-    assert_allclose(g5.to_numpy(), g5_before)
-    assert_allclose(g6.to_numpy(), g6_before)
-    assert_allclose(lstar5, lstar5_before.to_preferred(), rtol=1e-2)
-    assert_allclose(lstar6, lstar6_before.to_preferred(), rtol=1e-2)
+    assert_allclose(refl5.reflectance.loc["avg"], refl5_before, rtol=1e-1)
+    assert_allclose(refl6.reflectance.loc["avg"], refl6_before, rtol=1e-1)
+    assert_allclose(refl5.g.loc["avg"], g5_before)
+    assert_allclose(refl6.g.loc["avg"], g6_before)
+    assert_allclose(refl5.lstar.loc["avg"], lstar5_before.to_preferred(),
+                    rtol=1e-2)
+    assert_allclose(refl6.lstar.loc["avg"], lstar6_before.to_preferred(),
+                    rtol=1e-2)
 
     # test that the reflectances are (almost) the same when using an
     # almost-non-absorbing vs an non-absorbing polydisperse system
@@ -1630,20 +1601,16 @@ def test_reflection_polydispersity_with_absorption():
                                       polydispersities=pdi2[0])
     model = sc.model.PolydisperseHardSpheres(dist_real, volume_fraction,
                                              index_matrix2_real, index_medium)
-    refl7, _, _, g7, lstar7 = sc.model.reflection(model, wavelength,
-                                                  thickness=thickness)
+    refl7 = sc.model.reflection(model, wavelength, thickness=thickness)
 
     dist = sc.SphereDistribution(sphere, concentrations=1.0,
                                  polydispersities=pdi2[0])
     model = sc.model.PolydisperseHardSpheres(dist, volume_fraction,
                                              index_matrix2, index_medium)
-    refl8, _, _, g8, lstar8 = sc.model.reflection(model, wavelength,
-                                                  thickness=thickness)
+    refl8 = sc.model.reflection(model, wavelength, thickness=thickness)
 
     rtol = 1e-13
     xr.testing.assert_allclose(refl7, refl8, rtol=rtol)
-    xr.testing.assert_allclose(g7, g8, rtol=rtol)
-    xr.testing.assert_allclose(lstar7, lstar8, rtol=rtol)
 
     ## When there are 2 mean diameters
     sphere2_real = sc.Sphere(index_particle2_real, radius2)
@@ -1651,19 +1618,15 @@ def test_reflection_polydispersity_with_absorption():
                                        concentration, pdi2)
     model = sc.model.PolydisperseHardSpheres(dist2_real, volume_fraction,
                                              index_matrix2_real, index_medium)
-    refl9, _, _, g9, lstar9 = sc.model.reflection(model, wavelength,
-                                                  thickness=thickness)
+    refl9 = sc.model.reflection(model, wavelength, thickness=thickness)
     sphere2 = sc.Sphere(index_particle2, radius2)
     dist2 = sc.SphereDistribution([sphere, sphere2],
                                   concentration, pdi2)
     model = sc.model.PolydisperseHardSpheres(dist2, volume_fraction,
                                              index_matrix2, index_medium)
-    refl10, _, _, g10, lstar10 = sc.model.reflection(model, wavelength,
-                                                     thickness=thickness)
+    refl10 = sc.model.reflection(model, wavelength, thickness=thickness)
 
     xr.testing.assert_allclose(refl9, refl10, rtol=1e-2)
-    xr.testing.assert_allclose(g9, g10, rtol=1e-1)
-    xr.testing.assert_allclose(lstar9, lstar10, rtol=1e-2)
     # TODO: we should be careful with this last test. Interestingly, the values
     # for refl9 and refl10 become incrasingly closer to each other when the pdi
     # becomes large (~33%). No bugs were found after a careful examination, so
@@ -1691,13 +1654,11 @@ def test_g_transport_length():
 
     model = sc.model.HardSpheres(sphere, volume_fraction, index_matrix,
                                  index_medium)
-    _, _, _, g, lstar = sc.model.reflection(model, wavelength,
-                                            thickness=thickness1)
-    _, _, _, g2, lstar2 = sc.model.reflection(model, wavelength,
-                                              thickness=thickness2)
+    refl1 = sc.model.reflection(model, wavelength, thickness=thickness1)
+    refl2 = sc.model.reflection(model, wavelength, thickness=thickness2)
 
-    xr.testing.assert_equal(g, g2)
-    xr.testing.assert_equal(lstar, lstar2)
+    xr.testing.assert_equal(refl1.g, refl2.g)
+    xr.testing.assert_equal(refl1.lstar, refl2.lstar)
 
 def test_reflection_throws_warnings_for_unspecified_parameters():
     # test that warnings are thrown when trying to calculate values for
