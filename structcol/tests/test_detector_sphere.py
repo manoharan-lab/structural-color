@@ -54,6 +54,8 @@ index_sample = sc.EffectiveIndex([index_particle, index_matrix],
                                  volume_fraction_da)
 n_sample = index_sample(wavelen)
 
+sphere = sc.Sphere(index_particle, radius)
+
 # Index of the scattering event and trajectory corresponding to the reflected
 # photons
 refl_index = np.array([2,0,2])
@@ -76,9 +78,10 @@ def test_calc_refl_trans():
     kz = np.array([[1,1,1,1],[-1,1,1,1],[-1,1,1,1]])
     weights = np.array([[.8, .8, .9, .8],[.7, .3, .7, 0],[.1, .1, .5, 0]])
     trajectories = mc.Trajectory([x_pos, y_pos, z_pos],[kx, ky, kz], weights)
-    p, mu_scat, mu_abs = mc.calc_scat(radius, index_particle, index_matrix,
-                                      index_small_n, index_medium,
-                                      volume_fraction, wavelen)
+
+    model = sc.model.HardSpheres(sphere, volume_fraction, index_matrix,
+                                 index_medium)
+    p, mu_scat, mu_abs = mc.calc_scat(model, wavelen)
     # Should raise warning that n_matrix and n_particle are not set, so
     # tir correction is based only on sample index
     with pytest.warns(UserWarning):
@@ -157,9 +160,10 @@ def test_index_match():
     index_medium = sc.Index.constant(1.0)
     n_medium = index_medium(wavelen)
 
-    p, mu_scat, mu_abs = mc.calc_scat(radius, index_particle, index_matrix,
-                                      index_sample, index_medium,
-                                      volume_fraction, wavelen)
+    sphere = sc.Sphere(index_particle, radius)
+    model = sc.model.HardSpheres(sphere, volume_fraction, index_matrix,
+                                 index_medium)
+    p, mu_scat, mu_abs = mc.calc_scat(model, wavelen)
 
     # initialize all at center top edge of the sphere going down
     r0_sphere = np.zeros((3,nevents+1,ntrajectories))
@@ -232,9 +236,10 @@ def test_reflection_sphere_mc():
     n_sample = index_sample(wavelen)
     boundary = 'sphere'
 
-    p, mu_scat, mu_abs = mc.calc_scat(radius, index_particle, index_matrix,
-                                      index_sample, index_medium,
-                                      volume_fraction, wavelen)
+    sphere = sc.Sphere(index_particle, radius)
+    model = sc.model.HardSpheres(sphere, volume_fraction, index_matrix,
+                                 index_medium)
+    p, mu_scat, mu_abs = mc.calc_scat(model, wavelen)
 
     # Initialize the trajectories for a sphere
     r0, k0, W0 = mc.initialize(nevents, ntrajectories, n_medium, n_sample,
@@ -343,14 +348,14 @@ def test_multiscale_mc():
     mu_abs_bulk = sc.Quantity(np.zeros(wavelengths.size),'1/um')
     p_bulk = np.zeros((wavelengths.size, 200))
 
+    # set up scattering model
+    model = sc.model.HardSpheres(particle, volume_fraction_particles,
+                                 index_matrix, index_medium)
+
     # loop through wavelengths
     for i in range(wavelengths.size):
         n_sample = index_sample_eff(wavelengths[i])
-        p, mu_scat, mu_abs = mc.calc_scat(particle_radius, index_particle,
-                                          index_matrix, index_sample_eff,
-                                          index_medium,
-                                          volume_fraction_particles,
-                                          wavelengths[i])
+        p, mu_scat, mu_abs = mc.calc_scat(model, wavelengths[i])
 
         # Initialize the trajectories
         r0, k0, W0 = mc.initialize(nevents, ntrajectories, n_matrix_bulk[i],
@@ -564,15 +569,15 @@ def test_multiscale_polydispersity_mc():
     mu_abs_bulk = sc.Quantity(np.zeros((sphere_boundary_diameters.size,
                                         wavelengths.size)),'1/um')
 
+    # set up scattering model
+    model = sc.model.HardSpheres(particle, volume_fraction_particles,
+                                 index_matrix, index_medium)
+
     for j in range(sphere_boundary_diameters.size):
         for i in range(wavelengths.size):
             n_sample = index_sample_eff(wavelengths[i])
 
-            p, mu_scat, mu_abs = mc.calc_scat(particle_radius, index_particle,
-                                              index_matrix, index_sample_eff,
-                                              index_medium,
-                                              volume_fraction_particles,
-                                              wavelengths[i])
+            p, mu_scat, mu_abs = mc.calc_scat(model, wavelengths[i])
 
             # Initialize the trajectories
             r0, k0, W0 = mc.initialize(nevents, ntrajectories,
@@ -745,19 +750,18 @@ def test_multiscale_color_mixing_mc():
     mu_abs_bulk = sc.Quantity(np.zeros((particle_radii.size,
                                         wavelengths.size)),'1/um')
 
-
     for j in range(particle_radii.size):
         particle = sc.Sphere(index_particle, particle_radii[j])
         vf_array = particle.volume_fraction(volume_fraction_particles)
         index_sample_eff = sc.EffectiveIndex([index_particle, index_matrix],
                                              vf_array)
+
+        # set up scattering model
+        model = sc.model.HardSpheres(particle, volume_fraction_particles,
+                                     index_matrix, index_medium)
         for i in range(wavelengths.size):
             n_sample = index_sample_eff(wavelengths[i])
-            p, mu_scat, mu_abs = mc.calc_scat(particle_radii[j],
-                                              index_particle, index_matrix,
-                                              index_sample_eff, index_medium,
-                                              volume_fraction_particles,
-                                              wavelengths[i])
+            p, mu_scat, mu_abs = mc.calc_scat(model, wavelengths[i])
 
             r0, k0, W0 = mc.initialize(nevents, ntrajectories,
                                        n_matrix_bulk[i], n_sample, boundary,

@@ -42,6 +42,7 @@ volume_fraction_da = xr.DataArray([[0.5, 1-0.5]],
 angles = sc.Quantity(np.linspace(0.01, np.pi, 200), 'rad')
 wavelen = sc.Quantity('400.0 nm')
 index_particle = sc.Index.constant(1.5)
+sphere = sc.Sphere(index_particle, radius)
 n_particle = index_particle(wavelen)
 index_matrix = sc.Index.constant(1.0)
 n_matrix = index_matrix(wavelen)
@@ -57,13 +58,13 @@ refl_index = np.array([2, 0, 2])
 
 
 def test_sampling():
-    # Test that 'calc_scat' runs. Since this test just looks to see whether
+    # Test that calc_scat() runs. Since this test just looks to see whether
     # sampling angles and steps works, it's better if we don't give it a seeded
     # random number generator, so that we can ensure that sampling works with
     # the default generator.
-    p, mu_scat, mu_abs = mc.calc_scat(radius, index_particle, index_matrix,
-                                      index_sample, index_medium,
-                                      volume_fraction, wavelen)
+    model = sc.model.HardSpheres(sphere, volume_fraction, index_matrix,
+                                 index_medium)
+    p, mu_scat, mu_abs = mc.calc_scat(model, wavelen)
 
     # Test that 'sample_angles' runs
     mc.sample_angles(nevents, ntrajectories, p)

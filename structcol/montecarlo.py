@@ -41,6 +41,7 @@ import xarray as xr
 import structcol as sc
 import matplotlib.pyplot as plt
 import itertools
+import copy
 
 eps = 1.e-9
 
@@ -912,59 +913,22 @@ def initialize(nevents, ntraj, n_medium, n_sample, boundary, rng=None,
     return init_traj_props
 
 
-
-def calc_scat(radius, index_particle, index_matrix, index_sample, index_medium,
-              volume_fraction, wavelen,
-              radius2=None,
-              concentration=None,
-              pdi=None,
-              polydisperse=False,
+def calc_scat(model, wavelen,
               fields = False,
               fine_roughness=0,
               min_angle = 0.01,
               num_angles = 200,
-              num_phis = 300,
-              structure_type = 'glass',
-              form_type = 'sphere',
-              structure_s_data=None,
-              structure_qd_data=None,
-              n_matrix=None):
+              num_phis = 300):
     """
-    Calculates the phase function and scattering coefficient from either the
-    single scattering model or Mie theory. Calculates the absorption
-    coefficient from Mie theory.
+    Calculates the phase function, scattering coefficient, and absorption
+    coefficient
 
     Parameters
     ----------
-    radius : float (structcol.Quantity [length])
-        Radius of scatterer.
-    index_particle : `sc.Index` object
-        Refractive index of the particle.
-    index_matrix : `sc.Index` object
-        Refractive index of the matrix around the particles
-    index_sample : `sc.Index` object
-        Effective refractive index of the sample.
-    index_medium : `sc.Index` object
-        Refractive index of the medium around the sample
-    volume_fraction : float (structcol.Quantity [dimensionless])
-        Volume fraction of the sample.
+    model : `sc.Model` object
+        scattering model to use
     wavelen : float (structcol.Quantity [length])
         Wavelength of light in vacuum.
-    radius2 : float (structcol.Quantity [length])
-        Mean radius of secondary scatterer. Specify only if the system is
-        binary, meaning that there are two mean particle radii (for example,
-        one small and one large).
-    concentration : 2-element array (structcol.Quantity [dimensionless])
-        Concentration of each scatterer if the system is binary. For
-        polydisperse monospecies systems, specify the concentration as
-        [0., 1.]. The concentrations must add up to 1.
-    pdi : 2-element array (structcol.Quantity [dimensionless])
-        Polydispersity index of each scatterer if the system is polydisperse.
-        For polydisperse monospecies systems, specify the pdi as a 2-element
-        array with repeating values (for example, [0.01, 0.01]).
-    polydisperse : bool
-        If True, it uses the polydisperse form and structure factors. If set to
-        True, radius2, concentration, and pdi must be specified.
     fields: bool
         If True, returns phase function as function of theta and phi, so
         it can be used in field calculations
@@ -987,25 +951,6 @@ def calc_scat(radius, index_particle, index_matrix, index_sample, index_medium,
     num_phis: int
         Sets the number of phis at which phase function p will be calculated.
         Only used if polarization is True.
-    structure_type: string or None
-        structure factor desired for calculation. Can be 'glass',
-        'polydisperse', 'data', or None.
-    form_type: string or None
-        form factor desired for calculation. Can be 'sphere', 'polydisperse',
-        or None.
-    structure_s_data: None or 1d array
-        if structure_type is 'data', the structure factor data must be provided
-        here in the form of a one dimensional array
-    structure_qd_array: None of 1d array
-        if structure_type is 'data', the qd data must be provided here in the
-        form of a one dimensional array
-    n_matrix : float (structcol.Quantity [dimensionless] or
-        structcol.refractive_index object)
-        Refractive index of the matrix. It must be specified when the fine
-        roughness is > 0. When there is fine roughness, we assume that light
-        goes from the index of the matrix to the index of the scatterer. Thus
-        we assume that fine roughness particles are not embedded in an
-        effective medium.
 
     Returns
     -------
@@ -1030,67 +975,15 @@ def calc_scat(radius, index_particle, index_matrix, index_sample, index_medium,
         diff. scat. cross section = S11 / k^2
         p = S11 / (k^2 * cscat)
         (Bohren and Huffmann, chapter 13.3)
+    When there is fine roughness, we assume that light goes from the index
+    of the matrix to the index of the scatterer. Thus we assume that fine
+    roughness particles are not embedded in an effective medium.
+
     """
     wavelen = wavelen.to_preferred()
-    radius = radius.to_preferred()
     units = wavelen.units
-    if isinstance(volume_fraction, sc.Quantity):
-        volume_fraction = volume_fraction.to('').magnitude
 
-    n_sample = index_sample(wavelen)
-
-    # if the system is polydisperse, use the polydisperse form and structure
-    # factors
-    if polydisperse:
-        if radius2 is None or concentration is None or pdi is None:
-            raise ValueError('must specify diameters, concentration, and '
-                             'pdi for polydisperperse systems')
-
-        form_type = 'polydisperse'
-        if structure_type!='data':
-            structure_type = 'polydisperse'
-
-    # radius and radius2 should be in the same units (for polydisperse samples)
-    if radius2 is not None:
-        radius2 = radius2.to(radius.units)
-    if radius2 is None:
-        radius2 = radius
-    # define the mean diameters in case the system is polydisperse
-    mean_diameters = sc.Quantity(np.array([2*radius.magnitude,
-                                           2*radius2.magnitude]), radius.units)
-    mean_diameters = mean_diameters.to_preferred()
-
-    if form_type=='polydisperse':
-        distance = mean_diameters/2
-        if len(mean_diameters) == 1:
-            distance = sc.Quantity(np.array([distance.magnitude,
-                                             distance.magnitude]),
-                                   distance.units)
-    else:
-        distance = mean_diameters.max()/2
-
-    # General number density formula for binary systems, converges to
-    # monospecies formula when the concentration of either particle goes to
-    # zero. When the system is monospecies, define a concentration array to be
-    # able to use the general formula.
-    if concentration is None:
-        concentration = sc.Quantity(np.array([1.0, 0.0]), '')
-    with np.errstate(divide='ignore', invalid='ignore'):
-        term1 = 1/(radius.max()**3
-                   + radius2.max()**3 * concentration[1]/concentration[0])
-        term2 = 1/(radius2.max()**3
-                   + radius.max()**3 * concentration[0]/concentration[1])
-    np.seterr(divide='warn', invalid='warn')
-    number_density = 3.0 * volume_fraction / (4.0 * np.pi) * (term1 + term2)
-
-    model = sc.model._make_model(index_particle, index_matrix, index_medium,
-                                 radius, volume_fraction,
-                                 index_effective=index_sample, radius2=radius2,
-                                 concentration=concentration, pdi=pdi,
-                                 structure_type=structure_type,
-                                 form_type=form_type, maxwell_garnett=False,
-                                 structure_s_data=structure_s_data,
-                                 structure_qd_data=structure_qd_data)
+    n_sample = model.index_external(wavelen)
 
     # calculate the absorption coefficient
     mu_abs = 4*np.pi*n_sample.imag.to_numpy().squeeze()/wavelen
@@ -1115,8 +1008,8 @@ def calc_scat(radius, index_particle, index_matrix, index_sample, index_medium,
     cscat = model.scattering_cross_section(dscat)
     p = model.phase_function(dscat).to_numpy().squeeze()
 
-    mu_scat = number_density * (cscat.loc["avg"].to_numpy().squeeze() *
-                                units**2)
+    mu_scat = model.number_density * (cscat.loc["avg"].to_numpy().squeeze() *
+                                      units**2)
 
     # Here, the resulting units of mu_scat and mu_abs are nm^2/um^3. Thus, we
     # simplify the units to 1/um
@@ -1129,15 +1022,15 @@ def calc_scat(radius, index_particle, index_matrix, index_sample, index_medium,
     if fine_roughness > 0.:
         # We use the same form factor and lengthscale from the existing model.
         # Just need to change the external index to that of the matrix and
-        # change the structure factor to a constant. Note that we are modifying
-        # our original model here, which is ok because we don't reuse the model
-        # in this function.
-        model.index_external = index_matrix
-        model.structure_factor = sc.structure.Constant(1.0)
+        # change the structure factor to a constant. We copy the model to avoid
+        # modifying the original
+        roughness_model = copy.deepcopy(model)
+        roughness_model.index_external = roughness_model.index_matrix
+        roughness_model.structure_factor = sc.structure.Constant(1.0)
 
-        dscat = model.differential_cross_section(coords)
-        cscat_total_mie = model.scattering_cross_section(dscat)
-        mu_scat_mie = (number_density
+        dscat = roughness_model.differential_cross_section(coords)
+        cscat_total_mie = roughness_model.scattering_cross_section(dscat)
+        mu_scat_mie = (roughness_model.number_density
                        * (cscat_total_mie.loc["avg"].to_numpy().squeeze()
                           * units**2))
 

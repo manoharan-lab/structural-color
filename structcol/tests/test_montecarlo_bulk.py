@@ -84,13 +84,15 @@ def calc_sphere_mc():
                                      vf_particles)
     n_sample = index_sample(wavelength)
 
+    # set up scattering model
+    model = sc.model.HardSpheres(particle, volume_fraction_particles,
+                                 index_matrix, index_medium)
+
     # Calculate the phase function and scattering and absorption coefficients
     #from the single scattering model
     # (this absorption coefficient is of the scatterer, not of an absorber
     #added to the system)
-    p, mu_scat, mu_abs = mc.calc_scat(particle_radius, index_particle,
-                                      index_matrix, index_sample, index_medium,
-                                      volume_fraction_particles, wavelength)
+    p, mu_scat, mu_abs = mc.calc_scat(model, wavelength)
 
     # Initialize the trajectories
     r0, k0, W0 = mc.initialize(nevents, ntrajectories, n_matrix_bulk, n_sample,

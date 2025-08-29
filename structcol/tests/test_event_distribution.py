@@ -67,9 +67,10 @@ n_sample = index_sample(wavelength)
 # Calculate the phase function and scattering and absorption coefficients from
 # the single scattering model (this absorption coefficient is of the scatterer,
 # not of an absorber added to the system)
-p, mu_scat, mu_abs = mc.calc_scat(particle_radius, index_particle,
-                                  index_matrix, index_sample, index_medium,
-                                  volume_fraction, wavelength)
+particle = sc.Sphere(index_particle, particle_radius)
+model = sc.model.HardSpheres(particle, volume_fraction, index_matrix,
+                             index_medium)
+p, mu_scat, mu_abs = mc.calc_scat(model, wavelength)
 lscat = 1/mu_scat.magnitude # microns
 
 # set up a seeded random number generator that will give consistent results
@@ -445,14 +446,15 @@ def test_event_distribution_wavelength_mc():
     tir_all_refl_events = np.zeros((wavelengths.size, 2*nevents+1))
     tir_indices_single_events = np.zeros((wavelengths.size, ntrajectories))
 
+    # set up scattering model
+    model = sc.model.HardSpheres(particle, volume_fraction, index_matrix,
+                                 index_medium)
+
     # run monte carlo, reflectance, and event_distribution
     for i in range(wavelengths.size):
         n_sample = n_sample_eff[i]
 
-        p[i,:], mu_scat, mu_abs = mc.calc_scat(particle_radius, index_particle,
-                                               index_matrix, index_sample,
-                                               index_medium, volume_fraction,
-                                               wavelengths[i])
+        p[i,:], mu_scat, mu_abs = mc.calc_scat(model, wavelengths[i])
         lscat[i] = 1/mu_scat.magnitude # microns
 
         r0, k0, W0 = mc.initialize(nevents, ntrajectories, n_medium[i],
@@ -556,9 +558,11 @@ def test_event_distribution_angle_mc():
     refl_events_fresnel_avg = np.zeros((theta_range.size, 2*nevents+1))
     reflectance = np.zeros(theta_range.size)
 
-    p, mu_scat, mu_abs = mc.calc_scat(particle_radius, index_particle,
-                                      index_matrix, index_sample, index_medium,
-                                      volume_fraction, wavelength)
+    particle = sc.Sphere(index_particle, particle_radius)
+    model = sc.model.HardSpheres(particle, volume_fraction, index_matrix,
+                                 index_medium)
+
+    p, mu_scat, mu_abs = mc.calc_scat(model, wavelength)
     lscat = 1/mu_scat.magnitude
 
     # Initialize the trajectories

@@ -47,11 +47,6 @@ index_medium = sc.Index.constant(1.0)
 volume_fraction_da = xr.DataArray([[0.5, 1-0.5]],
                                   coords={sc.Coord.VOLFRAC: [volume_fraction],
                                           sc.Coord.MAT: range(2)})
-n_particle = index_particle(wavelen)
-n_matrix = index_matrix(wavelen)
-n_medium = index_medium(wavelen)
-index_sample = sc.EffectiveIndex([index_particle, index_matrix],
-                                 volume_fraction_da)
 
 # Index of the scattering event and trajectory corresponding to the reflected
 # photons
@@ -179,14 +174,13 @@ def test_reflection_mc():
     radius = sc.Quantity('0.125 um')
     volume_fraction = 0.5
     index_particle = sc.Index.constant(1.54)
+    sphere = sc.Sphere(index_particle, radius)
     index_matrix = sc.index.vacuum
     index_medium = sc.index.vacuum
-    index_sample = sc.EffectiveIndex([index_particle, index_matrix],
-                                     volume_fraction_da)
 
-    R, T = calc_montecarlo(nevents, ntrajectories, radius, index_particle,
-                           index_matrix, index_sample, index_medium,
-                           volume_fraction, wavelen, seed)
+    model = sc.model.HardSpheres(sphere, volume_fraction, index_matrix,
+                                 index_medium)
+    R, T = calc_montecarlo(model, nevents, ntrajectories, wavelen, seed)
 
     R_expected = 0.564374409013182
     T_expected = 0.4356255909868179
@@ -212,6 +206,7 @@ def test_surface_roughness_mc():
     radius = sc.Quantity('0.125 um')
     volume_fraction = 0.5
     index_particle = sc.Index.constant(1.54)
+    sphere = sc.Sphere(index_particle, radius)
     index_matrix = sc.index.vacuum
     index_medium = sc.index.vacuum
     n_particle = index_particle(wavelen)
@@ -232,11 +227,10 @@ def test_surface_roughness_mc():
     coarse_roughness = sc.Quantity(1.1, '')
 
     # Need to specify fine roughness parameter in this function
-    p, mu_scat, mu_abs = mc.calc_scat(radius, index_particle, index_matrix,
-                                      index_sample, index_medium,
-                                      volume_fraction, wavelen,
-                                      fine_roughness=fine_roughness,
-                                      n_matrix=n_matrix)
+    model = sc.model.HardSpheres(sphere, volume_fraction, index_matrix,
+                                 index_medium)
+    p, mu_scat, mu_abs = mc.calc_scat(model, wavelen,
+                                      fine_roughness=fine_roughness)
 
     r0, k0, W0, kz0_rotated, kz0_reflected = \
         mc.initialize(nevents, ntrajectories, n_medium, n_sample, boundary,
@@ -286,13 +280,14 @@ def test_reflection_core_shell():
     ntrajectories = 30
     radius = sc.Quantity('150.0 nm')
     volume_fraction = 0.5
+    sphere = sc.Sphere(index_particle, radius)
 
     # Reflection using a non-core-shell system
     ## ignore the "not enough events" warning
     warnings.filterwarnings("ignore", category=UserWarning)
-    R, T = calc_montecarlo(nevents, ntrajectories, radius, index_particle,
-                           index_matrix, index_sample, index_medium,
-                           volume_fraction, wavelen, seed)
+    model = sc.model.HardSpheres(sphere, volume_fraction, index_matrix,
+                                 index_medium)
+    R, T = calc_montecarlo(model, nevents, ntrajectories, wavelen, seed)
 
     # Reflection using core-shells with the shell index-matched to the core
     ## specify the radii from innermost to outermost layer
@@ -300,13 +295,11 @@ def test_reflection_core_shell():
     ## specify the index from innermost to outermost layer
     index_cs = [sc.Index.constant(1.5), sc.Index.constant(1.5)]
     sphere_cs = sc.Sphere(index_cs, radius_cs)
-    n_particle_cs = sphere_cs.n(wavelen)
-    vf_array = sphere_cs.volume_fraction(total_volume_fraction=volume_fraction)
-    index_sample_cs = sc.EffectiveIndex(index_cs + [index_matrix], vf_array)
+    model_cs = sc.model.HardSpheres(sphere_cs, volume_fraction, index_matrix,
+                                    index_medium)
 
-    R_cs, T_cs = calc_montecarlo(nevents, ntrajectories, radius_cs, index_cs,
-                                 index_matrix, index_sample_cs, index_medium,
-                                 volume_fraction, wavelen, seed)
+    R_cs, T_cs = calc_montecarlo(model_cs, nevents, ntrajectories, wavelen,
+                                 seed)
 
     assert_almost_equal(R, R_cs)
     assert_almost_equal(T, T_cs)
@@ -329,29 +322,19 @@ def test_reflection_core_shell():
     index_particle_abs = sc.Index.constant(1.5+0.001j)
     radius = sc.Quantity(150.0, 'nm')
     particle_abs = sc.Sphere(index_particle_abs, radius)
-    n_particle_abs = particle_abs.n(wavelen)
-    vf_array = particle_abs.volume_fraction(volume_fraction)
-    index_sample_abs = sc.EffectiveIndex([index_particle_abs, index_matrix],
-                                            vf_array)
-
-    R_abs, T_abs = calc_montecarlo(nevents, ntrajectories, radius,
-                                   index_particle_abs, index_matrix,
-                                   index_sample_abs, index_medium,
-                                   volume_fraction, wavelen, seed)
+    model_abs = sc.model.HardSpheres(particle_abs, volume_fraction,
+                                     index_matrix, index_medium)
+    R_abs, T_abs = calc_montecarlo(model_abs, nevents, ntrajectories, wavelen,
+                                   seed)
 
     # Reflection using core-shells with the shell index-matched to the core
     index_cs_abs = [sc.Index.constant(1.5+0.001j),
                     sc.Index.constant(1.5+0.001j)]
     sphere_cs_abs = sc.Sphere(index_cs_abs, radius_cs)
-    n_particle_cs_abs = sphere_cs_abs.n(wavelen)
-    vf_array = sphere_cs_abs.volume_fraction(volume_fraction)
-    index_sample_cs_abs = sc.EffectiveIndex(index_cs_abs + [index_matrix],
-                                            vf_array)
-
-    R_cs_abs, T_cs_abs = calc_montecarlo(nevents, ntrajectories, radius_cs,
-                                         index_cs_abs, index_matrix,
-                                         index_sample_cs_abs, index_medium,
-                                         volume_fraction, wavelen, seed)
+    model_cs_abs = sc.model.HardSpheres(sphere_cs_abs, volume_fraction,
+                                        index_matrix, index_medium)
+    R_cs_abs, T_cs_abs = calc_montecarlo(model_cs_abs, nevents, ntrajectories,
+                                         wavelen, seed)
 
     assert_almost_equal(R_cs_abs, R_abs, decimal=6)
     assert_almost_equal(T_cs_abs, T_abs, decimal=6)
@@ -375,32 +358,21 @@ def test_reflection_core_shell():
     # Same as previous test but with absorbing matrix as well
     # Reflection using a non-core-shell absorbing system
     index_particle_abs = sc.Index.constant(1.5+0.001j)
-    n_particle_abs = index_particle_abs(wavelen)
     particle_abs = sc.Sphere(index_particle_abs, radius)
     index_matrix_abs = sc.Index.constant(1.+0.001j)
-    n_matrix_abs = index_matrix_abs(wavelen)
-    vf_array = particle_abs.volume_fraction(volume_fraction)
-    index_sample_abs = sc.EffectiveIndex([index_particle_abs,
-                                          index_matrix_abs], vf_array)
-
-    R_abs, T_abs = calc_montecarlo(nevents, ntrajectories, radius,
-                                   index_particle_abs, index_matrix,
-                                   index_sample_abs, index_medium,
-                                   volume_fraction, wavelen, seed)
+    model_abs_mat = sc.model.HardSpheres(particle_abs, volume_fraction,
+                                         index_matrix_abs, index_medium)
+    R_abs, T_abs = calc_montecarlo(model_abs_mat, nevents, ntrajectories,
+                                   wavelen, seed)
 
     # Reflection using core-shells with the shell index-matched to the core
     index_cs_abs = [sc.Index.constant(1.5+0.001j),
                     sc.Index.constant(1.5+0.001j)]
     sphere_cs_abs = sc.Sphere(index_cs_abs, radius_cs)
-    n_particle_cs_abs = sphere_cs_abs.n(wavelen)
-    vf_array = sphere_cs_abs.volume_fraction(volume_fraction)
-    index_sample_cs_abs = sc.EffectiveIndex(index_cs_abs +
-                                            [index_matrix_abs], vf_array)
-
-    R_cs_abs, T_cs_abs = calc_montecarlo(nevents, ntrajectories, radius_cs,
-                                         index_cs_abs, index_matrix,
-                                         index_sample_cs_abs, index_medium,
-                                         volume_fraction, wavelen, seed)
+    model_cs_abs_match = sc.model.HardSpheres(sphere_cs_abs, volume_fraction,
+                                              index_matrix_abs, index_medium)
+    R_cs_abs, T_cs_abs = calc_montecarlo(model_cs_abs_match, nevents,
+                                         ntrajectories, wavelen, seed)
 
     assert_almost_equal(R_cs_abs, R_abs, decimal=6)
     assert_almost_equal(T_cs_abs, T_abs, decimal=6)
@@ -425,22 +397,18 @@ def test_reflection_core_shell_mc():
     seed = 1
     ntrajectories = 100
     nevents = 100
+
     wavelen = sc.Quantity('600 nm')
     radius = sc.Quantity(np.array([0.125, 0.13]), 'um')
     index_particle = [sc.Index.constant(1.54), sc.Index.constant(1.33)]
     sphere = sc.Sphere(index_particle, radius)
-    n_particle = sphere.n(wavelen)
     index_matrix = sc.index.vacuum
     index_medium = sc.index.vacuum
-    n_medium = index_medium(wavelen)
     volume_fraction = 0.5
-    volume_fraction_da = sphere.volume_fraction(volume_fraction)
-    index_sample = sc.EffectiveIndex(index_particle + [index_matrix],
-                                     volume_fraction_da)
 
-    R, T = calc_montecarlo(nevents, ntrajectories, radius, index_particle,
-                           index_matrix, index_sample, index_medium,
-                           volume_fraction, wavelen, seed)
+    model = sc.model.HardSpheres(sphere, volume_fraction, index_matrix,
+                                 index_medium)
+    R, T = calc_montecarlo(model, nevents, ntrajectories, wavelen, seed)
 
     R_expected = 0.6236144236194011
     T_expected = 0.37638557638059883
@@ -455,21 +423,21 @@ def test_reflection_absorbing_particle_or_matrix():
     seed = 1
     nevents = 60
     ntrajectories = 30
-    n_particle = index_particle(wavelen)
 
     # Reflection using non-absorbing particle
+    sphere = sc.Sphere(index_particle, radius)
     warnings.filterwarnings("ignore", category=UserWarning) # ignore the "not enough events" warning
-    R, T = calc_montecarlo(nevents, ntrajectories, radius, index_particle,
-                           index_matrix, index_sample, index_medium,
-                           volume_fraction, wavelen, seed)
+    model = sc.model.HardSpheres(sphere, volume_fraction, index_matrix,
+                                 index_medium)
+    R, T = calc_montecarlo(model, nevents, ntrajectories, wavelen, seed)
 
     # Reflection using particle with an imaginary component of 0
     index_particle_abs = sc.Index.constant(1.5 + 0j)
-    n_particle_abs = index_particle_abs(wavelen)
-    R_abs, T_abs = calc_montecarlo(nevents, ntrajectories, radius,
-                                   index_particle_abs, index_matrix,
-                                   index_sample, index_medium, volume_fraction,
-                                   wavelen, seed)
+    sphere_abs = sc.Sphere(index_particle_abs, radius)
+    model_abs = sc.model.HardSpheres(sphere_abs, volume_fraction, index_matrix,
+                                     index_medium)
+    R_abs, T_abs = calc_montecarlo(model_abs, nevents, ntrajectories, wavelen,
+                                   seed)
 
     assert_equal(R, R_abs)
     assert_equal(T, T_abs)
@@ -489,15 +457,11 @@ def test_reflection_absorbing_particle_or_matrix():
     # Reflection using matrix with an imaginary component of 0
     index_matrix_abs = sc.Index.constant(1. + 0j)
     sphere = sc.Sphere(index_particle, radius)
-    n_particle = sphere.n(wavelen)
-    vf_array = sphere.volume_fraction(volume_fraction)
-    index_sample_abs = sc.EffectiveIndex([index_particle, index_matrix_abs],
-                                         vf_array)
 
-    R_abs, T_abs = calc_montecarlo(nevents, ntrajectories, radius,
-                                   index_particle, index_matrix,
-                                   index_sample_abs, index_medium,
-                                   volume_fraction, wavelen, seed)
+    model_abs_mat = sc.model.HardSpheres(sphere, volume_fraction,
+                                         index_matrix_abs, index_medium)
+    R_abs, T_abs = calc_montecarlo(model_abs_mat, nevents, ntrajectories,
+                                   wavelen, seed)
 
     assert_equal(R, R_abs)
     assert_equal(T, T_abs)
@@ -517,12 +481,10 @@ def test_reflection_absorbing_particle_or_matrix():
     # index is 0 or very close to 0
     index_matrix_abs = sc.Index.constant(1. + 1e-10j)
 
-    index_sample_abs = sc.EffectiveIndex([index_particle, index_matrix_abs],
-                                         vf_array)
-    R_abs, T_abs = calc_montecarlo(nevents, ntrajectories, radius,
-                                   index_particle, index_matrix,
-                                   index_sample_abs, index_medium,
-                                   volume_fraction, wavelen, seed)
+    model_abs = sc.model.HardSpheres(sphere, volume_fraction,
+                                     index_matrix_abs, index_medium)
+    R_abs, T_abs = calc_montecarlo(model_abs, nevents, ntrajectories, wavelen,
+                                   seed)
     assert_almost_equal(R, R_abs, decimal=6)
     assert_almost_equal(T, T_abs, decimal=6)
 
@@ -545,14 +507,10 @@ def test_reflection_absorption_mc():
     index_matrix = sc.index.vacuum + 0.0001j
 
     sphere = sc.Sphere(index_particle, radius)
-    n_particle = sphere.n(wavelen)
-    vf_array = sphere.volume_fraction(volume_fraction)
-    index_sample = sc.EffectiveIndex([index_particle, index_matrix],
-                                     vf_array)
+    model = sc.model.HardSpheres(sphere, volume_fraction, index_matrix,
+                                 index_medium)
 
-    R, T = calc_montecarlo(nevents, ntrajectories, radius, index_particle,
-                           index_matrix, index_sample, index_medium,
-                           volume_fraction, wavelen, seed)
+    R, T = calc_montecarlo(model, nevents, ntrajectories, wavelen, seed)
 
     R_expected = 0.17023086537622875
     T_expected = 0.09485003836166318
@@ -565,24 +523,25 @@ def test_reflection_polydispersity():
     nevents = 60
     ntrajectories = 30
 
+    sphere1 = sc.Sphere(index_particle, radius)
     radius2 = radius
-    concentration = sc.Quantity(np.array([0.9,0.1]), '')
-    pdi = sc.Quantity(np.array([1e-7,1e-7]), '')  # monodisperse limit
+    sphere2 = sc.Sphere(index_particle, radius2)
+    concentration = np.array([0.9, 0.1])
+    pdi = np.array([1e-7,1e-7])  # monodisperse limit
+
+    sphere_dist = sc.SphereDistribution([sphere1, sphere2], concentration, pdi)
 
     # Without absorption: test that the reflectance using very small
     # polydispersity is the same as the monodisperse case
     warnings.filterwarnings("ignore", category=UserWarning) # ignore the "not enough events" warning
-    R_mono, T_mono = calc_montecarlo(nevents, ntrajectories, radius,
-                                     index_particle, index_matrix,
-                                     index_sample, index_medium,
-                                     volume_fraction, wavelen, seed,
-                                     polydisperse=False)
-    R_poly, T_poly = calc_montecarlo(nevents, ntrajectories, radius,
-                                     index_particle, index_matrix,
-                                     index_sample, index_medium,
-                                     volume_fraction, wavelen, seed, radius2 =
-                                     radius2, concentration = concentration,
-                                     pdi = pdi, polydisperse=True)
+    model_mono = sc.model.HardSpheres(sphere1, volume_fraction, index_matrix,
+                                      index_medium)
+    R_mono, T_mono = calc_montecarlo(model_mono, nevents, ntrajectories,
+                                     wavelen, seed)
+    model_poly = sc.model.PolydisperseHardSpheres(sphere_dist, volume_fraction,
+                                                  index_matrix, index_medium)
+    R_poly, T_poly = calc_montecarlo(model_poly, nevents, ntrajectories,
+                                     wavelen, seed)
     assert_almost_equal(R_mono, R_poly)
     assert_almost_equal(T_mono, T_poly)
 
@@ -601,24 +560,20 @@ def test_reflection_polydispersity():
     # polydispersity is the same as the monodisperse case
     index_particle_abs = sc.Index.constant(1.5+0.0001j)
     index_matrix_abs = sc.Index.constant(1.+0.0001j)
-    n_particle_abs = index_particle_abs(wavelen)
-    n_matrix_abs = index_matrix_abs(wavelen)
-    index_sample_abs = sc.EffectiveIndex([index_particle_abs,
-                                          index_matrix_abs],
-                                         volume_fraction_da)
 
-    R_mono_abs, T_mono_abs = calc_montecarlo(nevents, ntrajectories, radius,
-                                             index_particle_abs, index_matrix,
-                                             index_sample_abs, index_medium,
-                                             volume_fraction, wavelen, seed,
-                                             polydisperse=False)
-    R_poly_abs, T_poly_abs = calc_montecarlo(nevents, ntrajectories, radius,
-                                             index_particle_abs, index_matrix,
-                                             index_sample_abs, index_medium,
-                                             volume_fraction, wavelen, seed,
-                                             radius2 = radius2, concentration =
-                                             concentration, pdi = pdi,
-                                             polydisperse=True)
+    sphere_abs = sc.Sphere(index_particle_abs, radius)
+    model_mono_abs = sc.model.HardSpheres(sphere_abs, volume_fraction,
+                                          index_matrix_abs, index_medium)
+    R_mono_abs, T_mono_abs = calc_montecarlo(model_mono_abs, nevents,
+                                             ntrajectories, wavelen, seed)
+    sphere_dist_abs = sc.SphereDistribution([sphere_abs, sphere_abs],
+                                            concentration, pdi)
+    model_poly_abs = sc.model.PolydisperseHardSpheres(sphere_dist_abs,
+                                                      volume_fraction,
+                                                      index_matrix_abs,
+                                                      index_medium)
+    R_poly_abs, T_poly_abs = calc_montecarlo(model_poly_abs, nevents,
+                                             ntrajectories, wavelen, seed)
 
     assert_almost_equal(R_mono_abs, R_poly_abs, decimal=6)
     assert_almost_equal(T_mono_abs, T_poly_abs, decimal=6)
@@ -636,57 +591,64 @@ def test_reflection_polydispersity():
 
     # test that the reflectance is the same for a polydisperse monospecies
     # and a bispecies with equal types of particles
-    concentration_mono = sc.Quantity(np.array([0.,1.]), '')
-    concentration_bi = sc.Quantity(np.array([0.3,0.7]), '')
-    pdi2 = sc.Quantity(np.array([1e-1, 1e-1]), '')
+    concentration_single = 1
+    concentration_dual = np.array([0.3, 0.7])
+    pdi2 = np.array([1e-1, 1e-1])
 
-    R_mono2, T_mono2 = calc_montecarlo(nevents, ntrajectories, radius,
-                                       index_particle, index_matrix,
-                                       index_sample, index_medium,
-                                       volume_fraction, wavelen, seed, radius2
-                                       = radius2, concentration =
-                                       concentration_mono, pdi = pdi2,
-                                       polydisperse=True)
-    R_bi, T_bi = calc_montecarlo(nevents, ntrajectories, radius,
-                                 index_particle, index_matrix, index_sample,
-                                 index_medium, volume_fraction, wavelen, seed,
-                                 radius2 = radius2, concentration =
-                                 concentration_bi, pdi = pdi2,
-                                 polydisperse=True)
+    sphere_dist_single = sc.SphereDistribution(sphere1, concentration_single,
+                                               pdi2[0])
+    model_single = sc.model.PolydisperseHardSpheres(sphere_dist_single,
+                                                    volume_fraction,
+                                                    index_matrix, index_medium)
+    R_mono2, T_mono2 = calc_montecarlo(model_single, nevents, ntrajectories,
+                                       wavelen, seed)
+    sphere_dist_dual = sc.SphereDistribution([sphere1, sphere2],
+                                             concentration_dual, pdi2)
+    model_dual = sc.model.PolydisperseHardSpheres(sphere_dist_dual,
+                                                  volume_fraction,
+                                                  index_matrix, index_medium)
+    R_bi, T_bi = calc_montecarlo(model_dual, nevents, ntrajectories, wavelen,
+                                 seed)
 
     assert_equal(R_mono2, R_bi)
     assert_equal(T_mono2, T_bi)
 
     # test that the reflectance is the same regardless of the order in which
-    # the radii are specified
-    radius2 = sc.Quantity('70.0 nm')
-    concentration2 = sc.Quantity(np.array([0.5,0.5]), '')
+    # the species are specified
+    radius1 = sc.Quantity("150.0 nm")
+    sphere1 = sc.Sphere(index_particle, radius1)
+    radius2 = sc.Quantity("70.0 nm")
+    sphere2 = sc.Sphere(index_particle, radius2)
+    concentration = np.array([0.5,0.5])
 
-    R, T = calc_montecarlo(nevents, ntrajectories, radius, index_particle,
-                           index_matrix, index_sample, index_medium,
-                           volume_fraction, wavelen, seed, radius2 = radius2,
-                           concentration = concentration2, pdi =
-                           pdi,polydisperse=True)
-    R2, T2 = calc_montecarlo(nevents, ntrajectories, radius2, index_particle,
-                             index_matrix, index_sample, index_medium,
-                             volume_fraction, wavelen, seed, radius2 = radius,
-                             concentration = concentration2, pdi = pdi,
-                             polydisperse=True)
+    sphere_dist = sc.SphereDistribution([sphere1, sphere2], concentration, pdi)
+    model = sc.model.PolydisperseHardSpheres(sphere_dist, volume_fraction,
+                                             index_matrix, index_medium)
+    R, T = calc_montecarlo(model, nevents, ntrajectories,  wavelen, seed)
+    sphere_dist_rev = sc.SphereDistribution([sphere2, sphere1], concentration,
+                                             pdi)
+    model_rev = sc.model.PolydisperseHardSpheres(sphere_dist_rev,
+                                                 volume_fraction, index_matrix,
+                                                 index_medium)
+    R2, T2 = calc_montecarlo(model_rev, nevents, ntrajectories, wavelen, seed)
 
     assert_almost_equal(R, R2)
     assert_almost_equal(T, T2)
 
     # test that the second size is ignored when its concentration is set to 0
-    radius1 = sc.Quantity('150.0 nm')
-    radius2 = sc.Quantity('100.0 nm')
-    concentration3 = sc.Quantity(np.array([1,0]), '')
-    pdi3 = sc.Quantity(np.array([0., 0.]), '')
+    radius1 = sc.Quantity("150.0 nm")
+    sphere1 = sc.Sphere(index_particle, radius1)
+    radius2 = sc.Quantity("100.0 nm")
+    sphere2 = sc.Sphere(index_particle, radius2)
+    concentration = np.array([1, 0])
+    pdi3 = np.array([0., 0.])
 
-    R3, T3 = calc_montecarlo(nevents, ntrajectories, radius1, index_particle,
-                             index_matrix, index_sample, index_medium,
-                             volume_fraction, wavelen, seed, radius2 = radius2,
-                             concentration = concentration3, pdi = pdi3,
-                             polydisperse=True)
+    sphere_dist = sc.SphereDistribution([sphere1, sphere2], concentration,
+                                        pdi3)
+    model = sc.model.PolydisperseHardSpheres(sphere_dist, volume_fraction,
+                                             index_matrix, index_medium)
+
+    R3, T3 = calc_montecarlo(model, nevents, ntrajectories, wavelen, seed)
 
     assert_equal(R_mono, R3)
     assert_equal(T_mono, T3)
@@ -694,54 +656,48 @@ def test_reflection_polydispersity():
     # test that the reflection is essentially the same when the imaginary
     # index is 0 or very close to 0 in a polydisperse system
     ## When there's only 1 mean diameter
-    radius1 = sc.Quantity('100.0 nm')
-    radius2 = sc.Quantity('150.0 nm')
+    radius1 = sc.Quantity("100.0 nm")
+    radius2 = sc.Quantity("150.0 nm")
     index_matrix_noabs = sc.Index.constant(1.)
     index_matrix_abs = sc.Index.constant(1. + 1e-40*1j)
 
-    n_matrix_abs = index_matrix_abs(wavelen)
-    index_sample_noabs = sc.EffectiveIndex([index_particle,
-                                            index_matrix_noabs],
-                                           volume_fraction_da)
-    index_sample_abs = sc.EffectiveIndex([index_particle, index_matrix_abs],
-                                         volume_fraction_da)
-
+    sphere1 = sc.Sphere(index_particle, radius1)
+    sphere2 = sc.Sphere(index_particle, radius2)
+    concentration4 = sc.Quantity(np.array([0.1, 0.9]), '')
     pdi4 = sc.Quantity(np.array([0.2, 0.2]), '')
-    concentration2 = sc.Quantity(np.array([0.1,0.9]), '')
+    sphere_dist = sc.SphereDistribution(sphere1, 1, pdi4[0])
 
-    R_noabs1, T_noabs1 = calc_montecarlo(nevents, ntrajectories, radius1,
-                                         index_particle, index_matrix,
-                                         index_sample_noabs, index_medium,
-                                         volume_fraction, wavelen, seed,
-                                         radius2 = radius1, concentration =
-                                         concentration2, pdi = pdi4,
-                                         polydisperse=True)
+    model_noabs = sc.model.PolydisperseHardSpheres(sphere_dist,
+                                                   volume_fraction,
+                                                   index_matrix_noabs,
+                                                   index_medium)
+    R_noabs1, T_noabs1 = calc_montecarlo(model_noabs, nevents, ntrajectories,
+                                         wavelen, seed)
 
-    R_abs1, T_abs1 = calc_montecarlo(nevents, ntrajectories, radius1,
-                                     index_particle, index_matrix,
-                                     index_sample_abs, index_medium,
-                                     volume_fraction, wavelen, seed, radius2 =
-                                     radius1, concentration = concentration2,
-                                     pdi = pdi4, polydisperse=True)
+    model_abs1 = sc.model.PolydisperseHardSpheres(sphere_dist, volume_fraction,
+                                                  index_matrix_abs,
+                                                  index_medium)
+
+    R_abs1, T_abs1 = calc_montecarlo(model_abs1, nevents, ntrajectories,
+                                     wavelen, seed)
     assert_almost_equal(R_noabs1, R_abs1)
     assert_almost_equal(T_noabs1, T_abs1)
 
     # When there are 2 mean diameters
-    R_noabs2, T_noabs2 = calc_montecarlo(nevents, ntrajectories, radius1,
-                                         index_particle, index_matrix,
-                                         index_sample_noabs, index_medium,
-                                         volume_fraction, wavelen, seed,
-                                         radius2 = radius2, concentration =
-                                         concentration2, pdi = pdi4,
-                                         polydisperse=True)
+    sphere_dist = sc.SphereDistribution([sphere1, sphere2], concentration4,
+                                        pdi4)
+    model_noabs2 = sc.model.PolydisperseHardSpheres(sphere_dist,
+                                                    volume_fraction,
+                                                    index_matrix_noabs,
+                                                    index_medium)
+    R_noabs2, T_noabs2 = calc_montecarlo(model_noabs2, nevents, ntrajectories,
+                                         wavelen, seed)
 
-    # something to do with the combination of absorber, 2 radii, and nevents-1
-    R_abs2, T_abs2 = calc_montecarlo(nevents, ntrajectories, radius1,
-                                     index_particle, index_matrix,
-                                     index_sample_abs, index_medium,
-                                     volume_fraction, wavelen, seed, radius2 =
-                                     radius2, concentration = concentration2,
-                                     pdi = pdi4, polydisperse=True)
+    model_abs2 = sc.model.PolydisperseHardSpheres(sphere_dist, volume_fraction,
+                                                  index_matrix_abs,
+                                                  index_medium)
+    R_abs2, T_abs2 = calc_montecarlo(model_abs2, nevents, ntrajectories,
+                                     wavelen, seed)
 
     # Note: Previously (before adding lines nevents=nevents-1 to sample_angles()),
     # this test yielded:
@@ -755,6 +711,7 @@ def test_reflection_polydispersity():
     assert_almost_equal(R_noabs2, R_abs2, decimal=1)
     assert_almost_equal(T_noabs2, T_abs2, decimal=1)
 
+
 def test_reflection_polydispersity_mc():
     """
     Tests whether the reflectance is what we expect from a simulation on a film
@@ -767,27 +724,23 @@ def test_reflection_polydispersity_mc():
     seed = 1
     ntrajectories = 100
     nevents = 100
-    wavelen = sc.Quantity('600 nm')
-    radius = sc.Quantity('0.125 um')
+    wavelen = sc.Quantity("600 nm")
     volume_fraction = 0.5
     index_particle = sc.Index.constant(1.54)
-    n_particle = index_particle(wavelen)
     index_matrix = sc.index.vacuum
-    n_matrix = index_matrix(wavelen)
-    index_sample = sc.EffectiveIndex([index_particle, index_matrix],
-                                     volume_fraction_da)
 
     # define the parameters for polydispersity
-    radius = sc.Quantity('125 nm')
-    radius2 = sc.Quantity('150 nm')
-    concentration = sc.Quantity(np.array([0.9,0.1]), '')
-    pdi = sc.Quantity(np.array([0.01, 0.01]), '')
+    radius1 = sc.Quantity("125 nm")
+    radius2 = sc.Quantity("150 nm")
+    sphere1 = sc.Sphere(index_particle, radius1)
+    sphere2 = sc.Sphere(index_particle, radius2)
+    concentration = np.array([0.9, 0.1])
+    pdi = np.array([0.01, 0.01])
+    sphere_dist = sc.SphereDistribution([sphere1, sphere2], concentration, pdi)
 
-    R, T = calc_montecarlo(nevents, ntrajectories, radius, index_particle,
-                           index_matrix, index_sample, index_medium,
-                           volume_fraction, wavelen, seed, radius2 = radius2,
-                           concentration = concentration, pdi = pdi,
-                           polydisperse=True)
+    model = sc.model.PolydisperseHardSpheres(sphere_dist, volume_fraction,
+                                             index_matrix, index_medium)
+    R, T = calc_montecarlo(model, nevents, ntrajectories, wavelen, seed)
 
     R_expected = 0.5807373008878349
     T_expected = 0.41926269911216507
@@ -816,6 +769,8 @@ def test_detectors_mc():
                                                 sc.Coord.MAT: range(2)})
     n_imag = 2.1e-4 * 1j
     index_particle = sc.index.polystyrene + sc.Index.constant(n_imag)
+    sphere = sc.Sphere(index_particle, radius)
+
     index_matrix = sc.index.vacuum
     index_medium = sc.index.vacuum
     n_particle = index_particle(wavelength)
@@ -830,9 +785,9 @@ def test_detectors_mc():
     ntrajectories = 300
     nevents = 200
 
-    p, mu_scat, mu_abs = mc.calc_scat(radius, index_particle, index_matrix,
-                                      index_sample, index_medium,
-                                      volume_fraction, wavelength)
+    model = sc.model.HardSpheres(sphere, volume_fraction, index_matrix,
+                                 index_medium)
+    p, mu_scat, mu_abs = mc.calc_scat(model, wavelength)
 
     # Initialize the trajectories
     r0, k0, W0 = mc.initialize(nevents, ntrajectories, n_medium, n_sample,
@@ -906,6 +861,7 @@ def test_detectors_mc():
 
     assert_almost_equal(refl_renorm.magnitude, refl_renorm_expected)
 
+
 def test_throw_valueerror_for_polydisperse_core_shells():
 # test that a valueerror is raised when trying to run polydisperse core-shells
     seed = 1
@@ -917,57 +873,21 @@ def test_throw_valueerror_for_polydisperse_core_shells():
     # specify the index from innermost to outermost layer
     index_particle_cs = [sc.Index.constant(1.5), sc.Index.constant(1.5)]
     sphere_cs = sc.Sphere(index_particle_cs, radius_cs)
-    n_particle_cs = sphere_cs.n(wavelen)
     radius2 = radius
-    concentration = sc.Quantity(np.array([0.9,0.1]), '')
+    sphere_cs_2 = sc.Sphere(index_particle, radius2)
+    concentration = sc.Quantity(np.array([0.9, 0.1]), '')
     # monodisperse limit
     pdi = sc.Quantity(np.array([1e-7, 1e-7]), '')
 
-    # calculate the volume fractions of each layer
-    vf_array = sphere_cs.volume_fraction(volume_fraction)
+    sphere_dist = sc.SphereDistribution([sphere_cs, sphere_cs_2],
+                                        concentration, pdi)
+    model = sc.model.PolydisperseHardSpheres(sphere_dist, volume_fraction,
+                                             index_matrix, index_medium)
 
-    index_sample_cs = sc.EffectiveIndex(index_particle_cs + [index_matrix],
-                                        vf_array)
+    with pytest.raises(ValueError, match="Cannot handle polydispersity"):
+        R_cs, T_cs = calc_montecarlo(model, nevents, ntrajectories, wavelen,
+                                     seed)
 
-    with pytest.raises(ValueError):
-        R_cs, T_cs = calc_montecarlo(nevents, ntrajectories, radius_cs,
-                                     index_particle_cs, index_sample_cs,
-                                     index_matrix, index_medium,
-                                     volume_fraction, wavelen, seed,
-                                     radius2=radius2,
-                                     concentration=concentration, pdi=pdi,
-                                     polydisperse=True)
-
-def test_throw_valueerror_for_polydisperse_unspecified_parameters():
-# test that a valueerror is raised when the system is polydisperse and radius2
-# concentration or pdi are not specified
-    seed = 1
-    nevents = 10
-    ntrajectories = 5
-
-    # specify the radii from innermost to outermost layer
-    radius = sc.Quantity(150.0, 'nm')
-    # specify the index from innermost to outermost layer
-    index_particle = sc.Index.constant(1.5)
-    sphere = sc.Sphere(index_particle, radius)
-    n_particle = sphere.n(wavelen)
-    concentration = sc.Quantity(np.array([0.9,0.1]), '')
-    # monodisperse limit
-    pdi = sc.Quantity(np.array([1e-7, 1e-7]), '')
-
-    # calculate the volume fractions of each layer
-    vf_array = sphere.volume_fraction(volume_fraction)
-
-    index_sample = sc.EffectiveIndex([index_particle, index_matrix],
-                                     vf_array)
-
-    with pytest.raises(ValueError):
-        R_cs, T_cs = calc_montecarlo(nevents, ntrajectories, radius,
-                                     index_particle, index_matrix,
-                                     index_sample, index_medium,
-                                     volume_fraction, wavelen, seed,
-                                     concentration=concentration, pdi=pdi,
-                                     polydisperse=True)  # unspecified radius2
 
 def test_surface_roughness():
     # test that the reflectance with very small surface roughness is the same
@@ -976,32 +896,25 @@ def test_surface_roughness():
     nevents = 100
     ntrajectories = 30
 
+    sphere = sc.Sphere(index_particle, radius)
+    model = sc.model.HardSpheres(sphere, volume_fraction, index_matrix,
+                                 index_medium)
+
     # Reflection with no surface roughness
-    R, T = calc_montecarlo(nevents, ntrajectories, radius, index_particle,
-                           index_sample, index_matrix, index_medium,
-                           volume_fraction, wavelen, seed)
+    R, T = calc_montecarlo(model, nevents, ntrajectories, wavelen, seed)
 
     # Reflection with very little fine surface roughness
-    R_fine, T_fine = calc_montecarlo(nevents, ntrajectories, radius,
-                                     index_particle, index_sample,
-                                     index_matrix, index_medium,
-                                     volume_fraction, wavelen, seed,
-                                     fine_roughness = 1e-4, n_matrix=n_matrix)
+    R_fine, T_fine = calc_montecarlo(model, nevents, ntrajectories, wavelen,
+                                     seed, fine_roughness=1e-4)
 
     # Reflection with very little coarse surface roughness
-    R_coarse, T_coarse = calc_montecarlo(nevents, ntrajectories, radius,
-                                         index_particle, index_sample,
-                                         index_matrix, index_medium,
-                                         volume_fraction, wavelen, seed,
-                                         coarse_roughness = 1e-5)
+    R_coarse, T_coarse = calc_montecarlo(model, nevents, ntrajectories,
+                                         wavelen, seed, coarse_roughness=1e-5)
 
     # Reflection with very little fine and coarse surface roughness
-    R_both, T_both = calc_montecarlo(nevents, ntrajectories, radius,
-                                     index_particle, index_sample,
-                                     index_matrix, index_medium,
-                                     volume_fraction, wavelen, seed,
-                                     fine_roughness=1e-4, coarse_roughness =
-                                     1e-5, n_matrix=n_matrix)
+    R_both, T_both = calc_montecarlo(model, nevents, ntrajectories, wavelen,
+                                     seed, fine_roughness=1e-4,
+                                     coarse_roughness=1e-5)
 
     assert_almost_equal(R, R_fine)
     assert_almost_equal(T, T_fine)
@@ -1010,12 +923,10 @@ def test_surface_roughness():
     assert_almost_equal(R, R_both)
     assert_almost_equal(T, T_both)
 
-def calc_montecarlo(nevents, ntrajectories, radius, index_particle,
-                    index_matrix, index_sample, index_medium, volume_fraction,
-                    wavelen, seed, radius2=None, concentration=None, pdi=None,
-                    polydisperse=False, fine_roughness=0., coarse_roughness=0.,
-                    n_matrix=None, incidence_theta_min=0.,
-                    incidence_theta_max=0.):
+
+def calc_montecarlo(model, nevents, ntrajectories, wavelen, seed,
+                    fine_roughness=0., coarse_roughness=0.,
+                    incidence_theta_min=0., incidence_theta_max=0.):
 
     # set up a seeded random number generator that will give consistent results
     # between numpy versions. This is to reproduce the gold values which are
@@ -1026,18 +937,13 @@ def calc_montecarlo(nevents, ntrajectories, radius, index_particle,
     incidence_theta_min=sc.Quantity(incidence_theta_min,'rad')
     incidence_theta_max=sc.Quantity(incidence_theta_min,'rad')
 
-    n_sample = index_sample(wavelen)
-    n_medium = index_medium(wavelen)
+    n_sample = model.index_external(wavelen)
+    n_medium = model.index_medium(wavelen)
 
     # Function to run montecarlo for the tests
-    p, mu_scat, mu_abs = mc.calc_scat(radius, index_particle, index_matrix,
-                                      index_sample, index_medium,
-                                      volume_fraction, wavelen,
-                                      radius2=radius2,
-                                      concentration=concentration, pdi=pdi,
-                                      polydisperse=polydisperse,
-                                      fine_roughness=fine_roughness,
-                                      n_matrix=n_matrix)
+    p, mu_scat, mu_abs = mc.calc_scat(model, wavelen,
+                                      fine_roughness=fine_roughness)
+
 
     if coarse_roughness > 0.:
         r0, k0, W0, kz0_rotated, kz0_reflected = \

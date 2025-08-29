@@ -355,12 +355,7 @@ def test_structure_factor_data_reflectances():
 
     reflectance = np.zeros(wavelengths.size)
     for i in range(wavelengths.size):
-        p, mu_scat, mu_abs = mc.calc_scat(radius, index_particle, index_matrix,
-                                          index_sample_eff, index_medium,
-                                          volume_fraction, wavelengths[i],
-                                          structure_type = 'data',
-                                          structure_s_data = s_data,
-                                          structure_qd_data = ql_data)
+        p, mu_scat, mu_abs = mc.calc_scat(model, wavelengths[i])
 
         n_sample = index_sample_eff(wavelengths[i])
 

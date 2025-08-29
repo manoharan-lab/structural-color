@@ -61,10 +61,12 @@ def test_2pi_shift():
     ntrajectories = 10
     nevents = 30
 
+    # set up scattering model
+    model = sc.model.HardSpheres(sphere, volume_fraction, index_matrix,
+                                 index_medium)
+
     # Calculate scattering quantities
-    p, mu_scat, mu_abs = mc.calc_scat(radius, index_particle, index_matrix,
-                                      index_sample, index_medium, volume_fraction,
-                                      wavelength, fields=True)
+    p, mu_scat, mu_abs = mc.calc_scat(model, wavelength, fields=True)
 
     # Initialize trajectories
     r0, k0, W0, E0 = mc.initialize(nevents, ntrajectories, n_medium, n_sample, boundary,
@@ -224,10 +226,12 @@ def test_field_normalized():
     ntrajectories = 10
     nevents = 10
 
+    # set up scattering model
+    model = sc.model.HardSpheres(sphere, volume_fraction, index_matrix,
+                                 index_medium)
+
     # Calculate scattering quantities
-    p, mu_scat, mu_abs = mc.calc_scat(radius, index_particle, index_matrix,
-                                      index_sample, index_medium, volume_fraction,
-                                      wavelength, fields=True)
+    p, mu_scat, mu_abs = mc.calc_scat(model, wavelength, fields=True)
 
     # Initialize trajectories
     r0, k0, W0, E0 = mc.initialize(nevents, ntrajectories, n_medium, n_sample,
@@ -300,10 +304,12 @@ def test_field_perp_direction():
     ntrajectories = 10
     nevents = 10
 
+    # set up scattering model
+    model = sc.model.HardSpheres(sphere, volume_fraction, index_matrix,
+                                 index_medium)
+
     # Calculate scattering quantities
-    p, mu_scat, mu_abs = mc.calc_scat(radius, index_particle, index_matrix,
-                                      index_sample, index_medium, volume_fraction,
-                                      wavelength, fields=True)
+    p, mu_scat, mu_abs = mc.calc_scat(model, wavelength, fields=True)
 
     # Initialize trajectories
     r0, k0, W0, E0 = mc.initialize(nevents, ntrajectories, n_medium, n_sample,
@@ -377,10 +383,12 @@ def test_field_reflectance_mc():
     ntrajectories = 2000
     nevents = 300
 
+    # set up scattering model
+    model = sc.model.HardSpheres(sphere, volume_fraction, index_matrix,
+                                 index_medium)
+
     # Calculate scattering quantities
-    p, mu_scat, mu_abs = mc.calc_scat(radius, index_particle, index_matrix,
-                                      index_sample, index_medium, volume_fraction,
-                                      wavelength, fields=True)
+    p, mu_scat, mu_abs = mc.calc_scat(model, wavelength, fields=True)
 
     # Initialize trajectories
     r0, k0, W0, E0 = mc.initialize(nevents, ntrajectories,
@@ -481,14 +489,15 @@ def test_field_co_cross_mc():
     refl_field = np.zeros(wavelengths.size)
     refl_intensity = np.zeros(wavelengths.size)
 
+    # set up scattering model
+    model = sc.model.HardSpheres(sphere, volume_fraction, index_matrix,
+                                 index_medium)
+
     for i in range(wavelengths.size):
         n_sample = index_sample_eff(wavelengths[i])
 
         # Calculate scattering quantities
-        p, mu_scat, mu_abs = mc.calc_scat(radius, index_particle, index_matrix,
-                                          index_sample_eff, index_medium,
-                                          volume_fraction, wavelengths[i],
-                                          fields=True)
+        p, mu_scat, mu_abs = mc.calc_scat(model, wavelengths[i], fields=True)
 
         # Initialize trajectories
         r0, k0, W0, E0 = mc.initialize(nevents, ntrajectories, n_medium[i],
