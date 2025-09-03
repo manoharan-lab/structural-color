@@ -522,8 +522,8 @@ def reflection(n_particle, n_matrix, n_medium, wavelen, radius,
         factor = 1.0
     else:
         # use Beer-Lambert law to account for attenuation
-        factor = ((1.0 - np.exp(-rho*cext_total*thickness)))
-                 # * cscat_total/cext_total).to('')
+        factor = ((1.0 - np.exp(-rho*cext_total*thickness))
+                  * cscat_total/cext_total).to('')
 
     # one critical difference from Sofia's original code is that this code
     # calculates the reflected intensity in each polarization channel
