@@ -116,10 +116,12 @@ def patched_to_preferred(self):
     # units mixed with other units
     if self.check("[length]"):
         new_q = self.to(LENGTH_UNIT)
-    if self.check("[length]^2"):
+    elif self.check("[length]^2"):
         new_q = self.to(LENGTH_UNIT**2)
-    if self.check("[length]^-1"):
+    elif self.check("[length]^-1"):
         new_q = self.to(1/LENGTH_UNIT)
+    else:
+        raise ValueError(f"Quantity {self} does not have expected units")
     return new_q
 Quantity.to_preferred = patched_to_preferred
 
