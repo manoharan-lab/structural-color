@@ -27,6 +27,13 @@ filterwarnings = [
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
 ]
+# don't test pymie because the unit registry that is loaded will not be
+# compatible with structcol's unit registry.  The registry is loaded only once
+# per pytest session, and if pymie is tested first, the registry used will be
+# pymie's, leading to test failures.
+testpaths = [
+    "structcol",
+]
 
 # this configures pytest --cov
 [tool.coverage.run]

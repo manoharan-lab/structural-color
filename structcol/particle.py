@@ -23,8 +23,8 @@ methods for calculating form factors from such particles.
 
 import numpy as np
 import xarray as xr
-from pymie import mie
 import structcol as sc
+from pymie import mie
 
 
 class Particle:

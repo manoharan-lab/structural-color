@@ -20,11 +20,12 @@ Tests various features of the structcol package not found in submodules
 .. moduleauthor:: Vinothan N. Manoharan <vnm@seas.harvard.edu>
 """
 
-from .. import Quantity, q, np
+import numpy as np
 from numpy.testing import assert_equal
 import xarray as xr
 import pytest
 import structcol as sc
+from pymie import q
 from pint.errors import DimensionalityError
 
 def test_q():
@@ -32,17 +33,17 @@ def test_q():
     # with dimensions
 
     # test angle conversion
-    assert_equal(q(Quantity('450 nm'), Quantity('pi/2 rad')).magnitude,
-                 q(Quantity('450 nm'), Quantity('90 degrees')).magnitude)
+    assert_equal(q(sc.Quantity("450 nm"), sc.Quantity("pi/2 rad")).magnitude,
+                 q(sc.Quantity("450 nm"), sc.Quantity("90 degrees")).magnitude)
 
     # test to make sure function returns an array if given an array argument
-    wavelen = Quantity(np.arange(500.0, 800.0, 10.0), 'nm')
+    wavelen = sc.Quantity(np.arange(500.0, 800.0, 10.0), "nm")
     assert_equal(wavelen.shape, (30,))
-    q_values = q(wavelen, Quantity('90 degrees'))
+    q_values = q(wavelen, sc.Quantity("90 degrees"))
     assert_equal(q_values.shape, wavelen.shape)
-    angle = np.transpose(Quantity(np.arange(0, 180., 1.0), 'degrees'))
+    angle = np.transpose(sc.Quantity(np.arange(0, 180., 1.0), "degrees"))
     assert_equal(angle.shape, (180,))
-    q_values = q(Quantity('0.5 um'), angle)
+    q_values = q(sc.Quantity("0.5 um"), angle)
     assert_equal(q_values.shape, angle.shape)
 
     # test to make sure function returns a 2D array if given arrays for both
@@ -52,9 +53,9 @@ def test_q():
 
     # test dimension checking
     with pytest.raises(DimensionalityError):
-        q(Quantity('0.5 J'), Quantity('0.5 rad'))
+        q(sc.Quantity("0.5 J"), sc.Quantity("0.5 rad"))
     with pytest.raises(DimensionalityError):
-        q(Quantity('450 nm'), Quantity('0.5 m'))
+        q(sc.Quantity("450 nm"), sc.Quantity("0.5 m"))
 
 
 # test both scalars and vectors

@@ -41,16 +41,17 @@ Physical Review E 90, no. 6 (2014): 62302. doi:10.1103/PhysRevE.90.062302
 .. moduleauthor :: Sofia Magkiriadou <sofia@physics.harvard.edu>.
 """
 
-# Load the default unit registry from pint and use it everywhere.
-# Using the unit registry (and wrapping all functions) ensures that we don't
-# make unit mistakes.
-# Also load commonly used functions from pymie package
-from pymie import Quantity, ureg, q, np, mie
+import numpy as np
+import xarray as xr
+
+# import into structcol namespace
+from .quantity import LENGTH_UNIT, ureg, Quantity
+from pymie import mie
 from . import refractive_index as index
 from .refractive_index import Index, EffectiveIndex
 from .particle import Particle, Sphere, SphereDistribution
 from . import structure, model
-import xarray as xr
+
 
 # make sure attributes are preserved during arithmetic operations
 xr.set_options(keep_attrs=True)
@@ -64,7 +65,6 @@ class Coord():
     xarray objects.
 
     """
-
     WAVELEN = "wavelength"
     VOLFRAC = "volume_fraction"
     # both LAYER and MAT map to the same name, so that we can describe the
@@ -97,33 +97,6 @@ class Attr():
 
     """
     LENGTH_UNIT = "length unit"
-
-
-# Preferred unit for length. Because the package allows calculations as a
-# function of wavelength and radius, it's not always clear what length scale to
-# use for nondimensionalization. We specify a preferred length scale here for
-# nondimensionalizing length scales internally. All dimensional quantities
-# (specified using pint) are converted to the same units as the preferred and
-# are then nondimensionalized. We choose micrometers because all the dispersion
-# relations are expressed in terms of micrometers.
-LENGTH_UNIT = ureg.micrometer
-ureg.default_preferred_units = [LENGTH_UNIT]
-
-# patch pint's to_preferred(), which is now broken
-def patched_to_preferred(self):
-    # we really only have three cases to handle (wavelengths, cross sections
-    # and wavevectors), so we don't need to handle the general case of length
-    # units mixed with other units
-    if self.check("[length]"):
-        new_q = self.to(LENGTH_UNIT)
-    elif self.check("[length]^2"):
-        new_q = self.to(LENGTH_UNIT**2)
-    elif self.check("[length]^-1"):
-        new_q = self.to(1/LENGTH_UNIT)
-    else:
-        raise ValueError(f"Quantity {self} does not have expected units")
-    return new_q
-Quantity.to_preferred = patched_to_preferred
 
 
 def _make_input_coords(wavelen, thetas, phis=None):

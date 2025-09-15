@@ -22,7 +22,6 @@ Tests for the refractive_index module of structcol
 """
 
 import structcol as sc
-from .. import Quantity
 from numpy.testing import assert_equal, assert_almost_equal
 from pint.errors import DimensionalityError
 import numpy as np
@@ -31,7 +30,7 @@ import pytest
 
 class TestIndex:
     """Tests for the Index class"""
-    wavelen = sc.Quantity(np.linspace(400, 800, 100), 'nm')
+    wavelen = sc.Quantity(np.linspace(400, 800, 100), "nm")
 
     def test_index_from_function(self):
         # test that making an Index object from a function works
@@ -45,13 +44,13 @@ class TestIndex:
         assert_equal(my_index(self.wavelen), np.ones_like(self.wavelen) * 1.0)
 
         # check that scalar wavelength works
-        single_wavelength_n = my_index(sc.Quantity('400.0 nm'))
+        single_wavelength_n = my_index(sc.Quantity("400.0 nm"))
         assert_equal(single_wavelength_n.to_numpy(), 1.0)
         # and that we return an xarray DataArray object even for single
         # wavelength
         assert isinstance(single_wavelength_n, xr.DataArray)
         assert (single_wavelength_n.attrs[sc.Attr.LENGTH_UNIT] ==
-                Quantity(1, 'nm').to_preferred().units)
+                sc.Quantity(1, "nm").to_preferred().units)
         assert (sc.Coord.WAVELEN in single_wavelength_n.coords.keys())
 
         # check that keyword is set when creating Index object
@@ -69,22 +68,22 @@ class TestIndex:
 
         # check that giving dimensional constant gives error
         with pytest.raises(ValueError):
-            my_index = sc.Index.constant(sc.Quantity(1.45, 'um'))
+            my_index = sc.Index.constant(sc.Quantity(1.45, "um"))
             my_index(self.wavelen)
 
         # check that wavelengths with wrong units gives error
         with pytest.raises(DimensionalityError):
-            my_index(sc.Quantity('400 kg'))
+            my_index(sc.Quantity("400 kg"))
 
         # test that dimensions of index are stripped
-        my_index = sc.Index.constant(sc.Quantity(1.33, ''))
-        assert not isinstance(my_index(sc.Quantity('400 nm')), Quantity)
+        my_index = sc.Index.constant(sc.Quantity(1.33, ""))
+        assert not isinstance(my_index(sc.Quantity("400 nm")), sc.Quantity)
 
     def test_index_from_data(self):
         # test that making an index object from a data works as expected
 
         # Test that output calculations match input data
-        wavelength = Quantity(np.array([400.0, 500.0, 600.0]), 'nm')
+        wavelength = sc.Quantity(np.array([400.0, 500.0, 600.0]), "nm")
         data = np.array([1.5,1.55,1.6])
         assert_equal(sc.Index.from_data(wavelength, data)(wavelength), data)
 
@@ -94,7 +93,7 @@ class TestIndex:
                      data_complex)
 
         # generate "data" over visible range from existing dispersion formula
-        wavelength_data = sc.Quantity(np.linspace(400, 800, 10), 'nm')
+        wavelength_data = sc.Quantity(np.linspace(400, 800, 10), "nm")
         index_data = sc.index.water(wavelength_data)
 
         # next construct interpolating function
@@ -102,7 +101,7 @@ class TestIndex:
                                                        index_data,
                                                        kind="linear")
         interpolated_index_cubic = sc.Index.from_data(wavelength_data,
-                                                      index_data, kind='cubic')
+                                                      index_data, kind="cubic")
 
         # linear should roughly agree; cubic should have better agreement
         assert_almost_equal(interpolated_index_linear(self.wavelen).to_numpy(),
@@ -113,15 +112,15 @@ class TestIndex:
         # test that specifying wavelength in the wrong units gives error
         with pytest.raises(DimensionalityError):
             index_data = sc.index.water(wavelength_data)
-            wavelength_wrong = wavelength_data.magnitude *  sc.Quantity('kg')
+            wavelength_wrong = wavelength_data.magnitude *  sc.Quantity("kg")
             index = sc.Index.from_data(wavelength_wrong, index_data)
 
         # test that dimensions of index are stripped
         index_data = sc.Quantity(sc.index.water(wavelength_data).to_numpy(),
-                                 '')
+                                 "")
         interpolated_index = sc.Index.from_data(wavelength_data, index_data)
-        assert not isinstance(interpolated_index(sc.Quantity('400 nm')),
-                              Quantity)
+        assert not isinstance(interpolated_index(sc.Quantity("400 nm")),
+                              sc.Quantity)
 
         # test that exception is thrown if lengths of arrays are not identical
         index_data = index_data[1:]
@@ -134,27 +133,27 @@ class TestIndex:
         # exceptions are thrown and the index is always dimensionless
         with pytest.raises(ValueError):
             def fake_index_func(wavelen):
-                return 1.4 * sc.Quantity(500, 'nm')/(wavelen*wavelen)
+                return 1.4 * sc.Quantity(500, "nm")/(wavelen*wavelen)
             my_index = sc.Index(fake_index_func)
-            my_index(sc.Quantity('400 nm'))
+            my_index(sc.Quantity("400 nm"))
 
         # test with weird but OK units
         def fake_index_func(wavelen):
-            return 1.4 + sc.Quantity(0.5, 'nm*um')/(wavelen*wavelen)
+            return 1.4 + sc.Quantity(0.5, "nm*um")/(wavelen*wavelen)
         my_index = sc.Index(fake_index_func)
-        assert_equal(my_index(sc.Quantity('400 nm')).to_numpy(), 1.403125)
+        assert_equal(my_index(sc.Quantity("400 nm")).to_numpy(), 1.403125)
 
         def fake_index_func(wavelen):
-            return 1.4 + sc.Quantity(0.000005, 'nm*m')/(wavelen*wavelen)
-        assert_equal(my_index(sc.Quantity('400 nm')).to_numpy(), 1.403125)
+            return 1.4 + sc.Quantity(0.000005, "nm*m")/(wavelen*wavelen)
+        assert_equal(my_index(sc.Quantity("400 nm")).to_numpy(), 1.403125)
 
         # ensure that we get the same result with different units for the
         # wavelength
-        assert_equal(my_index(sc.Quantity('500 nm')),
-                     my_index(sc.Quantity('0.5 um')))
+        assert_equal(my_index(sc.Quantity("500 nm")),
+                     my_index(sc.Quantity("0.5 um")))
 
-        assert_equal(my_index(sc.Quantity('5e-5 cm')),
-                     my_index(sc.Quantity('5e-7 m')))
+        assert_equal(my_index(sc.Quantity("5e-5 cm")),
+                     my_index(sc.Quantity("5e-7 m")))
 
         # test with xarray input
         wavelen = xr.DataArray(np.linspace(0.4, 0.8, 11),
@@ -166,7 +165,7 @@ class TestIndex:
         objects works correctly.
 
         """
-        self.wavelen = sc.Quantity(np.linspace(400, 800, 5), 'nm')
+        self.wavelen = sc.Quantity(np.linspace(400, 800, 5), "nm")
         def check_add_index(initial, constant):
             index = initial + constant
             if isinstance(constant, str):
@@ -183,9 +182,9 @@ class TestIndex:
         check_add_index(sc.index.water, constant = 0.1555)
         check_add_index(sc.index.pmma, constant = "0.55")
         check_add_index(sc.index.vacuum, constant = int(1))
-        check_add_index(sc.index.fused_silica, constant = sc.Quantity('0.1'))
+        check_add_index(sc.index.fused_silica, constant = sc.Quantity("0.1"))
         check_add_index(sc.index.fused_silica,
-                        constant = sc.Quantity(0.1j, ''))
+                        constant = sc.Quantity(0.1j, ""))
 
         # test with Index object from dispersion relation
         index = sc.index.polystyrene + sc.index.vacuum
@@ -215,12 +214,12 @@ class TestEffectiveIndex():
         # test that we can build an effective index object and that it returns
         # expected results
         num_wavelengths = 10
-        wavelen = sc.Quantity(np.linspace(400, 800, num_wavelengths), 'nm')
+        wavelen = sc.Quantity(np.linspace(400, 800, num_wavelengths), "nm")
         index_particle = [sc.index.polystyrene, sc.index.fused_silica,
                           sc.index.ethanol, sc.index.pmma, sc.index.rutile]
         index_matrix = sc.index.water + 0.001j
 
-        radius = sc.Quantity(np.array([100, 120, 140, 150, 160]), 'nm')
+        radius = sc.Quantity(np.array([100, 120, 140, 150, 160]), "nm")
         sphere = sc.Sphere(index_particle, radius)
         vf_array = sphere.volume_fraction(total_volume_fraction=0.5)
         index_list = index_particle + [index_matrix]
@@ -239,7 +238,7 @@ class TestEffectiveIndex():
     def test_effective_index(self):
         # test that at low volume fractions, Maxwell-Garnett and Bruggeman
         # roughly match for a non-core-shell particle
-        wavelen = sc.Quantity(500.0, 'nm')
+        wavelen = sc.Quantity(500.0, "nm")
         index_particle = sc.Index.constant(2.7)
         index_matrix = sc.Index.constant(2.2)
         vf = xr.DataArray(np.array([0.001, 1-0.001]),
@@ -328,7 +327,7 @@ class TestEffectiveIndex():
                                                 sc.Index.constant(2.2+0.001j)])
     def test_effective_index_from_sphere(self, index_particle):
         # test construction of an EffectiveIndex object from a Sphere object
-        wavelen = sc.Quantity(np.linspace(400, 800, 20), 'nm')
+        wavelen = sc.Quantity(np.linspace(400, 800, 20), "nm")
 
         radius = sc.Quantity(0.35, "um")
         sphere = sc.Sphere(index_particle, radius)
@@ -353,7 +352,7 @@ class TestEffectiveIndex():
         """
         # five layers, all same index.  Total volume fraction is 1, so result
         # should not depend on index of matrix
-        wavelen = sc.Quantity(500.0, 'nm')
+        wavelen = sc.Quantity(500.0, "nm")
         index = sc.Index.constant(1.33)
         layers = 5
         index_particle = [index]*layers
@@ -366,7 +365,7 @@ class TestEffectiveIndex():
         n_eff = n_eff.isel({sc.Coord.VOLFRAC: 0}, drop=True)
         xr.testing.assert_allclose(n_eff, index(wavelen))
 
-        wavelen = sc.Quantity(np.linspace(400, 800, 10), 'nm')
+        wavelen = sc.Quantity(np.linspace(400, 800, 10), "nm")
         # three layers, outer layer same as matrix.  Should return same as two
         # layers
         index_matrix = sc.Index.constant(1.33)
@@ -393,7 +392,7 @@ class TestEffectiveIndex():
         """
         # since indices are constant, should get same result at all wavelengths
         # as at a single wavelength
-        wavelen = sc.Quantity(np.linspace(400.0, 800.0, 10), 'nm')
+        wavelen = sc.Quantity(np.linspace(400.0, 800.0, 10), "nm")
         index_particle = sc.Index.constant(1.33)
         index_matrix = sc.Index.constant(1.00)
         vf = xr.DataArray(np.array([0.5, 0.5]),
@@ -401,7 +400,7 @@ class TestEffectiveIndex():
         n_mg_vector = sc.index.effective_index([index_particle, index_matrix],
                                                vf, wavelen,
                                                maxwell_garnett=True)
-        single_wavelen = sc.Quantity(400.0, 'nm')
+        single_wavelen = sc.Quantity(400.0, "nm")
         n_mg_single = sc.index.effective_index([index_particle, index_matrix],
                                                vf, single_wavelen,
                                                maxwell_garnett=True)
@@ -415,11 +414,11 @@ class TestEffectiveIndex():
 
         """
         num_wavelengths = 10
-        wavelen = sc.Quantity(np.linspace(400, 800, num_wavelengths), 'nm')
+        wavelen = sc.Quantity(np.linspace(400, 800, num_wavelengths), "nm")
         index_particle = sc.Index.constant(1.33)
         num_layers = 5
         index_list = [index_particle] * num_layers
-        radius = sc.Quantity(np.array([100, 120, 140, 150, 160]), 'nm')
+        radius = sc.Quantity(np.array([100, 120, 140, 150, 160]), "nm")
         # radius shouldn't matter for this calculation
         sphere = sc.Sphere(index_list, radius)
         vf_array = sphere.volume_fraction(total_volume_fraction=1.0)
@@ -440,12 +439,12 @@ class TestEffectiveIndex():
                                 xr.DataArray(expected, coords=coords))
 
         # now test that this works with an actual dispersion relation
-        wavelen = sc.Quantity(np.linspace(400, 800, 10), 'nm')
+        wavelen = sc.Quantity(np.linspace(400, 800, 10), "nm")
         # we add a small imaginary part to the particle index
         index = sc.index.polystyrene + 0.0001j
         index_matrix = sc.index.water
         vf = 0.5
-        sphere = sc.Sphere(index, sc.Quantity(100, 'nm'))
+        sphere = sc.Sphere(index, sc.Quantity(100, "nm"))
         vf_array = sphere.volume_fraction(total_volume_fraction=vf)
         n_effective_vectorized = sc.index.effective_index([index,
                                                            index_matrix],
@@ -503,7 +502,7 @@ def test_ratio():
     """Tests calculation of index ratios
 
     """
-    wavelen = sc.Quantity(np.linspace(400, 800, 10), 'nm')
+    wavelen = sc.Quantity(np.linspace(400, 800, 10), "nm")
     n_particle = sc.index.polystyrene(wavelen)
     n_matrix = sc.index.water(wavelen)
     ratio = sc.index.ratio(n_particle, n_matrix)
@@ -533,7 +532,7 @@ def test_ratio():
     with pytest.raises(ValueError):
         ratio = sc.index.ratio(sc.index.polystyrene(wavelen[:-1]), n_matrix)
     with pytest.raises(ValueError):
-        wavelen[0] = sc.Quantity(401, 'nm')
+        wavelen[0] = sc.Quantity(401, "nm")
         ratio = sc.index.ratio(sc.index.polystyrene(wavelen), n_matrix)
 
 # the next few tests make sure that the various dispersion formulas give values
@@ -543,72 +542,72 @@ def test_ratio():
 
 def test_water():
     # values from refractiveindex.info
-    assert_almost_equal(sc.index.water(Quantity('0.40930 um')),
+    assert_almost_equal(sc.index.water(sc.Quantity("0.40930 um")),
                         1.3427061376724)
-    assert_almost_equal(sc.index.water(Quantity('0.80700 um')),
+    assert_almost_equal(sc.index.water(sc.Quantity("0.80700 um")),
                         1.3284883366632)
 
 def test_npmma():
     # values from refractiveindex.info
-    assert_almost_equal(sc.index.pmma(Quantity('0.42 um')),
+    assert_almost_equal(sc.index.pmma(sc.Quantity("0.42 um")),
                         1.5049521933717)
-    assert_almost_equal(sc.index.pmma(Quantity('0.804 um')),
+    assert_almost_equal(sc.index.pmma(sc.Quantity("0.804 um")),
                         1.4866523830528)
 
 def test_nps():
     # values from refractiveindex.info
-    assert_almost_equal(sc.index.polystyrene(Quantity('0.4491 um')),
+    assert_almost_equal(sc.index.polystyrene(sc.Quantity("0.4491 um")),
                         1.6137854760669)
-    assert_almost_equal(sc.index.polystyrene(Quantity('0.7998 um')),
+    assert_almost_equal(sc.index.polystyrene(sc.Quantity("0.7998 um")),
                         1.5781660671827)
 
 def test_rutile():
     # values from refractiveindex.info
-    assert_almost_equal(sc.index.rutile(Quantity('0.4300 um')),
+    assert_almost_equal(sc.index.rutile(sc.Quantity("0.4300 um")),
                         2.8716984534676)
-    assert_almost_equal(sc.index.rutile(Quantity('0.8040 um')),
+    assert_almost_equal(sc.index.rutile(sc.Quantity("0.8040 um")),
                         2.5187663081355)
 
 def test_fused_silica():
     # values from refractiveindex.info
-    assert_almost_equal(sc.index.fused_silica(Quantity('0.3850 um')),
+    assert_almost_equal(sc.index.fused_silica(sc.Quantity("0.3850 um")),
                         1.4718556531995)
-    assert_almost_equal(sc.index.fused_silica(Quantity('0.8050 um')),
+    assert_almost_equal(sc.index.fused_silica(sc.Quantity("0.8050 um")),
                         1.4532313266004)
 
 def test_zirconia():
     # values from refractiveindex.info
-    assert_almost_equal(sc.index.zirconia(Quantity('.405 um')),
+    assert_almost_equal(sc.index.zirconia(sc.Quantity(".405 um")),
                        2.3135169070958)
-    assert_almost_equal(sc.index.zirconia(Quantity('.6350 um')),
+    assert_almost_equal(sc.index.zirconia(sc.Quantity(".6350 um")),
                         2.1593242574339)
 
 def test_vacuum():
-    assert_equal(sc.index.vacuum(Quantity('0.400 um')).to_numpy(), 1.0)
-    assert_equal(sc.index.vacuum(Quantity('0.800 um')).to_numpy(), 1.0)
+    assert_equal(sc.index.vacuum(sc.Quantity("0.400 um")).to_numpy(), 1.0)
+    assert_equal(sc.index.vacuum(sc.Quantity("0.800 um")).to_numpy(), 1.0)
 
 def test_cargille():
     cargille = sc.Index(sc.index.n_cargille, i=1, series="AAA")
-    assert_almost_equal(cargille(Quantity('0.400 um')), 1.31088240)
-    assert_almost_equal(cargille(Quantity('0.700 um')), 1.30360329)
+    assert_almost_equal(cargille(sc.Quantity("0.400 um")), 1.31088240)
+    assert_almost_equal(cargille(sc.Quantity("0.700 um")), 1.30360329)
 
     cargille = sc.Index(sc.index.n_cargille, i=1, series="AA")
-    assert_almost_equal(cargille(Quantity('0.400 um')), 1.415307193)
-    assert_almost_equal(cargille(Quantity('0.700 um')), 1.398543173)
+    assert_almost_equal(cargille(sc.Quantity("0.400 um")), 1.415307193)
+    assert_almost_equal(cargille(sc.Quantity("0.700 um")), 1.398543173)
 
     cargille = sc.Index(sc.index.n_cargille, i=1, series="A")
-    assert_almost_equal(cargille(Quantity('0.400 um')), 1.47737625)
-    assert_almost_equal(cargille(Quantity('0.700 um')), 1.45833825)
+    assert_almost_equal(cargille(sc.Quantity("0.400 um")), 1.47737625)
+    assert_almost_equal(cargille(sc.Quantity("0.700 um")), 1.45833825)
 
     cargille = sc.Index(sc.index.n_cargille, i=1, series="B")
-    assert_almost_equal(cargille(Quantity('0.400 um')), 1.70461318)
-    assert_almost_equal(cargille(Quantity('0.700 um')), 1.63185900)
+    assert_almost_equal(cargille(sc.Quantity("0.400 um")), 1.70461318)
+    assert_almost_equal(cargille(sc.Quantity("0.700 um")), 1.63185900)
 
     cargille = sc.Index(sc.index.n_cargille, i=1, series="E")
-    assert_almost_equal(cargille(Quantity('0.400 um')), 1.54540541)
-    assert_almost_equal(cargille(Quantity('0.700 um')), 1.4973228289)
+    assert_almost_equal(cargille(sc.Quantity("0.400 um")), 1.54540541)
+    assert_almost_equal(cargille(sc.Quantity("0.700 um")), 1.4973228289)
 
     cargille = sc.Index(sc.index.n_cargille, i=0, series="acrylic")
-    assert_almost_equal(cargille(Quantity('0.400 um')), 1.50703048)
-    assert_almost_equal(cargille(Quantity('0.700 um')), 1.48783572)
+    assert_almost_equal(cargille(sc.Quantity("0.400 um")), 1.50703048)
+    assert_almost_equal(cargille(sc.Quantity("0.700 um")), 1.48783572)
 

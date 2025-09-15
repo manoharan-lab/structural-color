@@ -31,14 +31,16 @@ Radiation Transfer” (July 2013).
 .. moduleauthor:: Vinothan N. Manoharan <vnm@seas.harvard.edu>
 
 """
-from pymie import mie, size_parameter
+
+import structcol as sc
+import pymie
+from pymie import mie
 from . import refraction
 from . import normalize
 from . import select_events
 import numpy as np
 from numpy.random import random as random
 import xarray as xr
-import structcol as sc
 import matplotlib.pyplot as plt
 import itertools
 import copy
@@ -344,7 +346,7 @@ class Trajectory:
             n_sample = n_sample.to_numpy()
 
         m = np.atleast_2d(n_particle/n_sample)
-        x = size_parameter(wavelen, n_sample, radius)
+        x = pymie.size_parameter(wavelen, n_sample, radius)
         k = 2 * np.pi * n_sample / wavelen.magnitude
         step = step.magnitude
         # TODO: fix the bug in the above code.  If the step size and wavelength

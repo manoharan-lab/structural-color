@@ -21,10 +21,11 @@ Tests for the Particle class and subclasses (in structcol/particle.py)
 .. moduleauthor:: Vinothan N. Manoharan <vnm@seas.harvard.edu>
 """
 
-from .. import np, mie
+import numpy as np
 from numpy.testing import assert_equal
 import pytest
 import structcol as sc
+from pymie import mie
 import xarray as xr
 from pint.errors import DimensionalityError
 

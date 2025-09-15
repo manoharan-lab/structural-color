@@ -20,8 +20,9 @@ Tests for the mie module
 .. moduleauthor:: Vinothan N. Manoharan <vnm@seas.harvard.edu>
 """
 
-from .. import Quantity, np, mie
 import structcol as sc
+from pymie import mie
+import numpy as np
 from numpy.testing import assert_almost_equal, assert_array_almost_equal
 
 def test_cross_sections():
@@ -29,8 +30,8 @@ def test_cross_sections():
     # calculated for testing fortran-based Mie code in holopy)
 
     # test case is PS sphere in water
-    wavelen = Quantity('658.0 nm')
-    radius = Quantity('0.85 um')
+    wavelen = sc.Quantity("658.0 nm")
+    radius = sc.Quantity("0.85 um")
     n_matrix = sc.Index.constant(1.33)(wavelen)
     n_particle = sc.Index.constant(1.59 + 1e-4 * 1.0j)(wavelen)
     m = sc.index.ratio(n_particle, n_matrix).to_numpy()
@@ -53,21 +54,21 @@ def test_cross_sections():
     cscat2 = cscat2/k**2
     cext2 = cext2/k**2
     cback2 = cback2/k**2
-    assert_almost_equal(cscat.to('m^2').magnitude, cscat2.to('m^2').magnitude)
-    assert_almost_equal(cext.to('m^2').magnitude, cext2.to('m^2').magnitude)
-    assert_almost_equal(cback.to('m^2').magnitude, cback2.to('m^2').magnitude)
+    assert_almost_equal(cscat.to("m^2").magnitude, cscat2.to("m^2").magnitude)
+    assert_almost_equal(cext.to("m^2").magnitude, cext2.to("m^2").magnitude)
+    assert_almost_equal(cback.to("m^2").magnitude, cback2.to("m^2").magnitude)
     assert_almost_equal(g, g2)
 
 
 def test_form_factor():
-    wavelen = Quantity('658.0 nm')
-    radius = Quantity('0.85 um')
+    wavelen = sc.Quantity("658.0 nm")
+    radius = sc.Quantity("0.85 um")
     n_matrix = sc.Index.constant(1.00)(wavelen)
     n_particle = sc.Index.constant(1.59 + 1e-4 * 1.0j)(wavelen)
     m = sc.index.ratio(n_particle, n_matrix).to_numpy()
     x = sc.size_parameter(n_matrix, radius).to_numpy()
 
-    angles = Quantity(np.linspace(0, 180., 19), 'deg').to("rad").magnitude
+    angles = sc.Quantity(np.linspace(0, 180., 19), "deg").to("rad").magnitude
     # these values are calculated from MiePlot
     # (http://www.philiplaven.com/mieplot.htm), which uses BHMIE
     iperp_bhmie = np.array([2046.60203864487, 1282.28646423634, 299.631502275208,
@@ -121,7 +122,7 @@ def test_efficiencies():
                             1.02022022710453, 0.51835427781473,
                             0.331000402174976])
 
-    wavelen = Quantity('658.0 nm')
+    wavelen = sc.Quantity("658.0 nm")
     n_matrix = sc.Index.constant(1.00)(wavelen)
     n_particle = sc.Index.constant(1.59 + 1e-4 * 1.0j)(wavelen)
     m = sc.index.ratio(n_particle, n_matrix).to_numpy()
@@ -148,13 +149,13 @@ def test_efficiencies():
 
 def test_absorbing_materials():
     # test calculations for gold, which has a high imaginary refractive index
-    wavelen = Quantity('658.0 nm')
+    wavelen = sc.Quantity("658.0 nm")
     n_matrix = sc.Index.constant(1.00)(wavelen)
     n_particle = sc.Index.constant(0.1425812 + 3.6813284 * 1.0j)(wavelen)
     m = sc.index.ratio(n_particle, n_matrix).to_numpy()
     x = np.array([[10.0]])
 
-    angles = Quantity(np.linspace(0, 90., 10), 'deg').to("rad").magnitude
+    angles = sc.Quantity(np.linspace(0, 90., 10), "deg").to("rad").magnitude
     # these values are calculated from MiePlot
     # (http://www.philiplaven.com/mieplot.htm), which uses BHMIE
     iperp_bhmie = np.array([4830.51401095968, 2002.39671236719,

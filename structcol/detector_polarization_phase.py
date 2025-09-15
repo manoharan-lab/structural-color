@@ -24,11 +24,11 @@ related to it's field properties: polarization and phase.
 .. moduleauthor:: Annie Stephenson <stephenson@g.harvard.edu>
 
 """
+import structcol as sc
 from pymie import mie
 from . import select_events
 from . import LIGHT_SPEED_VACUUM
 import numpy as np
-import structcol as sc
 import warnings
 
 

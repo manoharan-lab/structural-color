@@ -21,29 +21,31 @@ Tests for the single-scattering model (in structcol/model.py)
 .. moduleauthor:: Victoria Hwang <vhwang@g.harvard.edu>
 """
 
-from .. import Quantity, np, mie
+import numpy as np
 from numpy.testing import (assert_equal, assert_almost_equal,
                            assert_array_almost_equal, assert_allclose)
 import pytest
 import structcol as sc
+import pymie
+from pymie import mie
 import xarray as xr
 
 class TestModel():
     """Tests for the Model class and derived classes.
     """
-    wavelen = sc.Quantity(np.linspace(400, 800, 10), 'nm')
-    ps_radius = sc.Quantity('0.125 um')
+    wavelen = sc.Quantity(np.linspace(400, 800, 10), "nm")
+    ps_radius = sc.Quantity("0.125 um")
     index_particle = sc.index.polystyrene
     ps_sphere = sc.Sphere(index_particle, ps_radius)
     hollow_sphere = sc.Sphere([sc.index.vacuum, sc.index.polystyrene],
-                                         sc.Quantity([125, 135], 'nm'))
+                                         sc.Quantity([125, 135], "nm"))
     qd = np.arange(0.1, 20, 0.01)
     # test vectorization across volume fractions
     phi = np.array([0.15, 0.3, 0.45])
     my_units = sc.ureg.millimeter
     thickness = 0.050 * sc.ureg.millimeter
 
-    angles = sc.Quantity(np.linspace(0, np.pi, 100), 'rad')
+    angles = sc.Quantity(np.linspace(0, np.pi, 100), "rad")
     coords = sc._make_input_coords(wavelen, angles)
     angles_da = xr.DataArray(angles.magnitude, {sc.Coord.THETAIDX:
                                                 range(len(angles))})
@@ -141,7 +143,7 @@ class TestModel():
                                      sc.index.vacuum)
 
         # make sure form factor is calculated correctly
-        angles = sc.Quantity(np.linspace(0, 180., 19), 'deg')
+        angles = sc.Quantity(np.linspace(0, 180., 19), "deg")
         coords = glass.make_input_coords(self.wavelen, angles)
         # use the effective index, which should depend on volume fraction
         form_model = glass.form_factor(coords, glass.index_external)
@@ -184,7 +186,7 @@ class TestModel():
         wavelen = self.wavelen
         # start at a few degrees to avoid division by zero error
         angles = sc.Quantity(np.linspace(2, 180., 19),
-                             'deg').to("rad").magnitude
+                             "deg").to("rad").magnitude
         angles = xr.DataArray(angles,
                               coords={sc.Coord.THETAIDX: range(len(angles))})
         coords = model.make_input_coords(wavelen, angles)
@@ -251,11 +253,11 @@ class TestModel():
         # all calculations here should work with an array of wavelengths
         wavelen = self.wavelen
 
-        radius = Quantity('0.5 um')
+        radius = sc.Quantity("0.5 um")
         index_particle = sc.index.fused_silica
         index_matrix = sc.index.vacuum
         index_medium = sc.index.vacuum
-        thickness = Quantity('50 um')
+        thickness = sc.Quantity("50 um")
 
         # generate structure factor "data" from Percus-Yevick model
         ql_data = np.arange(0, 75, 0.1)
@@ -309,7 +311,7 @@ class TestModel():
 
         # set density to 1 particle per cubic micrometer and calculate
         # volume fraction
-        rho_expected = sc.Quantity(1, 'um^(-3)')
+        rho_expected = sc.Quantity(1, "um^(-3)")
         volume_fraction = (4/3)*np.pi*self.ps_radius**3 * rho_expected
 
         # start with formstructure model
@@ -351,10 +353,10 @@ class TestModel():
         wavelen = self.wavelen
         index_matrix = sc.Index.constant(1.0)
         index_medium = sc.index.vacuum
-        angles = Quantity(np.linspace(np.pi/2, np.pi, 200), 'rad')
+        angles = sc.Quantity(np.linspace(np.pi/2, np.pi, 200), "rad")
 
         # Differential cross section for non-core-shells
-        radius = Quantity('100.0 nm')
+        radius = sc.Quantity("100.0 nm")
         index_particle = sc.Index.constant(1.5)
         sphere = sc.Sphere(index_particle, radius)
         volume_fraction = 1e-5
@@ -366,7 +368,7 @@ class TestModel():
 
         # Differential cross section for core-shells. Core is equal to
         # non-core-shell particle, and shell is made of vacuum
-        radius_cs = Quantity(np.array([100.0, 110.0]), 'nm')
+        radius_cs = sc.Quantity(np.array([100.0, 110.0]), "nm")
         index_cs = [sc.Index.constant(1.5), sc.Index.constant(1.0)]
         sphere_cs = sc.Sphere(index_cs, radius_cs)
         n_particle_cs = sphere_cs.n(wavelen)
@@ -403,7 +405,7 @@ class TestModel():
                                      index_matrix, index_medium)
 
         # use a lot of angles to get better precision in numerical integration
-        angles = sc.Quantity(np.linspace(0, np.pi, 1000), 'rad')
+        angles = sc.Quantity(np.linspace(0, np.pi, 1000), "rad")
 
         # for Mie calculations
         n_particle = self.index_particle(wavelen)
@@ -436,8 +438,8 @@ class TestModel():
             cldl = mie._internal_coeffs(m, x, nstop)
             x_med = sc.size_parameter(n_matrix, radius).to_numpy()
             # fu calculation expects indexes as Quantity objects
-            n_particle = sc.Quantity(n_particle.to_numpy(), '')
-            n_medium = sc.Quantity(n_matrix.to_numpy(), '')
+            n_particle = sc.Quantity(n_particle.to_numpy(), "")
+            n_medium = sc.Quantity(n_matrix.to_numpy(), "")
 
             # for the moment, Fu calculations have to be looped over wavelength
             # (this is because they are not yet set to take n_medium as an
@@ -499,7 +501,7 @@ class TestModel():
         index_medium = sc.index.vacuum
 
         # avoid division by zero error by starting at finite angle
-        angles = sc.Quantity(np.linspace(0.01, np.pi, 20), 'rad')
+        angles = sc.Quantity(np.linspace(0.01, np.pi, 20), "rad")
 
         # check that a binary polydisperse system with the same diameters for
         # the two components produces the same differential and total cross
@@ -544,8 +546,8 @@ class TestModel():
         model = sc.model.HardSpheres(self.ps_sphere, volume_fraction,
                 index_matrix, index_medium)
 
-        thetas = sc.Quantity(np.linspace(0, np.pi, 10), 'rad')
-        phis = sc.Quantity(np.linspace(0, 2*np.pi, 20), 'rad')
+        thetas = sc.Quantity(np.linspace(0, np.pi, 10), "rad")
+        phis = sc.Quantity(np.linspace(0, 2*np.pi, 20), "rad")
 
         # do scattering plane calculation first.  Specifying incident vector
         # here forces the calculation to go through
@@ -605,7 +607,7 @@ class TestModel():
                                      index_matrix, index_medium)
 
         # start at a few degrees to avoid division by zero error
-        angles = sc.Quantity(np.linspace(2, 180., 20), 'deg')
+        angles = sc.Quantity(np.linspace(2, 180., 20), "deg")
 
         # monodisperse calculation
         ff_kwargs = {}
@@ -715,8 +717,8 @@ class TestDetector():
         """Test standard Detector object"""
 
         # make sure angles are accepted and stored correctly
-        theta_min, theta_max = sc.Quantity('90 deg'), sc.Quantity('180 deg')
-        phi_min, phi_max = sc.Quantity('0 deg'), sc.Quantity('360 deg')
+        theta_min, theta_max = sc.Quantity("90 deg"), sc.Quantity("180 deg")
+        phi_min, phi_max = sc.Quantity("0 deg"), sc.Quantity("360 deg")
         detector = sc.model.Detector(theta_min, theta_max, phi_min, phi_max)
 
         assert detector.theta_min == theta_min.to('rad').magnitude
@@ -739,8 +741,8 @@ class TestDetector():
         assert detector.phi_max == phi_max.to('rad').magnitude
 
         # specifying mix of dimensions should work
-        theta_min, theta_max = sc.Quantity(np.pi/2), sc.Quantity(np.pi, 'rad')
-        phi_min, phi_max = sc.Quantity(0, 'deg'), sc.Quantity(np.pi, '')
+        theta_min, theta_max = sc.Quantity(np.pi/2), sc.Quantity(np.pi, "rad")
+        phi_min, phi_max = sc.Quantity(0, "deg"), sc.Quantity(np.pi, "")
         detector = sc.model.Detector(theta_min, theta_max, phi_min, phi_max)
         assert detector.theta_min == theta_min.to('rad').magnitude
         assert detector.theta_max == theta_max.to('rad').magnitude
@@ -755,8 +757,8 @@ class TestDetector():
                                          phi_max)
 
         # when only theta is specified, phi should be set to 0 to 360 degrees
-        theta_min, theta_max = sc.Quantity('90 deg'), sc.Quantity('180 deg')
-        phi_min, phi_max = sc.Quantity('0 deg'), sc.Quantity('360 deg')
+        theta_min, theta_max = sc.Quantity("90 deg"), sc.Quantity("180 deg")
+        phi_min, phi_max = sc.Quantity("0 deg"), sc.Quantity("360 deg")
         detector = sc.model.Detector(theta_min, theta_max)
         assert detector.phi_min == phi_min.to('rad').magnitude
         assert detector.phi_max == phi_max.to('rad').magnitude
@@ -772,43 +774,43 @@ class TestDetector():
     def test_hemispherical_reflectance_detector(self):
         """Test the integrating sphere-type detector"""
         detector = sc.model.HemisphericalReflectanceDetector()
-        assert detector.theta_min == sc.Quantity('90 deg').to('rad').magnitude
-        assert detector.theta_max == sc.Quantity('180 deg').to('rad').magnitude
-        assert detector.phi_min == sc.Quantity('0 deg').to('rad').magnitude
-        assert detector.phi_max == sc.Quantity('360 deg').to('rad').magnitude
+        assert detector.theta_min == sc.Quantity("90 deg").to("rad").magnitude
+        assert detector.theta_max == sc.Quantity("180 deg").to("rad").magnitude
+        assert detector.phi_min == sc.Quantity("0 deg").to("rad").magnitude
+        assert detector.phi_max == sc.Quantity("360 deg").to("rad").magnitude
 
 
 def test_fresnel():
     # test the fresnel reflection and transmission coefficients
-    wavelen = sc.Quantity(400, 'nm')
+    wavelen = sc.Quantity(400, "nm")
     n1 = sc.Index.constant(1.00)(wavelen)
     n2 = sc.Index.constant(1.5)(wavelen)
 
     # quantities calculated from
     # http://www.calctool.org/CALC/phys/optics/reflec_refrac
-    r, t = sc.model.fresnel_coeffs(n1, n2, Quantity('0.0 deg'))
+    r, t = sc.model.fresnel_coeffs(n1, n2, sc.Quantity("0.0 deg"))
     assert_almost_equal(r.loc["par"], 0.04)
     assert_almost_equal(r.loc["perp"], 0.04)
-    r, t = sc.model.fresnel_coeffs(n1, n2, Quantity('45.0 deg'))
+    r, t = sc.model.fresnel_coeffs(n1, n2, sc.Quantity("45.0 deg"))
     assert_almost_equal(r.loc["par"], 0.00846646)
     assert_almost_equal(r.loc["perp"], 0.0920134)
 
     # test total internal reflection
-    r, t = sc.model.fresnel_coeffs(n2, n1, Quantity('45.0 deg'))
+    r, t = sc.model.fresnel_coeffs(n2, n1, sc.Quantity("45.0 deg"))
     assert_equal(r.loc["par"].item(), 1.0)
     assert_equal(r.loc["perp"].item(), 1.0)
 
     # test no total internal reflection (just below critical angle)
-    r, t = sc.model.fresnel_coeffs(n2, n1, Quantity('41.810 deg'))
+    r, t = sc.model.fresnel_coeffs(n2, n1, sc.Quantity("41.810 deg"))
     assert_almost_equal(r.loc["par"], 0.972175, decimal=6)
     assert_almost_equal(r.loc["perp"], 0.987536, decimal=6)
 
     # test vectorized computation over angles
-    angles = Quantity(np.linspace(0, 180., 19), 'deg')
+    angles = sc.Quantity(np.linspace(0, 180., 19), "deg")
     # check for value error (can't go beyond 90 degree angle of incidence)
     with pytest.raises(ValueError):
         sc.model.fresnel_coeffs(n2, n1, angles)
-    angles = Quantity(np.linspace(0, 90., 10), 'deg').to("rad").magnitude
+    angles = sc.Quantity(np.linspace(0, 90., 10), "deg").to("rad").magnitude
     angles = xr.DataArray(angles, coords={sc.Coord.INCIDENT: angles})
     r, t = sc.model.fresnel_coeffs(n2, n1, angles)
     rpar_std = np.array([0.04, 0.0362780, 0.0243938, 0.00460754, 0.100064, 1.0,
@@ -826,12 +828,12 @@ def test_fresnel():
 
     # test vectorized computation over wavelength (check that results match
     # those of loop).  We'll test a situation in which there is TIR.
-    wavelen = sc.Quantity(np.linspace(400, 800, 10), 'nm')
+    wavelen = sc.Quantity(np.linspace(400, 800, 10), "nm")
     index_low = sc.index.vacuum
     index_high = sc.index.polystyrene
     n_low = index_low(wavelen)
     n_high = index_high(wavelen)
-    angles = Quantity(np.linspace(0, 90., 10), 'deg').to("rad").magnitude
+    angles = sc.Quantity(np.linspace(0, 90., 10), "deg").to("rad").magnitude
     angles = xr.DataArray(angles, coords={sc.Coord.INCIDENT: angles})
     # vectorized version
     rt = sc.model.fresnel_coeffs(n_high, n_low, angles)
@@ -945,13 +947,13 @@ def test_reflection_core_shell():
     # Test reflection, anisotropy factor, and transport length calculations to
     # make sure the values for refl, g, and lstar remain the same after adding
     # core-shell capability into the model
-    wavelength = Quantity(500.0, 'nm')
-    thickness = Quantity(15.0, 'um')
+    wavelength = sc.Quantity(500.0, "nm")
+    thickness = sc.Quantity(15.0, "um")
     small_angle = sc.Quantity("5.0 deg")
 
     # Non core-shell particles with Maxwell-Garnett effective index
     volume_fraction = 0.5
-    radius = Quantity('120.0 nm')
+    radius = sc.Quantity("120.0 nm")
     index_particle = sc.Index.constant(1.5)
     sphere = sc.Sphere(index_particle, radius)
     index_matrix = sc.Index.constant(1.0)
@@ -960,7 +962,7 @@ def test_reflection_core_shell():
     model = sc.model.HardSpheres(sphere, volume_fraction, index_matrix,
                                  index_medium, maxwell_garnett=True)
 
-    detector = sc.model.Detector(theta_min=Quantity('90.0 deg'))
+    detector = sc.model.Detector(theta_min=sc.Quantity("90.0 deg"))
     refl1 = sc.model.reflection(model, wavelength, thickness=thickness,
                                 detector=detector, small_angle=small_angle)
 
@@ -973,7 +975,7 @@ def test_reflection_core_shell():
 
     # Core-shell particles of core diameter equal to non core shell particles,
     # and shell index of air. With Bruggeman effective index
-    radius3 = Quantity(np.array([120.0, 130.0]), 'nm')
+    radius3 = sc.Quantity(np.array([120.0, 130.0]), "nm")
     index3 = [sc.Index.constant(1.5), sc.Index.constant(1.0)]
     sphere_cs = sc.Sphere(index3, radius3)
     volume_fraction3 = volume_fraction2 * (radius3[1]**3 / radius3[0]**3)
@@ -984,9 +986,9 @@ def test_reflection_core_shell():
                                 detector=detector, small_angle=small_angle)
 
     # Outputs for refl, g, and lstar before adding core-shell capability
-    refl = Quantity(0.20772170840902376, '')
-    g = Quantity(-0.18931942267032678, '')
-    lstar = Quantity(10810.088573316663, 'nm')
+    refl = sc.Quantity(0.20772170840902376, "")
+    g = sc.Quantity(-0.18931942267032678, "")
+    lstar = sc.Quantity(10810.088573316663, "nm")
 
     # Compare old outputs (before adding core-shell capability) and new outputs
     # for a non-core-shell using Maxwell-Garnett
@@ -1014,7 +1016,7 @@ def test_reflection_core_shell():
     # absorbs with the same index
 
     # Absorbing non-core-shell
-    radius4 = Quantity('120.0 nm')
+    radius4 = sc.Quantity("120.0 nm")
     index_particle4 = sc.Index.constant(1.5+0.001j)
     sphere = sc.Sphere(index_particle4, radius4)
     model = sc.model.HardSpheres(sphere, volume_fraction, index_matrix,
@@ -1022,7 +1024,7 @@ def test_reflection_core_shell():
     refl4 = sc.model.reflection(model, wavelength, thickness=thickness)
 
     # Absorbing core-shell
-    radius5 = Quantity(np.array([110.0, 120.0]), 'nm')
+    radius5 = sc.Quantity(np.array([110.0, 120.0]), "nm")
     index5 = [sc.Index.constant(1.5+0.001j), sc.Index.constant(1.5+0.001j)]
     sphere_cs = sc.Sphere(index5, radius5)
     model = sc.model.HardSpheres(sphere_cs, volume_fraction, index_matrix,
@@ -1033,7 +1035,7 @@ def test_reflection_core_shell():
 
     # Same as previous test but with absorbing matrix
     # Non-core-shell
-    radius6 = Quantity('120.0 nm')
+    radius6 = sc.Quantity("120.0 nm")
     index_particle6 = sc.Index.constant(1.5+0.001j)
     sphere = sc.Sphere(index_particle6, radius6)
     index_matrix6 = sc.Index.constant(1.0+0.001j)
@@ -1043,7 +1045,7 @@ def test_reflection_core_shell():
 
     # Core-shell
     index7 = [sc.Index.constant(1.5+0.001j), sc.Index.constant(1.5+0.001j)]
-    radius7 = Quantity(np.array([110.0, 120.0]), 'nm')
+    radius7 = sc.Quantity(np.array([110.0, 120.0]), "nm")
     sphere_cs = sc.Sphere(index7, radius7)
     index_matrix7 = sc.Index.constant(1.0+0.001j)
     model = sc.model.HardSpheres(sphere_cs, volume_fraction, index_matrix7,
@@ -1056,9 +1058,9 @@ def test_reflection_core_shell():
 def test_reflection_absorbing_particle():
     # test that the reflections with a real n_particle and with a complex
     # n_particle with a 0 imaginary component are the same
-    wavelength = Quantity(500.0, 'nm')
+    wavelength = sc.Quantity(500.0, "nm")
     volume_fraction = 0.5
-    radius = Quantity('120.0 nm')
+    radius = sc.Quantity("120.0 nm")
     index_matrix = sc.Index.constant(1.0)
     index_medium = index_matrix
     index_particle_real = sc.Index.constant(1.5)
@@ -1133,7 +1135,7 @@ def test_reflection_absorbing_particle():
     index_particle_complex2 = sc.Index.constant(1.5+1e-8j)
     sphere_complex2 = sc.Sphere(index_particle_complex2, radius)
 
-    thickness = Quantity('100.0 um')
+    thickness = sc.Quantity("100.0 um")
 
     # With Bruggeman
     model = sc.model.HardSpheres(sphere_complex2, volume_fraction,
@@ -1149,10 +1151,10 @@ def test_reflection_absorbing_particle():
 def test_calc_g():
     # test that the anisotropy factor for multilayer spheres are the same when
     # using calc_g from mie.py in pymie and using the model
-    wavelength = Quantity(500.0, 'nm')
+    wavelength = sc.Quantity(500.0, "nm")
 
     # calculate g using the model
-    radius = Quantity(np.array([120.0, 130.0]), 'nm')
+    radius = sc.Quantity(np.array([120.0, 130.0]), "nm")
     index = [sc.Index.constant(1.5), sc.Index.constant(1.0)]
     sphere = sc.Sphere(index, radius)
     n_particle = sphere.n(wavelength)
@@ -1171,13 +1173,13 @@ def test_calc_g():
                                         volume_fraction=volume_fraction)
 
     refl1 = sc.model.reflection(model, wavelength,
-                                small_angle=Quantity('0.01 deg'),
+                                small_angle=sc.Quantity("0.01 deg"),
                                 num_angles=1000)
 
     # calculate g using calc_g in pymie
     n_sample = index_sample(wavelength)
     m = sc.index.ratio(n_particle, n_sample).to_numpy()
-    x = mie.size_parameter(wavelength, n_sample.to_numpy(), radius)
+    x = pymie.size_parameter(wavelength, n_sample.to_numpy(), radius)
     g2 = mie.calc_g(m,x)
 
     assert_allclose(refl1.g.loc["avg"], g2, rtol=1e-5)
@@ -1194,9 +1196,9 @@ def test_transport_length_dilute():
     # length calculated from Mie theory
 
     # transport length from single scattering model for a dilute system
-    wavelength = Quantity(500.0, 'nm')
+    wavelength = sc.Quantity(500.0, "nm")
     volume_fraction = 0.0000001
-    radius = Quantity('120.0 nm')
+    radius = sc.Quantity("120.0 nm")
     index_particle = sc.Index.constant(1.5)
     sphere = sc.Sphere(index_particle, radius)
     index_matrix = sc.Index.constant(1.0)
@@ -1274,17 +1276,17 @@ def test_reflection_absorbing_matrix():
 
 
 def test_reflection_polydispersity():
-    wavelength = Quantity(500.0, 'nm')
+    wavelength = sc.Quantity(500.0, "nm")
     volume_fraction = 0.5
-    radius = Quantity('120.0 nm')
+    radius = sc.Quantity("120.0 nm")
     index_matrix = sc.Index.constant(1.0)
     index_medium = sc.Index.constant(1.0)
     index_particle = sc.Index.constant(1.5)
     sphere = sc.Sphere(index_particle, radius)
-    radius2 = Quantity('120.0 nm')
+    radius2 = sc.Quantity("120.0 nm")
     sphere2 = sc.Sphere(index_particle, radius2)
-    concentration = Quantity(np.array([0.9,0.1]), '')
-    pdi = Quantity(np.array([1e-7, 1e-7]), '')  # monodisperse limit
+    concentration = sc.Quantity(np.array([0.9,0.1]), "")
+    pdi = sc.Quantity(np.array([1e-7, 1e-7]), "")  # monodisperse limit
     sphere_dist = sc.SphereDistribution([sphere, sphere2], concentration, pdi)
 
     # test that the reflectance using only the form factor is the same using
@@ -1405,10 +1407,10 @@ def test_reflection_polydispersity():
 
     # test that the reflectance is the same for a polydisperse monospecies
     # and a bispecies with equal types of particles
-    concentration_mono = Quantity(1., '')
-    concentration_bi = Quantity(np.array([0.3,0.7]), '')
+    concentration_mono = sc.Quantity(1., "")
+    concentration_bi = sc.Quantity(np.array([0.3,0.7]), "")
     pdi_mono = 1e-1
-    pdi_bi = Quantity(np.array([1e-1, 1e-1]), '')
+    pdi_bi = sc.Quantity(np.array([1e-1, 1e-1]), "")
     dist_mono = sc.SphereDistribution(sphere, concentration_mono, pdi_mono)
     dist_bi = sc.SphereDistribution([sphere, sphere2], concentration_bi,
                                     pdi_bi)
@@ -1426,9 +1428,9 @@ def test_reflection_polydispersity():
 
     # test that the reflectance is the same regardless of the order in which
     # the radii are specified
-    radius3 = Quantity('90.0 nm')
+    radius3 = sc.Quantity("90.0 nm")
     sphere3 = sc.Sphere(index_particle, radius3)
-    concentration3 = Quantity(np.array([0.5,0.5]), '')
+    concentration3 = sc.Quantity(np.array([0.5,0.5]), "")
     dist_13 = sc.SphereDistribution([sphere, sphere3], concentration3, pdi_bi)
     dist_31 = sc.SphereDistribution([sphere3, sphere], concentration3, pdi_bi)
 
@@ -1449,16 +1451,16 @@ def test_reflection_polydispersity():
 # pytest.mark.parametrize, even though there is some duplication of previous
 # tests.
 def test_reflection_polydispersity_with_absorption():
-    wavelength = Quantity(500.0, 'nm')
+    wavelength = sc.Quantity(500.0, "nm")
     volume_fraction = 0.5
-    radius = Quantity('120.0 nm')
+    radius = sc.Quantity("120.0 nm")
     index_matrix = sc.Index.constant(1.0+0.0003j)
     index_medium = sc.Index.constant(1.0)
     index_particle = sc.Index.constant(1.5+0.0005j)
-    radius2 = Quantity('120.0 nm')
-    concentration = Quantity(np.array([0.9,0.1]), '')
-    pdi = Quantity(np.array([1e-7, 1e-7]), '')  # monodisperse limit
-    thickness = Quantity('10.0 um')
+    radius2 = sc.Quantity("120.0 nm")
+    concentration = sc.Quantity(np.array([0.9,0.1]), "")
+    pdi = sc.Quantity(np.array([1e-7, 1e-7]), "")  # monodisperse limit
+    thickness = sc.Quantity("10.0 um")
     sphere = sc.Sphere(index_particle, radius)
     sphere2 = sc.Sphere(index_particle, radius2)
     sphere_dist = sc.SphereDistribution([sphere, sphere2], concentration, pdi)
@@ -1592,8 +1594,8 @@ def test_reflection_polydispersity_with_absorption():
     index_matrix2_real = sc.Index.constant(1.0)
     index_particle2 = sc.Index.constant(1.5+1e-20j)
     index_particle2_real = sc.Index.constant(1.5)
-    radius2 = Quantity('150.0 nm')
-    pdi2 = Quantity(np.array([0.33, 0.33]), '')
+    radius2 = sc.Quantity("150.0 nm")
+    pdi2 = sc.Quantity(np.array([0.33, 0.33]), "")
 
     sphere = sc.Sphere(index_particle2, radius)
     sphere_real = sc.Sphere(index_particle2_real, radius)
@@ -1642,15 +1644,15 @@ def test_reflection_polydispersity_with_absorption():
 def test_g_transport_length():
     # test that the g and transport length do not depend on the thickness in the
     # presence of absorption
-    wavelength = Quantity(600.0, 'nm')
+    wavelength = sc.Quantity(600.0, "nm")
     volume_fraction = 0.55
-    radius = Quantity('100.0 nm')
+    radius = sc.Quantity("100.0 nm")
     index_matrix = sc.Index.constant(1.0+0.0004j)
     index_medium = sc.Index.constant(1.0)
     index_particle = sc.Index.constant(1.5+0.0006j)
     sphere = sc.Sphere(index_particle, radius)
-    thickness1 = Quantity('10.0 um')
-    thickness2 = Quantity('100.0 um')
+    thickness1 = sc.Quantity("10.0 um")
+    thickness2 = sc.Quantity("100.0 um")
 
     model = sc.model.HardSpheres(sphere, volume_fraction, index_matrix,
                                  index_medium)
@@ -1664,13 +1666,13 @@ def test_reflection_throws_warnings_for_unspecified_parameters():
     # test that warnings are thrown when trying to calculate values for
     # transport and absorption length for FormStructureModel without specifying
     # number density and/or particle index
-    wavelength = Quantity(500.0, 'nm')
-    volume_fraction = Quantity(0.5, '')
-    radius = Quantity(np.array([110.0, 120.0]), 'nm')
+    wavelength = sc.Quantity(500.0, "nm")
+    volume_fraction = sc.Quantity(0.5, "")
+    radius = sc.Quantity(np.array([110.0, 120.0]), "nm")
     index_particle = [sc.Index.constant(1.5), sc.Index.constant(1.5)]
     index_matrix = sc.Index.constant(1.0)
     index_medium = sc.Index.constant(1.0)
-    thickness = sc.Quantity(10, 'um')
+    thickness = sc.Quantity(10, "um")
 
     sphere = sc.Sphere(index_particle, radius)
 

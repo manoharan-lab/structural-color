@@ -26,8 +26,6 @@ structure factors
 """
 
 import numpy as np
-# Quantity constructor from pint
-from . import Quantity
 from scipy.interpolate import interp1d, InterpolatedUnivariateSpline
 from scipy.special import jv
 import xarray as xr
@@ -756,7 +754,7 @@ def radial_dist_py(phi, x=np.arange(1,5,0.005)):
        values.
     '''
     # number density
-    if isinstance(phi,Quantity):
+    if isinstance(phi, sc.Quantity):
         phi = phi.magnitude
     rho=6./np.pi*phi
 

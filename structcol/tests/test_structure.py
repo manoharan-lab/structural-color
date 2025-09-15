@@ -25,7 +25,7 @@ Tests for the structure module
 import structcol as sc
 from structcol import montecarlo as mc
 from structcol import detector as det
-from .. import Quantity, np
+import numpy as np
 import xarray as xr
 
 from numpy.testing import assert_equal, assert_almost_equal
@@ -58,8 +58,8 @@ class TestStructureFactor():
         """
 
         # test how function handles dimensionless arguments
-        structure_factor = sc.structure.PercusYevick(Quantity('0.4'))
-        s = structure_factor(Quantity('0.1'))
+        structure_factor = sc.structure.PercusYevick(sc.Quantity("0.4"))
+        s = structure_factor(sc.Quantity("0.1"))
         # scalars should work
         structure_factor = sc.structure.PercusYevick(0.4)
         s = structure_factor(0.1)
@@ -153,7 +153,7 @@ class TestStructureFactor():
         s_py = monodisperse_structure_factor(ql)
 
         # Polydisperse Percus-Yevick
-        d = Quantity('100.0 nm')
+        d = sc.Quantity("100.0 nm")
         c = 1.0
         pdi = 1e-5
 
@@ -188,7 +188,7 @@ class TestStructureFactor():
                                0.9359521776259607, 1.042527754056362])
 
         # results shouldn't depend on d but we need to input anyway
-        d = Quantity('100.0 nm')
+        d = sc.Quantity("100.0 nm")
         c = 1.0
         phi = 0.3
         # in the paper, D_sigma is the square of the relative deviation, so
@@ -231,12 +231,12 @@ class TestStructureFactor():
         case)
 
         """
-        wavelen = Quantity('400.0 nm')
-        angles = Quantity(np.pi, 'rad')
+        wavelen = sc.Quantity("400.0 nm")
+        angles = sc.Quantity(np.pi, "rad")
         index_matrix = sc.Index.constant(1.0)
 
         # Structure factor for non-core-shell particles
-        radius = Quantity('100.0 nm')
+        radius = sc.Quantity("100.0 nm")
         index_particle = sc.Index.constant(1.5)
         sphere = sc.Sphere(index_particle, radius)
         volume_fraction = 0.0001         # IS VF TOO LOW?
@@ -251,7 +251,7 @@ class TestStructureFactor():
 
         # Structure factor for core-shell particles with core size equal to
         # radius of non-core-shell particle
-        radius_cs = Quantity(np.array([100.0, 105.0]), 'nm')
+        radius_cs = sc.Quantity(np.array([100.0, 105.0]), "nm")
         index_particle = [sc.Index.constant(1.5), sc.Index.constant(1.0)]
         sphere_cs = sc.Sphere(index_particle, radius_cs)
         volume_fraction_da = sphere_cs.volume_fraction(total_volume_fraction =
@@ -285,14 +285,14 @@ def test_structure_factor_data_reflectances():
 
     """
 
-    wavelengths = Quantity(np.arange(400, 800, 20), 'nm')
-    radius = Quantity('0.5 um')
+    wavelengths = sc.Quantity(np.arange(400, 800, 20), "nm")
+    radius = sc.Quantity("0.5 um")
     volume_fraction = 0.5
     index_particle = sc.index.fused_silica
     index_matrix = sc.index.vacuum
     index_medium = sc.index.vacuum
     sphere = sc.Sphere(index_particle, radius)
-    thickness = Quantity('50 um')
+    thickness = sc.Quantity("50 um")
 
     # generate structure factor "data" from Percus-Yevick model
     ql_data = np.arange(0.001, 75, 0.1)
@@ -335,13 +335,13 @@ def test_structure_factor_data_reflectances():
     rng = np.random.RandomState([seed])
     ntrajectories = 500
     nevents = 500
-    wavelengths = sc.Quantity(np.arange(400, 800, 20), 'nm')
-    radius = sc.Quantity('0.5 um')
+    wavelengths = sc.Quantity(np.arange(400, 800, 20), "nm")
+    radius = sc.Quantity("0.5 um")
     volume_fraction = 0.5
     sphere = sc.Sphere(index_particle, radius)
     n_medium = index_medium(wavelengths)
-    boundary = 'film'
-    thickness = sc.Quantity('50 um')
+    boundary = "film"
+    thickness = sc.Quantity("50 um")
 
     vf_array = sphere.volume_fraction(volume_fraction)
 
@@ -361,9 +361,9 @@ def test_structure_factor_data_reflectances():
 
         r0, k0, W0 = mc.initialize(nevents, ntrajectories, n_medium[i],
                                    n_sample, boundary, rng=rng)
-        r0 = sc.Quantity(r0, 'um')
-        k0 = sc.Quantity(k0, '')
-        W0 = sc.Quantity(W0, '')
+        r0 = sc.Quantity(r0, "um")
+        k0 = sc.Quantity(k0, "")
+        W0 = sc.Quantity(W0, "")
 
         sintheta, costheta, sinphi, cosphi, _, _ = \
             mc.sample_angles(nevents, ntrajectories, p, rng=rng)

@@ -32,11 +32,11 @@ Physical Review E 90, no. 6 (2014): 62302. doi:10.1103/PhysRevE.90.062302
 
 import warnings
 import numpy as np
+import structcol as sc
 from pymie import mie
 from scipy.special import factorial
 from scipy.integrate import trapezoid
 import xarray as xr
-import structcol as sc
 
 
 class Model:
