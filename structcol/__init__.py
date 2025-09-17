@@ -45,6 +45,7 @@ import numpy as np
 import xarray as xr
 
 # import into structcol namespace
+from .metadata import Coord, Attr
 from .quantity import LENGTH_UNIT, ureg, Quantity
 from pymie import mie
 from . import refractive_index as index
@@ -60,45 +61,6 @@ xr.set_options(keep_attrs=True)
 # get this from Pint in a somewhat indirect way:
 LIGHT_SPEED_VACUUM = Quantity(1.0, 'speed_of_light').to('m/s')
 
-class Coord():
-    """Simple class to standardize dimension/coordinate names that we use in
-    xarray objects.
-
-    """
-    WAVELEN = "wavelength"
-    VOLFRAC = "volume_fraction"
-    # both LAYER and MAT map to the same name, so that we can describe the
-    # components of a multilayer sphere as layers and the components of a
-    # multimaterial matrix as materials, but we can calculate an effective
-    # index for both
-    LAYER = "material"
-    MAT = "material"
-    # polar and azimuthal angles for scattering
-    THETA = "theta"
-    PHI = "phi"
-    # coords THETA and PHI refer to the actual values of the angles.  THETAIDX
-    # and PHIIDX refer to integer indexes of the angles
-    THETAIDX = "theta_index"
-    PHIIDX = "phi_index"
-    # incident angle for Fresnel calculations
-    INCIDENT = "incident_angle"
-    # species index for multispecies systems
-    SPECIES = "species"
-    # polarization for scattering calculations (should take on values "x", "y"
-    # for cartesian basis or "par", "perp" for scattering-plane basis)
-    POL = "polarization"
-    # Fresnel coefficient (should be either "r" or "t")
-    FRESNEL = "fresnel"
-
-
-class Attr():
-    """Simple class to standardize metadata (attributes) used in xarray
-    objects.
-
-    """
-    LENGTH_UNIT = "length unit"
-
-
 def _make_input_coords(wavelen, thetas, phis=None):
     """Convenience function to generate DataArrays to be used as inputs to
     differential_cross_section() and form_factor() methods. Called by
@@ -111,22 +73,18 @@ def _make_input_coords(wavelen, thetas, phis=None):
     parameters and return.
 
     """
-    if isinstance(wavelen, Quantity):
-        # use np.atleast_1d to avoid scalar dimension for wavelen
-        wavelen = np.atleast_1d(wavelen).to_preferred().magnitude
+    if not isinstance(wavelen, Quantity):
+        # handle numpy arrays as input
+        wavelen = Quantity(wavelen, LENGTH_UNIT)
+    wavelen = wavelen.to_dataarray(Coord.WAVELEN)
+
     if isinstance(thetas, Quantity):
         thetas = thetas.to("rad").magnitude
     if phis is not None:
         if isinstance(phis, Quantity):
             phis = phis.to("rad").magnitude
 
-    # coords = xr.Coordinates()
-
-    # set up DataArrays, avoiding scalar dimension for wavelen
-    # coords[Coord.WAVELEN] = np.atleast_1d(wavelen)
-    wavelen = xr.DataArray(wavelen, coords={Coord.WAVELEN: wavelen})
-    wavelen.attrs[Attr.LENGTH_UNIT] = LENGTH_UNIT
-    # coords[Coord.THETA] = thetas
+    # set up DataArrays
     if not isinstance(thetas, xr.DataArray):
         # if thetas not specified already as DataArray, assume 1D and index
         thetas = xr.DataArray(thetas,

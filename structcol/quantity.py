@@ -23,6 +23,9 @@ Subclass of pint.Quantity
 
 import pint
 from typing import TypeAlias
+import numpy as np
+import xarray as xr
+from .metadata import Coord, Attr
 
 class MyQuantity(pint.UnitRegistry.Quantity):
     """Child class of pint.Quantity, created to fix bugs and add methods to
@@ -44,13 +47,22 @@ class MyQuantity(pint.UnitRegistry.Quantity):
             raise ValueError(f"Quantity {self} does not have expected units")
         return new_q
 
-    def to_dataarray(self):
+    def to_dataarray(self, coord_name):
         """Convert pint Quantity to DataArray. This works only for quantities
         with dimension of length. Stores length unit as attribute.
 
-        """
-        pass
+        coord_name: string
+            name of coordinate to assign to DataArray. The coords will be
+            assigned based on the name
 
+        """
+        if coord_name == Coord.WAVELEN:
+            wavelen = self.to_preferred().magnitude
+            # avoid scalar dimension for wavelength
+            wavelen = np.atleast_1d(wavelen)
+            da = xr.DataArray(wavelen, coords={Coord.WAVELEN: wavelen})
+            da.attrs[Attr.LENGTH_UNIT] = LENGTH_UNIT
+        return da
 
 # subclass registry so that we can use new MyQuantity class, following
 # https://pint.readthedocs.io/en/latest/advanced/custom-registry-class.html
