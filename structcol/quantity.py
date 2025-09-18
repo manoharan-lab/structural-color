@@ -47,13 +47,12 @@ class MyQuantity(pint.UnitRegistry.Quantity):
             raise ValueError(f"Quantity {self} does not have expected units")
         return new_q
 
-    def to_dataarray(self, coord_name):
-        """Convert pint Quantity to DataArray. This works only for quantities
-        with dimension of length. Stores length unit as attribute.
+    def to_dataarray(self, coord_name=None):
+        """Convert pint Quantity to DataArray. Stores length unit as attribute.
 
         coord_name: string
-            name of coordinate to assign to DataArray. The coords will be
-            assigned based on the name
+            name of coordinate to assign to DataArray. The coords are assigned
+            based on the name
 
         """
         if coord_name == Coord.WAVELEN:
@@ -62,6 +61,17 @@ class MyQuantity(pint.UnitRegistry.Quantity):
             wavelen = np.atleast_1d(wavelen)
             da = xr.DataArray(wavelen, coords={Coord.WAVELEN: wavelen})
             da.attrs[Attr.LENGTH_UNIT] = LENGTH_UNIT
+        elif coord_name == Coord.THETAIDX:
+            thetas = self.to("rad").magnitude
+            da = xr.DataArray(thetas,
+                              coords={Coord.THETAIDX: range(len(thetas))})
+        elif coord_name == Coord.PHIIDX:
+            phis = self.to("rad").magnitude
+            da = xr.DataArray(phis,
+                              coords={Coord.PHIIDX: range(len(phis))})
+        else:
+            # create DataArray without coordinate
+            da = xr.DataArray(self.to_preferred().magnitude)
         return da
 
 # subclass registry so that we can use new MyQuantity class, following

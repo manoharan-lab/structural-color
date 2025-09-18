@@ -73,27 +73,21 @@ def _make_input_coords(wavelen, thetas, phis=None):
     parameters and return.
 
     """
-    if not isinstance(wavelen, Quantity):
-        # handle numpy arrays as input
-        wavelen = Quantity(wavelen, LENGTH_UNIT)
-    wavelen = wavelen.to_dataarray(Coord.WAVELEN)
+    if not isinstance(wavelen, xr.DataArray):
+        if not isinstance(wavelen, Quantity):
+            # handle numpy arrays as input
+            wavelen = Quantity(wavelen, LENGTH_UNIT)
+        wavelen = wavelen.to_dataarray(Coord.WAVELEN)
 
-    if isinstance(thetas, Quantity):
-        thetas = thetas.to("rad").magnitude
-    if phis is not None:
-        if isinstance(phis, Quantity):
-            phis = phis.to("rad").magnitude
-
-    # set up DataArrays
     if not isinstance(thetas, xr.DataArray):
-        # if thetas not specified already as DataArray, assume 1D and index
-        thetas = xr.DataArray(thetas,
-                              coords={Coord.THETAIDX: range(len(thetas))})
+        if not isinstance(thetas, Quantity):
+            thetas = Quantity(thetas, "rad")
+        thetas = thetas.to_dataarray(Coord.THETAIDX)
     if phis is not None:
         if not isinstance(phis, xr.DataArray):
-            # as with thetas
-            phis = xr.DataArray(phis,
-                                coords={Coord.PHIIDX: range(len(phis))})
+            if not isinstance(phis, Quantity):
+                phis = Quantity(phis, "rad")
+            phis = phis.to_dataarray(Coord.PHIIDX)
 
     return wavelen, thetas, phis
 
