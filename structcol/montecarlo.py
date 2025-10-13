@@ -1005,8 +1005,7 @@ def calc_scat(model, wavelen,
         phis = None
 
     # calculate scattering quantities using the Model object
-    coords = model.make_input_coords(wavelen, thetas, phis=phis)
-    dscat = model.differential_cross_section(coords)
+    dscat = model.differential_cross_section(wavelen, thetas, phis=phis)
     cscat = model.scattering_cross_section(dscat)
     p = model.phase_function(dscat).to_numpy().squeeze()
 
@@ -1030,7 +1029,7 @@ def calc_scat(model, wavelen,
         roughness_model.index_external = roughness_model.index_matrix
         roughness_model.structure_factor = sc.structure.Constant(1.0)
 
-        dscat = roughness_model.differential_cross_section(coords)
+        dscat = roughness_model.differential_cross_section(wavelen, thetas)
         cscat_total_mie = roughness_model.scattering_cross_section(dscat)
         mu_scat_mie = (roughness_model.number_density
                        * (cscat_total_mie.loc["avg"].to_numpy().squeeze()

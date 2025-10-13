@@ -58,7 +58,7 @@ class Model:
     def __init__(self, index_medium):
         self.index_medium = index_medium
 
-    def differential_cross_section(self, coords, **kwargs):
+    def differential_cross_section(self, *args, **kwargs):
         """Calculates differential scattering cross-section as a function of
         wavelength and angle. This method, which depends on the structure, must
         be implemented in derived classes that specify a structure.
@@ -117,17 +117,23 @@ class FormStructureModel(Model):
             self.volume_fraction = volume_fraction
         super().__init__(index_medium)
 
-    def differential_cross_section(self, coords, **ff_kwargs):
+    def differential_cross_section(self, wavelen, thetas, phis=None,
+                                   **ff_kwargs):
         """Calculate dimensionless differential scattering cross-section,
         including contributions from the structure factor. Need to multiply by
         1/k**2 to get the dimensional differential cross section.
 
         Parameters
         ----------
-        coords : `xr.Coordinates`
-            Parameters to vectorize the calculation over.  Must include
-            wavelength (sc.Coord.WAVELEN) and theta (sc.Coord.THETA).  Can also
-            include phi (sc.Coord.PHI).
+        wavelen : array-like
+            Wavelength of incident light in vacuum
+        thetas : array-like
+            Scattering angles theta (in radians if not specified as a Quantity)
+        index_external : `sc.Index` object
+            Index of refraction of the medium around the particle.  Can be an
+            effective index.
+        phis : array-like (optional)
+            Azimuthal angles phi (in radians if not specified as a Quantity)
         **ff_kwargs :
             Keyword arguments to pass to `form_factor()` method. Includes
             incident_vector. See `Sphere.form_factor()` and
@@ -143,23 +149,24 @@ class FormStructureModel(Model):
             cartesian basis.
 
         """
+        wavelen, thetas, phis = sc._parse_input_coords(wavelen, thetas, phis)
+
         # This is the heart of the single-scattering and Monte Carlo models! We
         # calculate the form and structure factors and multiply them to get the
         # differential scattering cross-sections.
-
-        angles = coords[1]
 
         # calculate form factor
         if self.form_factor is None:
             # set form factor to 1 (will broadcast with structure factor)
             ff = xr.DataArray([1, 1], coords={sc.Coord.POL: ["par", "perp"]})
         else:
-            ff = self.form_factor(coords, self.index_external, **ff_kwargs)
+            ff = self.form_factor(wavelen, thetas, self.index_external, phis,
+                                  **ff_kwargs)
 
         # calculate structure factor
-        n_ext = self.index_external(sc.Quantity(coords[0].to_numpy(),
+        n_ext = self.index_external(sc.Quantity(wavelen.to_numpy(),
                                                 sc.LENGTH_UNIT))
-        ql = sc.ql(n_ext, self.lengthscale, angles)
+        ql = sc.ql(n_ext, self.lengthscale, thetas)
         sf = self.structure_factor(ql)
 
         # differential cross-section is the product of form & structure factors
@@ -175,7 +182,7 @@ class FormStructureModel(Model):
         diff_cscat = xr.concat([diff_cscat, diff_cscat_avg], dim=sc.Coord.POL)
 
         if sc.Coord.THETA not in diff_cscat.coords:
-            diff_cscat = diff_cscat.assign_coords({sc.Coord.THETA: angles})
+            diff_cscat = diff_cscat.assign_coords({sc.Coord.THETA: thetas})
 
         # change to canonical dimension order
         diff_cscat = diff_cscat.transpose(sc.Coord.POL, ...)
@@ -248,34 +255,6 @@ class FormStructureModel(Model):
             raise ValueError("Number density cannot be calculated for "
                              "this model.  Use a different model or specify "
                              "particle and volume_fraction")
-
-    def make_input_coords(self, wavelen, thetas, phis=None):
-        """Generate DataArray coordinates to be used as inputs to
-        differential_cross_section() methods.
-
-        Parameters
-        ----------
-        wavelen : array-like [`sc.Quantity`]
-            Wavelengths at which to calculate form factor
-        thetas : array-like [`sc.Quantity`]
-            Scattering angles (theta) at which to calculate form factor.
-        phis : array-like (optional, default None)
-            Azimuthal angles (phi)
-
-        Returns
-        -------
-        `xr.Coordinates` object :
-            can be used as input to scattering methods, which will then
-            vectorize the calculations over the specified coordinates.
-
-        Notes
-        -----
-        Standardizes units. All dimensional quantities are converted to
-        preferred units and then magnitudes.
-
-        """
-        coords = sc._make_input_coords(wavelen, thetas, phis=phis)
-        return coords
 
 
 class HardSpheres(FormStructureModel):
@@ -618,10 +597,8 @@ def reflection(model, wavelen,
     # (which is the default). Including near-fields leads to strange effects
     # when the calculation is done not over all angles but only a subset.
     # When there isn't absorption, the distance does not enter the calculation.
-    coords_det = model.make_input_coords(wavelen, angles)
-    diff_cs_detected = model.differential_cross_section(coords_det)
-    coords_tot = model.make_input_coords(wavelen, angles_tot)
-    diff_cs_total = model.differential_cross_section(coords_tot)
+    diff_cs_detected = model.differential_cross_section(wavelen, angles)
+    diff_cs_total = model.differential_cross_section(wavelen, angles_tot)
 
     # integrate the differential cross sections to get the total cross section
     integrand = diff_cs_detected * transmission

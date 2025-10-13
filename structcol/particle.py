@@ -280,18 +280,21 @@ class Sphere(Particle):
             radius = self.radius_q
         return 3.0 * volume_fraction / (4.0 * np.pi * radius**3)
 
-    def form_factor(self, coords, index_external, incident_vector=None):
+    def form_factor(self, wavelength, thetas, index_external, phis=None,
+                    incident_vector=None):
         """Calculate form factor from Mie theory.
 
         Parameters
         ----------
-        coords : `xr.Coordinates` object
-            Parameters to vectorize the calculation over.  Must include
-            wavelength (sc.Coord.WAVELEN) and theta (sc.Coord.THETA).  Can also
-            include phi (sc.Coord.PHI).
+        wavelength : `xr.DataArray`
+            Wavelength of incident light in vacuum
+        thetas : `xr.DataArray`
+            Scattering angles theta (in radians)
         index_external : `sc.Index` object
             Index of refraction of the medium around the particle.  Can be an
             effective index.
+        phis : `xr.DataArray`
+            Azimuthal angles phi (in radians)
         incident_vector : tuple (optional, default None)
             vector describing the incident electric field. It is multiplied by
             the amplitude scattering matrix to find the vector scattering
@@ -328,10 +331,7 @@ class Sphere(Particle):
         scattering cross-section nondimensionalized by k^2.
 
         """
-        wavelen = sc.Quantity(coords[0].to_numpy(), sc.LENGTH_UNIT)
-        angles = coords[1]
-        phis = coords[2]
-
+        wavelen = sc.Quantity(wavelength.to_numpy(), sc.LENGTH_UNIT)
         n_ext = index_external(wavelen)
         n_particle = self.n(wavelen)
 
@@ -347,7 +347,7 @@ class Sphere(Particle):
         else:
             kd = None
 
-        form_factor = _form_factor(m, x, angles, kd=kd, phis=phis,
+        form_factor = _form_factor(m, x, thetas, kd=kd, phis=phis,
                                    incident_vector=incident_vector)
 
         # add attributes to the DataArray
@@ -480,7 +480,8 @@ class SphereDistribution:
             rho = 3.0 * volume_fraction / (4.0 * np.pi) * (term1 + term2)
         return rho
 
-    def form_factor(self, coords, index_external,
+    def form_factor(self, wavelength, thetas, index_external,
+                    phis=None,
                     incident_vector=None,
                     num_components=50):
         """
@@ -493,10 +494,7 @@ class SphereDistribution:
         distribution.
 
         """
-        wavelen = sc.Quantity(coords[0].to_numpy(), sc.LENGTH_UNIT)
-        angles = coords[1]
-        phis = coords[2]
-
+        wavelen = sc.Quantity(wavelength.to_numpy(), sc.LENGTH_UNIT)
         n_ext = index_external(wavelen)
 
         # set up coords for DataArrays
@@ -556,7 +554,7 @@ class SphereDistribution:
                                           coords={"diameter": diameter_range})
             x = sc.size_parameter(n_ext, diameter_range/2)
 
-            ff_vec = _form_factor(m, x, angles, kd=kd, phis=phis,
+            ff_vec = _form_factor(m, x, thetas, kd=kd, phis=phis,
                                   incident_vector=incident_vector)
 
             # it might seem reasonable to calculate the form factor of each

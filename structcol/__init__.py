@@ -61,16 +61,29 @@ xr.set_options(keep_attrs=True)
 # get this from Pint in a somewhat indirect way:
 LIGHT_SPEED_VACUUM = Quantity(1.0, 'speed_of_light').to('m/s')
 
-def _make_input_coords(wavelen, thetas, phis=None):
-    """Convenience function to generate DataArrays to be used as inputs to
-    differential_cross_section() and form_factor() methods. Called by
-    `sc.model.FormStructureModel.make_input_coords()` but can also be called by
-    test functions.
+def _parse_input_coords(wavelen, thetas, phis=None):
+    """Generate DataArray coordinates to be used as inputs to
+    differential_cross_section() methods.
 
-    Takes `sc.Quantity` objects for wavelen, thetas, and (optionally) phis, and
-    returns `xr.DataArray` objects. See
-    `sc.model.FormStructureModel.make_input_coords() for information on
-    parameters and return.
+    Parameters
+    ----------
+    wavelen : array-like
+        Wavelengths at which to calculate form factor
+    thetas : array-like
+        Scattering angles (theta) at which to calculate form factor.
+    phis : array-like (optional, default None)
+        Azimuthal angles (phi)
+
+    Returns
+    -------
+    `xr.DataArray`:
+        DataArrays that can be processed by scattering methods, which will then
+        vectorize the calculations over the specified coordinates.
+
+    Notes
+    -----
+    Standardizes units. All dimensional quantities are converted to
+    preferred units and then magnitudes.
 
     """
     if not isinstance(wavelen, xr.DataArray):
@@ -83,6 +96,7 @@ def _make_input_coords(wavelen, thetas, phis=None):
         if not isinstance(thetas, Quantity):
             thetas = Quantity(thetas, "rad")
         thetas = thetas.to_dataarray(Coord.THETAIDX)
+
     if phis is not None:
         if not isinstance(phis, xr.DataArray):
             if not isinstance(phis, Quantity):

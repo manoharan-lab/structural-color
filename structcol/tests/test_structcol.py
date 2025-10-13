@@ -160,18 +160,18 @@ def test_ql(wavelen, angles):
                                      sc.Quantity(np.linspace(400, 800, 10),
                                                  "nm"),
                                      np.linspace(0.4, 0.8, 20)])
-def test_make_input_coords(wavelen):
-    """Tests the convenience function to make DataArray coords from numpy
+def test_parse_input_coords(wavelen):
+    """Tests the convenience function to parse DataArray coords from numpy
     arrays or scalars"""
     thetas = sc.Quantity(np.linspace(0, np.pi, 10), "rad")
     phis = sc.Quantity(np.linspace(0, 360, 12), "deg")
 
-    coords = sc._make_input_coords(wavelen, thetas)
+    coords = sc._parse_input_coords(wavelen, thetas)
     assert np.ndim(coords[0].coords) == 1
     assert sc.Coord.THETAIDX in coords[1].coords
     assert coords[2] is None
 
     # ensure that coords work with thetas, phis specified as 1D arrays
-    coords = sc._make_input_coords(wavelen, thetas, phis=phis)
+    coords = sc._parse_input_coords(wavelen, thetas, phis=phis)
     assert sc.Coord.THETAIDX in coords[1].coords
     assert sc.Coord.PHIIDX in coords[2].coords
