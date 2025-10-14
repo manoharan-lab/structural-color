@@ -508,7 +508,7 @@ class Trajectory:
         # strip and save units
         if isinstance(self.position, sc.Quantity):
             units = self.position.to_preferred().units
-            displacement = xr.DataArray(self.position.magnitude,
+            displacement = xr.DataArray(self.position.to_preferred().magnitude,
                                         coords=pos_coords)
         else:
             units = 1
@@ -725,7 +725,7 @@ def initialize(nevents, ntraj, n_medium, n_sample, boundary, rng=None,
 
     Reference
     ---------
-    B. v. Ginneken, M. Stavridi, J. J. Koenderink, “Diffuse and specular
+    B. van Ginneken, M. Stavridi, J. J. Koenderink, “Diffuse and specular
     reflectance from rough surfaces”, Applied Optics, 37, 1 (1998) (has
     definition of rsm slope of the surface).
 
@@ -1012,8 +1012,7 @@ def calc_scat(model, wavelen,
     mu_scat = model.number_density * (cscat.loc["avg"].to_numpy().squeeze() *
                                       units**2)
 
-    # Here, the resulting units of mu_scat and mu_abs are nm^2/um^3. Thus, we
-    # simplify the units to 1/um
+    # simplify units
     mu_scat = mu_scat.to_preferred()
     mu_abs = mu_abs.to_preferred()
 
