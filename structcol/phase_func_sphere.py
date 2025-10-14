@@ -448,13 +448,13 @@ def plot_exit_points(x, y, z, radius, plot_dimension='3d'): # pragma: no cover
     unit = '' # initialize unit to empty string
     if isinstance(x, sc.Quantity):
         unit = x.units # save unit for later use
-        x = x.to('um').magnitude
+        x = x.to_preferred().magnitude
     if isinstance(y, sc.Quantity):
-        y = y.to('um').magnitude
+        y = y.to_preferred().magnitude
     if isinstance(z, sc.Quantity):
-        z = z.to('um').magnitude
+        z = z.to_preferred().magnitude
     if isinstance(radius, sc.Quantity):
-        radius = radius.to('um').magnitude
+        radius = radius.to_preferred().magnitude
 
 
     if plot_dimension == '2d':

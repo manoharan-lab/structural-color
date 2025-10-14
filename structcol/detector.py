@@ -635,15 +635,15 @@ def set_up_values(n_sample, trajectories, z_low, thickness):
 
     # set up the values we need as numpy arrays for efficiency
     if isinstance(trajectories.position, sc.Quantity):
-        trajectories.position = trajectories.position.to('um').magnitude
+        trajectories.position = trajectories.position.to_preferred().magnitude
     if isinstance(trajectories.direction, sc.Quantity):
         trajectories.direction = trajectories.direction.magnitude
     if isinstance(trajectories.weight, sc.Quantity):
         trajectories.weight = trajectories.weight.magnitude
     if isinstance(z_low, sc.Quantity):
-        z_low = z_low.to('um').magnitude
+        z_low = z_low.to_preferred().magnitude
     if isinstance(thickness, sc.Quantity):
-        thickness = thickness.to('um').magnitude
+        thickness = thickness.to_preferred().magnitude
 
     return (n_sample, trajectories, z_low, thickness)
 
@@ -1489,9 +1489,9 @@ def calc_indices_detected(indices, trajectories, det_theta, det_len, det_dist,
     if isinstance(det_theta, sc.Quantity):
         det_theta = det_theta.to('radians').magnitude
     if isinstance(det_dist, sc.Quantity):
-        det_dist = det_dist.to('um').magnitude
+        det_dist = det_dist.to_preferred().magnitude
     if isinstance(det_len, sc.Quantity):
-        det_len = det_len.to('um').magnitude
+        det_len = det_len.to_preferred().magnitude
 
     # coordinates and directions at exit events for all trajectories
     x0 = select_events(x[1:], indices)

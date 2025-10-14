@@ -219,7 +219,7 @@ def calc_traj_time(step, exit_indices, radius,
 
     # calculate the path length
     ntraj = len(exit_indices)
-    path_length_traj = sc.Quantity(np.zeros(ntraj), 'um')
+    path_length_traj = sc.Quantity(np.zeros(ntraj), sc.LENGTH_UNIT)
 
     for i in range(0, ntraj):
         path_length_traj[i] = np.sum(step[:exit_indices[i], i])

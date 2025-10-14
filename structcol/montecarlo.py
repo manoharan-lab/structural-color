@@ -507,7 +507,7 @@ class Trajectory:
 
         # strip and save units
         if isinstance(self.position, sc.Quantity):
-            units = self.position.to('um').units
+            units = self.position.to_preferred().units
             displacement = xr.DataArray(self.position.magnitude,
                                         coords=pos_coords)
         else:
@@ -515,8 +515,8 @@ class Trajectory:
             displacement = xr.DataArray(self.position, coords=pos_coords)
 
         # calculate vector displacement after each event
-        displacement[dict(event=slice(1, None))] = (step.to('um').magnitude
-                                                    * self.direction.magnitude)
+        disp = step.to_preferred().magnitude * self.direction.magnitude
+        displacement[dict(event=slice(1, None))] = disp
 
         # The array of positions is a cumulative sum of all of the
         # displacements. Note: we use da.cumsum() because
@@ -744,11 +744,11 @@ def initialize(nevents, ntraj, n_medium, n_sample, boundary, rng=None,
         rng = sc.rng
 
     # get the spot size magnitude to multiply by initial x and y positions
-    spot_size_magnitude = spot_size.to('um').magnitude
+    spot_size_magnitude = spot_size.to_preferred().magnitude
 
     # get the sample radius as a float
     if isinstance(sample_diameter, sc.Quantity):
-        sample_radius = sample_diameter.to('um').magnitude/2
+        sample_radius = sample_diameter.to_preferred().magnitude/2
 
     # strip units from dimensionless quantities
     if isinstance(n_medium, sc.Quantity):
@@ -1014,8 +1014,8 @@ def calc_scat(model, wavelen,
 
     # Here, the resulting units of mu_scat and mu_abs are nm^2/um^3. Thus, we
     # simplify the units to 1/um
-    mu_scat = mu_scat.to('1/um')
-    mu_abs = mu_abs.to('1/um')
+    mu_scat = mu_scat.to_preferred()
+    mu_abs = mu_abs.to_preferred()
 
     # if there is fine surface roughness, also calculate and return the scatt
     # coeff from Mie theory. We assume that fine roughness particles are in the
@@ -1035,9 +1035,10 @@ def calc_scat(model, wavelen,
                        * (cscat_total_mie.loc["avg"].to_numpy().squeeze()
                           * units**2))
 
-        mu_scat_mie = mu_scat_mie.to('1/um')
+        mu_scat_mie = mu_scat_mie.to_preferred()
         mu_scat = sc.Quantity(np.array([mu_scat.magnitude,
-                                        mu_scat_mie.magnitude]), '1/um')
+                                        mu_scat_mie.magnitude]),
+                              1/sc.LENGTH_UNIT)
 
     return p, mu_scat, mu_abs
 

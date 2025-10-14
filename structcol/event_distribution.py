@@ -89,7 +89,7 @@ def calc_path_length(step, exit_indices):
 
     '''
     ntraj = len(exit_indices)
-    path_length_traj = sc.Quantity(np.zeros(ntraj),'um')
+    path_length_traj = sc.Quantity(np.zeros(ntraj), sc.LENGTH_UNIT)
 
     for i in range(0, ntraj):
         path_length_traj[i] = np.sum(step[:exit_indices[i],i])
