@@ -120,7 +120,9 @@ def refraction(angles, n_before, n_after):
         Refractive index of the medium light is going to
 
     '''
-    snell = n_before / n_after * np.sin(angles)
+    # TODO: only real part of n_sample should be used
+    # for the calculation of angles of integration? Or abs(n_sample)?
+    snell = np.abs(n_before) / np.abs(n_after) * np.sin(angles)
     snell[abs(snell) > 1] = np.nan  # this avoids a warning
     return np.arcsin(snell)
 

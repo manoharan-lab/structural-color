@@ -877,9 +877,7 @@ def initialize(nevents, ntraj, n_medium, n_sample, boundary, rng=None,
     # If there is no coarse roughness (e.g. surface is flat)
     if coarse_roughness == 0:
         # Refraction of incident light upon entering the sample
-        # TODO: only real part of n_sample should be used
-        # for the calculation of angles of integration? Or abs(n_sample)?
-        theta = refraction(theta, np.abs(n_medium), np.abs(n_sample))
+        theta = refraction(theta, n_medium, n_sample)
 
     sintheta = np.sin(theta)
     costheta = np.cos(theta)
@@ -1356,9 +1354,7 @@ def coarse_roughness_enter(k, n_medium, n_sample, coarse_roughness, boundary,
     phi_rot = np.arccos(k0_rot.loc['x'] / norm)
 
     # Refraction of incident light upon entering sample
-    # TODO: only real part of n_sample should be used
-    # for the calculation of angles of integration? Or abs(n_sample)?
-    theta_refr = refraction(theta_rot, n_medium, np.abs(n_sample))
+    theta_refr = refraction(theta_rot, n_medium, n_sample)
 
     k0_rot_refr = xr.DataArray([np.sin(theta_refr) * np.cos(phi_rot),
                                 np.sin(theta_refr) * np.sin(phi_rot),
