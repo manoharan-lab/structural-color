@@ -86,6 +86,7 @@ class MCSimulation:
         """
         pass
 
+
 class MCResult:
     """
     Results from running Monte Carlo simulation.
@@ -106,22 +107,75 @@ class MCResult:
         """
         pass
 
-class Trajectory:
+class QtyTrajectory():
+    """Temporary class to convert xarray-based trajectories to Quantity objects
+    for processing by calc_refl_trans() and other functions. Can be removed
+    when these functions have been refactored to use DataArrays.
+
+    Notes
+    -----
+    For compatibility with the event processing code (calc_refl_trans and
+    associated functions), we set the size of the weights array to
+    nevents*ntraj by trimming the first event (where the weight is 1 by
+    definition). Therefore the weights array begins with the weight of the
+    photons after their first event.
+
     """
-    Class that describes trajectories of photons packets in a scattering
+    def __init__(self, trajectories):
+        self.position = sc.Quantity(trajectories.position.to_numpy(),
+                                    sc.LENGTH_UNIT)
+        self.direction = sc.Quantity(trajectories.direction.to_numpy(), '')
+        self.weight = sc.Quantity(trajectories.weight.to_numpy(), '')
+        self.weight = self.weight[1:]
+        if trajectories.fields is not None:
+            self.fields = sc.Quantity(trajectories.fields.to_numpy(), '')
+
+    @property
+    def nevents(self):
+        return self.weight.shape[0]
+
+    @property
+    def ntrajectories(self):
+        return self.weight.shape[1]
+
+class Trajectory:
+    """Class that describes trajectories of photons packets in a scattering
     and/or absorbing medium.
+
+    Notes
+    -----
+    Each event consists of a step of a photon packet along a direction. For
+    each event, we keep track of the (1) starting position of the photon
+    packet; (2) weight of the packet at the starting position; (3) its
+    direction; (4) its step size. In event 0, the weight is equal to 1 and the
+    direction is fixed, rather than sampled. In subsequent events, the
+    direction and step size are sampled, and the values are used to calculation
+    the starting position and weight for the next event. Although there are
+    `nevents` steps and directions, there are `nevents+1` positions and weights
+    (and fields) because we calculate the position and weight (and field) of
+    each packet after the last step.
+
+    The dimension names and coords of the DataArrays are as follows:
+    - position:  component x,y,z, event 0:nevents+1, trajectory 0:ntraj
+    - weight:                     event 0:nevents+1, trajectory 0:ntraj
+    - direction: component x,y,z, event 0:nevents,   trajectory 0:ntraj
+    - step:                       event 0:nevents,   trajectory 0:ntraj
+    - field:     component x,y,z, event 0:nevents+1, trajectory 0:ntraj
+
+    Note that the step (or step_size) array is not stored by the class, but
+    instead is specified as an argument to the move() and absorb() methods.
 
     Attributes
     ----------
-    position: ndarray (structcol.Quantity [length])
+    position: `xr.DataArray`
         array of position vectors in cartesian coordinates of n trajectories
-    direction: ndarray (structcol.Quantity [dimensionless])
+    direction: `xr.DataArray`
         array of direction of propagation vectors in cartesian coordinates
         of n trajectories after every scattering event
-    weight: ndarray (structcol.Quantity [dimensionless])
+    weight: `xr.DataArray`
         array of photon packet weights for absorption modeling of n
         trajectories
-    field: ndarray (structcol.Quantity [dimensionless])
+    field: `xr.DataArray`
         electric fields of photon packets in cartesian coordinates
     nevents: int
         number of scattering events
@@ -134,7 +188,7 @@ class Trajectory:
     scatter(sintheta, costheta, sinphi, cosphi)
         calculate directions of propagation after each scattering event with
         given randomly sampled scattering and azimuthal angles.
-    move(mu_scat)
+    move(mu_scat, step_size)
         calculate new positions of the trajectory with given scattering
         coefficient, obtained from either Mie theory or the single scattering
         model.
@@ -159,7 +213,7 @@ class Trajectory:
         direction : see Class attributes
             Dimensions of (3, nevents, number of trajectories)
         weight : see Class attributes
-            Dimensions of (nevents, number of trajectories)
+            Dimensions of (nevents+1, number of trajectories)
 
         """
 
@@ -170,11 +224,11 @@ class Trajectory:
 
     @property
     def nevents(self):
-        return self.weight.shape[0]
+        return len(self.direction.coords["event"])
 
     @property
     def ntrajectories(self):
-        return self.weight.shape[1]
+        return len(self.direction.coords["trajectory"])
 
     def absorb(self, mu_abs, step_size):
         """
@@ -190,10 +244,15 @@ class Trajectory:
             Step size of packet (sampled from scattering lengths).
 
         """
+        # shift event coord so that step size maps correctly onto weight (the
+        # weight at event n is determined by the step at event n-1)
+        step = xr.DataArray(step_size)
+        step.coords["event"] = range(1, self.nevents + 1)
+
         # beer lambert
-        weight = self.weight*np.exp(-(mu_abs * np.cumsum(step_size[:,:],
-                                                         axis=0)).to(''))
-        self.weight = sc.Quantity(weight)
+        weight = (self.weight * np.exp(-(mu_abs.to_preferred().magnitude
+                                         * step.cumsum("event"))))
+        self.weight.loc[1:] = weight
 
     def scatter(self, sintheta, costheta, sinphi, cosphi):
         """
@@ -214,14 +273,7 @@ class Trajectory:
             system. All have dimensions of (nevents, ntrajectories).
 
         """
-        kn = self.direction.magnitude
-
-        # the 0th event is the initial direction which does not change when the
-        # photon first enters the sample. It only changes after the first
-        # scattering event. The trajectory steps first, then scatters. The
-        # reason that we don't extend the arange to nevents + 1 is that we
-        # still count this original initialized direction as an event, since
-        # the step size must be sampled once it enters the material.
+        kn = self.direction
 
         # Calculate the new x, y, z coordinates of the propagation
         # direction using the following equations, which can be derived by
@@ -233,10 +285,14 @@ class Trajectory:
         # this is the product of the rotation matrices R_z(phi).R_y(theta)
         # calculated for each event in each trajectory
         # shape of kn is [3,nevents,ntraj]
-        # shape of R is [3,3,nevents,ntraj]
-        R = np.array([[costheta*cosphi, -sinphi, sintheta*cosphi],
-                      [costheta*sinphi, cosphi, sintheta*sinphi],
-                      [-sintheta, np.zeros(sinphi.shape), costheta]])
+        # shape of R is [3,3,nevents-1,ntraj]
+        R = xr.DataArray([[costheta*cosphi, -sinphi, sintheta*cosphi],
+                          [costheta*sinphi, cosphi, sintheta*sinphi],
+                          [-sintheta, np.zeros(sinphi.shape), costheta]],
+                         coords={"component1": ["x", "y", "z"],
+                                 "component2": ["x", "y", "z"],
+                                 "event": sintheta.coords["event"],
+                                 "trajectory": sintheta.coords["trajectory"]})
 
         # could vectorize this loop if numpy had a cumulative dot product
         # ufunc.  But np.cumprod only does element by element.
@@ -259,11 +315,11 @@ class Trajectory:
             #                + kn[2, n - 1, :] * costheta[n - 1, :])
 
         # Update all the directions of the trajectories
-        self.direction = sc.Quantity(kn, self.direction.units)
+        self.direction = kn
 
     def calc_fields(self, theta, phi, sintheta, costheta, sinphi, cosphi,
                     n_particle, n_sample, radius, wavelen, step,
-                    volume_fraction, fine_roughness=0, tir_refl_bool=None):
+                    fine_roughness=0, tir_refl_bool=None):
         """
         Calculates local x and y polarization rotated in reference frame where
         initial polarization is x-polarized. Assumes the incident light is in
@@ -314,8 +370,6 @@ class Trajectory:
             Wavelength.
         step: ndarray (structcol.Quantity [length])
             Step sizes of packets (sampled from scattering lengths).
-        volume_fraction: float (structcol.Quantity [dimensionless])
-            Volume fraction of the sample.
         fine_roughness: float (structcol.Quantity [dimensionless])
             Fraction of the sample area that has fine roughness. Should be
             between 0 and 1. For ex, a value of 0.3 means that 30% of incident
@@ -348,7 +402,6 @@ class Trajectory:
         m = np.atleast_2d(n_particle/n_sample)
         x = pymie.size_parameter(wavelen, n_sample, radius)
         k = 2 * np.pi * n_sample / wavelen.magnitude
-        step = step.magnitude
         # TODO: fix the bug in the above code.  If the step size and wavelength
         # are specified in different units, the results will be off by a lot.
         # test_fields uses different units.  The commented code below is how
@@ -356,7 +409,6 @@ class Trajectory:
         # m = sc.index.ratio(n_particle, n_sample)
         # x = sc.size_parameter(wavelen, n_sample, radius)
         # k = sc.wavevector(n_sample).magnitude
-        # step = step.to_preferred().magnitude
         ntraj = theta.shape[1]
 
         # calculate the mie amplitude scattering matrix
@@ -388,8 +440,6 @@ class Trajectory:
 
         # mutliply the scat amp mats
         En = self.fields
-        if isinstance(En, sc.Quantity):
-            En = En.magnitude
 
         # En has shape (3, nevents+1, ntraj)
         Ex = En[0, 0, :]
@@ -467,8 +517,10 @@ class Trajectory:
         theta2 = np.insert(theta,0,np.zeros(ntraj),axis=0)
 
         # calculate the step propagation factor
-        step_cumul = np.abs(k)*np.cumsum(step, axis=0)#step #
+        step_cumul = np.abs(k) * step.cumsum("event")
         step_phase_factor = np.exp(1j*np.abs(k)*step_cumul)
+        # shift event coord so that step_phase_factor maps correctly onto field
+        step_phase_factor.coords["event"] = range(1, self.nevents + 1)
 
         # multiply the fields by the phase propagation due to structure factor
         # of the initial trajectories
@@ -479,12 +531,14 @@ class Trajectory:
         En[2, 1:, :] = En[2, 1:, :] * step_phase_factor
 
         # Normalize
-        En[0, :, :], En[1, :, :], En[2, :, :] = normalize(En[0, :, :],
-                                                          En[1, :, :],
-                                                          En[2, :, :],
-                                                          return_nan=False)
+        # En[0, :, :], En[1, :, :], En[2, :, :] = normalize(En[0, :, :],
+        #                                                   En[1, :, :],
+        #                                                   En[2, :, :],
+        #                                                   return_nan=False)
+        coords = En.coords
+        En = normalize(*En, return_nan=False)
 
-        self.fields = sc.Quantity(En,self.fields.units)
+        self.fields = xr.DataArray(En, coords=coords)
 
     def move(self, step):
         """
@@ -495,34 +549,22 @@ class Trajectory:
 
         Parameters
         ----------
-        step : ndarray (structcol.Quantity [length])
+        step : `xr.DataArray`
             Step sizes between scattering events in each of the trajectories.
+            Coordinate `event` should be range(n_events)
 
         """
-
-        # define coords/dims for position array (shape: [3, nevents+1, ntraj])
-        pos_coords = [("vector", ["x", "y", "z"]),
-                      ("event", np.arange(0, self.nevents+1)),
-                      ("trajectory", np.arange(self.ntrajectories))]
-
-        # strip and save units
-        if isinstance(self.position, sc.Quantity):
-            units = self.position.to_preferred().units
-            displacement = xr.DataArray(self.position.to_preferred().magnitude,
-                                        coords=pos_coords)
-        else:
-            units = 1
-            displacement = xr.DataArray(self.position, coords=pos_coords)
-
         # calculate vector displacement after each event
-        disp = step.to_preferred().magnitude * self.direction.magnitude
-        displacement[dict(event=slice(1, None))] = disp
+        disp = self.direction * step
+        # shift event coord so that displacement maps correctly onto position
+        disp.coords["event"] = range(1, self.nevents + 1)
 
         # The array of positions is a cumulative sum of all of the
         # displacements. Note: we use da.cumsum() because
         # da.cumulative("event").sum() will be much slower if numbagg is not
         # installed. See https://github.com/pydata/xarray/issues/6528
-        self.position = displacement.cumsum("event").to_numpy() * units
+        r0 = self.position.sel(event=0)
+        self.position[dict(event=slice(1, None))] = disp.cumsum("event") + r0
 
     def plot_coord(self, ntraj, three_dim=False): # pragma: no cover
         """
@@ -587,8 +629,7 @@ def initialize(nevents, ntraj, n_medium, n_sample, boundary, rng=None,
                coherent=False,
                polarized=True,
                fields=False):
-    """
-    Sets the trajectories' initial conditions (position, direction, weight,
+    """Sets the trajectories' initial conditions (position, direction, weight,
     and polarization if set to True).
     The initial positions are determined randomly in the x-y plane.
 
@@ -601,8 +642,9 @@ def initialize(nevents, ntraj, n_medium, n_sample, boundary, rng=None,
     packets point straight down in z. The initial directions are corrected for
     refraction, for either type of boundary and for any incidence angle.
 
-    * Notes:
-    - for sphere boundary, incidence angle currently must be 0
+    Notes
+    -----
+    For sphere boundary, incidence angle currently must be 0
 
     Parameters
     ----------
@@ -697,16 +739,6 @@ def initialize(nevents, ntraj, n_medium, n_sample, boundary, rng=None,
         initial photons. If you wanted to make the relative weights of photons
         different, you would need to introduce a new variable (e.g relative
         intensity) that me, NOT change the intialization of the weights array.
-        - Also Note that the size of the weights array it nevents*ntraj, NOT
-        nevents+1, ntraj. This may at first seem counterintuitive because
-        physically, we can associate a weight to a photon at each position
-        (which would call for a dimension nevents+1), not at each event.
-        However, there is no need to keep track of the weight at the first
-        event; The weight, by definition, must initially be 1 for each photon.
-        Adding an additional row of ones to this array would be unecessary and
-        would contribute to less readable code in the calculation of
-        absorptance, reflectance, and transmittance. Therefore the weights
-        array begins with the weight of the photons after their first event.
     pol0: (optional) 3D array-like (structcol.Quantity[dimensionless])
         Initial polarization vector in global coordinates. Has shape of
         (number of events, number of trajectories). Only returns initial
@@ -769,7 +801,8 @@ def initialize(nevents, ntraj, n_medium, n_sample, boundary, rng=None,
     k0 = xr.zeros_like(r0.isel(event=slice(0, -1)))
 
     # Initial weight
-    weight0 = xr.ones_like(k0.sel(component='x')).drop_vars("component")
+    # as noted in docstring, weights are set to 1 for the first event
+    weight0 = xr.ones_like(r0.sel(component='x', drop=True))
 
     if boundary == 'film':
 
@@ -779,6 +812,7 @@ def initialize(nevents, ntraj, n_medium, n_sample, boundary, rng=None,
                              to None')
         # randomly choose positions on interval [0,1]
         r0.sel(event=0).loc["x":"y"] = rng.random((2, ntraj))
+        r0.sel(event=0).loc["z"] = np.zeros(ntraj)
 
         # initialize the incident angles theta and phi. The user can input
         # data or sample randomly from a uniform distribution between a min and
@@ -880,7 +914,7 @@ def initialize(nevents, ntraj, n_medium, n_sample, boundary, rng=None,
             z = sample_radius-sample_radius*np.cos(v)
             ax.plot_wireframe(x, y, z, color=[0.8,0.8,0.8])
 
-        init_traj_props = [r0.to_numpy(), k0.to_numpy(), weight0.to_numpy()]
+        init_traj_props = [r0, k0, weight0]
 
     # if the surface has coarse roughness
     else:
@@ -888,8 +922,7 @@ def initialize(nevents, ntraj, n_medium, n_sample, boundary, rng=None,
                                                        n_sample,
                                                        coarse_roughness,
                                                        boundary, rng=rng)
-        init_traj_props = [r0.to_numpy(), k0.to_numpy(), weight0.to_numpy(),
-                           kz0_rot.to_numpy(), kz0_refl.to_numpy()]
+        init_traj_props = [r0, k0, weight0, kz0_rot, kz0_refl]
 
     if fields:
         # The field is initialized with nevents+1 because we want to save
@@ -910,14 +943,14 @@ def initialize(nevents, ntraj, n_medium, n_sample, boundary, rng=None,
 
         # first step into the sample is same
         fields0.loc[dict(event=1)] = fields0.sel(event=0)
-        init_traj_props.append(fields0.to_numpy())
+        init_traj_props.append(fields0)
 
     return init_traj_props
 
 
 def calc_scat(model, wavelen,
               fields = False,
-              fine_roughness=0,
+              fine_roughness=0.0,
               min_angle = 0.01,
               num_angles = 200,
               num_phis = 300):
@@ -1081,24 +1114,18 @@ def sample_angles(nevents, ntraj, p, min_angle=0.01, rng=None):
 
     # The direction for the first event is defined upon initialization
     # so we only need to sample nevents-1.
-    # In previous versions of the code, we sampled nevents, which gave us an
-    # extra sampled angle that was never used. While this did not lead to
-    # incorrect results, it led to inconsistencies in indexing which had the
-    # potential to create future bugs. Sampling one less angle fixes this
-    # issue.
-    nevents = nevents-1
+    nsamples = nevents-1
 
     # Scattering angles for the phase function calculation (typically from 0 to
     # pi). A non-zero minimum angle is needed because in the single scattering
     # model, if the analytic formula is used, S(q=0) returns nan.
-    thetas = sc.Quantity(np.linspace(min_angle, np.pi, num_theta), 'rad')
-    thetas = thetas.magnitude
+    thetas = np.linspace(min_angle, np.pi, num_theta)
 
     if len(p.shape)==1: # if p depends only on theta
 
         # Randomly sample azimuthal angle phi from uniform distribution [0 -
         # 2pi]
-        rand = rng.random((nevents,ntraj))
+        rand = rng.random((nsamples, ntraj))
         phi = 2*np.pi*rand
 
         # make sure probability is normalized
@@ -1108,7 +1135,7 @@ def sample_angles(nevents, ntraj, p, min_angle=0.01, rng=None):
         prob_norm = prob/sum(prob)
 
         # Randomly sample scattering angle theta
-        theta = rng.choice(thetas, (nevents, ntraj), p = prob_norm)
+        theta = rng.choice(thetas, (nsamples, ntraj), p = prob_norm)
 
     if len(p.shape)==2: # if p depends on theta and phi
 
@@ -1119,17 +1146,16 @@ def sample_angles(nevents, ntraj, p, min_angle=0.01, rng=None):
         p_phi = np.sum(p, axis = 0)
 
         # define phi values from which to sample
-        phis = sc.Quantity(np.linspace(min_angle,2*np.pi, num_phi), 'rad')
-        phis = phis.magnitude
+        phis = np.linspace(min_angle,2*np.pi, num_phi)
 
         # sample indices for phi values
-        phi_ind = rng.choice(num_phi, (nevents, ntraj),
+        phi_ind = rng.choice(num_phi, (nsamples, ntraj),
                              p = p_phi/np.sum(p_phi))
 
         # sample thetas based on sampled phi values
-        theta_ind = np.zeros((nevents,ntraj))
-        theta = np.zeros((nevents,ntraj))
-        phi = np.zeros((nevents,ntraj))
+        theta_ind = np.zeros((nsamples, ntraj))
+        theta = np.zeros((nsamples, ntraj))
+        phi = np.zeros((nsamples, ntraj))
 
         # calculate and normalize p(theta) for each phi, event, and trajectory
         p_theta = p[:, phi_ind] * np.sin(thetas[:, np.newaxis, np.newaxis])
@@ -1139,7 +1165,7 @@ def sample_angles(nevents, ntraj, p, min_angle=0.01, rng=None):
         # one-dimensional probability vector p.  There may be a way to
         # vectorize using rng.multinomial, which takes an array of probs.
         # However, rng.multinomial might not work with np.random.RandomState
-        for i in range(nevents):
+        for i in range(nsamples):
             for j in range(ntraj):
                 theta_ind[i,j] = rng.choice(num_theta,
                                             p = p_theta_norm[:,i,j])
@@ -1148,10 +1174,14 @@ def sample_angles(nevents, ntraj, p, min_angle=0.01, rng=None):
         theta = thetas[theta_ind.astype(int)]
         phi = phis[phi_ind.astype(int)]
 
-    sintheta = np.sin(theta)
-    costheta = np.cos(theta)
-    sinphi = np.sin(phi)
-    cosphi = np.cos(phi)
+    # set event number correctly (note again that we did not sample angles for
+    # event 0)
+    sintheta = xr.DataArray(np.sin(theta),
+                            coords = {"event": range(1, nevents),
+                                      "trajectory": range(ntraj)})
+    costheta = xr.DataArray(np.cos(theta), coords=sintheta.coords)
+    sinphi = xr.DataArray(np.sin(phi), coords=sintheta.coords)
+    cosphi = xr.DataArray(np.cos(phi), coords=sintheta.coords)
 
     return sintheta, costheta, sinphi, cosphi, theta, phi
 
@@ -1212,6 +1242,9 @@ def sample_step(nevents, ntraj, mu_scat, fine_roughness=0., rng=None):
         rand_ntraj = rng.random(ntraj_mie)
         step[0,0:ntraj_mie] = -np.log(1.0-rand_ntraj) / mu_scat_mie
 
+    step = xr.DataArray(step.to_preferred().magnitude,
+                        coords = {"event": range(nevents),
+                                  "trajectory": range(ntraj)})
     return step
 
 def coarse_roughness_enter(k, n_medium, n_sample, coarse_roughness, boundary,

@@ -980,8 +980,6 @@ def sample_angles_step_poly(nevents_bulk, ntrajectories_bulk, p_sphere,
     # Sample phi angles
     rand = rng.random((nevents_bulk,ntrajectories_bulk))
     phi = 2 * np.pi * rand
-    sinphi = np.sin(phi)
-    cosphi = np.cos(phi)
 
     # Sample theta angles and calculate step size based on sampled radii
     theta = np.zeros((nevents_bulk, ntrajectories_bulk))
@@ -1008,10 +1006,20 @@ def sample_angles_step_poly(nevents_bulk, ntrajectories_bulk, p_sphere,
         theta[ind_ev, ind_tr] = rng.choice(angles, ind_ev.size, p=prob_norm)
 
     # calculate sines, cosines, and step
-    sintheta = np.sin(theta)
-    costheta = np.cos(theta)
+    sintheta = xr.DataArray(np.sin(theta),
+                            coords = {"event": range(nevents_bulk),
+                                      "trajectory": range(ntrajectories_bulk)})
+    costheta = xr.DataArray(np.cos(theta), coords=sintheta.coords)
+    sinphi = xr.DataArray(np.sin(phi), coords=sintheta.coords)
+    cosphi = xr.DataArray(np.cos(phi), coords=sintheta.coords)
+
+
     step = (lscat_rad_samp * np.ones((nevents_bulk, ntrajectories_bulk))
             * lscat.units)
+
+    step = xr.DataArray(step.to_preferred().magnitude,
+                        coords = {"event": range(nevents_bulk),
+                                  "trajectory": range(ntrajectories_bulk)})
 
     # This function samples one extra step for each angle than is needed.
     # Whereas sample_angles was corrected to use nevents = nevents-1, this

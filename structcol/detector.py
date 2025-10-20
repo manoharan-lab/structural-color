@@ -2080,9 +2080,10 @@ def run_sphere_fresnel_traj(refl_per_traj_nf, trans_per_traj_nf,
 
     # New weights are the weights that are fresnel reflected
     # back into the sphere.
-    weights_fresnel = np.zeros((nevents, ntraj))
-    weights_fresnel[:,:] = refl_fresnel + trans_fresnel + stuck_weights
-    weights_fresnel = sc.Quantity(weights_fresnel, '')
+    weights_fresnel = xr.DataArray(np.ones((nevents+1, ntraj)),
+                                   coords = {"event": range(nevents+1),
+                                             "trajectory": range(ntraj)})
+    weights_fresnel[1:,:] = refl_fresnel + trans_fresnel + stuck_weights
 
     # Add refl and trans indices for all attempted or successful exit indices
     indices = refl_indices + trans_indices + tir_indices
@@ -2136,13 +2137,18 @@ def run_sphere_fresnel_traj(refl_per_traj_nf, trans_per_traj_nf,
     k_refl = rotate_reflect(k_out, normal)
 
     # set the initial directions as the reflected directions
-    directions = np.zeros((3 , nevents , ntraj))
-    directions = sc.Quantity(directions, '')
+    directions = xr.DataArray(np.zeros((3, nevents, ntraj)),
+                              coords = {"component": ["x", "y", "z"],
+                                        "event": range(nevents),
+                                        "trajectory": range(ntraj)})
     directions[:, 0, :] = k_refl
 
     # set the initial positions at the sphere boundary
-    positions = np.zeros((3, nevents + 1, ntraj))
-    positions[:, 0, :] = x_inter, y_inter, z_inter
+    positions = xr.DataArray(np.zeros((3, nevents + 1, ntraj)),
+                             coords = {"component": ["x", "y", "z"],
+                                       "event": range(nevents+1),
+                                       "trajectory": range(ntraj)})
+    positions[:, 0, :] = np.array([x_inter, y_inter, z_inter])
 
     # TODO: get rid of trajectories whose initial weights are 0
     # find indices where initial weights are 0
@@ -2167,6 +2173,7 @@ def run_sphere_fresnel_traj(refl_per_traj_nf, trans_per_traj_nf,
     trajectories_fresnel.absorb(mu_abs, step)
     trajectories_fresnel.scatter(sintheta, costheta, sinphi, cosphi)
     trajectories_fresnel.move(step)
+    trajectories_fresnel = mc.QtyTrajectory(trajectories_fresnel)
 
     # Calculate reflection and transmition
     (_, trans_indices_fresnel, _, _, _,

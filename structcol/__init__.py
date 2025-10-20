@@ -144,6 +144,8 @@ def normalize(x, y, z, return_nan=True):
     '''
     magnitude = np.sqrt(np.abs(x) ** 2 + np.abs(y) ** 2 + np.abs(z) ** 2)
 
+    if isinstance(magnitude, xr.DataArray):
+        magnitude = magnitude.to_numpy()
     # we ignore divide by zero error here because we do not want an error
     # in the case where we try to normalize a null vector <0,0,0>
     with np.errstate(divide='ignore', invalid='ignore'):

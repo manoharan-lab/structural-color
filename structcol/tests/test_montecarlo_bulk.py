@@ -99,9 +99,6 @@ def calc_sphere_mc():
                                boundary,
                                sample_diameter = sphere_boundary_diameter,
                                rng=rng)
-    r0 = sc.Quantity(r0, 'um')
-    k0 = sc.Quantity(k0, '')
-    W0 = sc.Quantity(W0, '')
 
     # Create trajectories object
     trajectories = mc.Trajectory(r0, k0, W0)
@@ -122,6 +119,7 @@ def calc_sphere_mc():
     # Calculate reflection and transmission
     # (should raise warning that n_matrix and n_particle are not set, so
     # tir correction is based only on sample index)
+    trajectories = mc.QtyTrajectory(trajectories)
     with pytest.warns(UserWarning):
         (refl_indices,
          trans_indices,

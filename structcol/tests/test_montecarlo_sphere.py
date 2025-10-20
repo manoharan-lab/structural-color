@@ -56,9 +56,6 @@ def test_trajectories():
     ntrajectories = 3
     r0, k0, W0 = mc.initialize(nevents, ntrajectories, n_matrix, n_sample,
                                'sphere', sample_diameter=sc.Quantity('1.0 um'))
-    r0 = sc.Quantity(r0, 'um')
-    k0 = sc.Quantity(k0, '')
-    W0 = sc.Quantity(W0, '')
 
     # Create a Trajectory object
     trajectories = mc.Trajectory(r0, k0, W0)

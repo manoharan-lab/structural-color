@@ -81,16 +81,11 @@ rng = np.random.RandomState([seed])
 # Initialize the trajectories
 r0, k0, W0 = mc.initialize(nevents, ntrajectories, n_medium, n_sample,
                            boundary, rng=rng)
-r0 = sc.Quantity(r0, 'um')
-k0 = sc.Quantity(k0, '')
-W0 = sc.Quantity(W0, '')
 
 # Generate a matrix of all the randomly sampled angles first
 sintheta, costheta, sinphi, cosphi, theta, _ = mc.sample_angles(nevents,
                                                                 ntrajectories,
                                                                 p, rng=rng)
-sintheta = np.sin(theta)
-costheta = np.cos(theta)
 
 # Create step size distribution
 step = mc.sample_step(nevents, ntrajectories, mu_scat, rng=rng)
@@ -102,6 +97,8 @@ trajectories = mc.Trajectory(r0, k0, W0)
 trajectories.absorb(mu_abs, step)
 trajectories.scatter(sintheta, costheta, sinphi, cosphi)
 trajectories.move(step)
+
+trajectories = mc.QtyTrajectory(trajectories)
 
 # following calculation should raise a warning that n_particle and n_matrix are
 # not set
@@ -459,16 +456,15 @@ def test_event_distribution_wavelength_mc():
 
         r0, k0, W0 = mc.initialize(nevents, ntrajectories, n_medium[i],
                                    n_sample, boundary, rng=rng)
-        r0 = sc.Quantity(r0, 'um')
-        k0 = sc.Quantity(k0, '')
-        W0 = sc.Quantity(W0, '')
 
         ######################################################################
         # Generate a matrix of all the randomly sampled angles first
         sintheta, costheta, sinphi, cosphi, theta, _ = \
             mc.sample_angles(nevents, ntrajectories, p[i,:], rng=rng)
-        sintheta = np.sin(theta)
-        costheta = np.cos(theta)
+        sintheta = xr.DataArray(np.sin(theta),
+                                coords={"event": range(1, nevents),
+                                        "trajectory": range(ntrajectories)})
+        costheta = xr.DataArray(np.cos(theta), coords=sintheta.coords)
 
         # Create step size distribution
         step = mc.sample_step(nevents, ntrajectories, mu_scat, rng=rng)
@@ -482,6 +478,7 @@ def test_event_distribution_wavelength_mc():
         trajectories.move(step)
 
         ################### Calculate reflection and transmission
+        trajectories = mc.QtyTrajectory(trajectories)
         with pytest.warns(UserWarning):
             refl_indices, trans_indices,\
                 inc_refl_per_traj,_,_, refl_per_traj, trans_per_traj,\
@@ -568,9 +565,6 @@ def test_event_distribution_angle_mc():
     # Initialize the trajectories
     r0, k0, W0 = mc.initialize(nevents, ntrajectories, n_medium, n_sample,
                                boundary, rng=rng)
-    r0 = sc.Quantity(r0, 'um')
-    k0 = sc.Quantity(k0, '')
-    W0 = sc.Quantity(W0, '')
 
     # Create step size distribution
     step = mc.sample_step(nevents, ntrajectories, mu_scat, rng=rng)
@@ -585,8 +579,10 @@ def test_event_distribution_angle_mc():
         # direction.
         theta = (np.ones((nevents-1, ntrajectories))
                  * theta_range[j].to('rad').magnitude)
-        sintheta = np.sin(theta)
-        costheta = np.cos(theta)
+        sintheta = xr.DataArray(np.sin(theta),
+                                coords = {"event": range(1, nevents),
+                                          "trajectory": range(ntrajectories)})
+        costheta = xr.DataArray(np.cos(theta), coords=sintheta.coords)
 
         # Create trajectories object
         trajectories = mc.Trajectory(r0, k0, W0)
@@ -597,6 +593,7 @@ def test_event_distribution_angle_mc():
         trajectories.move(step)
 
         ################### Calculate reflection and transmition
+        trajectories = mc.QtyTrajectory(trajectories)
         with pytest.warns(UserWarning):
             refl_indices, trans_indices,\
                 inc_refl_per_traj,_,_, refl_per_traj, trans_per_traj,\

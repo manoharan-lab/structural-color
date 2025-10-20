@@ -60,12 +60,24 @@ def test_calc_refl_trans():
 
     # test absoprtion and stuck without fresnel
     z_pos = np.array([[0,0,0,0],[1,1,1,1],[-1,11,2,11],[-2,12,4,12]])
+    nevents = z_pos.shape[0]-1
     ntrajectories = z_pos.shape[1]
-    kz = np.array([[1,1,1,1],[-1,1,1,1],[-1,1,1,1]])
-    weights = np.array([[.8, .8, .9, .8],[.7, .3, .7, 0],[.1, .1, .5, 0]])
-    trajectories = mc.Trajectory([np.nan, np.nan, z_pos],[np.nan, np.nan, kz],
-                                 weights)
+    pos_coords = {"component": ["x", "y", "z"],
+                  "event": range(nevents+1),
+                  "trajectory": range(ntrajectories)}
+    r0 = xr.DataArray(np.zeros((3, nevents+1, ntrajectories)),
+                      coords=pos_coords)
+    r0.loc["z"] = z_pos
+    k0 = xr.zeros_like(r0.isel(event=slice(0, -1)))
+    k0.loc["z"] = np.array([[1,1,1,1],[-1,1,1,1],[-1,1,1,1]])
+    weights = xr.DataArray([[1., 1., 1., 1.],
+                            [.8, .8, .9, .8],
+                            [.7, .3, .7, 0],
+                            [.1, .1, .5, 0]],
+                           coords=r0.sel(component="x", drop=True).coords)
 
+    trajectories = mc.Trajectory(r0, k0, weights)
+    trajectories = mc.QtyTrajectory(trajectories)
     # Should raise warning that n_matrix and n_particle are not set, so
     # tir correction is based only on sample index
     with pytest.warns(UserWarning):
@@ -97,13 +109,27 @@ def test_calc_refl_trans():
     # test fresnel as well
     z_pos = np.array([[0,0,0,0], [5,5,5,5], [-5,-5,15,15], [5,-15,5,25],
                       [-5,-25,6,35]])
+    nevents = z_pos.shape[0] - 1
     ntrajectories = z_pos.shape[1]
+    pos_coords = {"component": ["x", "y", "z"],
+                  "event": range(nevents+1),
+                  "trajectory": range(ntrajectories)}
+    r0 = xr.DataArray(np.zeros((3, nevents+1, ntrajectories)),
+                      coords=pos_coords)
+    r0.loc["z"] = z_pos
     kz = np.array([[1,1,1,0.86746757864487367], [-.1,-.1,.1,.1],
                    [0.1,-.1,-.1,0.1], [-1,-.9,1,1]])
-    weights = np.array([[.8, .8, .9, .8], [.7, .3, .7, .5], [.6, .2, .6, .4],
-                        [.4, .1, .5, .3]])
-    trajectories = mc.Trajectory([np.nan, np.nan, z_pos], [np.nan, np.nan, kz],
-                                 weights)
+    k0 = xr.zeros_like(r0.isel(event=slice(0, -1)))
+    k0.loc["z"] = kz
+    weights = xr.DataArray([[1., 1., 1., 1.],
+                            [.8, .8, .9, .8],
+                            [.7, .3, .7, .5],
+                            [.6, .2, .6, .4],
+                            [.4, .1, .5, .3]],
+                           coords=r0.sel(component="x", drop=True).coords)
+
+    trajectories = mc.Trajectory(r0, k0, weights)
+    trajectories = mc.QtyTrajectory(trajectories)
 
     # Should raise warning that n_matrix and n_particle are not set, so
     # tir correction is based only on sample index
@@ -138,12 +164,27 @@ def test_calc_refl_trans():
     z_pos = np.array([[0,0,0,0,0,0,0], [1.1,2.1,3.1,0.6,0.6,0.6,0.1],
                       [1.2,2.2,3.2,1.6,0.7,0.7,-0.6],
                       [1.3,2.3,3.3,3.3,-2.1,-1.1,-2.1]])
+    nevents = z_pos.shape[0] - 1
     ntrajectories = z_pos.shape[1]
+    pos_coords = {"component": ["x", "y", "z"],
+                  "event": range(nevents+1),
+                  "trajectory": range(ntrajectories)}
+    r0 = xr.DataArray(np.zeros((3, nevents+1, ntrajectories)),
+                      coords=pos_coords)
+    r0.loc["z"] = z_pos
     kz = np.array([[1,1,1,1,1,1,1], [1,1,1,0.1,1,1,-0.1], [1,1,1,1,-1,-1,-1]])
-    weights = np.array([[1,1,1,1,1,1,1], [1,1,1,1,1,1,1], [1,1,1,1,1,1,1]])
+    k0 = xr.zeros_like(r0.isel(event=slice(0, -1)))
+    k0.loc["z"] = kz
+    weights = xr.DataArray([[1,1,1,1,1,1,1],
+                            [1,1,1,1,1,1,1],
+                            [1,1,1,1,1,1,1],
+                            [1,1,1,1,1,1,1]],
+                           coords=r0.sel(component="x", drop=True).coords)
     thin_sample_thickness = 1
-    trajectories = mc.Trajectory([np.nan, np.nan, z_pos],[np.nan, np.nan, kz],
-                                 weights)
+
+    trajectories = mc.Trajectory(r0, k0, weights)
+    trajectories = mc.QtyTrajectory(trajectories)
+
     # Should raise warning that n_matrix and n_particle are not set, so
     # tir correction is based only on sample index
     with pytest.warns(UserWarning):
@@ -240,10 +281,6 @@ def test_surface_roughness_mc():
                       incidence_phi_max = incidence_phi_max,
                       coarse_roughness=coarse_roughness)
 
-    r0 = sc.Quantity(r0, 'um')
-    k0 = sc.Quantity(k0, '')
-    W0 = sc.Quantity(W0, '')
-
     sintheta, costheta, sinphi, cosphi, _, _ = mc.sample_angles(nevents,
                                                                 ntrajectories,
                                                                 p, rng=rng)
@@ -259,6 +296,9 @@ def test_surface_roughness_mc():
 
     cutoff = sc.Quantity('50 um')
 
+    trajectories = mc.QtyTrajectory(trajectories)
+    kz0_rotated = sc.Quantity(kz0_rotated.to_numpy(), '')
+    kz0_reflected = sc.Quantity(kz0_reflected.to_numpy(), '')
     # If there is coarse roughness, need to specify kz0_rotated and
     # kz0_reflected.
     with pytest.warns(UserWarning):
@@ -792,9 +832,6 @@ def test_detectors_mc():
     # Initialize the trajectories
     r0, k0, W0 = mc.initialize(nevents, ntrajectories, n_medium, n_sample,
                                boundary, rng=rng)
-    r0 = sc.Quantity(r0, 'um')
-    k0 = sc.Quantity(k0, '')
-    W0 = sc.Quantity(W0, '')
 
     # Generate a matrix of all the randomly sampled angles first
     sintheta, costheta, sinphi, cosphi, _, _ = mc.sample_angles(nevents,
@@ -813,6 +850,7 @@ def test_detectors_mc():
     trajectories.move(step)
 
     # test default detector (full reflection hemisphere)
+    trajectories = mc.QtyTrajectory(trajectories)
     with pytest.warns(UserWarning):
         R, _ = det.calc_refl_trans(trajectories, thickness, n_medium,
                                    n_sample, boundary)
@@ -959,10 +997,6 @@ def calc_montecarlo(model, nevents, ntrajectories, wavelen, seed,
         kz0_rotated = None
         kz0_reflected = None
 
-    r0 = sc.Quantity(r0, 'um')
-    k0 = sc.Quantity(k0, '')
-    W0 = sc.Quantity(W0, '')
-
     sintheta, costheta, sinphi, cosphi, _, _= mc.sample_angles(nevents,
                                                                ntrajectories,
                                                                p, rng=rng)
@@ -979,6 +1013,11 @@ def calc_montecarlo(model, nevents, ntrajectories, wavelen, seed,
     # calculate R, T
     # (should raise warning that n_matrix and n_particle are not set, so
     # tir correction is based only on sample index)
+    trajectories = mc.QtyTrajectory(trajectories)
+    if kz0_rotated is not None:
+        kz0_rotated = sc.Quantity(kz0_rotated.to_numpy(), '')
+    if kz0_reflected is not None:
+        kz0_reflected = sc.Quantity(kz0_reflected.to_numpy(), '')
     with pytest.warns(UserWarning):
         R, T = det.calc_refl_trans(trajectories, cutoff, n_medium, n_sample,
                                    'film', kz0_rot=kz0_rotated,

@@ -72,12 +72,22 @@ def test_calc_refl_trans():
     z_pos = np.array([[0,0,0,0],[1,1,1,1],[-1,11,2,11],[-2,12,4,12]])
     x_pos = np.array([[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0]])
     y_pos = np.array([[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0]])
+    nevents = z_pos.shape[0] - 1
     ntrajectories = z_pos.shape[1]
-    kx = np.zeros((3,4))
-    ky = np.zeros((3,4))
-    kz = np.array([[1,1,1,1],[-1,1,1,1],[-1,1,1,1]])
-    weights = np.array([[.8, .8, .9, .8],[.7, .3, .7, 0],[.1, .1, .5, 0]])
-    trajectories = mc.Trajectory([x_pos, y_pos, z_pos],[kx, ky, kz], weights)
+    pos_coords = {"component": ["x", "y", "z"],
+                  "event": range(nevents+1),
+                  "trajectory": range(ntrajectories)}
+    r0 = xr.DataArray([x_pos, y_pos, z_pos], coords=pos_coords)
+    k0 = xr.zeros_like(r0.isel(event=slice(0, -1)))
+    k0.loc["z"] = np.array([[1,1,1,1],[-1,1,1,1],[-1,1,1,1]])
+
+    weights = xr.DataArray([[1., 1., 1., 1.],
+                            [.8, .8, .9, .8],
+                            [.7, .3, .7, 0],
+                            [.1, .1, .5, 0]],
+                           coords=r0.sel(component="x", drop=True).coords)
+    trajectories = mc.Trajectory(r0, k0, weights)
+    trajectories = mc.QtyTrajectory(trajectories)
 
     model = sc.model.HardSpheres(sphere, volume_fraction, index_matrix,
                                  index_medium)
@@ -105,7 +115,9 @@ def test_calc_refl_trans():
 
     # test steps in z longer than sample thickness
     z_pos = np.array([[0,0,0,0],[1,1,14,12],[-1,11,2,11],[-2,12,4,12]])
-    trajectories = mc.Trajectory([x_pos, y_pos, z_pos],[kx, ky, kz], weights)
+    r0 = xr.DataArray([x_pos, y_pos, z_pos], coords=pos_coords)
+    trajectories = mc.Trajectory(r0, k0, weights)
+    trajectories = mc.QtyTrajectory(trajectories)
     # Should raise warning that n_matrix and n_particle are not set, so
     # tir correction is based only on sample index
     with pytest.warns(UserWarning):
@@ -118,8 +130,10 @@ def test_calc_refl_trans():
 
     # test tir
     z_pos = np.array([[0,0,0,0],[1,1,1,1],[-1,11,2,11],[-2,12,4,12]])
-    weights = np.ones((3,4))
-    trajectories = mc.Trajectory([x_pos, y_pos, z_pos],[kx, ky, kz], weights)
+    r0 = xr.DataArray([x_pos, y_pos, z_pos], coords=pos_coords)
+    weights = xr.ones_like(r0.sel(component="x", drop=True))
+    trajectories = mc.Trajectory(r0, k0, weights)
+    trajectories = mc.QtyTrajectory(trajectories)
     # Should raise warning that n_matrix and n_particle are not set, so
     # tir correction is based only on sample index
     with pytest.warns(UserWarning):
@@ -166,15 +180,13 @@ def test_index_match():
     p, mu_scat, mu_abs = mc.calc_scat(model, wavelen)
 
     # initialize all at center top edge of the sphere going down
-    r0_sphere = np.zeros((3,nevents+1,ntrajectories))
-    k0_sphere = np.zeros((3,nevents,ntrajectories))
+    r0_sphere = xr.DataArray(np.zeros((3, nevents+1, ntrajectories)),
+                             coords = {"component": ["x", "y", "z"],
+                                       "event": range(nevents+1),
+                                       "trajectory": range(ntrajectories)})
+    k0_sphere = xr.zeros_like(r0_sphere.isel(event=slice(0, -1)))
     k0_sphere[2,0,:] = 1
-    W0_sphere = np.ones((nevents, ntrajectories))
-
-    # make into quantities with units
-    r0_sphere = sc.Quantity(r0_sphere, 'um')
-    k0_sphere = sc.Quantity(k0_sphere, '')
-    W0_sphere = sc.Quantity(W0_sphere, '')
+    W0_sphere = xr.ones_like(r0_sphere.sel(component="x", drop=True))
 
     # Generate a matrix of all the randomly sampled angles first
     sintheta, costheta, sinphi, cosphi, _, _ = mc.sample_angles(nevents, ntrajectories, p)
@@ -187,6 +199,7 @@ def test_index_match():
     trajectories_sphere.absorb(mu_abs, step)
     trajectories_sphere.scatter(sintheta, costheta, sinphi, cosphi)
     trajectories_sphere.move(step)
+    trajectories_sphere = mc.QtyTrajectory(trajectories_sphere)
 
     # calculate reflectance
     # (should raise warning that n_matrix and n_particle are not set, so
@@ -247,11 +260,6 @@ def test_reflection_sphere_mc():
                                sample_diameter = assembly_diameter,
                                spot_size = assembly_diameter, rng=rng)
 
-    # make positions, directions, and weights into quantities with units
-    r0 = sc.Quantity(r0, 'um')
-    k0 = sc.Quantity(k0, '')
-    W0 = sc.Quantity(W0, '')
-
     # Generate a matrix of all the randomly sampled angles first
     sintheta, costheta, sinphi, cosphi, _, _ = mc.sample_angles(nevents,
                                                                 ntrajectories,
@@ -271,6 +279,7 @@ def test_reflection_sphere_mc():
     # Calculate reflectance and transmittance
     # The default value of run_tir is True, so you must set it to False to
     # exclude the fresnel reflected trajectories.
+    trajectories = mc.QtyTrajectory(trajectories)
     with pytest.warns(UserWarning):
         R, T = det.calc_refl_trans(trajectories, assembly_diameter, n_medium,
                                    n_sample, boundary, plot_exits = False)
@@ -361,9 +370,6 @@ def test_multiscale_mc():
         r0, k0, W0 = mc.initialize(nevents, ntrajectories, n_matrix_bulk[i],
                                    n_sample, boundary, sample_diameter =
                                    sphere_boundary_diameter, rng=rng)
-        r0 = sc.Quantity(r0, 'um')
-        k0 = sc.Quantity(k0, '')
-        W0 = sc.Quantity(W0, '')
 
         # Create trajectories object
         trajectories = mc.Trajectory(r0, k0, W0)
@@ -381,6 +387,7 @@ def test_multiscale_mc():
         trajectories.move(step)
 
         # Calculate reflection and transmission
+        trajectories = mc.QtyTrajectory(trajectories)
         with pytest.warns(UserWarning):
             (refl_indices,
              trans_indices,
@@ -451,9 +458,6 @@ def test_multiscale_mc():
         r0, k0, W0 = mc.initialize(nevents_bulk, ntrajectories_bulk,
                                    n_medium[i], n_matrix_bulk[i],
                                    boundary_bulk, rng=rng)
-        r0 = sc.Quantity(r0, 'um')
-        W0 = sc.Quantity(W0, '')
-        k0 = sc.Quantity(k0, '')
 
         # Sample angles
         sintheta, costheta, sinphi, cosphi, _, _ = \
@@ -474,6 +478,7 @@ def test_multiscale_mc():
         trajectories.move(step)
 
         # calculate bulk reflectance
+        trajectories = mc.QtyTrajectory(trajectories)
         with pytest.warns(UserWarning):
             reflectance_bulk[i], transmittance = \
                 det.calc_refl_trans(trajectories, bulk_thickness, n_medium[i],
@@ -584,9 +589,6 @@ def test_multiscale_polydispersity_mc():
                                        n_matrix_bulk[i], n_sample,
                                        boundary, sample_diameter =
                                        sphere_boundary_diameters[j], rng=rng)
-            r0 = sc.Quantity(r0, 'um')
-            k0 = sc.Quantity(k0, '')
-            W0 = sc.Quantity(W0, '')
 
             # Create trajectories object
             trajectories = mc.Trajectory(r0, k0, W0)
@@ -604,6 +606,7 @@ def test_multiscale_polydispersity_mc():
             trajectories.move(step)
 
             # Calculate reflection and transmition
+            trajectories = mc.QtyTrajectory(trajectories)
             with pytest.warns(UserWarning):
                 (refl_indices,
                  trans_indices,
@@ -650,9 +653,6 @@ def test_multiscale_polydispersity_mc():
         r0, k0, W0 = mc.initialize(nevents_bulk, ntrajectories_bulk,
                                    n_medium[i], n_matrix_bulk[i],
                                    boundary_bulk, rng=rng)
-        r0 = sc.Quantity(r0, 'um')
-        W0 = sc.Quantity(W0, '')
-        k0 = sc.Quantity(k0, '')
 
         # Sample angles and calculate step size based on sampled radii
         sintheta, costheta, sinphi, cosphi, step, _, _ = \
@@ -674,6 +674,7 @@ def test_multiscale_polydispersity_mc():
         trajectories.move(step)
 
         # calculate reflectance
+        trajectories = mc.QtyTrajectory(trajectories)
         with pytest.warns(UserWarning):
             reflectance_bulk_poly[i], transmittance = \
                 det.calc_refl_trans(trajectories, bulk_thickness, n_medium[i],
@@ -767,9 +768,6 @@ def test_multiscale_color_mixing_mc():
                                        n_matrix_bulk[i], n_sample, boundary,
                                        sample_diameter =
                                        sphere_boundary_diameter, rng=rng)
-            r0 = sc.Quantity(r0, 'um')
-            k0 = sc.Quantity(k0, '')
-            W0 = sc.Quantity(W0, '')
 
             trajectories = mc.Trajectory(r0, k0, W0)
 
@@ -783,6 +781,7 @@ def test_multiscale_color_mixing_mc():
             trajectories.scatter(sintheta, costheta, sinphi, cosphi)
             trajectories.move(step)
 
+            trajectories = mc.QtyTrajectory(trajectories)
             with pytest.warns(UserWarning):
                 (refl_indices,
                  trans_indices,
@@ -824,9 +823,6 @@ def test_multiscale_color_mixing_mc():
         r0, k0, W0 = mc.initialize(nevents_bulk, ntrajectories_bulk,
                                    n_medium[i], n_matrix_bulk[i],
                                    boundary_bulk, rng=rng)
-        r0 = sc.Quantity(r0, 'um')
-        W0 = sc.Quantity(W0, '')
-        k0 = sc.Quantity(k0, '')
 
         (sintheta, costheta, sinphi, cosphi, step, _, _) = \
             pfs.sample_angles_step_poly(nevents_bulk, ntrajectories_bulk,
@@ -847,6 +843,7 @@ def test_multiscale_color_mixing_mc():
         trajectories.move(step)
 
         # calculate reflectance
+        trajectories = mc.QtyTrajectory(trajectories)
         with pytest.warns(UserWarning):
             reflectance_bulk_mix[i], transmittance = \
                 det.calc_refl_trans(trajectories, bulk_thickness, n_medium[i],

@@ -79,28 +79,34 @@ def test_trajectories():
     ntrajectories = 3
     r0, k0, W0 = mc.initialize(nevents, ntrajectories, n_medium, n_sample,
                                'film')
-    r0 = sc.Quantity(r0, 'um')
-    k0 = sc.Quantity(k0, '')
-    W0 = sc.Quantity(W0, '')
 
     # Create a Trajectory object
     trajectories = mc.Trajectory(r0, k0, W0)
 
     # Test the absorb function
     mu_abs = 1/sc.Quantity(10.0, 'um')
-    step = sc.Quantity(np.array([[1, 1, 1], [1, 1, 1]]), 'um')
+    # step size is 1 in all events and trajectories
+    step = xr.DataArray([[1, 1, 1], [1, 1, 1]],
+                        coords={"event": range(nevents),
+                                "trajectory": range(ntrajectories)})
     trajectories.absorb(mu_abs, step)
     # since step size is given (not sampled), this test should produce a
     # deterministic result
-    assert_almost_equal(trajectories.weight.magnitude,
-                 np.array([[ 0.90483742,  0.90483742,  0.90483742],
+    assert_almost_equal(trajectories.weight.to_numpy(),
+                 np.array([[ 1.0, 1.0, 1.0],
+                           [ 0.90483742,  0.90483742,  0.90483742],
                            [ 0.81873075,  0.81873075,  0.81873075]]))
 
     # Make up some test theta and phi
-    sintheta = np.array([[0., 0., 0.], [0., 0., 0.]])
-    costheta = np.array([[-1., -1., -1.], [1., 1., 1.]])
-    sinphi = np.array([[0., 0., 0.], [0., 0., 0.]])
-    cosphi = np.array([[0., 0., 0.], [0., 0., 0.]])
+    sintheta = xr.DataArray([[0., 0., 0.], [0., 0., 0.]],
+                            coords = {"event": range(nevents),
+                                      "trajectory": range(ntrajectories)})
+    costheta = xr.DataArray([[-1., -1., -1.], [1., 1., 1.]],
+                            coords=sintheta.coords)
+    sinphi = xr.DataArray([[0., 0., 0.], [0., 0., 0.]],
+                          coords=sintheta.coords)
+    cosphi = xr.DataArray([[0., 0., 0.], [0., 0., 0.]],
+                          coords=sintheta.coords)
 
     # Note that since the first event is given, we've specified an extra event
     # in the test theta and phi above.  We correct for this below:
@@ -113,20 +119,19 @@ def test_trajectories():
     trajectories.scatter(sintheta, costheta, sinphi, cosphi)
 
     # Expected propagation directions
-    kx = sc.Quantity(np.array([[0., 0., 0.], [0., 0., 0.]]), '')
-    ky = sc.Quantity(np.array([[0., 0., 0.], [0., 0., 0.]]), '')
-    kz = sc.Quantity(np.array([[1., 1., 1.], [-1., -1., -1.]]), '')
+    kx = np.array([[0., 0., 0.], [0., 0., 0.]])
+    ky = np.array([[0., 0., 0.], [0., 0., 0.]])
+    kz = np.array([[1., 1., 1.], [-1., -1., -1.]])
 
-    assert_equal(trajectories.direction[0].magnitude, kx.magnitude)
-    assert_equal(trajectories.direction[1].magnitude, ky.magnitude)
-    assert_equal(trajectories.direction[2].magnitude, kz.magnitude)
+    assert_equal(trajectories.direction.sel(component="x"), kx)
+    assert_equal(trajectories.direction.sel(component="y"), ky)
+    assert_equal(trajectories.direction.sel(component="z"), kz)
 
     # Test the move function.  Should also produce a deterministic result since
     # step sizes are given.
     trajectories.move(step)
-    assert_equal(trajectories.position[2].magnitude, np.array([[0, 0, 0],
-                                                               [1, 1, 1],
-                                                               [0, 0, 0]]))
+    assert_equal(trajectories.position.sel(component="z"),
+                 np.array([[0, 0, 0], [1, 1, 1], [0, 0, 0]]))
 
 # NOTE: the test below will no longer work, since the
 # differential_cross_section() function was removed from model.py (all

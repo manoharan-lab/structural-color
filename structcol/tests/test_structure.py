@@ -361,9 +361,6 @@ def test_structure_factor_data_reflectances():
 
         r0, k0, W0 = mc.initialize(nevents, ntrajectories, n_medium[i],
                                    n_sample, boundary, rng=rng)
-        r0 = sc.Quantity(r0, "um")
-        k0 = sc.Quantity(k0, "")
-        W0 = sc.Quantity(W0, "")
 
         sintheta, costheta, sinphi, cosphi, _, _ = \
             mc.sample_angles(nevents, ntrajectories, p, rng=rng)
@@ -374,6 +371,7 @@ def test_structure_factor_data_reflectances():
         trajectories.scatter(sintheta, costheta, sinphi, cosphi)
         trajectories.move(step)
 
+        trajectories = mc.QtyTrajectory(trajectories)
         with pytest.warns(UserWarning):
             reflectance[i], _ = det.calc_refl_trans(trajectories, thickness,
                                                     n_medium[i],

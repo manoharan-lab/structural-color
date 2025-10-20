@@ -71,10 +71,6 @@ def test_2pi_shift():
     # Initialize trajectories
     r0, k0, W0, E0 = mc.initialize(nevents, ntrajectories, n_medium, n_sample, boundary,
                                    fields=True)
-    r0 = sc.Quantity(r0, 'um')
-    k0 = sc.Quantity(k0, '')
-    W0 = sc.Quantity(W0, '')
-    E0 = sc.Quantity(E0, '')
 
     trajectories = mc.Trajectory(r0, k0, W0, fields=E0)
 
@@ -88,13 +84,15 @@ def test_2pi_shift():
     trajectories.scatter(sintheta, costheta, sinphi, cosphi)
     trajectories.move(step)
     trajectories.absorb(mu_abs, step)
+
     trajectories.calc_fields(theta, phi, sintheta, costheta, sinphi, cosphi,
                              n_particle, n_sample, radius, wavelength,
-                             step, volume_fraction)
+                             step)
 
     # calculate reflectance
     # (should raise warning that n_matrix and n_particle are not set, so
     # tir correction is based only on sample index)
+    trajectories = mc.QtyTrajectory(trajectories)
     with pytest.warns(UserWarning):
         refl_trans_result = det.calc_refl_trans(trajectories, thickness,
                                                 n_medium, n_sample, boundary,
@@ -236,10 +234,6 @@ def test_field_normalized():
     # Initialize trajectories
     r0, k0, W0, E0 = mc.initialize(nevents, ntrajectories, n_medium, n_sample,
                                    boundary, fields=True)
-    r0 = sc.Quantity(r0, 'um')
-    k0 = sc.Quantity(k0, '')
-    W0 = sc.Quantity(W0, '')
-    E0 = sc.Quantity(E0,'')
 
     trajectories = mc.Trajectory(r0, k0, W0, fields=E0)
 
@@ -255,10 +249,11 @@ def test_field_normalized():
     trajectories.move(step)
     trajectories.calc_fields(theta, phi, sintheta, costheta, sinphi, cosphi,
                                  n_particle, n_sample, radius, wavelength,
-                                 step, volume_fraction)
+                                 step)
     trajectories.absorb(mu_abs, step)
 
     # take the dot product
+    trajectories = mc.QtyTrajectory(trajectories)
     trajectories.fields = trajectories.fields.magnitude
 
     field_mag= np.sqrt(np.conj(trajectories.fields[0,:,:])
@@ -314,10 +309,6 @@ def test_field_perp_direction():
     # Initialize trajectories
     r0, k0, W0, E0 = mc.initialize(nevents, ntrajectories, n_medium, n_sample,
                                    boundary, fields=True)
-    r0 = sc.Quantity(r0, 'um')
-    k0 = sc.Quantity(k0, '')
-    W0 = sc.Quantity(W0, '')
-    E0 = sc.Quantity(E0,'')
 
     trajectories = mc.Trajectory(r0, k0, W0, fields = E0)
 
@@ -332,11 +323,11 @@ def test_field_perp_direction():
     trajectories.scatter(sintheta, costheta, sinphi, cosphi)
     trajectories.move(step)
     trajectories.calc_fields(theta, phi, sintheta, costheta, sinphi, cosphi,
-                             n_particle, n_sample, radius, wavelength, step,
-                             volume_fraction)
+                             n_particle, n_sample, radius, wavelength, step)
     trajectories.absorb(mu_abs, step)
 
     # take the dot product
+    trajectories = mc.QtyTrajectory(trajectories)
     trajectories.direction = trajectories.direction.magnitude
     trajectories.fields = trajectories.fields.magnitude
 
@@ -395,10 +386,6 @@ def test_field_reflectance_mc():
                                    n_medium, n_sample, boundary,
                                    coherent=False,
                                    fields=True, rng=rng)
-    r0 = sc.Quantity(r0, 'um')
-    k0 = sc.Quantity(k0, '')
-    W0 = sc.Quantity(W0, '')
-    E0 = sc.Quantity(E0,'')
 
     trajectories = mc.Trajectory(r0, k0, W0, fields=E0)
 
@@ -413,11 +400,11 @@ def test_field_reflectance_mc():
     trajectories.scatter(sintheta, costheta, sinphi, cosphi)
     trajectories.calc_fields(theta, phi, sintheta, costheta, sinphi, cosphi,
                              n_particle, n_sample, radius, wavelength, step,
-                             volume_fraction,
                              fine_roughness=0, tir_refl_bool=None)
     trajectories.move(step)
     trajectories.absorb(mu_abs, step)
 
+    trajectories = mc.QtyTrajectory(trajectories)
     with pytest.warns(UserWarning):
         refl_trans_result = det.calc_refl_trans(trajectories, thickness,
                                                 n_medium, n_sample, boundary,
@@ -503,10 +490,6 @@ def test_field_co_cross_mc():
         r0, k0, W0, E0 = mc.initialize(nevents, ntrajectories, n_medium[i],
                                        n_sample, boundary, fields=True,
                                        coherent=False, rng=rng)
-        r0 = sc.Quantity(r0, 'um')
-        k0 = sc.Quantity(k0, '')
-        W0 = sc.Quantity(W0, '')
-        E0 = sc.Quantity(E0,'')
 
         trajectories = mc.Trajectory(r0, k0, W0, E0)
 
@@ -518,11 +501,13 @@ def test_field_co_cross_mc():
         trajectories.scatter(sintheta, costheta, sinphi, cosphi)
         trajectories.move(step)
         trajectories.absorb(mu_abs, step)
+
         trajectories.calc_fields(theta, phi, sintheta, costheta, sinphi,
                                  cosphi, n_particle[i], n_sample, radius,
-                                 wavelengths[i], step, volume_fraction,
+                                 wavelengths[i], step,
                                  fine_roughness=0, tir_refl_bool=None)
 
+        trajectories = mc.QtyTrajectory(trajectories)
         with pytest.warns(UserWarning):
             refl_trans_result = det.calc_refl_trans(trajectories,thickness,
                                                     n_medium[i], n_sample,
@@ -544,9 +529,9 @@ def test_field_co_cross_mc():
          refl_perp[i],
          refl_field[i],
          refl_intensity[i]) = detp.calc_refl_co_cross_fields(trajectories,
-                                                          refl_indices,
-                                                          refl_per_traj,
-                                                          det_theta)
+                                                             refl_indices,
+                                                             refl_per_traj,
+                                                             det_theta)
 
     R_expected = [0.6818239027988798, 0.6948435902788378, 0.6576767363912293,
                   0.6485419490282506, 0.6105017312246305, 0.610248113448991,
