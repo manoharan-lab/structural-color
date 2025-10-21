@@ -1005,9 +1005,18 @@ def sample_angles_step_poly(nevents_bulk, ntrajectories_bulk, p_sphere,
         # sample angles
         theta[ind_ev, ind_tr] = rng.choice(angles, ind_ev.size, p=prob_norm)
 
+    # This function samples one extra step for each angle than is needed.
+    # Whereas sample_angles was corrected to use nevents = nevents-1, this
+    # function was not. So we correct the lengths of the arrays for the angles
+    # before returning them. To ensure that MC tests give the same resuts
+    # (which requires the same number of random numbers to be generated), we do
+    # the correction here (for now).
+    theta = theta[:-1]
+    phi = phi[:-1]
+
     # calculate sines, cosines, and step
     sintheta = xr.DataArray(np.sin(theta),
-                            coords = {"event": range(nevents_bulk),
+                            coords = {"event": range(1, nevents_bulk),
                                       "trajectory": range(ntrajectories_bulk)})
     costheta = xr.DataArray(np.cos(theta), coords=sintheta.coords)
     sinphi = xr.DataArray(np.sin(phi), coords=sintheta.coords)
@@ -1021,12 +1030,5 @@ def sample_angles_step_poly(nevents_bulk, ntrajectories_bulk, p_sphere,
                         coords = {"event": range(nevents_bulk),
                                   "trajectory": range(ntrajectories_bulk)})
 
-    # This function samples one extra step for each angle than is needed.
-    # Whereas sample_angles was corrected to use nevents = nevents-1, this
-    # function was not. So we correct the lengths of the arrays for the angles
-    # before returning them. To ensure that MC tests give the same resuts
-    # (which requires the same number of random numbers to be generated, we do
-    # the correction here (for now).
-
-    return sintheta[:-1], costheta[:-1], sinphi[:-1], \
-        cosphi[:-1], step, theta[:-1], phi[:-1]
+    return sintheta, costheta, sinphi, \
+        cosphi, step, theta, phi

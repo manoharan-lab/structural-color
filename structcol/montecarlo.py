@@ -304,21 +304,9 @@ class Trajectory:
             # Take the dot product of the rotation matrix for current event
             # with the wavevector for previous event. "i" is a dummy index left
             # over after the contraction. We rename to continue the loop.
-            kn.loc[dict(event=n)] = (xr.dot(R.isel(event=n-1),
-                                            kn.isel(event=n-1),
+            kn.loc[dict(event=n)] = (xr.dot(R.sel(event=n), kn.sel(event=n-1),
                                             dim=["component"])
                                      .rename({"i": "component"}))
-            # Annie's equivalent code:
-            # kn[0, n, :] = (((kn[0, n - 1, :] * costheta[n - 1, :]
-            #                 + kn[2, n - 1, :] * sintheta[n - 1, :])
-            #                 * cosphi[n - 1, :])
-            #                - kn[1, n - 1, :] * sinphi[n - 1, :])
-            # kn[1, n, :] = (((kn[0, n - 1, :] * costheta[n - 1, :]
-            #                 + kn[2, n - 1, :] * sintheta[n - 1, :])
-            #                 * sinphi[n - 1, :])
-            #                + kn[1, n - 1, :] * cosphi[n - 1, :])
-            # kn[2, n, :] = (-kn[0, n - 1, :] * sintheta[n - 1, :]
-            #                + kn[2, n - 1, :] * costheta[n - 1, :])
 
         # Update all the directions of the trajectories
         self.direction = kn
@@ -537,10 +525,6 @@ class Trajectory:
         En[2, 1:, :] = En[2, 1:, :] * step_phase_factor
 
         # Normalize
-        # En[0, :, :], En[1, :, :], En[2, :, :] = normalize(En[0, :, :],
-        #                                                   En[1, :, :],
-        #                                                   En[2, :, :],
-        #                                                   return_nan=False)
         coords = En.coords
         En = normalize(*En, return_nan=False)
 
@@ -658,10 +642,10 @@ def initialize(nevents, ntraj, n_medium, n_sample, boundary, rng=None,
         Number of scattering events
     ntraj: int
         Number of trajectories
-    n_medium: float (structcol.Quantity [dimensionless])
-        Refractive index of the medium.
-    n_sample: float (structcol.Quantity [dimensionless])
-        Refractive index of the sample.
+    n_medium : `xr.DataArray`
+        Refractive index of the medium, as output from an `sc.Index` object
+    n_sample: `xr.DataArray`
+        Refractive index of the sample, as output from an `sc.Index` object
     boundary: string
         Geometrical boundary for Monte Carlo calculations. Current options are
         'film' or 'sphere'
@@ -725,37 +709,34 @@ def initialize(nevents, ntraj, n_medium, n_sample, boundary, rng=None,
 
     Returns
     -------
-    r0: 3D array-like (structcol.Quantity [length])
-        Trajectory positions. Has shape of (3, number of events + 1, number of
-        trajectories). r0[0,0,:] contains random x-positions within a circle on
-        the x-y plane whose radius is the sphere radius. r0[1, 0, :] contains
-        random y-positions within the same circle on the x-y plane. r0[2, 0, :]
-        contains z-positions on the top hemisphere at the sphere boundary. The
-        rest of the elements are initialized to zero.
-    k0: 3D array-like (structcol.Quantity [dimensionless])
-        Initial direction of propagation. Has shape of (3, number of events,
-        number of trajectories). k0[0,:,:] and k0[1,:,:] are initalized to
-        zero, and k0[2,0,:] is initalized to 1.
-    weight0: 3D array-like (structcol.Quantity [dimensionless])
-        Initial weight. Has shape of (number of events, number of trajectories)
-        - Note that the photon weight represents the fraction of that
-        particular photon that is propagated through the sample. It does not
-        represent the photon's weight relative to other photons. the weight0
-        array is initialized to 1 because you start with the full weight of the
-        initial photons. If you wanted to make the relative weights of photons
-        different, you would need to introduce a new variable (e.g relative
-        intensity) that me, NOT change the intialization of the weights array.
-    pol0: (optional) 3D array-like (structcol.Quantity[dimensionless])
-        Initial polarization vector in global coordinates. Has shape of
-        (number of events, number of trajectories). Only returns initial
-        linearly, x-polarized light.
-    kz0_rot : array_like (structcol.Quantity [dimensionless])
+    position : `xr.DataArray`
+        Trajectory positions. Has shape (..., 3, number of events + 1, number
+        of trajectories). r0[..., 0,0,:] contains random x-positions within a
+        circle on the x-y plane whose radius is the sphere radius. r0[..., 1,
+        0, :] contains random y-positions within the same circle on the x-y
+        plane. r0[..., 2, 0, :] contains z-positions on the top hemisphere at
+        the sphere boundary. The rest of the elements are initialized to zero.
+    direction : `xr.DataArray`
+        Initial direction of propagation. Has shape (..., 3, number of events,
+        number of trajectories). k0[..., 0,:,:] and k0[..., 1,:,:] are
+        initialized to zero, and k0[..., 2,0,:] is initalized to 1.
+    weight : `xr.DataArray`
+        Initial weight. Has shape of (..., number of events, number of
+        trajectories).  Note that the packet weight represents the fraction of
+        that particular packet that is propagated through the sample. It does
+        not represent the packet's weight relative to other photons. The
+        weight array is initialized to 1 because we start with the full
+        weight of the initial photons. If you want to make the relative
+        weights of photons different, you would need to introduce a new
+        variable (e.g., relative intensity), NOT change the intialization
+        of the weights array.
+    kz0_rot : `xr.DataArray`
         Initial z-directions that are rotated to account for the fact that
         coarse surface roughness changes the angle of incidence of light. Thus
         these are the incident z-directions relative to the local normal to the
         surface. The array size is (1, ntraj). Only returned if
         coarse_roughness is set to > 0.
-    kz0_refl : array_like (structcol.Quantity [dimensionless])
+    kz0_refl : `xr.DataArray`
         z-directions of the Fresnel reflected light after it hits the sample
         surface for the first time. These directions are in the global
         coordinate system. The array size is (1, ntraj). Only returned if
