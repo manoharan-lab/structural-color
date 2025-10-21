@@ -122,13 +122,17 @@ class QtyTrajectory():
 
     """
     def __init__(self, trajectories):
-        self.position = sc.Quantity(trajectories.position.to_numpy(),
+        self.position = sc.Quantity(trajectories.position.squeeze(drop=True)
+                                    .to_numpy(),
                                     sc.LENGTH_UNIT)
-        self.direction = sc.Quantity(trajectories.direction.to_numpy(), '')
-        self.weight = sc.Quantity(trajectories.weight.to_numpy(), '')
-        self.weight = self.weight[1:]
+        self.direction = sc.Quantity(trajectories.direction.squeeze(drop=True)
+                                     .to_numpy(), '')
+        self.weight = trajectories.weight.sel(event=slice(1, None))
+        self.weight = sc.Quantity(self.weight.squeeze(drop=True).to_numpy(),
+                                  '')
         if trajectories.fields is not None:
-            self.fields = sc.Quantity(trajectories.fields.to_numpy(), '')
+            self.fields = sc.Quantity(trajectories.fields.squeeze(drop=True)
+                                      .to_numpy(), '')
 
     @property
     def nevents(self):
@@ -252,7 +256,7 @@ class Trajectory:
         # beer lambert
         weight = (self.weight * np.exp(-(mu_abs.to_preferred().magnitude
                                          * step.cumsum("event"))))
-        self.weight.loc[1:] = weight
+        self.weight.loc[dict(event=slice(1, None))] = weight
 
     def scatter(self, sintheta, costheta, sinphi, cosphi):
         """
@@ -289,19 +293,21 @@ class Trajectory:
         R = xr.DataArray([[costheta*cosphi, -sinphi, sintheta*cosphi],
                           [costheta*sinphi, cosphi, sintheta*sinphi],
                           [-sintheta, np.zeros(sinphi.shape), costheta]],
-                         coords={"component1": ["x", "y", "z"],
-                                 "component2": ["x", "y", "z"],
+                         coords={"i": ["x", "y", "z"],
+                                 "component": ["x", "y", "z"],
                                  "event": sintheta.coords["event"],
                                  "trajectory": sintheta.coords["trajectory"]})
 
         # could vectorize this loop if numpy had a cumulative dot product
         # ufunc.  But np.cumprod only does element by element.
         for n in np.arange(1, self.nevents):
-            # now use Einstein summation to take the dot product of each
-            # rotation matrix at each event in each trajectory with the
-            # wavevector
-            kn[:, n, :] = np.einsum('ijl,jl->il',
-                                    R[:, :, n-1, :], kn[:, n-1, :])
+            # Take the dot product of the rotation matrix for current event
+            # with the wavevector for previous event. "i" is a dummy index left
+            # over after the contraction. We rename to continue the loop.
+            kn.loc[dict(event=n)] = (xr.dot(R.isel(event=n-1),
+                                            kn.isel(event=n-1),
+                                            dim=["component"])
+                                     .rename({"i": "component"}))
             # Annie's equivalent code:
             # kn[0, n, :] = (((kn[0, n - 1, :] * costheta[n - 1, :]
             #                 + kn[2, n - 1, :] * sintheta[n - 1, :])
@@ -762,57 +768,21 @@ def initialize(nevents, ntraj, n_medium, n_sample, boundary, rng=None,
     definition of rsm slope of the surface).
 
     """
-    # until refactoring, convert index DataArrays to numpy
-    if isinstance(n_medium, xr.DataArray):
-        n_medium = n_medium.to_numpy()
-    if isinstance(n_sample, xr.DataArray):
-        # drop VOLFRAC dimension, which will be included in all effective index
-        # calculations.
-        if sc.Coord.VOLFRAC in n_sample.coords:
-            n_sample = n_sample.isel({sc.Coord.VOLFRAC: 0}, drop=True)
-        n_sample = n_sample.to_numpy()
-
     if rng is None:
         rng = sc.rng
 
     # get the spot size magnitude to multiply by initial x and y positions
     spot_size_magnitude = spot_size.to_preferred().magnitude
 
-    # get the sample radius as a float
-    if isinstance(sample_diameter, sc.Quantity):
-        sample_radius = sample_diameter.to_preferred().magnitude/2
-
-    # strip units from dimensionless quantities
-    if isinstance(n_medium, sc.Quantity):
-        n_medium = n_medium
-    if isinstance(n_sample, sc.Quantity):
-        n_sample = n_sample
-
-    # Initial position. The position array has one more row than the direction
-    # and weight arrays because it includes the starting positions on the x-y
-    # plane.  Shape should be [3, nevents+1, ntraj]
-    r0 = xr.DataArray(dims=["component", "event", "trajectory"],
-                      coords = {"component": ["x", "y", "z"],
-                                "event": range(nevents+1),
-                                "trajectory": range(ntraj)})
-
-    # Create an empty array of the initial direction cosines of the right size
-    # Shape should be [3, nevents, ntraj], so 1 event smaller than r0.
-    k0 = xr.zeros_like(r0.isel(event=slice(0, -1)))
-
-    # Initial weight
-    # as noted in docstring, weights are set to 1 for the first event
-    weight0 = xr.ones_like(r0.sel(component='x', drop=True))
-
     if boundary == 'film':
-
         # raise error if user inputs a value for sphere diameter
         if sample_diameter is not None:
             raise ValueError('for film geometry, sample_diameter must be set\
                              to None')
-        # randomly choose positions on interval [0,1]
-        r0.sel(event=0).loc["x":"y"] = rng.random((2, ntraj))
-        r0.sel(event=0).loc["z"] = np.zeros(ntraj)
+        # randomly choose positions on interval [0,1] for x and y
+        r0 = rng.random((2, ntraj))
+        # set z coordinate to 0 for initial position
+        r0 = np.concatenate([r0, np.zeros((1, ntraj))])
 
         # initialize the incident angles theta and phi. The user can input
         # data or sample randomly from a uniform distribution between a min and
@@ -841,12 +811,16 @@ def initialize(nevents, ntraj, n_medium, n_sample, boundary, rng=None,
         sinphi = np.sin(phi)
         cosphi = np.cos(phi)
 
-    if boundary == 'sphere':
-
+    elif boundary == 'sphere':
         # raise error if user forgets to input a value for the sphere diameter
         if sample_diameter is None:
             raise ValueError("for sphere geometry, sample_diameter must be "
                              "a physical quantity, not None")
+
+        if isinstance(sample_diameter, sc.Quantity):
+            sample_radius = sample_diameter.to_preferred().magnitude/2
+        else:
+            sample_radius = sample_diameter/2
 
         # randomly choose r on interval [0,1] and multiply by spot size radius
         r = np.sqrt(rng.random(ntraj)) * spot_size_magnitude/2
@@ -861,29 +835,59 @@ def initialize(nevents, ntraj, n_medium, n_sample, boundary, rng=None,
         y = r * np.sin(th)
         # calculate z-positions from x- and y-positions
         z = sample_radius - np.sqrt(sample_radius**2 - x**2 - y**2)
-        r0.loc[dict(event=0)] = [x, y, z]
+        r0 = np.array([x, y, z])
 
         # find the minus normal vectors of the sphere at the initial positions
         r0_magnitude = np.sqrt(x**2 + y**2 + (z - sample_radius)**2)
         # neg_normal should have shape [3, ntraj]
-        neg_normal = xr.zeros_like(r0.sel(event=0, drop=True))
-        neg_normal.loc["x":"z"] = np.array([-x / r0_magnitude,
-                                            -y / r0_magnitude,
-                                            -(z - sample_radius)/r0_magnitude])
+        neg_normal = np.array([-x / r0_magnitude,
+                               -y / r0_magnitude,
+                               -(z - sample_radius)/r0_magnitude])
         # solve for theta and phi for these samples
-        theta = np.arccos(neg_normal.loc['z'])
-        cosphi, sinphi = neg_normal.loc["x":"y"] / np.sin(theta)
+        theta = np.arccos(neg_normal[2])
+        cosphi, sinphi = neg_normal[0:-1] / np.sin(theta)
+
+    else:
+        raise ValueError("boundary must be of type 'film' or 'sphere'")
+
+    # Set up position DataArray.  Shape is (..., 3, nevents+1, ntrajectories).
+    # The last entry is the position after the final event
+    position = xr.DataArray(0.0, dims=["component", "event", "trajectory"],
+                            coords = {"component": ["x", "y", "z"],
+                                      "event": range(nevents+1),
+                                      "trajectory": range(ntraj)})
+    # set initial position
+    position.loc[dict(event=0)] = r0
+    # add dimensions and coords from refractive index (includes wavelength)
+    position = position.expand_dims(n_sample.coords)
 
     # If there is no coarse roughness (e.g. surface is flat)
     if coarse_roughness == 0:
         # Refraction of incident light upon entering the sample
         theta = refraction(theta, n_medium, n_sample)
+        theta = theta.rename({"dim_0": "trajectory"})
+        theta.coords["trajectory"] = range(ntraj)
+    else:
+        theta = xr.DataArray(theta, coords={"trajectory": range(ntraj)})
+        theta = theta.expand_dims(n_sample.coords)
 
     sintheta = np.sin(theta)
     costheta = np.cos(theta)
+
     # calculate new directions using refracted theta and initial phi
     kx, ky, kz = (sintheta * cosphi), (sintheta * sinphi), costheta
-    k0.loc[dict(event=0)] = [kx, ky, kz]
+    k0 = xr.concat([kx, ky, kz], dim = "component")
+    k0.coords["component"] = ["x", "y", "z"]
+
+    # set up direction DataArray. Shape is (..., 3, nevents, ntrajectories).
+    # Should have one fewer entry than position DataArray because we don't
+    # track direction after the last event.
+    direction = xr.zeros_like(position.isel(dict(event=slice(0, -1))))
+    direction.loc[dict(event=0)] = k0
+
+    # as noted in docstring, weights are set to 1 for the first event.  The
+    # remaining 1s in the array will be overwritten during the simulation
+    weight = xr.ones_like(position.sel(component='x', drop=True))
 
     if coarse_roughness == 0:
         # plot the initial positions and directions of the trajectories
@@ -912,36 +916,42 @@ def initialize(nevents, ntraj, n_medium, n_sample, boundary, rng=None,
             z = sample_radius-sample_radius*np.cos(v)
             ax.plot_wireframe(x, y, z, color=[0.8,0.8,0.8])
 
-        init_traj_props = [r0, k0, weight0]
+        init_traj_props = [position, direction, weight]
 
     # if the surface has coarse roughness
     else:
-        k0, kz0_rot, kz0_refl = coarse_roughness_enter(k0, n_medium,
-                                                       n_sample,
-                                                       coarse_roughness,
-                                                       boundary, rng=rng)
-        init_traj_props = [r0, k0, weight0, kz0_rot, kz0_refl]
+        direction, kz0_rot, kz0_refl = coarse_roughness_enter(direction,
+                                                              n_medium,
+                                                              n_sample,
+                                                              coarse_roughness,
+                                                              boundary,
+                                                              rng=rng)
+        init_traj_props = [position, direction, weight, kz0_rot, kz0_refl]
 
     if fields:
         # The field is initialized with nevents+1 because we want to save
         # the value of the field from before the photon enters the sample.
         # Shape should be [3, nevents+1, ntraj)]
-        fields0 = xr.zeros_like(r0, dtype = 'complex')
+        fields = xr.DataArray(0.0 + 0j,
+                              dims = ["component", "event", "trajectory"],
+                              coords = {"component": ["x", "y", "z"],
+                                        "event": range(nevents+1),
+                                        "trajectory": range(ntraj)})
         # initialize for unpolarized, incoherent light
         if coherent:
             phase = np.zeros((2,ntraj))
         else:
             phase = rng.random((2, ntraj))*2*np.pi
         if polarized:
-            fields0.sel(event=0).loc['x'] = np.exp(phase[0]*1j)
+            fields.sel(event=0).loc["x"] = np.exp(phase[0]*1j)
         else:
-            fields0.sel(event=0).loc['x':'y'] = np.exp(phase*1j)
+            fields.sel(event=0).loc["x":"y"] = np.exp(phase*1j)
 
-        fields0.loc[dict(event=0)] = normalize(*fields0.sel(event=0))
+        fields.loc[dict(event=0)] = normalize(*fields.sel(event=0))
 
         # first step into the sample is same
-        fields0.loc[dict(event=1)] = fields0.sel(event=0)
-        init_traj_props.append(fields0)
+        fields.loc[dict(event=1)] = fields.sel(event=0)
+        init_traj_props.append(fields)
 
     return init_traj_props
 
@@ -1253,14 +1263,14 @@ def coarse_roughness_enter(k, n_medium, n_sample, coarse_roughness, boundary,
 
     Parameters
     ----------
-    k: 3D array-like (structcol.Quantity [dimensionless])
-        Directions of propagation. Has shape of (3, number of events,
-        number of trajectories). k0[0,:,:] and k0[1,:,:] are initialized to
-        zero, and k0[2,0,:] is initialized to 1.
-    n_medium: float (structcol.Quantity [dimensionless])
-        Refractive index of the medium.
-    n_sample: float (structcol.Quantity [dimensionless])
-        Refractive index of the sample.
+    k: `xr.DataArray`
+        Directions of propagation. Has shape of (..., 3, number of events,
+        number of trajectories). k0.loc["x"] and k0.loc["y"] are initialized to
+        zero, and k0.loc[dict(event=0, component="z")] is initialized to 1.
+    n_medium: `xr.DataArray`
+        Refractive index of the medium, as output from an `sc.Index` object.
+    n_sample: `xr.DataArray`
+        Refractive index of the sample, as output from an `sc.Index` object.
     coarse_roughness : float (can be structcol.Quantity [dimensionless])
         Coarse surface roughness should be included when the roughness is large
         on the scale of the wavelength of light. This means that light
@@ -1282,15 +1292,15 @@ def coarse_roughness_enter(k, n_medium, n_sample, coarse_roughness, boundary,
 
     Returns
     -------
-    k0_rough: 3D array-like (structcol.Quantity [dimensionless])
+    k0_rough: `xr.DataArray`
         Initial direction of propagation, corrected for coarse roughness.
-    kz0_rot : array_like (structcol.Quantity [dimensionless])
+    kz0_rot : `xr.DataArray`
         Initial z-directions that are rotated to account for the fact that
         coarse surface roughness changes the angle of incidence of light. Thus
         these are the incident z-directions relative to the local normal to the
         surface. The array size is (1, ntraj). Only returned if
         coarse_roughness is set to > 0.
-    kz0_refl : array_like (structcol.Quantity [dimensionless])
+    kz0_refl : `xr.DataArray`
         z-directions of the Fresnel reflected light after it hits the sample
         surface for the first time. These directions are in the global
         coordinate system. The array size is (1, ntraj). Only returned if
@@ -1304,20 +1314,15 @@ def coarse_roughness_enter(k, n_medium, n_sample, coarse_roughness, boundary,
         raise ValueError("course roughness not yet implemented for sphere "
                          "boundary")
 
-    # strip units from dimensionless quantities
-    if isinstance(n_medium, sc.Quantity):
-        n_medium = n_medium
-    if isinstance(n_sample, sc.Quantity):
-        n_sample = n_sample
-
-    ntraj = k.shape[2]
+    ntraj = k.sizes["trajectory"]
 
     # for constructing rotation matrices
     zeros = np.zeros(ntraj)
     ones = np.ones(ntraj)
-    rotcoords = [("component2", ["x", "y", "z"]),
-                 ("component", ["x", "y", "z"]),
-                 ("trajectory", range(ntraj))]
+    # "i" is a dummy index that we rename after taking the dot product
+    rotcoords = {"i": ["x", "y", "z"],
+                 "component": ["x", "y", "z"],
+                 "trajectory": range(ntraj)}
 
     # get the first event only
     k0 = k.sel(event=0)
@@ -1345,21 +1350,22 @@ def coarse_roughness_enter(k, n_medium, n_sample, coarse_roughness, boundary,
                       [zeros, ones, zeros],
                       [sintheta_a, zeros, costheta_a]],
                      coords=rotcoords)
-    k0_rot = xr.dot(R, k0, dim=("component"))
+    k0_rot = xr.dot(R, k0, dim=("component")).rename({"i": "component"})
 
     # Find the new angles theta and phi between the incident trajectories and
     # the normal to the new surface after the coordinate axis rotation
     norm = (k0**2).sum(dim="component")
-    theta_rot = np.arccos(k0_rot.loc['z'] / norm)
-    phi_rot = np.arccos(k0_rot.loc['x'] / norm)
+    theta_rot = np.arccos(k0_rot.loc['z'] / norm).drop_vars("component")
+    phi_rot = np.arccos(k0_rot.loc['x'] / norm).drop_vars("component")
 
     # Refraction of incident light upon entering sample
     theta_refr = refraction(theta_rot, n_medium, n_sample)
 
-    k0_rot_refr = xr.DataArray([np.sin(theta_refr) * np.cos(phi_rot),
-                                np.sin(theta_refr) * np.sin(phi_rot),
-                                np.cos(theta_refr)],
-                               coords = rotcoords[1:])
+    k0_rot_refr = xr.concat([np.sin(theta_refr) * np.cos(phi_rot),
+                             np.sin(theta_refr) * np.sin(phi_rot),
+                             np.cos(theta_refr)],
+                            dim="component")
+    k0_rot_refr.coords["component"] = rotcoords["component"]
 
     # Rotate the axes back so that the initial refracted directions are in old
     # (global) coordinates by doing an axis rotation around y by 2pi-theta_a
@@ -1367,17 +1373,17 @@ def coarse_roughness_enter(k, n_medium, n_sample, coarse_roughness, boundary,
             [[np.cos(2*np.pi-theta_a), zeros, -np.sin(2*np.pi-theta_a)],
              [zeros, ones, zeros],
              [np.sin(2*np.pi-theta_a), zeros, np.cos(2*np.pi-theta_a)]],
-        coords = rotcoords)
-    k0_refr = xr.dot(R, k0_rot_refr, dim=("component"))
+            coords = rotcoords)
+    k0_refr = (xr.dot(R, k0_rot_refr, dim=("component"))
+               .rename({"i": "component"}))
 
     # Create an empty array of the initial direction cosines of the right size
-    # (shape [3, nevents, ntraj])
+    # (shape [..., 3, nevents, ntraj])
     k0_rough = xr.zeros_like(k)
 
     # Fill up the first row (corresponding to the first scattering event) of
     # the direction cosines array with the randomly generated angles:
-    k0_rough.sel(event=0).loc["x":"z"] = k0_refr.rename({"component2":
-                                                         "component"})
+    k0_rough.loc[dict(event=0)] = k0_refr
 
     # Calculate Fresnel reflected directions, which are the same as the initial
     # directions in the local coordinate system but flipping the z sign
@@ -1388,7 +1394,8 @@ def coarse_roughness_enter(k, n_medium, n_sample, coarse_roughness, boundary,
     # coordinates by doing an axis rotation around y by 2pi-theta_a
     # We need only the z-component, so perhaps can simplify the expression
     # below
-    k0_refl = xr.dot(R, k0_rot_refl, dim=("component"))
+    k0_refl = (xr.dot(R, k0_rot_refl, dim=("component"))
+               .rename({"i": "component"}))
 
     return k0_rough, k0_rot.loc['z'], k0_refl.loc['z']
 
@@ -1412,7 +1419,7 @@ def P_theta_a(theta_a, r):
 
     Reference
     ---------
-    B. v. Ginneken, M. Stavridi, J. J. Koenderink, “Diffuse and specular
+    B. van Ginneken, M. Stavridi, J. J. Koenderink, “Diffuse and specular
     reflectance from rough surfaces”, Applied Optics, 37, 1 (1998) (has
     definition of rsm slope of the surface).
 

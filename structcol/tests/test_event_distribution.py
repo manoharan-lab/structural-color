@@ -449,7 +449,7 @@ def test_event_distribution_wavelength_mc():
 
     # run monte carlo, reflectance, and event_distribution
     for i in range(wavelengths.size):
-        n_sample = n_sample_eff[i]
+        n_sample = n_sample_eff.isel(wavelength=i, drop=True)
 
         p[i,:], mu_scat, mu_abs = mc.calc_scat(model, wavelengths[i])
         lscat[i] = 1/mu_scat.magnitude # microns

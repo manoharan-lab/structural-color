@@ -341,6 +341,7 @@ def test_multiscale_mc():
     # caculate the effective index of the sample
     index_sample_eff = sc.EffectiveIndex([index_particle, index_matrix],
                                          vf_particles)
+    n_sample = index_sample_eff(wavelengths)
 
     # number of trajectories to run with a spherical boundary
     ntrajectories = 2000
@@ -363,13 +364,15 @@ def test_multiscale_mc():
 
     # loop through wavelengths
     for i in range(wavelengths.size):
-        n_sample = index_sample_eff(wavelengths[i])
+        n_s = n_sample.isel(wavelength=[i])
+        n_m = n_matrix_bulk.isel(wavelength=[i])
         p, mu_scat, mu_abs = mc.calc_scat(model, wavelengths[i])
 
         # Initialize the trajectories
-        r0, k0, W0 = mc.initialize(nevents, ntrajectories, n_matrix_bulk[i],
-                                   n_sample, boundary, sample_diameter =
-                                   sphere_boundary_diameter, rng=rng)
+        r0, k0, W0 = mc.initialize(nevents, ntrajectories,
+                                   n_m, n_s, boundary,
+                                   sample_diameter = sphere_boundary_diameter,
+                                   rng=rng)
 
         # Create trajectories object
         trajectories = mc.Trajectory(r0, k0, W0)
@@ -397,7 +400,7 @@ def test_multiscale_mc():
              reflectance_sphere[i],
              _,_, norm_refl, norm_trans) = \
                  det.calc_refl_trans(trajectories, sphere_boundary_diameter,
-                                     n_matrix_bulk[i], n_sample, boundary, p=p,
+                                     n_m, n_s, boundary, p=p,
                                      mu_abs=mu_abs, mu_scat=mu_scat,
                                      run_fresnel_traj = False, return_extra =
                                      True)
@@ -454,9 +457,11 @@ def test_multiscale_mc():
     reflectance_bulk = np.zeros(wavelengths.size)
 
     for i in range(wavelengths.size):
+        n_med = n_medium.isel(wavelength=[i])
+        n_mat = n_matrix_bulk.isel(wavelength=[i])
         # Initialize the trajectories
         r0, k0, W0 = mc.initialize(nevents_bulk, ntrajectories_bulk,
-                                   n_medium[i], n_matrix_bulk[i],
+                                   n_med, n_mat,
                                    boundary_bulk, rng=rng)
 
         # Sample angles
@@ -481,8 +486,8 @@ def test_multiscale_mc():
         trajectories = mc.QtyTrajectory(trajectories)
         with pytest.warns(UserWarning):
             reflectance_bulk[i], transmittance = \
-                det.calc_refl_trans(trajectories, bulk_thickness, n_medium[i],
-                                    n_matrix_bulk[i], boundary_bulk)
+                det.calc_refl_trans(trajectories, bulk_thickness, n_med,
+                                    n_mat, boundary_bulk)
 
     # these numbers look a little strange (multiply them by the number of
     # trajectories, and they all become integers). That's because there's no
@@ -547,6 +552,7 @@ def test_multiscale_polydispersity_mc():
     vf_particles = particle.volume_fraction(volume_fraction_particles)
     index_sample_eff = sc.EffectiveIndex([index_particle, index_matrix],
                                          vf_particles)
+    n_sample = index_sample_eff(wavelengths)
 
     ntrajectories = 500
     nevents = 300
@@ -580,13 +586,14 @@ def test_multiscale_polydispersity_mc():
 
     for j in range(sphere_boundary_diameters.size):
         for i in range(wavelengths.size):
-            n_sample = index_sample_eff(wavelengths[i])
+            n_m = n_matrix_bulk.isel(wavelength=[i])
+            n_s = n_sample.isel(wavelength=[i])
 
             p, mu_scat, mu_abs = mc.calc_scat(model, wavelengths[i])
 
             # Initialize the trajectories
             r0, k0, W0 = mc.initialize(nevents, ntrajectories,
-                                       n_matrix_bulk[i], n_sample,
+                                       n_m, n_s,
                                        boundary, sample_diameter =
                                        sphere_boundary_diameters[j], rng=rng)
 
@@ -617,7 +624,7 @@ def test_multiscale_polydispersity_mc():
                  _,_, norm_refl, norm_trans) = \
                      det.calc_refl_trans(trajectories,
                                          sphere_boundary_diameters[j],
-                                         n_matrix_bulk[i], n_sample, boundary,
+                                         n_m, n_s, boundary,
                                          run_fresnel_traj = False,
                                          return_extra = True)
 
@@ -649,9 +656,11 @@ def test_multiscale_polydispersity_mc():
 
     reflectance_bulk_poly = np.zeros(wavelengths.size)
     for i in range(wavelengths.size):
+        n_med = n_medium.isel(wavelength=[i])
+        n_mat = n_matrix_bulk.isel(wavelength=[i])
         # Initialize the trajectories
         r0, k0, W0 = mc.initialize(nevents_bulk, ntrajectories_bulk,
-                                   n_medium[i], n_matrix_bulk[i],
+                                   n_med, n_mat,
                                    boundary_bulk, rng=rng)
 
         # Sample angles and calculate step size based on sampled radii
@@ -677,8 +686,8 @@ def test_multiscale_polydispersity_mc():
         trajectories = mc.QtyTrajectory(trajectories)
         with pytest.warns(UserWarning):
             reflectance_bulk_poly[i], transmittance = \
-                det.calc_refl_trans(trajectories, bulk_thickness, n_medium[i],
-                                    n_matrix_bulk[i], boundary_bulk)
+                det.calc_refl_trans(trajectories, bulk_thickness, n_med,
+                                    n_mat, boundary_bulk)
 
     # test reflectance from the bulk polydisperse sample
     R_expected = [0.5896236932355958, 0.5960565958801791, 0.543160195730125,
@@ -756,16 +765,18 @@ def test_multiscale_color_mixing_mc():
         vf_array = particle.volume_fraction(volume_fraction_particles)
         index_sample_eff = sc.EffectiveIndex([index_particle, index_matrix],
                                              vf_array)
+        n_sample_eff = index_sample_eff(wavelengths)
 
         # set up scattering model
         model = sc.model.HardSpheres(particle, volume_fraction_particles,
                                      index_matrix, index_medium)
         for i in range(wavelengths.size):
-            n_sample = index_sample_eff(wavelengths[i])
+            n_sample = n_sample_eff.isel(wavelength=[i])
+            n_mat = n_matrix_bulk.isel(wavelength=[i])
             p, mu_scat, mu_abs = mc.calc_scat(model, wavelengths[i])
 
             r0, k0, W0 = mc.initialize(nevents, ntrajectories,
-                                       n_matrix_bulk[i], n_sample, boundary,
+                                       n_mat, n_sample, boundary,
                                        sample_diameter =
                                        sphere_boundary_diameter, rng=rng)
 
@@ -792,7 +803,7 @@ def test_multiscale_color_mixing_mc():
                  _,_, norm_refl, norm_trans) = \
                      det.calc_refl_trans(trajectories,
                                       sphere_boundary_diameter,
-                                      n_matrix_bulk[i], n_sample, boundary,
+                                      n_mat, n_sample, boundary,
                                       run_fresnel_traj = False,
                                       return_extra = True)
 
@@ -819,9 +830,11 @@ def test_multiscale_color_mixing_mc():
     # calculate reflectance of bulk film with spheres of two different colors
     reflectance_bulk_mix = np.zeros(wavelengths.size)
     for i in range(wavelengths.size):
+        n_med = n_medium.isel(wavelength=[i])
+        n_mat = n_matrix_bulk.isel(wavelength=[i])
         # Initialize the trajectories
         r0, k0, W0 = mc.initialize(nevents_bulk, ntrajectories_bulk,
-                                   n_medium[i], n_matrix_bulk[i],
+                                   n_med, n_mat,
                                    boundary_bulk, rng=rng)
 
         (sintheta, costheta, sinphi, cosphi, step, _, _) = \
@@ -846,8 +859,8 @@ def test_multiscale_color_mixing_mc():
         trajectories = mc.QtyTrajectory(trajectories)
         with pytest.warns(UserWarning):
             reflectance_bulk_mix[i], transmittance = \
-                det.calc_refl_trans(trajectories, bulk_thickness, n_medium[i],
-                                    n_matrix_bulk[i], boundary_bulk)
+                det.calc_refl_trans(trajectories, bulk_thickness, n_med,
+                                    n_mat, boundary_bulk)
 
     R_expected = [0.5826801822412575, 0.5702215184018711, 0.5731687923054422,
                   0.5766088842163823, 0.6053588610189652, 0.5845773357414805,

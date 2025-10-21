@@ -92,28 +92,22 @@ def test_trajectories():
     trajectories.absorb(mu_abs, step)
     # since step size is given (not sampled), this test should produce a
     # deterministic result
-    assert_almost_equal(trajectories.weight.to_numpy(),
+    assert_almost_equal(trajectories.weight.squeeze(drop=True).to_numpy(),
                  np.array([[ 1.0, 1.0, 1.0],
                            [ 0.90483742,  0.90483742,  0.90483742],
                            [ 0.81873075,  0.81873075,  0.81873075]]))
 
-    # Make up some test theta and phi
-    sintheta = xr.DataArray([[0., 0., 0.], [0., 0., 0.]],
-                            coords = {"event": range(nevents),
+    # Make up some test theta and phi. Note that event 0 is assumed to be
+    # propagation straight into the film, so we specify only event 1
+    sintheta = xr.DataArray([[0., 0., 0.]],
+                            coords = {"event": [1],
                                       "trajectory": range(ntrajectories)})
-    costheta = xr.DataArray([[-1., -1., -1.], [1., 1., 1.]],
+    costheta = xr.DataArray([[-1., -1., -1.]],
                             coords=sintheta.coords)
-    sinphi = xr.DataArray([[0., 0., 0.], [0., 0., 0.]],
+    sinphi = xr.DataArray([[0., 0., 0.]],
                           coords=sintheta.coords)
-    cosphi = xr.DataArray([[0., 0., 0.], [0., 0., 0.]],
+    cosphi = xr.DataArray([[0., 0., 0.]],
                           coords=sintheta.coords)
-
-    # Note that since the first event is given, we've specified an extra event
-    # in the test theta and phi above.  We correct for this below:
-    sintheta = sintheta[:-1]
-    costheta = costheta[:-1]
-    sinphi = sinphi[:-1]
-    cosphi = cosphi[:-1]
 
     # Test the scatter function. Should also produce a deterministic result
     trajectories.scatter(sintheta, costheta, sinphi, cosphi)
@@ -122,15 +116,15 @@ def test_trajectories():
     kx = np.array([[0., 0., 0.], [0., 0., 0.]])
     ky = np.array([[0., 0., 0.], [0., 0., 0.]])
     kz = np.array([[1., 1., 1.], [-1., -1., -1.]])
+    k = np.array([kx, ky, kz])
 
-    assert_equal(trajectories.direction.sel(component="x"), kx)
-    assert_equal(trajectories.direction.sel(component="y"), ky)
-    assert_equal(trajectories.direction.sel(component="z"), kz)
+    assert_equal(trajectories.direction.squeeze(drop=True).to_numpy(), k)
+
 
     # Test the move function.  Should also produce a deterministic result since
     # step sizes are given.
     trajectories.move(step)
-    assert_equal(trajectories.position.sel(component="z"),
+    assert_equal(trajectories.position.sel(component="z").squeeze(drop=True),
                  np.array([[0, 0, 0], [1, 1, 1], [0, 0, 0]]))
 
 # NOTE: the test below will no longer work, since the

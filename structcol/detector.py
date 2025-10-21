@@ -209,7 +209,7 @@ def exit_kz(indices, trajectories, boundary, thickness, n_inside, n_outside):
 
     # Use Snell's law to calculate angle between k2 and normal vector.
     # theta_2 is nan if photon is totally internally reflected.
-    theta_2 = refraction(theta_1, n_inside, n_outside)
+    theta_2 = refraction(theta_1, n_inside, n_outside).to_numpy()
 
     # The angle to rotate around is theta_2-theta_1.
     theta = theta_2 - theta_1
@@ -527,7 +527,7 @@ def fresnel_pass_frac(indices, n_before, n_inside, n_after, boundary,
                                     plot_exits=plot_exits)
 
     # Find angles inside.
-    theta_inside = refraction(theta_before, n_before, n_inside)
+    theta_inside = refraction(theta_before, n_before, n_inside).to_numpy()
 
     # If theta_inside is nan (because the trajectory doesn't exit due to TIR),
     # then replace it with pi/2 (the trajectory goes sideways infinitely) to
@@ -590,7 +590,7 @@ def detect_correct(indices, trajectories, weights, n_before, n_after, boundary,
     angles, _ = get_angles(indices, boundary, trajectories, thickness,
                            init_dir=init_dir)
 
-    theta = refraction(angles, n_before, n_after)
+    theta = refraction(angles, n_before, n_after).to_numpy()
     theta[np.isnan(theta)] = np.inf  # This avoids a warning.
 
     # Choose only the ones inside detection angle.
@@ -930,7 +930,8 @@ def fresnel_correct_enter(n_medium, n_front, n_sample, boundary, thickness,
             # init_dir is reverse-corrected for refraction.
             # init_dir = kz before medium/sample interface.
             angles, _ = get_angles(indices, boundary, trajectories, thickness)
-            init_dir = np.cos(refraction(angles, n_sample, n_medium))
+            init_dir = np.cos(refraction(angles, n_sample, n_medium)
+                              .to_numpy())
         else:
             kz0_rot = np.squeeze(kz0_rot)
             init_dir = kz0_rot
@@ -1405,7 +1406,7 @@ def calc_refracted_direction(kx_1, ky_1, kz_1, x_1, y_1, z_1, n1, n2, plot):
     # Calculate the angle with respect to the normal at which the trajectories
     # leave
     theta_1 = np.arccos(np.abs(kz_1))
-    theta_2 = refraction(theta_1, n1, n2)
+    theta_2 = refraction(theta_1, n1, n2).to_numpy()
 
     # Find angle by which to rotate trajectory direction.
     alpha = - (theta_2 - theta_1)

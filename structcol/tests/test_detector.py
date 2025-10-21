@@ -1014,6 +1014,7 @@ def calc_montecarlo(model, nevents, ntrajectories, wavelen, seed,
     # (should raise warning that n_matrix and n_particle are not set, so
     # tir correction is based only on sample index)
     trajectories = mc.QtyTrajectory(trajectories)
+
     if kz0_rotated is not None:
         kz0_rotated = sc.Quantity(kz0_rotated.to_numpy(), '')
     if kz0_reflected is not None:
