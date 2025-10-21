@@ -126,13 +126,23 @@ class QtyTrajectory():
                                     .to_numpy(),
                                     sc.LENGTH_UNIT)
         self.direction = sc.Quantity(trajectories.direction.squeeze(drop=True)
-                                     .to_numpy(), '')
+                                     .to_numpy(), "")
         self.weight = trajectories.weight.sel(event=slice(1, None))
         self.weight = sc.Quantity(self.weight.squeeze(drop=True).to_numpy(),
-                                  '')
+                                  "")
         if trajectories.fields is not None:
             self.fields = sc.Quantity(trajectories.fields.squeeze(drop=True)
-                                      .to_numpy(), '')
+                                      .to_numpy(), "")
+        else:
+            self.fields = None
+        if trajectories.kz0_rot is not None:
+            self.kz0_rot = sc.Quantity(trajectories.kz0_rot.to_numpy(), "")
+        else:
+            self.kz0_rot = None
+        if trajectories.kz0_refl is not None:
+            self.kz0_refl = sc.Quantity(trajectories.kz0_refl.to_numpy(), "")
+        else:
+            self.kz0_refl = None
 
     @property
     def nevents(self):
@@ -204,7 +214,7 @@ class Trajectory:
     """
 
     def __init__(self, position, direction, weight,
-                 fields=None):
+                 fields=None, kz0_rot=None, kz0_refl=None):
         """
         # TODO: remove phase and polarization as they have been replaced by
         # fields
@@ -225,6 +235,342 @@ class Trajectory:
         self.direction = direction
         self.weight = weight
         self.fields = fields
+        self.kz0_rot = kz0_rot
+        self.kz0_refl = kz0_refl
+
+    @classmethod
+    def initialize(cls, nevents, ntraj, n_medium, n_sample, boundary,
+                   rng=None,
+                   incidence_theta_min=sc.Quantity(0.,'rad'),
+                   incidence_theta_max=sc.Quantity(0.,'rad'),
+                   incidence_theta_data=None,
+                   incidence_phi_min=sc.Quantity(0.,'rad'),
+                   incidence_phi_max=sc.Quantity(2*np.pi,'rad'),
+                   incidence_phi_data=None,
+                   plot_initial=False,
+                   spot_size=sc.Quantity('1.0 um'),
+                   sample_diameter=None,
+                   coarse_roughness=0.,
+                   coherent=False,
+                   polarized=True,
+                   fields=False):
+        """Sets the trajectories' initial conditions (position, direction,
+        weight, and polarization if set to True).
+        The initial positions are determined randomly in the x-y plane.
+
+        If boundary is a sphere, the initial z-positions are confined to the
+        surface of a sphere. If boundary is a film, the initial z-positions are
+        set to zero.
+
+        If incidence_theta_min and incidence_theta_max are both set to 0, the
+        initial propagation direction is set to be 1 at z, meaning that the
+        photon packets point straight down in z. The initial directions are
+        corrected for refraction, for either type of boundary and for any
+        incidence angle.
+
+        Notes
+        -----
+        For sphere boundary, incidence angle currently must be 0
+
+        Parameters
+        ----------
+        nevents: int
+            Number of scattering events
+        ntraj: int
+            Number of trajectories
+        n_medium : `xr.DataArray`
+            Refractive index of the medium, as output from an `sc.Index` object
+        n_sample: `xr.DataArray`
+            Refractive index of the sample, as output from an `sc.Index` object
+        boundary: string
+            Geometrical boundary for Monte Carlo calculations. Current options
+            are 'film' or 'sphere'
+        rng: numpy.random.Generator object (default None)
+            If not specified, use the default generator initialized on loading
+            the package
+        incidence_theta_min: float (structcol.Quantity [angle])
+            Minimum value for theta when it incides onto the sample.
+            Should be >= 0 and < pi/2.
+        incidence_theta_max: float (structcol.Quantity [angle])
+            Maximum value for theta when it incides onto the sample.
+            Should be >= 0 and < pi/2.
+        incidence_theta_data: array (structcol.Quantity [angle]) (optional)
+            Array of values for the incident theta for each trajectory. Length
+            of the array must therefore be the same as number of trajectories.
+            If None, the code will randomly sample theta angles from a uniform
+            distribution between incidence_theta_min and incidence_theta_max.
+            If user does not specify units, values must be in radians.
+        incidence_phi_min: float (structcol.Quantity [angle])
+            Minimum value for phi when it incides onto the sample.
+            Should be >= 0 and <= pi.
+        incidence_phi_max: float (structcol.Quantity [angle])
+            Maximum value for phi when it incides onto the sample.
+            Should be >= 0 and <= pi.
+        incidence_phi_data: array (structcol.Quantity [angle]) (optional)
+            Array of values for the incident phi for each trajectory. Length of
+            the array must therefore be the same as number of trajectories. If
+            None, the code will randomly sample phi angles from a uniform
+            distribution between incidence_phi_min and incidence_phi_max.  If
+            user does not specify units, values must be in radians.
+        plot_initial: boolean
+            If plot_initial is set to True, function will create a 3d plot
+            showing initial positions and directions of trajectories before
+            entering the sphere and directly after refraction correction upon
+            entering the sphere.
+        spot_size: float (structcol.Quantity [length])
+            For film sample, side length of a square spot size. For sphere
+            sample diameter of a circular spot size.
+        sample_diameter: None or float (structcol.Quantity [length])
+            Diameter of the sample. Default is None. Should be None if sample
+            geometry is a film. Should be float equal to the sphere diameter if
+            sample is a sphere.
+        coarse_roughness : float (can be structcol.Quantity [dimensionless])
+            Coarse surface roughness should be included when the roughness is
+            large on the scale of the wavelength of light. This means that
+            light encounters a locally smooth surface that has a slope relative
+            to the z=0 plane. Then the model corrects the Fresnel reflection
+            and refraction to account for the different angles of incidence due
+            to the roughness. The coarse_roughness parameter is the rms slope
+            of the surface. If included, it should be larger than 0. There is
+            no upper bound, but when the coarse roughness tends to infinity,
+            the surface becomes too "spiky" and light can no longer hit it,
+            which reduces the reflectance down to 0.
+        fields: boolean
+            If True, also returns the initial fields of trajectories
+        coherent: boolean
+            If True, assumes the intial relative phases between trajectories
+            are zero. If coherent is set to True while fields is set to False,
+            then the coherent value is ignored, since there can be no coherence
+            without taking into account the fields.
+
+        Returns
+        -------
+        position : `xr.DataArray`
+            Trajectory positions. Has shape (..., 3, number of events + 1,
+            number of trajectories). r0[..., 0,0,:] contains random x-positions
+            within a circle on the x-y plane whose radius is the sphere radius.
+            r0[..., 1, 0, :] contains random y-positions within the same circle
+            on the x-y plane. r0[..., 2, 0, :] contains z-positions on the top
+            hemisphere at the sphere boundary. The rest of the elements are
+            initialized to zero.
+        direction : `xr.DataArray`
+            Initial direction of propagation. Has shape (..., 3, number of
+            events, number of trajectories). k0[..., 0,:,:] and k0[..., 1,:,:]
+            are initialized to zero, and k0[..., 2,0,:] is initalized to 1.
+        weight : `xr.DataArray`
+            Initial weight. Has shape of (..., number of events, number of
+            trajectories). Note that the packet weight represents the fraction
+            of that particular packet that is propagated through the sample. It
+            does not represent the packet's weight relative to other photons.
+            The weight array is initialized to 1 because we start with the full
+            weight of the initial photons. If you want to make the relative
+            weights of photons different, you would need to introduce a new
+            variable (e.g., relative intensity), NOT change the intialization
+            of the weights array.
+        kz0_rot : `xr.DataArray`
+            Initial z-directions that are rotated to account for the fact that
+            coarse surface roughness changes the angle of incidence of light.
+            Thus these are the incident z-directions relative to the local
+            normal to the surface. The array size is (1, ntraj). Only returned
+            if coarse_roughness is set to > 0.
+        kz0_refl : `xr.DataArray`
+            z-directions of the Fresnel reflected light after it hits the
+            sample surface for the first time. These directions are in the
+            global coordinate system. The array size is (1, ntraj). Only
+            returned if coarse_roughness is set to > 0.
+
+        Reference
+        ---------
+        B. van Ginneken, M. Stavridi, J. J. Koenderink, “Diffuse and specular
+        reflectance from rough surfaces”, Applied Optics, 37, 1 (1998) (has
+        definition of rsm slope of the surface).
+
+        """
+        if rng is None:
+            rng = sc.rng
+
+        # get the spot size magnitude to multiply by initial x and y positions
+        spot_size_magnitude = spot_size.to_preferred().magnitude
+
+        if boundary == 'film':
+            # raise error if user inputs a value for sphere diameter
+            if sample_diameter is not None:
+                raise ValueError("for film geometry, sample_diameter must be "
+                                 "set to None")
+            # randomly choose positions on interval [0,1] for x and y
+            r0 = rng.random((2, ntraj))
+            # set z coordinate to 0 for initial position
+            r0 = np.concatenate([r0, np.zeros((1, ntraj))])
+
+            # initialize the incident angles theta and phi. The user can input
+            # data or sample randomly from a uniform distribution between a min
+            # and a max incident angles.
+            if incidence_theta_data is not None:
+                if len(incidence_theta_data) != ntraj:
+                    raise ValueError("length of incidence_theta_data must be "
+                                     "equal to number of trajectories")
+                theta = incidence_theta_data
+            else:
+                incidence_theta_min = incidence_theta_min.to('rad').magnitude
+                incidence_theta_max = incidence_theta_max.to('rad').magnitude
+                theta = rng.uniform(incidence_theta_min, incidence_theta_max,
+                                    ntraj)
+
+            if incidence_phi_data is not None:
+                if len(incidence_phi_data) != ntraj:
+                    raise ValueError("length of incidence_phi_data must be "
+                                     "equal to number of trajectories")
+                phi = incidence_phi_data
+            else:
+                incidence_phi_min = incidence_phi_min.to('rad').magnitude
+                incidence_phi_max = incidence_phi_max.to('rad').magnitude
+                phi = rng.uniform(incidence_phi_min, incidence_phi_max, ntraj)
+
+            sinphi = np.sin(phi)
+            cosphi = np.cos(phi)
+
+        elif boundary == 'sphere':
+            # raise error if user forgets to input a value for sphere diameter
+            if sample_diameter is None:
+                raise ValueError("for sphere geometry, sample_diameter must "
+                                 "be a physical quantity, not None")
+
+            if isinstance(sample_diameter, sc.Quantity):
+                sample_radius = sample_diameter.to_preferred().magnitude/2
+            else:
+                sample_radius = sample_diameter/2
+
+            # randomly choose r on interval [0,1] and scale by spot size radius
+            r = np.sqrt(rng.random(ntraj)) * spot_size_magnitude/2
+
+            # randomly choose th on interval [0,2*pi]
+            th = 2*np.pi*rng.random(ntraj)
+
+            # convert to x and y, so that the points are randomly distributed
+            # across the cross sectional area of the sphere
+            # for details, see:
+            # https://mathworld.wolfram.com/DiskPointPicking.html
+            x = r * np.cos(th)
+            y = r * np.sin(th)
+            # calculate z-positions from x- and y-positions
+            z = sample_radius - np.sqrt(sample_radius**2 - x**2 - y**2)
+            r0 = np.array([x, y, z])
+
+            # find the minus normal vectors of the sphere at initial positions
+            r0_magnitude = np.sqrt(x**2 + y**2 + (z - sample_radius)**2)
+            # neg_normal should have shape [3, ntraj]
+            neg_normal = np.array([-x / r0_magnitude,
+                                   -y / r0_magnitude,
+                                   -(z - sample_radius)/r0_magnitude])
+            # solve for theta and phi for these samples
+            theta = np.arccos(neg_normal[2])
+            cosphi, sinphi = neg_normal[0:-1] / np.sin(theta)
+
+        else:
+            raise ValueError("boundary must be of type 'film' or 'sphere'")
+
+        # Set up position DataArray. Shape is (..., 3, nevents+1,
+        # ntrajectories). The last entry is the position after the final event
+        position = xr.DataArray(0.0, dims=["component", "event", "trajectory"],
+                                coords = {"component": ["x", "y", "z"],
+                                          "event": range(nevents+1),
+                                          "trajectory": range(ntraj)})
+        # set initial position
+        position.loc[dict(event=0)] = r0
+        # add dimensions and coords from refractive index (includes wavelength)
+        position = position.expand_dims(n_sample.coords)
+
+        # If there is no coarse roughness (e.g. surface is flat)
+        if coarse_roughness == 0:
+            # Refraction of incident light upon entering the sample
+            theta = refraction(theta, n_medium, n_sample)
+            theta = theta.rename({"dim_0": "trajectory"})
+            theta.coords["trajectory"] = range(ntraj)
+        else:
+            theta = xr.DataArray(theta, coords={"trajectory": range(ntraj)})
+            theta = theta.expand_dims(n_sample.coords)
+
+        sintheta = np.sin(theta)
+        costheta = np.cos(theta)
+
+        # calculate new directions using refracted theta and initial phi
+        kx, ky, kz = (sintheta * cosphi), (sintheta * sinphi), costheta
+        k0 = xr.concat([kx, ky, kz], dim = "component")
+        k0.coords["component"] = ["x", "y", "z"]
+
+        # set up direction DataArray. Shape is (..., 3, nevents,
+        # ntrajectories). Should have one fewer entry than position DataArray
+        # because we don't track direction in the last event.
+        direction = xr.zeros_like(position.isel(dict(event=slice(0, -1))))
+        direction.loc[dict(event=0)] = k0
+
+        # as noted in docstring, weights are set to 1 for the first event.  The
+        # remaining 1s in the array will be overwritten during the simulation
+        weight = xr.ones_like(position.sel(component='x', drop=True))
+
+        if coarse_roughness == 0:
+            # plot the initial positions and directions of the trajectories
+            if plot_initial and (boundary == 'sphere'): # pragma: no cover
+                fig = plt.figure()
+                ax = fig.add_subplot(111, projection='3d')
+                ax.set_xlabel('x')
+                ax.set_ylabel('y')
+                ax.set_zlabel('z')
+                ax.set_ylim([-sample_radius, sample_radius])
+                ax.set_xlim([-sample_radius, sample_radius])
+                ax.set_zlim([0, sample_radius])
+                ax.set_title('Initial Positions')
+                ax.view_init(-164,-155)
+                X, Y, Z, U, V, W = [x, y, z, kx, ky, kz]
+                ax.quiver(X, Y, Z, U, V, W, color = 'g')
+
+                X, Y, Z, U, V, W = [x, y, z, np.zeros(ntraj), np.zeros(ntraj),
+                                    np.ones(ntraj)]
+                ax.quiver(X, Y, Z, U, V, W)
+
+                # draw wireframe hemisphere
+                u, v = np.mgrid[0:2*np.pi:20j, np.pi/2:0:10j]
+                x = sample_radius*np.cos(u)*np.sin(v)
+                y = sample_radius*np.sin(u)*np.sin(v)
+                z = sample_radius-sample_radius*np.cos(v)
+                ax.plot_wireframe(x, y, z, color=[0.8,0.8,0.8])
+
+            kz0_rot = None
+            kz0_refl = None
+
+        # if the surface has coarse roughness
+        else:
+            args = [direction, n_medium, n_sample, coarse_roughness, boundary]
+            direction, kz0_rot, kz0_refl = coarse_roughness_enter(*args,
+                                                                  rng=rng)
+
+        if fields:
+            # The field is initialized with nevents+1 because we want to save
+            # the value of the field from before the photon enters the sample.
+            # Shape should be [3, nevents+1, ntraj)]
+            fields = xr.DataArray(0.0 + 0j,
+                                  dims = ["component", "event", "trajectory"],
+                                  coords = {"component": ["x", "y", "z"],
+                                            "event": range(nevents+1),
+                                            "trajectory": range(ntraj)})
+            # initialize for unpolarized, incoherent light
+            if coherent:
+                phase = np.zeros((2,ntraj))
+            else:
+                phase = rng.random((2, ntraj))*2*np.pi
+            if polarized:
+                fields.sel(event=0).loc["x"] = np.exp(phase[0]*1j)
+            else:
+                fields.sel(event=0).loc["x":"y"] = np.exp(phase*1j)
+
+            fields.loc[dict(event=0)] = normalize(*fields.sel(event=0))
+
+            # first step into the sample is same
+            fields.loc[dict(event=1)] = fields.sel(event=0)
+        else:
+            fields = None
+
+        return cls(position, direction, weight, fields, kz0_rot, kz0_refl)
 
     @property
     def nevents(self):
@@ -603,338 +949,6 @@ class Trajectory:
                              self.position[1,:,n].magnitude,
                              self.position[2,:,n].magnitude,
                              color=next(colors))
-
-
-def initialize(nevents, ntraj, n_medium, n_sample, boundary, rng=None,
-               incidence_theta_min=sc.Quantity(0.,'rad'),
-               incidence_theta_max=sc.Quantity(0.,'rad'),
-               incidence_theta_data=None,
-               incidence_phi_min=sc.Quantity(0.,'rad'),
-               incidence_phi_max=sc.Quantity(2*np.pi,'rad'),
-               incidence_phi_data=None,
-               plot_initial=False,
-               spot_size=sc.Quantity('1.0 um'),
-               sample_diameter=None,
-               coarse_roughness=0.,
-               coherent=False,
-               polarized=True,
-               fields=False):
-    """Sets the trajectories' initial conditions (position, direction, weight,
-    and polarization if set to True).
-    The initial positions are determined randomly in the x-y plane.
-
-    If boundary is a sphere, the initial z-positions are confined to the
-    surface of a sphere. If boundary is a film, the initial z-positions are set
-    to zero.
-
-    If incidence_theta_min and incidence_theta_max are both set to 0, the
-    initial propagation direction is set to be 1 at z, meaning that the photon
-    packets point straight down in z. The initial directions are corrected for
-    refraction, for either type of boundary and for any incidence angle.
-
-    Notes
-    -----
-    For sphere boundary, incidence angle currently must be 0
-
-    Parameters
-    ----------
-    nevents: int
-        Number of scattering events
-    ntraj: int
-        Number of trajectories
-    n_medium : `xr.DataArray`
-        Refractive index of the medium, as output from an `sc.Index` object
-    n_sample: `xr.DataArray`
-        Refractive index of the sample, as output from an `sc.Index` object
-    boundary: string
-        Geometrical boundary for Monte Carlo calculations. Current options are
-        'film' or 'sphere'
-    rng: numpy.random.Generator object (default None) random number generator.
-        If not specified, use the default generator initialized on loading the
-        package
-    incidence_theta_min: float (structcol.Quantity [angle])
-        Minimum value for theta when it incides onto the sample.
-        Should be >= 0 and < pi/2.
-    incidence_theta_max: float (structcol.Quantity [angle])
-        Maximum value for theta when it incides onto the sample.
-        Should be >= 0 and < pi/2.
-    incidence_theta_data: array (structcol.Quantity [angle]) (optional)
-        Array of values for the incident theta for each trajectory. Length of
-        the array must therefore be the same as number of trajectories. If
-        None, the code will randomly sample theta angles from a uniform
-        distribution between incidence_theta_min and incidence_theta_max. If
-        user does not specify units, values must be in radians.
-    incidence_phi_min: float (structcol.Quantity [angle])
-        Minimum value for phi when it incides onto the sample.
-        Should be >= 0 and <= pi.
-    incidence_phi_max: float (structcol.Quantity [angle])
-        Maximum value for phi when it incides onto the sample.
-        Should be >= 0 and <= pi.
-    incidence_phi_data: array (structcol.Quantity [angle]) (optional)
-        Array of values for the incident phi for each trajectory. Length of
-        the array must therefore be the same as number of trajectories. If
-        None, the code will randomly sample phi angles from a uniform
-        distribution between incidence_phi_min and incidence_phi_max.  If
-        user does not specify units, values must be in radians.
-    plot_initial: boolean
-        If plot_initial is set to True, function will create a 3d plot showing
-        initial positions and directions of trajectories before entering the
-        sphere and directly after refraction correction upon entering the
-        sphere.
-    spot_size: float (structcol.Quantity [length])
-        For film sample, side length of a square spot size. For sphere sample
-        diameter of a circular spot size.
-    sample_diameter: None or float (None type or structcol.Quantity [length])
-        Diameter of the sample. Default is None. Should be None if sample
-        geometry is a film. Should be float equal to the sphere diameter if
-        sample is a sphere.
-    coarse_roughness : float (can be structcol.Quantity [dimensionless])
-        Coarse surface roughness should be included when the roughness is large
-        on the scale of the wavelength of light. This means that light
-        encounters a locally smooth surface that has a slope relative to the
-        z=0 plane. Then the model corrects the Fresnel reflection and
-        refraction to account for the different angles of incidence due to the
-        roughness. The coarse_roughness parameter is the rms slope of the
-        surface. If included, it should be larger than 0. There is no upper
-        bound, but when the coarse roughness tends to infinity, the surface
-        becomes too "spiky" and light can no longer hit it, which reduces the
-        reflectance down to 0.
-    fields: boolean
-        If True, also returns the initial fields of trajectories
-    coherent: boolean
-        If True, assumes the intial relative phases between trajectories are
-        zero. If coherent is set to True while fields is set to False, then the
-        coherent value is ignored, since there can be no coherence without
-        taking into account the fields.
-
-    Returns
-    -------
-    position : `xr.DataArray`
-        Trajectory positions. Has shape (..., 3, number of events + 1, number
-        of trajectories). r0[..., 0,0,:] contains random x-positions within a
-        circle on the x-y plane whose radius is the sphere radius. r0[..., 1,
-        0, :] contains random y-positions within the same circle on the x-y
-        plane. r0[..., 2, 0, :] contains z-positions on the top hemisphere at
-        the sphere boundary. The rest of the elements are initialized to zero.
-    direction : `xr.DataArray`
-        Initial direction of propagation. Has shape (..., 3, number of events,
-        number of trajectories). k0[..., 0,:,:] and k0[..., 1,:,:] are
-        initialized to zero, and k0[..., 2,0,:] is initalized to 1.
-    weight : `xr.DataArray`
-        Initial weight. Has shape of (..., number of events, number of
-        trajectories).  Note that the packet weight represents the fraction of
-        that particular packet that is propagated through the sample. It does
-        not represent the packet's weight relative to other photons. The
-        weight array is initialized to 1 because we start with the full
-        weight of the initial photons. If you want to make the relative
-        weights of photons different, you would need to introduce a new
-        variable (e.g., relative intensity), NOT change the intialization
-        of the weights array.
-    kz0_rot : `xr.DataArray`
-        Initial z-directions that are rotated to account for the fact that
-        coarse surface roughness changes the angle of incidence of light. Thus
-        these are the incident z-directions relative to the local normal to the
-        surface. The array size is (1, ntraj). Only returned if
-        coarse_roughness is set to > 0.
-    kz0_refl : `xr.DataArray`
-        z-directions of the Fresnel reflected light after it hits the sample
-        surface for the first time. These directions are in the global
-        coordinate system. The array size is (1, ntraj). Only returned if
-        coarse_roughness is set to > 0.
-
-    Reference
-    ---------
-    B. van Ginneken, M. Stavridi, J. J. Koenderink, “Diffuse and specular
-    reflectance from rough surfaces”, Applied Optics, 37, 1 (1998) (has
-    definition of rsm slope of the surface).
-
-    """
-    if rng is None:
-        rng = sc.rng
-
-    # get the spot size magnitude to multiply by initial x and y positions
-    spot_size_magnitude = spot_size.to_preferred().magnitude
-
-    if boundary == 'film':
-        # raise error if user inputs a value for sphere diameter
-        if sample_diameter is not None:
-            raise ValueError('for film geometry, sample_diameter must be set\
-                             to None')
-        # randomly choose positions on interval [0,1] for x and y
-        r0 = rng.random((2, ntraj))
-        # set z coordinate to 0 for initial position
-        r0 = np.concatenate([r0, np.zeros((1, ntraj))])
-
-        # initialize the incident angles theta and phi. The user can input
-        # data or sample randomly from a uniform distribution between a min and
-        # a max incident angles.
-        if incidence_theta_data is not None:
-            if len(incidence_theta_data) != ntraj:
-                raise ValueError('length of incidence_theta_data must be equal\
-                to number of trajectories')
-            theta = incidence_theta_data
-        else:
-            incidence_theta_min = incidence_theta_min.to('rad').magnitude
-            incidence_theta_max = incidence_theta_max.to('rad').magnitude
-            theta = rng.uniform(incidence_theta_min, incidence_theta_max,
-                                ntraj)
-
-        if incidence_phi_data is not None:
-            if len(incidence_phi_data) != ntraj:
-                raise ValueError("length of incidence_phi_data must be equal "
-                                 "to number of trajectories")
-            phi = incidence_phi_data
-        else:
-            incidence_phi_min = incidence_phi_min.to('rad').magnitude
-            incidence_phi_max = incidence_phi_max.to('rad').magnitude
-            phi = rng.uniform(incidence_phi_min, incidence_phi_max, ntraj)
-
-        sinphi = np.sin(phi)
-        cosphi = np.cos(phi)
-
-    elif boundary == 'sphere':
-        # raise error if user forgets to input a value for the sphere diameter
-        if sample_diameter is None:
-            raise ValueError("for sphere geometry, sample_diameter must be "
-                             "a physical quantity, not None")
-
-        if isinstance(sample_diameter, sc.Quantity):
-            sample_radius = sample_diameter.to_preferred().magnitude/2
-        else:
-            sample_radius = sample_diameter/2
-
-        # randomly choose r on interval [0,1] and multiply by spot size radius
-        r = np.sqrt(rng.random(ntraj)) * spot_size_magnitude/2
-
-        # randomly choose th on interval [0,2*pi]
-        th = 2*np.pi*rng.random(ntraj)
-
-        # convert to x and y, so that the points are randomly distributed
-        # across the cross sectional area of the sphere
-        # for details, see: https://mathworld.wolfram.com/DiskPointPicking.html
-        x = r * np.cos(th)
-        y = r * np.sin(th)
-        # calculate z-positions from x- and y-positions
-        z = sample_radius - np.sqrt(sample_radius**2 - x**2 - y**2)
-        r0 = np.array([x, y, z])
-
-        # find the minus normal vectors of the sphere at the initial positions
-        r0_magnitude = np.sqrt(x**2 + y**2 + (z - sample_radius)**2)
-        # neg_normal should have shape [3, ntraj]
-        neg_normal = np.array([-x / r0_magnitude,
-                               -y / r0_magnitude,
-                               -(z - sample_radius)/r0_magnitude])
-        # solve for theta and phi for these samples
-        theta = np.arccos(neg_normal[2])
-        cosphi, sinphi = neg_normal[0:-1] / np.sin(theta)
-
-    else:
-        raise ValueError("boundary must be of type 'film' or 'sphere'")
-
-    # Set up position DataArray.  Shape is (..., 3, nevents+1, ntrajectories).
-    # The last entry is the position after the final event
-    position = xr.DataArray(0.0, dims=["component", "event", "trajectory"],
-                            coords = {"component": ["x", "y", "z"],
-                                      "event": range(nevents+1),
-                                      "trajectory": range(ntraj)})
-    # set initial position
-    position.loc[dict(event=0)] = r0
-    # add dimensions and coords from refractive index (includes wavelength)
-    position = position.expand_dims(n_sample.coords)
-
-    # If there is no coarse roughness (e.g. surface is flat)
-    if coarse_roughness == 0:
-        # Refraction of incident light upon entering the sample
-        theta = refraction(theta, n_medium, n_sample)
-        theta = theta.rename({"dim_0": "trajectory"})
-        theta.coords["trajectory"] = range(ntraj)
-    else:
-        theta = xr.DataArray(theta, coords={"trajectory": range(ntraj)})
-        theta = theta.expand_dims(n_sample.coords)
-
-    sintheta = np.sin(theta)
-    costheta = np.cos(theta)
-
-    # calculate new directions using refracted theta and initial phi
-    kx, ky, kz = (sintheta * cosphi), (sintheta * sinphi), costheta
-    k0 = xr.concat([kx, ky, kz], dim = "component")
-    k0.coords["component"] = ["x", "y", "z"]
-
-    # set up direction DataArray. Shape is (..., 3, nevents, ntrajectories).
-    # Should have one fewer entry than position DataArray because we don't
-    # track direction after the last event.
-    direction = xr.zeros_like(position.isel(dict(event=slice(0, -1))))
-    direction.loc[dict(event=0)] = k0
-
-    # as noted in docstring, weights are set to 1 for the first event.  The
-    # remaining 1s in the array will be overwritten during the simulation
-    weight = xr.ones_like(position.sel(component='x', drop=True))
-
-    if coarse_roughness == 0:
-        # plot the initial positions and directions of the trajectories
-        if plot_initial and (boundary == 'sphere'): # pragma: no cover
-            fig = plt.figure()
-            ax = fig.add_subplot(111, projection='3d')
-            ax.set_xlabel('x')
-            ax.set_ylabel('y')
-            ax.set_zlabel('z')
-            ax.set_ylim([-sample_radius, sample_radius])
-            ax.set_xlim([-sample_radius, sample_radius])
-            ax.set_zlim([0, sample_radius])
-            ax.set_title('Initial Positions')
-            ax.view_init(-164,-155)
-            X, Y, Z, U, V, W = [x, y, z, kx, ky, kz]
-            ax.quiver(X, Y, Z, U, V, W, color = 'g')
-
-            X, Y, Z, U, V, W = [x, y, z, np.zeros(ntraj), np.zeros(ntraj),
-                                np.ones(ntraj)]
-            ax.quiver(X, Y, Z, U, V, W)
-
-            # draw wireframe hemisphere
-            u, v = np.mgrid[0:2*np.pi:20j, np.pi/2:0:10j]
-            x = sample_radius*np.cos(u)*np.sin(v)
-            y = sample_radius*np.sin(u)*np.sin(v)
-            z = sample_radius-sample_radius*np.cos(v)
-            ax.plot_wireframe(x, y, z, color=[0.8,0.8,0.8])
-
-        init_traj_props = [position, direction, weight]
-
-    # if the surface has coarse roughness
-    else:
-        direction, kz0_rot, kz0_refl = coarse_roughness_enter(direction,
-                                                              n_medium,
-                                                              n_sample,
-                                                              coarse_roughness,
-                                                              boundary,
-                                                              rng=rng)
-        init_traj_props = [position, direction, weight, kz0_rot, kz0_refl]
-
-    if fields:
-        # The field is initialized with nevents+1 because we want to save
-        # the value of the field from before the photon enters the sample.
-        # Shape should be [3, nevents+1, ntraj)]
-        fields = xr.DataArray(0.0 + 0j,
-                              dims = ["component", "event", "trajectory"],
-                              coords = {"component": ["x", "y", "z"],
-                                        "event": range(nevents+1),
-                                        "trajectory": range(ntraj)})
-        # initialize for unpolarized, incoherent light
-        if coherent:
-            phase = np.zeros((2,ntraj))
-        else:
-            phase = rng.random((2, ntraj))*2*np.pi
-        if polarized:
-            fields.sel(event=0).loc["x"] = np.exp(phase[0]*1j)
-        else:
-            fields.sel(event=0).loc["x":"y"] = np.exp(phase*1j)
-
-        fields.loc[dict(event=0)] = normalize(*fields.sel(event=0))
-
-        # first step into the sample is same
-        fields.loc[dict(event=1)] = fields.sel(event=0)
-        init_traj_props.append(fields)
-
-    return init_traj_props
 
 
 def calc_scat(model, wavelen,

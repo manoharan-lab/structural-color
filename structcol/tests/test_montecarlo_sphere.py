@@ -54,8 +54,13 @@ def test_trajectories():
     # generator.
     nevents = 2
     ntrajectories = 3
-    r0, k0, W0 = mc.initialize(nevents, ntrajectories, n_matrix, n_sample,
-                               'sphere', sample_diameter=sc.Quantity('1.0 um'))
 
     # Create a Trajectory object
-    trajectories = mc.Trajectory(r0, k0, W0)
+    trajectories = mc.Trajectory.initialize(nevents, ntrajectories, n_matrix,
+                                            n_sample,
+                                            'sphere',
+                                            sample_diameter =
+                                            sc.Quantity('1.0 um'))
+
+    trajectories = mc.Trajectory(trajectories.position, trajectories.direction,
+                                 trajectories.weight)

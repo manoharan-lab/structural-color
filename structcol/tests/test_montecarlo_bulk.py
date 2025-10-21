@@ -95,13 +95,12 @@ def calc_sphere_mc():
     p, mu_scat, mu_abs = mc.calc_scat(model, wavelength)
 
     # Initialize the trajectories
-    r0, k0, W0 = mc.initialize(nevents, ntrajectories, n_matrix_bulk, n_sample,
-                               boundary,
-                               sample_diameter = sphere_boundary_diameter,
-                               rng=rng)
-
-    # Create trajectories object
-    trajectories = mc.Trajectory(r0, k0, W0)
+    trajectories = mc.Trajectory.initialize(nevents, ntrajectories,
+                                            n_matrix_bulk, n_sample,
+                                            boundary,
+                                            sample_diameter =
+                                            sphere_boundary_diameter,
+                                            rng=rng)
 
     # Generate a matrix of all the randomly sampled angles first
     sintheta, costheta, sinphi, cosphi, _, _ = mc.sample_angles(nevents,

@@ -77,11 +77,10 @@ def test_trajectories():
     # Initialize runs
     nevents = 2
     ntrajectories = 3
-    r0, k0, W0 = mc.initialize(nevents, ntrajectories, n_medium, n_sample,
-                               'film')
 
     # Create a Trajectory object
-    trajectories = mc.Trajectory(r0, k0, W0)
+    trajectories = mc.Trajectory.initialize(nevents, ntrajectories, n_medium,
+                                            n_sample, 'film')
 
     # Test the absorb function
     mu_abs = 1/sc.Quantity(10.0, 'um')
@@ -93,9 +92,9 @@ def test_trajectories():
     # since step size is given (not sampled), this test should produce a
     # deterministic result
     assert_almost_equal(trajectories.weight.squeeze(drop=True).to_numpy(),
-                 np.array([[ 1.0, 1.0, 1.0],
-                           [ 0.90483742,  0.90483742,  0.90483742],
-                           [ 0.81873075,  0.81873075,  0.81873075]]))
+                        np.array([[ 1.0, 1.0, 1.0],
+                                  [ 0.90483742,  0.90483742,  0.90483742],
+                                  [ 0.81873075,  0.81873075,  0.81873075]]))
 
     # Make up some test theta and phi. Note that event 0 is assumed to be
     # propagation straight into the film, so we specify only event 1

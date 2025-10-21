@@ -273,13 +273,18 @@ def test_surface_roughness_mc():
     p, mu_scat, mu_abs = mc.calc_scat(model, wavelen,
                                       fine_roughness=fine_roughness)
 
-    r0, k0, W0, kz0_rotated, kz0_reflected = \
-        mc.initialize(nevents, ntrajectories, n_medium, n_sample, boundary,
-                      rng=rng, incidence_theta_min = incidence_theta_min,
-                      incidence_theta_max = incidence_theta_max,
-                      incidence_phi_min = incidence_phi_min,
-                      incidence_phi_max = incidence_phi_max,
-                      coarse_roughness=coarse_roughness)
+    trajectories = mc.Trajectory.initialize(nevents, ntrajectories, n_medium,
+                                            n_sample, boundary,
+                                            rng=rng,
+                                            incidence_theta_min =
+                                            incidence_theta_min,
+                                            incidence_theta_max =
+                                            incidence_theta_max,
+                                            incidence_phi_min =
+                                            incidence_phi_min,
+                                            incidence_phi_max =
+                                            incidence_phi_max,
+                                            coarse_roughness = coarse_roughness)
 
     sintheta, costheta, sinphi, cosphi, _, _ = mc.sample_angles(nevents,
                                                                 ntrajectories,
@@ -289,7 +294,6 @@ def test_surface_roughness_mc():
     step = mc.sample_step(nevents, ntrajectories, mu_scat,
                           fine_roughness=fine_roughness, rng=rng)
 
-    trajectories = mc.Trajectory(r0, k0, W0)
     trajectories.absorb(mu_abs, step)
     trajectories.scatter(sintheta, costheta, sinphi, cosphi)
     trajectories.move(step)
@@ -297,8 +301,9 @@ def test_surface_roughness_mc():
     cutoff = sc.Quantity('50 um')
 
     trajectories = mc.QtyTrajectory(trajectories)
-    kz0_rotated = sc.Quantity(kz0_rotated.to_numpy(), '')
-    kz0_reflected = sc.Quantity(kz0_reflected.to_numpy(), '')
+    kz0_rotated = trajectories.kz0_rot
+    kz0_reflected = trajectories.kz0_refl
+
     # If there is coarse roughness, need to specify kz0_rotated and
     # kz0_reflected.
     with pytest.warns(UserWarning):
@@ -829,9 +834,9 @@ def test_detectors_mc():
                                  index_medium)
     p, mu_scat, mu_abs = mc.calc_scat(model, wavelength)
 
-    # Initialize the trajectories
-    r0, k0, W0 = mc.initialize(nevents, ntrajectories, n_medium, n_sample,
-                               boundary, rng=rng)
+    # Create trajectories object and initialize
+    trajectories = mc.Trajectory.initialize(nevents, ntrajectories, n_medium,
+                                            n_sample, boundary, rng=rng)
 
     # Generate a matrix of all the randomly sampled angles first
     sintheta, costheta, sinphi, cosphi, _, _ = mc.sample_angles(nevents,
@@ -840,9 +845,6 @@ def test_detectors_mc():
 
     # Create step size distribution
     step = mc.sample_step(nevents, ntrajectories, mu_scat, rng=rng)
-
-    # Create trajectories object
-    trajectories = mc.Trajectory(r0, k0, W0)
 
     # Run photons
     trajectories.absorb(mu_abs, step)
@@ -881,11 +883,11 @@ def test_detectors_mc():
     with pytest.warns(UserWarning):
         R, _ = det.calc_refl_trans(trajectories, thickness, n_medium, n_sample,
                                    boundary,
-                                    detector = detector,
-                                    det_theta = det_theta,
-                                    det_len = det_len,
-                                    det_dist = det_dist,
-                                    plot_detector = False)
+                                   detector = detector,
+                                   det_theta = det_theta,
+                                   det_len = det_len,
+                                   det_dist = det_dist,
+                                   plot_detector = False)
 
     R_expected = 0.028071349010350494
 
@@ -983,19 +985,13 @@ def calc_montecarlo(model, nevents, ntrajectories, wavelen, seed,
                                       fine_roughness=fine_roughness)
 
 
-    if coarse_roughness > 0.:
-        r0, k0, W0, kz0_rotated, kz0_reflected = \
-            mc.initialize(nevents, ntrajectories, n_medium, n_sample, 'film',
-                          rng=rng, coarse_roughness=coarse_roughness,
-                          incidence_theta_min=incidence_theta_min,
-                          incidence_theta_max=incidence_theta_max)
-    else:
-        r0, k0, W0 = mc.initialize(nevents, ntrajectories, n_medium, n_sample,
-                                   'film', rng=rng,
-                                   incidence_theta_min=incidence_theta_min,
-                                   incidence_theta_max=incidence_theta_max)
-        kz0_rotated = None
-        kz0_reflected = None
+    trajectories = mc.Trajectory.initialize(nevents, ntrajectories, n_medium,
+                                            n_sample, 'film', rng=rng,
+                                            coarse_roughness=coarse_roughness,
+                                            incidence_theta_min =
+                                            incidence_theta_min,
+                                            incidence_theta_max =
+                                            incidence_theta_max)
 
     sintheta, costheta, sinphi, cosphi, _, _= mc.sample_angles(nevents,
                                                                ntrajectories,
@@ -1003,7 +999,6 @@ def calc_montecarlo(model, nevents, ntrajectories, wavelen, seed,
     step = mc.sample_step(nevents, ntrajectories, mu_scat,
                           fine_roughness=fine_roughness, rng=rng)
 
-    trajectories = mc.Trajectory(r0, k0, W0)
     trajectories.absorb(mu_abs, step)
     trajectories.scatter(sintheta, costheta, sinphi, cosphi)
     trajectories.move(step)
@@ -1015,14 +1010,10 @@ def calc_montecarlo(model, nevents, ntrajectories, wavelen, seed,
     # tir correction is based only on sample index)
     trajectories = mc.QtyTrajectory(trajectories)
 
-    if kz0_rotated is not None:
-        kz0_rotated = sc.Quantity(kz0_rotated.to_numpy(), '')
-    if kz0_reflected is not None:
-        kz0_reflected = sc.Quantity(kz0_reflected.to_numpy(), '')
     with pytest.warns(UserWarning):
         R, T = det.calc_refl_trans(trajectories, cutoff, n_medium, n_sample,
-                                   'film', kz0_rot=kz0_rotated,
-                                   kz0_refl=kz0_reflected)
+                                   'film', kz0_rot=trajectories.kz0_rot,
+                                   kz0_refl=trajectories.kz0_refl)
 
     return R, T
 

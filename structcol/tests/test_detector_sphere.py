@@ -255,10 +255,12 @@ def test_reflection_sphere_mc():
     p, mu_scat, mu_abs = mc.calc_scat(model, wavelen)
 
     # Initialize the trajectories for a sphere
-    r0, k0, W0 = mc.initialize(nevents, ntrajectories, n_medium, n_sample,
-                               boundary, plot_initial = False,
-                               sample_diameter = assembly_diameter,
-                               spot_size = assembly_diameter, rng=rng)
+    trajectories = mc.Trajectory.initialize(nevents, ntrajectories, n_medium,
+                                            n_sample, boundary,
+                                            plot_initial = False,
+                                            sample_diameter = assembly_diameter,
+                                            spot_size = assembly_diameter,
+                                            rng=rng)
 
     # Generate a matrix of all the randomly sampled angles first
     sintheta, costheta, sinphi, cosphi, _, _ = mc.sample_angles(nevents,
@@ -268,8 +270,6 @@ def test_reflection_sphere_mc():
     # Create step size distribution
     step = mc.sample_step(nevents, ntrajectories, mu_scat, rng=rng)
 
-    # Create trajectories object
-    trajectories = mc.Trajectory(r0, k0, W0)
 
     # Run photons
     trajectories.absorb(mu_abs, step)
@@ -369,13 +369,11 @@ def test_multiscale_mc():
         p, mu_scat, mu_abs = mc.calc_scat(model, wavelengths[i])
 
         # Initialize the trajectories
-        r0, k0, W0 = mc.initialize(nevents, ntrajectories,
-                                   n_m, n_s, boundary,
-                                   sample_diameter = sphere_boundary_diameter,
-                                   rng=rng)
-
-        # Create trajectories object
-        trajectories = mc.Trajectory(r0, k0, W0)
+        trajectories = mc.Trajectory.initialize(nevents, ntrajectories,
+                                                n_m, n_s, boundary,
+                                                sample_diameter =
+                                                sphere_boundary_diameter,
+                                                rng=rng)
 
         # Generate a matrix of all the randomly sampled angles first
         sintheta, costheta, sinphi, cosphi, _, _ = \
@@ -460,9 +458,10 @@ def test_multiscale_mc():
         n_med = n_medium.isel(wavelength=[i])
         n_mat = n_matrix_bulk.isel(wavelength=[i])
         # Initialize the trajectories
-        r0, k0, W0 = mc.initialize(nevents_bulk, ntrajectories_bulk,
-                                   n_med, n_mat,
-                                   boundary_bulk, rng=rng)
+        trajectories = mc.Trajectory.initialize(nevents_bulk,
+                                                ntrajectories_bulk,
+                                                n_med, n_mat,
+                                                boundary_bulk, rng=rng)
 
         # Sample angles
         sintheta, costheta, sinphi, cosphi, _, _ = \
@@ -474,9 +473,6 @@ def test_multiscale_mc():
         # from step size sampling, so 0 is entered here
         step = mc.sample_step(nevents_bulk, ntrajectories_bulk,
                               mu_scat_bulk[i], rng=rng)
-
-        # Create trajectories object
-        trajectories = mc.Trajectory(r0, k0, W0)
 
         # Run photons
         trajectories.scatter(sintheta, costheta, sinphi, cosphi)
@@ -592,13 +588,13 @@ def test_multiscale_polydispersity_mc():
             p, mu_scat, mu_abs = mc.calc_scat(model, wavelengths[i])
 
             # Initialize the trajectories
-            r0, k0, W0 = mc.initialize(nevents, ntrajectories,
-                                       n_m, n_s,
-                                       boundary, sample_diameter =
-                                       sphere_boundary_diameters[j], rng=rng)
+            trajectories = mc.Trajectory.initialize(nevents, ntrajectories,
+                                                    n_m, n_s,
+                                                    boundary,
+                                                    sample_diameter =
+                                                    sphere_boundary_diameters[j],
+                                                    rng=rng)
 
-            # Create trajectories object
-            trajectories = mc.Trajectory(r0, k0, W0)
 
             # Generate a matrix of all the randomly sampled angles first
             sintheta, costheta, sinphi, cosphi, _, _ = \
@@ -659,9 +655,10 @@ def test_multiscale_polydispersity_mc():
         n_med = n_medium.isel(wavelength=[i])
         n_mat = n_matrix_bulk.isel(wavelength=[i])
         # Initialize the trajectories
-        r0, k0, W0 = mc.initialize(nevents_bulk, ntrajectories_bulk,
-                                   n_med, n_mat,
-                                   boundary_bulk, rng=rng)
+        trajectories = mc.Trajectory.initialize(nevents_bulk,
+                                                ntrajectories_bulk,
+                                                n_med, n_mat,
+                                                boundary_bulk, rng=rng)
 
         # Sample angles and calculate step size based on sampled radii
         sintheta, costheta, sinphi, cosphi, step, _, _ = \
@@ -672,8 +669,6 @@ def test_multiscale_polydispersity_mc():
                                         param_list =
                                         sphere_boundary_diameters, rng=rng)
 
-        # Create trajectories object
-        trajectories = mc.Trajectory(r0, k0, W0)
 
         # Run photons. Note: polydisperse absorption does not currently work in
         # the bulk so we arbitrarily use index 0, assuming that all scattering
@@ -775,12 +770,11 @@ def test_multiscale_color_mixing_mc():
             n_mat = n_matrix_bulk.isel(wavelength=[i])
             p, mu_scat, mu_abs = mc.calc_scat(model, wavelengths[i])
 
-            r0, k0, W0 = mc.initialize(nevents, ntrajectories,
-                                       n_mat, n_sample, boundary,
-                                       sample_diameter =
-                                       sphere_boundary_diameter, rng=rng)
-
-            trajectories = mc.Trajectory(r0, k0, W0)
+            trajectories = mc.Trajectory.initialize(nevents, ntrajectories,
+                                                    n_mat, n_sample, boundary,
+                                                    sample_diameter =
+                                                    sphere_boundary_diameter,
+                                                    rng=rng)
 
             sintheta, costheta, sinphi, cosphi, _, _ = \
                 mc.sample_angles(nevents, ntrajectories, p, rng=rng)
@@ -833,9 +827,10 @@ def test_multiscale_color_mixing_mc():
         n_med = n_medium.isel(wavelength=[i])
         n_mat = n_matrix_bulk.isel(wavelength=[i])
         # Initialize the trajectories
-        r0, k0, W0 = mc.initialize(nevents_bulk, ntrajectories_bulk,
-                                   n_med, n_mat,
-                                   boundary_bulk, rng=rng)
+        trajectories = mc.Trajectory.initialize(nevents_bulk,
+                                                ntrajectories_bulk,
+                                                n_med, n_mat,
+                                                boundary_bulk, rng=rng)
 
         (sintheta, costheta, sinphi, cosphi, step, _, _) = \
             pfs.sample_angles_step_poly(nevents_bulk, ntrajectories_bulk,
@@ -843,10 +838,6 @@ def test_multiscale_color_mixing_mc():
                                         sphere_type_sampled,
                                         mu_scat_bulk[:,i],
                                         rng=rng)
-
-
-        # Create trajectories object
-        trajectories = mc.Trajectory(r0, k0, W0)
 
         # Run photons
         # Note: we assume that all scattering events

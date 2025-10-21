@@ -69,10 +69,9 @@ def test_2pi_shift():
     p, mu_scat, mu_abs = mc.calc_scat(model, wavelength, fields=True)
 
     # Initialize trajectories
-    r0, k0, W0, E0 = mc.initialize(nevents, ntrajectories, n_medium, n_sample, boundary,
-                                   fields=True)
-
-    trajectories = mc.Trajectory(r0, k0, W0, fields=E0)
+    trajectories = mc.Trajectory.initialize(nevents, ntrajectories, n_medium,
+                                            n_sample, boundary,
+                                            fields=True)
 
     # Sample trajectory angles
     sintheta, costheta, sinphi, cosphi, theta, phi = mc.sample_angles(nevents,
@@ -232,11 +231,9 @@ def test_field_normalized():
     p, mu_scat, mu_abs = mc.calc_scat(model, wavelength, fields=True)
 
     # Initialize trajectories
-    r0, k0, W0, E0 = mc.initialize(nevents, ntrajectories, n_medium, n_sample,
-                                   boundary, fields=True)
-
-    trajectories = mc.Trajectory(r0, k0, W0, fields=E0)
-
+    trajectories = mc.Trajectory.initialize(nevents, ntrajectories, n_medium,
+                                            n_sample,
+                                            boundary, fields=True)
 
     # Sample trajectory angles
     sintheta, costheta, sinphi, cosphi, theta, phi= mc.sample_angles(nevents,
@@ -307,11 +304,9 @@ def test_field_perp_direction():
     p, mu_scat, mu_abs = mc.calc_scat(model, wavelength, fields=True)
 
     # Initialize trajectories
-    r0, k0, W0, E0 = mc.initialize(nevents, ntrajectories, n_medium, n_sample,
-                                   boundary, fields=True)
-
-    trajectories = mc.Trajectory(r0, k0, W0, fields = E0)
-
+    trajectories = mc.Trajectory.initialize(nevents, ntrajectories, n_medium,
+                                            n_sample,
+                                            boundary, fields=True)
 
     # Sample trajectory angles
     sintheta, costheta, sinphi, cosphi, theta, phi =\
@@ -382,12 +377,10 @@ def test_field_reflectance_mc():
     p, mu_scat, mu_abs = mc.calc_scat(model, wavelength, fields=True)
 
     # Initialize trajectories
-    r0, k0, W0, E0 = mc.initialize(nevents, ntrajectories,
-                                   n_medium, n_sample, boundary,
-                                   coherent=False,
-                                   fields=True, rng=rng)
-
-    trajectories = mc.Trajectory(r0, k0, W0, fields=E0)
+    trajectories = mc.Trajectory.initialize(nevents, ntrajectories,
+                                            n_medium, n_sample, boundary,
+                                            coherent=False,
+                                            fields=True, rng=rng)
 
     # Sample trajectory angles
     sintheta, costheta, sinphi, cosphi, theta, phi = \
@@ -487,11 +480,10 @@ def test_field_co_cross_mc():
         p, mu_scat, mu_abs = mc.calc_scat(model, wavelengths[i], fields=True)
 
         # Initialize trajectories
-        r0, k0, W0, E0 = mc.initialize(nevents, ntrajectories, n_medium[i],
-                                       n_sample, boundary, fields=True,
-                                       coherent=False, rng=rng)
-
-        trajectories = mc.Trajectory(r0, k0, W0, E0)
+        trajectories = mc.Trajectory.initialize(nevents, ntrajectories,
+                                                n_medium[i], n_sample,
+                                                boundary, fields=True,
+                                                coherent=False, rng=rng)
 
         sintheta, costheta, sinphi, cosphi, theta, phi =\
             mc.sample_angles(nevents, ntrajectories, p, rng=rng)

@@ -359,13 +359,13 @@ def test_structure_factor_data_reflectances():
 
         n_sample = index_sample_eff(wavelengths[i])
 
-        r0, k0, W0 = mc.initialize(nevents, ntrajectories, n_medium[i],
-                                   n_sample, boundary, rng=rng)
+        trajectories = mc.Trajectory.initialize(nevents, ntrajectories,
+                                                n_medium[i],
+                                                n_sample, boundary, rng=rng)
 
         sintheta, costheta, sinphi, cosphi, _, _ = \
             mc.sample_angles(nevents, ntrajectories, p, rng=rng)
         step = mc.sample_step(nevents, ntrajectories, mu_scat, rng=rng)
-        trajectories = mc.Trajectory(r0, k0, W0)
 
         trajectories.absorb(mu_abs, step)
         trajectories.scatter(sintheta, costheta, sinphi, cosphi)

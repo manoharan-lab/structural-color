@@ -79,8 +79,9 @@ seed = 1
 rng = np.random.RandomState([seed])
 
 # Initialize the trajectories
-r0, k0, W0 = mc.initialize(nevents, ntrajectories, n_medium, n_sample,
-                           boundary, rng=rng)
+trajectories = mc.Trajectory.initialize(nevents, ntrajectories,
+                                        n_medium, n_sample,
+                                        boundary, rng=rng)
 
 # Generate a matrix of all the randomly sampled angles first
 sintheta, costheta, sinphi, cosphi, theta, _ = mc.sample_angles(nevents,
@@ -89,9 +90,6 @@ sintheta, costheta, sinphi, cosphi, theta, _ = mc.sample_angles(nevents,
 
 # Create step size distribution
 step = mc.sample_step(nevents, ntrajectories, mu_scat, rng=rng)
-
-# Create trajectories object
-trajectories = mc.Trajectory(r0, k0, W0)
 
 # Run photons
 trajectories.absorb(mu_abs, step)
@@ -454,8 +452,9 @@ def test_event_distribution_wavelength_mc():
         p[i,:], mu_scat, mu_abs = mc.calc_scat(model, wavelengths[i])
         lscat[i] = 1/mu_scat.magnitude # microns
 
-        r0, k0, W0 = mc.initialize(nevents, ntrajectories, n_medium[i],
-                                   n_sample, boundary, rng=rng)
+        trajectories = mc.Trajectory.initialize(nevents, ntrajectories,
+                                                n_medium[i], n_sample,
+                                                boundary, rng=rng)
 
         ######################################################################
         # Generate a matrix of all the randomly sampled angles first
@@ -468,9 +467,6 @@ def test_event_distribution_wavelength_mc():
 
         # Create step size distribution
         step = mc.sample_step(nevents, ntrajectories, mu_scat, rng=rng)
-
-        # Create trajectories object
-        trajectories = mc.Trajectory(r0, k0, W0)
 
         # Run photons
         trajectories.absorb(mu_abs, step)
@@ -563,8 +559,9 @@ def test_event_distribution_angle_mc():
     lscat = 1/mu_scat.magnitude
 
     # Initialize the trajectories
-    r0, k0, W0 = mc.initialize(nevents, ntrajectories, n_medium, n_sample,
-                               boundary, rng=rng)
+    trajectories0 = mc.Trajectory.initialize(nevents, ntrajectories,
+                                             n_medium, n_sample,
+                                             boundary, rng=rng)
 
     # Create step size distribution
     step = mc.sample_step(nevents, ntrajectories, mu_scat, rng=rng)
@@ -585,7 +582,9 @@ def test_event_distribution_angle_mc():
         costheta = xr.DataArray(np.cos(theta), coords=sintheta.coords)
 
         # Create trajectories object
-        trajectories = mc.Trajectory(r0, k0, W0)
+        trajectories = mc.Trajectory(trajectories0.position,
+                                     trajectories0.direction,
+                                     trajectories0.weight)
 
         # Run photons
         trajectories.absorb(mu_abs, step)
