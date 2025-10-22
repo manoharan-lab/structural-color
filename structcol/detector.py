@@ -515,7 +515,6 @@ def fresnel_pass_frac(indices, n_before, n_inside, n_after, boundary,
 
 
     '''
-
     # Allow single interface by passing in None as n_inside.
     if n_inside is None:
         n_inside = n_before
@@ -1788,15 +1787,16 @@ def calc_refl_trans(trajectories, thickness, n_medium, n_sample, boundary,
     """
 
     # until this function is refactored to use xarray, convert all indices to
-    # numpy arrays
+    # numpy arrays, but retain original DataArrays
     if isinstance(n_medium, xr.DataArray):
-        n_medium = n_medium.to_numpy()
+        n_med = n_medium.to_numpy()
     if isinstance(n_sample, xr.DataArray):
         # drop VOLFRAC dimension, which will be included in all effective index
         # calculations.
-        if sc.Coord.VOLFRAC in n_sample.coords:
-            n_sample = n_sample.isel({sc.Coord.VOLFRAC: 0}, drop=True)
-        n_sample = n_sample.to_numpy()
+        n_samp = n_sample.copy()
+        if sc.Coord.VOLFRAC in n_samp.coords:
+            n_samp = n_samp.isel({sc.Coord.VOLFRAC: 0}, drop=True)
+        n_samp = n_samp.to_numpy()
 
     # make sure roughness-related values make sense
     if ((kz0_rot is None and kz0_refl is not None)
@@ -1806,26 +1806,26 @@ def calc_refl_trans(trajectories, thickness, n_medium, n_sample, boundary,
 
     # set up values as floats and numpy arrays to be used throughout function
     ntraj = trajectories.position[2].shape[1]
-    n_sample, trajectories, z_low, thickness = set_up_values(n_sample,
-                                                              trajectories,
-                                                              z_low, thickness)
+    n_samp, trajectories, z_low, thickness = set_up_values(n_samp,
+                                                           trajectories,
+                                                           z_low, thickness)
 
     # construct booleans for positive and negative exits
     # TODO: confirm this
     if (n_particle is not None) and (n_matrix is not None):
         if n_particle < n_matrix:
             n_tir = (fine_roughness
-                     * n_matrix + (1 - fine_roughness) * n_sample)
+                     * n_matrix + (1 - fine_roughness) * n_samp)
         else:
             n_tir = (fine_roughness
-                     * n_particle + (1 - fine_roughness) * n_sample)
+                     * n_particle + (1 - fine_roughness) * n_samp)
     else:
         warnings.warn('n_particle and n_matrix not specified; using '
                       'n_sample for n_tir instead of roughness correction',
                       category=UserWarning, stacklevel=2)
-        n_tir = n_sample
+        n_tir = n_samp
     exits_pos_dir, exits_neg_dir, tir_refl_bool = find_valid_exits(n_tir,
-                                                                n_medium,
+                                                                n_med,
                                                                 thickness,
                                                                 z_low,
                                                                 boundary,
@@ -1844,11 +1844,11 @@ def calc_refl_trans(trajectories, thickness, n_medium, n_sample, boundary,
         shift_traj_tir(trajectories, tir_indices)
         refl_indices = calc_indices_detected(refl_indices, trajectories,
                                              det_theta, det_len, det_dist,
-                                             n_sample, n_medium,
+                                             n_samp, n_med,
                                              plot_detector)
 
     # Find fraction and direction of light that enters sample.
-    init_dir, inc_pass_frac = fresnel_correct_enter(n_medium, n_front, n_tir,
+    init_dir, inc_pass_frac = fresnel_correct_enter(n_med, n_front, n_tir,
                                                     boundary, thickness,
                                                     trajectories, fresnel_traj,
                                                     kz0_rot)
@@ -1866,7 +1866,7 @@ def calc_refl_trans(trajectories, thickness, n_medium, n_sample, boundary,
      refl_weights_pass,
      trans_weights_pass,
      refl_fresnel, trans_fresnel,
-     norm_vec_refl, norm_vec_trans) = fresnel_correct_exit(n_tir, n_medium,
+     norm_vec_refl, norm_vec_trans) = fresnel_correct_exit(n_tir, n_med,
                                                 n_front, n_back, refl_indices,
                                                 trans_indices, refl_weights,
                                                 trans_weights, absorb_weights,
@@ -1878,7 +1878,7 @@ def calc_refl_trans(trajectories, thickness, n_medium, n_sample, boundary,
     (inc_refl_detected,
      trans_detected, refl_detected,
      trans_det_frac, refl_det_frac) = detect_corrected_traj(inc_pass_frac,
-                                                            n_sample, n_medium,
+                                                            n_samp, n_med,
                                                             refl_indices,
                                                             trans_indices,
                                                             refl_weights_pass,
@@ -1904,6 +1904,8 @@ def calc_refl_trans(trajectories, thickness, n_medium, n_sample, boundary,
 
 
         # Rerun Fresnel reflected components of trajectories.
+        # We have to pass the original DataArrays for n_medium and n_sample
+        # because run_sphere_fresnel_traj sets up a new simulation
         (reflectance,
          transmittance,
          refl_per_traj,
@@ -2159,9 +2161,12 @@ def run_sphere_fresnel_traj(refl_per_traj_nf, trans_per_traj_nf,
 #            positions = np.delete(positions, indices, axis = 0)
 #            directions = np.delete(directions, indices,axis = 0)
 
-    # create new trajectories object
-    trajectories_fresnel = mc.Trajectory(positions, directions,
-                                         weights_fresnel)
+    # create new simulation object and insert our existing trajectories
+    sim = mc.Simulation(nevents, ntraj, n_medium, n_sample, "film")
+    trajectories_fresnel = xr.Dataset({"position": positions,
+                                       "direction": directions,
+                                       "weight": weights_fresnel})
+    sim.traj = trajectories_fresnel
 
     # Generate a matrix of all the randomly sampled angles first
     sintheta, costheta, sinphi, cosphi, _, _ = mc.sample_angles(nevents, ntraj,
@@ -2171,10 +2176,10 @@ def run_sphere_fresnel_traj(refl_per_traj_nf, trans_per_traj_nf,
     step = mc.sample_step(nevents, ntraj, mu_scat, rng=rng)
 
     # Run photons
-    trajectories_fresnel.absorb(mu_abs, step)
-    trajectories_fresnel.scatter(sintheta, costheta, sinphi, cosphi)
-    trajectories_fresnel.move(step)
-    trajectories_fresnel = mc.QtyTrajectory(trajectories_fresnel)
+    sim.absorb(mu_abs, step)
+    sim.scatter(sintheta, costheta, sinphi, cosphi)
+    sim.move(step)
+    trajectories_fresnel = mc.QtyTrajectory(sim.traj)
 
     # Calculate reflection and transmition
     (_, trans_indices_fresnel, _, _, _,

@@ -86,7 +86,9 @@ def test_calc_refl_trans():
                             [.7, .3, .7, 0],
                             [.1, .1, .5, 0]],
                            coords=r0.sel(component="x", drop=True).coords)
-    trajectories = mc.Trajectory(r0, k0, weights)
+    trajectories = xr.Dataset({"position": r0,
+                               "direction": k0,
+                               "weight": weights})
     trajectories = mc.QtyTrajectory(trajectories)
 
     model = sc.model.HardSpheres(sphere, volume_fraction, index_matrix,
@@ -116,7 +118,9 @@ def test_calc_refl_trans():
     # test steps in z longer than sample thickness
     z_pos = np.array([[0,0,0,0],[1,1,14,12],[-1,11,2,11],[-2,12,4,12]])
     r0 = xr.DataArray([x_pos, y_pos, z_pos], coords=pos_coords)
-    trajectories = mc.Trajectory(r0, k0, weights)
+    trajectories = xr.Dataset({"position": r0,
+                               "direction": k0,
+                               "weight": weights})
     trajectories = mc.QtyTrajectory(trajectories)
     # Should raise warning that n_matrix and n_particle are not set, so
     # tir correction is based only on sample index
@@ -132,7 +136,10 @@ def test_calc_refl_trans():
     z_pos = np.array([[0,0,0,0],[1,1,1,1],[-1,11,2,11],[-2,12,4,12]])
     r0 = xr.DataArray([x_pos, y_pos, z_pos], coords=pos_coords)
     weights = xr.ones_like(r0.sel(component="x", drop=True))
-    trajectories = mc.Trajectory(r0, k0, weights)
+    trajectories = xr.Dataset({"position": r0,
+                               "direction": k0,
+                               "weight": weights})
+
     trajectories = mc.QtyTrajectory(trajectories)
     # Should raise warning that n_matrix and n_particle are not set, so
     # tir correction is based only on sample index
@@ -166,7 +173,9 @@ def test_get_angles_sphere():
                            coords =
                            positions.sel(component="x", drop=True).coords)
 
-    trajectories = mc.Trajectory(positions, directions, weights)
+    trajectories = xr.Dataset({"position": positions,
+                               "direction": directions,
+                               "weight": weights})
     trajectories = mc.QtyTrajectory(trajectories)
 
     indices = np.array([1,1,1,1])
@@ -211,12 +220,18 @@ def test_index_match():
     # Create step size distribution
     step = mc.sample_step(nevents, ntrajectories, mu_scat)
 
-    # make trajectories object
-    trajectories_sphere = mc.Trajectory(r0_sphere, k0_sphere, W0_sphere)
-    trajectories_sphere.absorb(mu_abs, step)
-    trajectories_sphere.scatter(sintheta, costheta, sinphi, cosphi)
-    trajectories_sphere.move(step)
-    trajectories_sphere = mc.QtyTrajectory(trajectories_sphere)
+    # make dummy simulation object and replace trajectories in the object with
+    # the ones that we've set up
+    sim = mc.Simulation(nevents, ntrajectories, n_medium, n_sample, 'film')
+    trajectories_sphere = xr.Dataset({"position": r0_sphere,
+                                      "direction": k0_sphere,
+                                      "weight": W0_sphere})
+    sim.traj = trajectories_sphere
+
+    sim.absorb(mu_abs, step)
+    sim.scatter(sintheta, costheta, sinphi, cosphi)
+    sim.move(step)
+    trajectories_sphere = mc.QtyTrajectory(sim.traj)
 
     # calculate reflectance
     # (should raise warning that n_matrix and n_particle are not set, so
@@ -271,13 +286,12 @@ def test_reflection_sphere_mc():
                                  index_medium)
     p, mu_scat, mu_abs = mc.calc_scat(model, wavelen)
 
-    # Initialize the trajectories for a sphere
-    trajectories = mc.Trajectory.initialize(nevents, ntrajectories, n_medium,
-                                            n_sample, boundary,
-                                            plot_initial = False,
-                                            sample_diameter = assembly_diameter,
-                                            spot_size = assembly_diameter,
-                                            rng=rng)
+    # Initialize the simulation for a sphere
+    sim = mc.Simulation(nevents, ntrajectories, n_medium, n_sample, boundary,
+                        plot_initial = False,
+                        sample_diameter = assembly_diameter,
+                        spot_size = assembly_diameter,
+                        rng=rng)
 
     # Generate a matrix of all the randomly sampled angles first
     sintheta, costheta, sinphi, cosphi, _, _ = mc.sample_angles(nevents,
@@ -287,16 +301,15 @@ def test_reflection_sphere_mc():
     # Create step size distribution
     step = mc.sample_step(nevents, ntrajectories, mu_scat, rng=rng)
 
-
     # Run photons
-    trajectories.absorb(mu_abs, step)
-    trajectories.scatter(sintheta, costheta, sinphi, cosphi)
-    trajectories.move(step)
+    sim.absorb(mu_abs, step)
+    sim.scatter(sintheta, costheta, sinphi, cosphi)
+    sim.move(step)
 
     # Calculate reflectance and transmittance
     # The default value of run_tir is True, so you must set it to False to
     # exclude the fresnel reflected trajectories.
-    trajectories = mc.QtyTrajectory(trajectories)
+    trajectories = mc.QtyTrajectory(sim.traj)
     with pytest.warns(UserWarning):
         R, T = det.calc_refl_trans(trajectories, assembly_diameter, n_medium,
                                    n_sample, boundary, plot_exits = False)
@@ -385,12 +398,9 @@ def test_multiscale_mc():
         n_m = n_matrix_bulk.isel(wavelength=[i])
         p, mu_scat, mu_abs = mc.calc_scat(model, wavelengths[i])
 
-        # Initialize the trajectories
-        trajectories = mc.Trajectory.initialize(nevents, ntrajectories,
-                                                n_m, n_s, boundary,
-                                                sample_diameter =
-                                                sphere_boundary_diameter,
-                                                rng=rng)
+        # Initialize the simulation
+        sim = mc.Simulation(nevents, ntrajectories, n_m, n_s, boundary,
+                            sample_diameter = sphere_boundary_diameter, rng=rng)
 
         # Generate a matrix of all the randomly sampled angles first
         sintheta, costheta, sinphi, cosphi, _, _ = \
@@ -400,12 +410,12 @@ def test_multiscale_mc():
         step = mc.sample_step(nevents, ntrajectories, mu_scat, rng=rng)
 
         # Run photons
-        trajectories.absorb(mu_abs, step)
-        trajectories.scatter(sintheta, costheta, sinphi, cosphi)
-        trajectories.move(step)
+        sim.absorb(mu_abs, step)
+        sim.scatter(sintheta, costheta, sinphi, cosphi)
+        sim.move(step)
 
         # Calculate reflection and transmission
-        trajectories = mc.QtyTrajectory(trajectories)
+        trajectories = mc.QtyTrajectory(sim.traj)
         with pytest.warns(UserWarning):
             (refl_indices,
              trans_indices,
@@ -474,29 +484,25 @@ def test_multiscale_mc():
     for i in range(wavelengths.size):
         n_med = n_medium.isel(wavelength=[i])
         n_mat = n_matrix_bulk.isel(wavelength=[i])
-        # Initialize the trajectories
-        trajectories = mc.Trajectory.initialize(nevents_bulk,
-                                                ntrajectories_bulk,
-                                                n_med, n_mat,
-                                                boundary_bulk, rng=rng)
+        # Initialize the simulation
+        sim = mc.Simulation(nevents_bulk, ntrajectories_bulk, n_med, n_mat,
+                            boundary_bulk, rng=rng)
 
         # Sample angles
         sintheta, costheta, sinphi, cosphi, _, _ = \
             mc.sample_angles(nevents_bulk, ntrajectories_bulk, p_bulk[i,:],
                              rng=rng)
 
-
-        # Calculate step size note: in future versions, mu_abs will be removed
-        # from step size sampling, so 0 is entered here
+        # Calculate step size
         step = mc.sample_step(nevents_bulk, ntrajectories_bulk,
                               mu_scat_bulk[i], rng=rng)
 
         # Run photons
-        trajectories.scatter(sintheta, costheta, sinphi, cosphi)
-        trajectories.move(step)
+        sim.scatter(sintheta, costheta, sinphi, cosphi)
+        sim.move(step)
 
         # calculate bulk reflectance
-        trajectories = mc.QtyTrajectory(trajectories)
+        trajectories = mc.QtyTrajectory(sim.traj)
         with pytest.warns(UserWarning):
             reflectance_bulk[i], transmittance = \
                 det.calc_refl_trans(trajectories, bulk_thickness, n_med,
@@ -604,14 +610,10 @@ def test_multiscale_polydispersity_mc():
 
             p, mu_scat, mu_abs = mc.calc_scat(model, wavelengths[i])
 
-            # Initialize the trajectories
-            trajectories = mc.Trajectory.initialize(nevents, ntrajectories,
-                                                    n_m, n_s,
-                                                    boundary,
-                                                    sample_diameter =
-                                                    sphere_boundary_diameters[j],
-                                                    rng=rng)
-
+            # Initialize the simulation
+            sim = mc.Simulation(nevents, ntrajectories, n_m, n_s, boundary,
+                                sample_diameter = sphere_boundary_diameters[j],
+                                rng=rng)
 
             # Generate a matrix of all the randomly sampled angles first
             sintheta, costheta, sinphi, cosphi, _, _ = \
@@ -621,12 +623,12 @@ def test_multiscale_polydispersity_mc():
             step = mc.sample_step(nevents, ntrajectories, mu_scat, rng=rng)
 
             # Run photons
-            trajectories.absorb(mu_abs, step)
-            trajectories.scatter(sintheta, costheta, sinphi, cosphi)
-            trajectories.move(step)
+            sim.absorb(mu_abs, step)
+            sim.scatter(sintheta, costheta, sinphi, cosphi)
+            sim.move(step)
 
             # Calculate reflection and transmition
-            trajectories = mc.QtyTrajectory(trajectories)
+            trajectories = mc.QtyTrajectory(sim.traj)
             with pytest.warns(UserWarning):
                 (refl_indices,
                  trans_indices,
@@ -671,11 +673,9 @@ def test_multiscale_polydispersity_mc():
     for i in range(wavelengths.size):
         n_med = n_medium.isel(wavelength=[i])
         n_mat = n_matrix_bulk.isel(wavelength=[i])
-        # Initialize the trajectories
-        trajectories = mc.Trajectory.initialize(nevents_bulk,
-                                                ntrajectories_bulk,
-                                                n_med, n_mat,
-                                                boundary_bulk, rng=rng)
+        # Initialize the simulation
+        sim = mc.Simulation(nevents_bulk, ntrajectories_bulk, n_med, n_mat,
+                            boundary_bulk, rng=rng)
 
         # Sample angles and calculate step size based on sampled radii
         sintheta, costheta, sinphi, cosphi, step, _, _ = \
@@ -690,12 +690,12 @@ def test_multiscale_polydispersity_mc():
         # Run photons. Note: polydisperse absorption does not currently work in
         # the bulk so we arbitrarily use index 0, assuming that all scattering
         # events have the same amount of absorption
-        trajectories.absorb(mu_abs_bulk[0,i], step)
-        trajectories.scatter(sintheta, costheta, sinphi, cosphi)
-        trajectories.move(step)
+        sim.absorb(mu_abs_bulk[0,i], step)
+        sim.scatter(sintheta, costheta, sinphi, cosphi)
+        sim.move(step)
 
         # calculate reflectance
-        trajectories = mc.QtyTrajectory(trajectories)
+        trajectories = mc.QtyTrajectory(sim.traj)
         with pytest.warns(UserWarning):
             reflectance_bulk_poly[i], transmittance = \
                 det.calc_refl_trans(trajectories, bulk_thickness, n_med,
@@ -787,11 +787,10 @@ def test_multiscale_color_mixing_mc():
             n_mat = n_matrix_bulk.isel(wavelength=[i])
             p, mu_scat, mu_abs = mc.calc_scat(model, wavelengths[i])
 
-            trajectories = mc.Trajectory.initialize(nevents, ntrajectories,
-                                                    n_mat, n_sample, boundary,
-                                                    sample_diameter =
-                                                    sphere_boundary_diameter,
-                                                    rng=rng)
+            sim = mc.Simulation(nevents, ntrajectories, n_mat, n_sample,
+                                boundary,
+                                sample_diameter = sphere_boundary_diameter,
+                                rng=rng)
 
             sintheta, costheta, sinphi, cosphi, _, _ = \
                 mc.sample_angles(nevents, ntrajectories, p, rng=rng)
@@ -799,11 +798,11 @@ def test_multiscale_color_mixing_mc():
 
             step = mc.sample_step(nevents, ntrajectories, mu_scat, rng=rng)
 
-            trajectories.absorb(mu_abs, step)
-            trajectories.scatter(sintheta, costheta, sinphi, cosphi)
-            trajectories.move(step)
+            sim.absorb(mu_abs, step)
+            sim.scatter(sintheta, costheta, sinphi, cosphi)
+            sim.move(step)
 
-            trajectories = mc.QtyTrajectory(trajectories)
+            trajectories = mc.QtyTrajectory(sim.traj)
             with pytest.warns(UserWarning):
                 (refl_indices,
                  trans_indices,
@@ -843,11 +842,9 @@ def test_multiscale_color_mixing_mc():
     for i in range(wavelengths.size):
         n_med = n_medium.isel(wavelength=[i])
         n_mat = n_matrix_bulk.isel(wavelength=[i])
-        # Initialize the trajectories
-        trajectories = mc.Trajectory.initialize(nevents_bulk,
-                                                ntrajectories_bulk,
-                                                n_med, n_mat,
-                                                boundary_bulk, rng=rng)
+        # Initialize the simulation
+        sim = mc.Simulation(nevents_bulk, ntrajectories_bulk, n_med, n_mat,
+                            boundary_bulk, rng=rng)
 
         (sintheta, costheta, sinphi, cosphi, step, _, _) = \
             pfs.sample_angles_step_poly(nevents_bulk, ntrajectories_bulk,
@@ -859,12 +856,12 @@ def test_multiscale_color_mixing_mc():
         # Run photons
         # Note: we assume that all scattering events
         # have the same amount of absorption
-        trajectories.absorb(mu_abs_bulk[0,i], step)
-        trajectories.scatter(sintheta, costheta, sinphi, cosphi)
-        trajectories.move(step)
+        sim.absorb(mu_abs_bulk[0,i], step)
+        sim.scatter(sintheta, costheta, sinphi, cosphi)
+        sim.move(step)
 
         # calculate reflectance
-        trajectories = mc.QtyTrajectory(trajectories)
+        trajectories = mc.QtyTrajectory(sim.traj)
         with pytest.warns(UserWarning):
             reflectance_bulk_mix[i], transmittance = \
                 det.calc_refl_trans(trajectories, bulk_thickness, n_med,

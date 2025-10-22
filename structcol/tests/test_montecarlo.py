@@ -73,14 +73,19 @@ def test_sampling():
     mc.sample_step(nevents, ntrajectories, mu_scat)
 
 
-def test_trajectories():
+def test_simulation():
+    """Tests that the Simulation object initializes and that
+    Simulation.absorb(), Simulation.scatter(), and Simulation.move() return
+    correct results.
+
+    """
     # Initialize runs
     nevents = 2
     ntrajectories = 3
 
-    # Create a Trajectory object
-    trajectories = mc.Trajectory.initialize(nevents, ntrajectories, n_medium,
-                                            n_sample, 'film')
+    # Create a Simulation object
+    sim = mc.Simulation(nevents, ntrajectories, n_medium, n_sample,
+                        'film')
 
     # Test the absorb function
     mu_abs = 1/sc.Quantity(10.0, 'um')
@@ -88,10 +93,10 @@ def test_trajectories():
     step = xr.DataArray([[1, 1, 1], [1, 1, 1]],
                         coords={"event": range(nevents),
                                 "trajectory": range(ntrajectories)})
-    trajectories.absorb(mu_abs, step)
+    sim.absorb(mu_abs, step)
     # since step size is given (not sampled), this test should produce a
     # deterministic result
-    assert_almost_equal(trajectories.traj["weight"]
+    assert_almost_equal(sim.traj["weight"]
                         .squeeze(drop=True).to_numpy(),
                         np.array([[ 1.0, 1.0, 1.0],
                                   [ 0.90483742,  0.90483742,  0.90483742],
@@ -110,7 +115,7 @@ def test_trajectories():
                           coords=sintheta.coords)
 
     # Test the scatter function. Should also produce a deterministic result
-    trajectories.scatter(sintheta, costheta, sinphi, cosphi)
+    sim.scatter(sintheta, costheta, sinphi, cosphi)
 
     # Expected propagation directions
     kx = np.array([[0., 0., 0.], [0., 0., 0.]])
@@ -118,15 +123,15 @@ def test_trajectories():
     kz = np.array([[1., 1., 1.], [-1., -1., -1.]])
     k = np.array([kx, ky, kz])
 
-    assert_equal(trajectories.traj["direction"].dropna("event")
+    assert_equal(sim.traj["direction"].dropna("event")
                  .squeeze(drop=True).to_numpy(),
                  k)
 
 
     # Test the move function.  Should also produce a deterministic result since
     # step sizes are given.
-    trajectories.move(step)
-    assert_equal(trajectories.traj["position"].sel(component="z")
+    sim.move(step)
+    assert_equal(sim.traj["position"].sel(component="z")
                  .squeeze(drop=True),
                  np.array([[0, 0, 0], [1, 1, 1], [0, 0, 0]]))
 

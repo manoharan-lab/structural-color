@@ -48,20 +48,14 @@ n_sample = sc.index.effective_index([index_particle, index_matrix],
 # photons
 refl_index = np.array([2,0,2])
 
-def test_trajectories():
-    # Initialize runs. Since this test just checks to make sure a trajectory
+def test_simulation():
+    # Initialize runs. Since this test just checks to make sure a Simulation
     # object can be created, we don't need to give it a seeded random number
     # generator.
     nevents = 2
     ntrajectories = 3
 
-    # Create a Trajectory object
-    trajectories = mc.Trajectory.initialize(nevents, ntrajectories, n_matrix,
-                                            n_sample,
-                                            'sphere',
-                                            sample_diameter =
-                                            sc.Quantity('1.0 um'))
-
-    trajectories = mc.Trajectory(trajectories.traj["position"],
-                                 trajectories.traj["direction"],
-                                 trajectories.traj["weight"])
+    # Create a Simulation object
+    trajectories = mc.Simulation(nevents, ntrajectories, n_matrix, n_sample,
+                                 'sphere',
+                                 sample_diameter = sc.Quantity('1.0 um'))

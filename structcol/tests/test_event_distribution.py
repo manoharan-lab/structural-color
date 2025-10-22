@@ -28,7 +28,6 @@ from structcol import detector as det
 import numpy as np
 import xarray as xr
 from numpy.testing import assert_equal, assert_almost_equal, assert_array_less
-import copy
 import pytest
 
 # Monte Carlo parameters
@@ -79,10 +78,9 @@ lscat = 1/mu_scat.magnitude # microns
 seed = 1
 rng = np.random.RandomState([seed])
 
-# Initialize the trajectories
-trajectories = mc.Trajectory.initialize(nevents, ntrajectories,
-                                        n_medium, n_sample,
-                                        boundary, rng=rng)
+# Initialize the simulation
+sim = mc.Simulation(nevents, ntrajectories, n_medium, n_sample,
+                    boundary, rng=rng)
 
 # Generate a matrix of all the randomly sampled angles first
 sintheta, costheta, sinphi, cosphi, theta, _ = mc.sample_angles(nevents,
@@ -93,11 +91,11 @@ sintheta, costheta, sinphi, cosphi, theta, _ = mc.sample_angles(nevents,
 step = mc.sample_step(nevents, ntrajectories, mu_scat, rng=rng)
 
 # Run photons
-trajectories.absorb(mu_abs, step)
-trajectories.scatter(sintheta, costheta, sinphi, cosphi)
-trajectories.move(step)
+sim.absorb(mu_abs, step)
+sim.scatter(sintheta, costheta, sinphi, cosphi)
+sim.move(step)
 
-trajectories = mc.QtyTrajectory(trajectories)
+trajectories = mc.QtyTrajectory(sim.traj)
 
 # following calculation should raise a warning that n_particle and n_matrix are
 # not set
@@ -453,9 +451,8 @@ def test_event_distribution_wavelength_mc():
         p[i,:], mu_scat, mu_abs = mc.calc_scat(model, wavelengths[i])
         lscat[i] = 1/mu_scat.magnitude # microns
 
-        trajectories = mc.Trajectory.initialize(nevents, ntrajectories,
-                                                n_medium[i], n_sample,
-                                                boundary, rng=rng)
+        sim = mc.Simulation(nevents, ntrajectories, n_medium[i], n_sample,
+                            boundary, rng=rng)
 
         ######################################################################
         # Generate a matrix of all the randomly sampled angles first
@@ -470,12 +467,12 @@ def test_event_distribution_wavelength_mc():
         step = mc.sample_step(nevents, ntrajectories, mu_scat, rng=rng)
 
         # Run photons
-        trajectories.absorb(mu_abs, step)
-        trajectories.scatter(sintheta, costheta, sinphi, cosphi)
-        trajectories.move(step)
+        sim.absorb(mu_abs, step)
+        sim.scatter(sintheta, costheta, sinphi, cosphi)
+        sim.move(step)
 
         ################### Calculate reflection and transmission
-        trajectories = mc.QtyTrajectory(trajectories)
+        trajectories = mc.QtyTrajectory(sim.traj)
         with pytest.warns(UserWarning):
             refl_indices, trans_indices,\
                 inc_refl_per_traj,_,_, refl_per_traj, trans_per_traj,\
@@ -559,14 +556,14 @@ def test_event_distribution_angle_mc():
     p, mu_scat, mu_abs = mc.calc_scat(model, wavelength)
     lscat = 1/mu_scat.magnitude
 
-    # Initialize the trajectories
-    trajectories0 = mc.Trajectory.initialize(nevents, ntrajectories,
-                                             n_medium, n_sample,
-                                             boundary, rng=rng)
+    # Initialize the simulation
+    sim = mc.Simulation(nevents, ntrajectories, n_medium, n_sample,
+                        boundary, rng=rng)
+    # save initial state
+    trajectories0 = sim.traj.copy()
 
     # Create step size distribution
     step = mc.sample_step(nevents, ntrajectories, mu_scat, rng=rng)
-
 
     for j in range(theta_range.size):
         # Generate a matrix of all the randomly sampled angles first
@@ -582,16 +579,16 @@ def test_event_distribution_angle_mc():
                                           "trajectory": range(ntrajectories)})
         costheta = xr.DataArray(np.cos(theta), coords=sintheta.coords)
 
-        # Create trajectories object
-        trajectories = copy.deepcopy(trajectories0)
+        # re-insert our initial conditions into the simulation
+        sim.traj = trajectories0.copy()
 
         # Run photons
-        trajectories.absorb(mu_abs, step)
-        trajectories.scatter(sintheta, costheta, sinphi, cosphi)
-        trajectories.move(step)
+        sim.absorb(mu_abs, step)
+        sim.scatter(sintheta, costheta, sinphi, cosphi)
+        sim.move(step)
 
         ################### Calculate reflection and transmition
-        trajectories = mc.QtyTrajectory(trajectories)
+        trajectories = mc.QtyTrajectory(sim.traj)
         with pytest.warns(UserWarning):
             refl_indices, trans_indices,\
                 inc_refl_per_traj,_,_, refl_per_traj, trans_per_traj,\

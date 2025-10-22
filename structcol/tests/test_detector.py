@@ -55,8 +55,8 @@ refl_index = np.array([2,0,2])
 def test_calc_refl_trans():
     # this test is deterministic; no rng is involved
     high_thresh = 10
-    small_n = 1
-    large_n = 2
+    small_n = sc.Index.constant(1)(wavelen)
+    large_n = sc.Index.constant(2)(wavelen)
 
     # test absoprtion and stuck without fresnel
     z_pos = np.array([[0,0,0,0],[1,1,1,1],[-1,11,2,11],[-2,12,4,12]])
@@ -76,7 +76,9 @@ def test_calc_refl_trans():
                             [.1, .1, .5, 0]],
                            coords=r0.sel(component="x", drop=True).coords)
 
-    trajectories = mc.Trajectory(r0, k0, weights)
+    trajectories = xr.Dataset({"position": r0,
+                               "direction": k0,
+                               "weight": weights})
     trajectories = mc.QtyTrajectory(trajectories)
     # Should raise warning that n_matrix and n_particle are not set, so
     # tir correction is based only on sample index
@@ -95,8 +97,9 @@ def test_calc_refl_trans():
     # tir correction is based only on sample index)
     with pytest.warns(UserWarning):
         refl, trans = det.calc_refl_trans(trajectories, high_thresh, small_n,
-                                          small_n, 'film',n_front=large_n,
-                                          n_back=large_n)
+                                          small_n, 'film',
+                                          n_front=large_n.to_numpy().squeeze(),
+                                          n_back=large_n.to_numpy().squeeze())
     # calculated manually
     expected_trans_array = (np.array([0.00814545, 0.20014545, 0.2, 0.])
                             / ntrajectories)
@@ -128,7 +131,9 @@ def test_calc_refl_trans():
                             [.4, .1, .5, .3]],
                            coords=r0.sel(component="x", drop=True).coords)
 
-    trajectories = mc.Trajectory(r0, k0, weights)
+    trajectories = xr.Dataset({"position": r0,
+                               "direction": k0,
+                               "weight": weights})
     trajectories = mc.QtyTrajectory(trajectories)
 
     # Should raise warning that n_matrix and n_particle are not set, so
@@ -182,7 +187,9 @@ def test_calc_refl_trans():
                            coords=r0.sel(component="x", drop=True).coords)
     thin_sample_thickness = 1
 
-    trajectories = mc.Trajectory(r0, k0, weights)
+    trajectories = xr.Dataset({"position": r0,
+                               "direction": k0,
+                               "weight": weights})
     trajectories = mc.QtyTrajectory(trajectories)
 
     # Should raise warning that n_matrix and n_particle are not set, so
@@ -273,18 +280,14 @@ def test_surface_roughness_mc():
     p, mu_scat, mu_abs = mc.calc_scat(model, wavelen,
                                       fine_roughness=fine_roughness)
 
-    trajectories = mc.Trajectory.initialize(nevents, ntrajectories, n_medium,
-                                            n_sample, boundary,
-                                            rng=rng,
-                                            incidence_theta_min =
-                                            incidence_theta_min,
-                                            incidence_theta_max =
-                                            incidence_theta_max,
-                                            incidence_phi_min =
-                                            incidence_phi_min,
-                                            incidence_phi_max =
-                                            incidence_phi_max,
-                                            coarse_roughness = coarse_roughness)
+    sim = mc.Simulation(nevents, ntrajectories, n_medium,
+                        n_sample, boundary,
+                        rng=rng,
+                        incidence_theta_min = incidence_theta_min,
+                        incidence_theta_max = incidence_theta_max,
+                        incidence_phi_min = incidence_phi_min,
+                        incidence_phi_max = incidence_phi_max,
+                        coarse_roughness = coarse_roughness)
 
     sintheta, costheta, sinphi, cosphi, _, _ = mc.sample_angles(nevents,
                                                                 ntrajectories,
@@ -294,22 +297,20 @@ def test_surface_roughness_mc():
     step = mc.sample_step(nevents, ntrajectories, mu_scat,
                           fine_roughness=fine_roughness, rng=rng)
 
-    trajectories.absorb(mu_abs, step)
-    trajectories.scatter(sintheta, costheta, sinphi, cosphi)
-    trajectories.move(step)
+    sim.absorb(mu_abs, step)
+    sim.scatter(sintheta, costheta, sinphi, cosphi)
+    sim.move(step)
 
     cutoff = sc.Quantity('50 um')
 
-    trajectories = mc.QtyTrajectory(trajectories)
-    kz0_rotated = trajectories.kz0_rot
-    kz0_reflected = trajectories.kz0_refl
+    trajectories = mc.QtyTrajectory(sim.traj)
 
     # If there is coarse roughness, need to specify kz0_rotated and
     # kz0_reflected.
     with pytest.warns(UserWarning):
         R, T = det.calc_refl_trans(trajectories, cutoff, n_medium, n_sample,
-                                   boundary, kz0_rot=kz0_rotated,
-                                   kz0_refl=kz0_reflected)
+                                   boundary, kz0_rot=trajectories.kz0_rot,
+                                   kz0_refl=trajectories.kz0_refl)
 
     R_expected = 0.7166421049108462
     T_expected = 0.24500285182641726
@@ -834,9 +835,9 @@ def test_detectors_mc():
                                  index_medium)
     p, mu_scat, mu_abs = mc.calc_scat(model, wavelength)
 
-    # Create trajectories object and initialize
-    trajectories = mc.Trajectory.initialize(nevents, ntrajectories, n_medium,
-                                            n_sample, boundary, rng=rng)
+    # Create simulation object and initialize
+    sim = mc.Simulation(nevents, ntrajectories, n_medium,
+                        n_sample, boundary, rng=rng)
 
     # Generate a matrix of all the randomly sampled angles first
     sintheta, costheta, sinphi, cosphi, _, _ = mc.sample_angles(nevents,
@@ -847,12 +848,12 @@ def test_detectors_mc():
     step = mc.sample_step(nevents, ntrajectories, mu_scat, rng=rng)
 
     # Run photons
-    trajectories.absorb(mu_abs, step)
-    trajectories.scatter(sintheta, costheta, sinphi, cosphi)
-    trajectories.move(step)
+    sim.absorb(mu_abs, step)
+    sim.scatter(sintheta, costheta, sinphi, cosphi)
+    sim.move(step)
 
     # test default detector (full reflection hemisphere)
-    trajectories = mc.QtyTrajectory(trajectories)
+    trajectories = mc.QtyTrajectory(sim.traj)
     with pytest.warns(UserWarning):
         R, _ = det.calc_refl_trans(trajectories, thickness, n_medium,
                                    n_sample, boundary)
@@ -985,13 +986,11 @@ def calc_montecarlo(model, nevents, ntrajectories, wavelen, seed,
                                       fine_roughness=fine_roughness)
 
 
-    trajectories = mc.Trajectory.initialize(nevents, ntrajectories, n_medium,
-                                            n_sample, 'film', rng=rng,
-                                            coarse_roughness=coarse_roughness,
-                                            incidence_theta_min =
-                                            incidence_theta_min,
-                                            incidence_theta_max =
-                                            incidence_theta_max)
+    sim = mc.Simulation(nevents, ntrajectories, n_medium,
+                        n_sample, 'film', rng=rng,
+                        coarse_roughness=coarse_roughness,
+                        incidence_theta_min = incidence_theta_min,
+                        incidence_theta_max = incidence_theta_max)
 
     sintheta, costheta, sinphi, cosphi, _, _= mc.sample_angles(nevents,
                                                                ntrajectories,
@@ -999,17 +998,16 @@ def calc_montecarlo(model, nevents, ntrajectories, wavelen, seed,
     step = mc.sample_step(nevents, ntrajectories, mu_scat,
                           fine_roughness=fine_roughness, rng=rng)
 
-    trajectories.absorb(mu_abs, step)
-    trajectories.scatter(sintheta, costheta, sinphi, cosphi)
-    trajectories.move(step)
+    sim.absorb(mu_abs, step)
+    sim.scatter(sintheta, costheta, sinphi, cosphi)
+    sim.move(step)
 
     cutoff = sc.Quantity('50.0 um')
 
     # calculate R, T
     # (should raise warning that n_matrix and n_particle are not set, so
     # tir correction is based only on sample index)
-    trajectories = mc.QtyTrajectory(trajectories)
-
+    trajectories = mc.QtyTrajectory(sim.traj)
     with pytest.warns(UserWarning):
         R, T = det.calc_refl_trans(trajectories, cutoff, n_medium, n_sample,
                                    'film', kz0_rot=trajectories.kz0_rot,
@@ -1051,11 +1049,13 @@ def test_goniometer_detector():
                            coords =
                            positions.sel(component="x", drop=True).coords)
 
-    trajectories = mc.Trajectory(positions, directions, weights)
+    trajectories = xr.Dataset({"position": positions,
+                               "direction": directions,
+                               "weight": weights})
     trajectories = mc.QtyTrajectory(trajectories)
     thickness = 10
-    n_medium = 1
-    n_sample = 1
+    n_medium = sc.Index.constant(1)(wavelen)
+    n_sample = sc.Index.constant(1)(wavelen)
     # Should raise warning that n_matrix and n_particle are not set, so
     # tir correction is based only on sample index
     with pytest.warns(UserWarning):

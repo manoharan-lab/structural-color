@@ -69,10 +69,9 @@ def test_2pi_shift():
     # Calculate scattering quantities
     p, mu_scat, mu_abs = mc.calc_scat(model, wavelength, fields=True)
 
-    # Initialize trajectories
-    trajectories = mc.Trajectory.initialize(nevents, ntrajectories, n_medium,
-                                            n_sample, boundary,
-                                            fields=True)
+    # Initialize simulation
+    sim = mc.Simulation(nevents, ntrajectories, n_medium, n_sample, boundary,
+                        fields=True)
 
     # Sample trajectory angles
     sintheta, costheta, sinphi, cosphi, theta, phi = mc.sample_angles(nevents,
@@ -81,18 +80,18 @@ def test_2pi_shift():
     step = mc.sample_step(nevents, ntrajectories, mu_scat)
 
     # Update trajectories based on sampled values
-    trajectories.scatter(sintheta, costheta, sinphi, cosphi)
-    trajectories.move(step)
-    trajectories.absorb(mu_abs, step)
+    sim.scatter(sintheta, costheta, sinphi, cosphi)
+    sim.move(step)
+    sim.absorb(mu_abs, step)
 
-    trajectories.calc_fields(theta, phi, sintheta, costheta, sinphi, cosphi,
-                             n_particle, n_sample, radius, wavelength,
-                             step)
+    sim.calc_fields(theta, phi, sintheta, costheta, sinphi, cosphi,
+                    n_particle, n_sample, radius, wavelength,
+                    step)
 
     # calculate reflectance
     # (should raise warning that n_matrix and n_particle are not set, so
     # tir correction is based only on sample index)
-    trajectories = mc.QtyTrajectory(trajectories)
+    trajectories = mc.QtyTrajectory(sim.traj)
     with pytest.warns(UserWarning):
         refl_trans_result = det.calc_refl_trans(trajectories, thickness,
                                                 n_medium, n_sample, boundary,
@@ -147,7 +146,10 @@ def test_intensity_coherent():
     fields[:,1,:] = 1
     fields[:,2,:] = 1.5
 
-    trajectories = mc.Trajectory(positions, directions, weights, fields)
+    trajectories = xr.Dataset({"position": positions,
+                               "direction": directions,
+                               "weight": weights,
+                               "fields": fields})
     trajectories = mc.QtyTrajectory(trajectories)
 
     # calculate reflectance phase
@@ -211,7 +213,10 @@ def test_pi_shift_zero():
     fields[:,2,0] = 1
     fields[:,2,1] = np.exp(np.pi*1j)
 
-    trajectories = mc.Trajectory(positions, directions, weights, fields)
+    trajectories = xr.Dataset({"position": positions,
+                               "direction": directions,
+                               "weight": weights,
+                               "fields": fields})
     trajectories = mc.QtyTrajectory(trajectories)
 
 
@@ -264,10 +269,9 @@ def test_field_normalized():
     # Calculate scattering quantities
     p, mu_scat, mu_abs = mc.calc_scat(model, wavelength, fields=True)
 
-    # Initialize trajectories
-    trajectories = mc.Trajectory.initialize(nevents, ntrajectories, n_medium,
-                                            n_sample,
-                                            boundary, fields=True)
+    # Initialize simulation
+    sim = mc.Simulation(nevents, ntrajectories, n_medium, n_sample,
+                        boundary, fields=True)
 
     # Sample trajectory angles
     sintheta, costheta, sinphi, cosphi, theta, phi= mc.sample_angles(nevents,
@@ -276,15 +280,15 @@ def test_field_normalized():
     step = mc.sample_step(nevents, ntrajectories, mu_scat)
 
     # Update trajectories based on sampled values
-    trajectories.scatter(sintheta, costheta, sinphi, cosphi)
-    trajectories.move(step)
-    trajectories.calc_fields(theta, phi, sintheta, costheta, sinphi, cosphi,
+    sim.scatter(sintheta, costheta, sinphi, cosphi)
+    sim.move(step)
+    sim.calc_fields(theta, phi, sintheta, costheta, sinphi, cosphi,
                                  n_particle, n_sample, radius, wavelength,
                                  step)
-    trajectories.absorb(mu_abs, step)
+    sim.absorb(mu_abs, step)
 
     # take the dot product
-    trajectories = mc.QtyTrajectory(trajectories)
+    trajectories = mc.QtyTrajectory(sim.traj)
     trajectories.fields = trajectories.fields.magnitude
 
     field_mag= np.sqrt(np.conj(trajectories.fields[0,:,:])
@@ -338,9 +342,8 @@ def test_field_perp_direction():
     p, mu_scat, mu_abs = mc.calc_scat(model, wavelength, fields=True)
 
     # Initialize trajectories
-    trajectories = mc.Trajectory.initialize(nevents, ntrajectories, n_medium,
-                                            n_sample,
-                                            boundary, fields=True)
+    sim = mc.Simulation(nevents, ntrajectories, n_medium, n_sample, boundary,
+                        fields=True)
 
     # Sample trajectory angles
     sintheta, costheta, sinphi, cosphi, theta, phi =\
@@ -349,14 +352,14 @@ def test_field_perp_direction():
     step = mc.sample_step(nevents, ntrajectories, mu_scat)
 
     # Update trajectories based on sampled values
-    trajectories.scatter(sintheta, costheta, sinphi, cosphi)
-    trajectories.move(step)
-    trajectories.calc_fields(theta, phi, sintheta, costheta, sinphi, cosphi,
+    sim.scatter(sintheta, costheta, sinphi, cosphi)
+    sim.move(step)
+    sim.calc_fields(theta, phi, sintheta, costheta, sinphi, cosphi,
                              n_particle, n_sample, radius, wavelength, step)
-    trajectories.absorb(mu_abs, step)
+    sim.absorb(mu_abs, step)
 
     # take the dot product
-    trajectories = mc.QtyTrajectory(trajectories)
+    trajectories = mc.QtyTrajectory(sim.traj)
     trajectories.direction = trajectories.direction.magnitude
     trajectories.fields = trajectories.fields.magnitude
 
@@ -410,11 +413,9 @@ def test_field_reflectance_mc():
     # Calculate scattering quantities
     p, mu_scat, mu_abs = mc.calc_scat(model, wavelength, fields=True)
 
-    # Initialize trajectories
-    trajectories = mc.Trajectory.initialize(nevents, ntrajectories,
-                                            n_medium, n_sample, boundary,
-                                            coherent=False,
-                                            fields=True, rng=rng)
+    # Initialize simulation
+    sim = mc.Simulation(nevents, ntrajectories, n_medium, n_sample, boundary,
+                        coherent=False, fields=True, rng=rng)
 
     # Sample trajectory angles
     sintheta, costheta, sinphi, cosphi, theta, phi = \
@@ -424,14 +425,14 @@ def test_field_reflectance_mc():
     step = mc.sample_step(nevents, ntrajectories, mu_scat, rng=rng)
 
     # Update trajectories based on sampled values
-    trajectories.scatter(sintheta, costheta, sinphi, cosphi)
-    trajectories.calc_fields(theta, phi, sintheta, costheta, sinphi, cosphi,
-                             n_particle, n_sample, radius, wavelength, step,
-                             fine_roughness=0, tir_refl_bool=None)
-    trajectories.move(step)
-    trajectories.absorb(mu_abs, step)
+    sim.scatter(sintheta, costheta, sinphi, cosphi)
+    sim.calc_fields(theta, phi, sintheta, costheta, sinphi, cosphi,
+                    n_particle, n_sample, radius, wavelength, step,
+                    fine_roughness=0, tir_refl_bool=None)
+    sim.move(step)
+    sim.absorb(mu_abs, step)
 
-    trajectories = mc.QtyTrajectory(trajectories)
+    trajectories = mc.QtyTrajectory(sim.traj)
     with pytest.warns(UserWarning):
         refl_trans_result = det.calc_refl_trans(trajectories, thickness,
                                                 n_medium, n_sample, boundary,
@@ -513,27 +514,25 @@ def test_field_co_cross_mc():
         # Calculate scattering quantities
         p, mu_scat, mu_abs = mc.calc_scat(model, wavelengths[i], fields=True)
 
-        # Initialize trajectories
-        trajectories = mc.Trajectory.initialize(nevents, ntrajectories,
-                                                n_medium[i], n_sample,
-                                                boundary, fields=True,
-                                                coherent=False, rng=rng)
+        # Initialize simulation
+        sim = mc.Simulation(nevents, ntrajectories, n_medium[i], n_sample,
+                            boundary, fields=True, coherent=False, rng=rng)
 
         sintheta, costheta, sinphi, cosphi, theta, phi =\
             mc.sample_angles(nevents, ntrajectories, p, rng=rng)
 
         step = mc.sample_step(nevents, ntrajectories, mu_scat, rng=rng)
 
-        trajectories.scatter(sintheta, costheta, sinphi, cosphi)
-        trajectories.move(step)
-        trajectories.absorb(mu_abs, step)
+        sim.scatter(sintheta, costheta, sinphi, cosphi)
+        sim.move(step)
+        sim.absorb(mu_abs, step)
 
-        trajectories.calc_fields(theta, phi, sintheta, costheta, sinphi,
-                                 cosphi, n_particle[i], n_sample, radius,
-                                 wavelengths[i], step,
-                                 fine_roughness=0, tir_refl_bool=None)
+        sim.calc_fields(theta, phi, sintheta, costheta, sinphi,
+                        cosphi, n_particle[i], n_sample, radius,
+                        wavelengths[i], step,
+                        fine_roughness=0, tir_refl_bool=None)
 
-        trajectories = mc.QtyTrajectory(trajectories)
+        trajectories = mc.QtyTrajectory(sim.traj)
         with pytest.warns(UserWarning):
             refl_trans_result = det.calc_refl_trans(trajectories,thickness,
                                                     n_medium[i], n_sample,

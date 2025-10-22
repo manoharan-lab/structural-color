@@ -94,13 +94,10 @@ def calc_sphere_mc():
     #added to the system)
     p, mu_scat, mu_abs = mc.calc_scat(model, wavelength)
 
-    # Initialize the trajectories
-    trajectories = mc.Trajectory.initialize(nevents, ntrajectories,
-                                            n_matrix_bulk, n_sample,
-                                            boundary,
-                                            sample_diameter =
-                                            sphere_boundary_diameter,
-                                            rng=rng)
+    # Initialize the simulation
+    sim = mc.Simulation(nevents, ntrajectories, n_matrix_bulk, n_sample,
+                        boundary,sample_diameter = sphere_boundary_diameter,
+                        rng=rng)
 
     # Generate a matrix of all the randomly sampled angles first
     sintheta, costheta, sinphi, cosphi, _, _ = mc.sample_angles(nevents,
@@ -111,14 +108,14 @@ def calc_sphere_mc():
     step = mc.sample_step(nevents, ntrajectories, mu_scat, rng=rng)
 
     # Run photons
-    trajectories.absorb(mu_abs, step)
-    trajectories.scatter(sintheta, costheta, sinphi, cosphi)
-    trajectories.move(step)
+    sim.absorb(mu_abs, step)
+    sim.scatter(sintheta, costheta, sinphi, cosphi)
+    sim.move(step)
 
     # Calculate reflection and transmission
     # (should raise warning that n_matrix and n_particle are not set, so
     # tir correction is based only on sample index)
-    trajectories = mc.QtyTrajectory(trajectories)
+    trajectories = mc.QtyTrajectory(sim.traj)
     with pytest.warns(UserWarning):
         (refl_indices,
          trans_indices,

@@ -359,19 +359,18 @@ def test_structure_factor_data_reflectances():
 
         n_sample = index_sample_eff(wavelengths[i])
 
-        trajectories = mc.Trajectory.initialize(nevents, ntrajectories,
-                                                n_medium[i],
-                                                n_sample, boundary, rng=rng)
+        sim = mc.Simulation(nevents, ntrajectories, n_medium[i], n_sample,
+                            boundary, rng=rng)
 
         sintheta, costheta, sinphi, cosphi, _, _ = \
             mc.sample_angles(nevents, ntrajectories, p, rng=rng)
         step = mc.sample_step(nevents, ntrajectories, mu_scat, rng=rng)
 
-        trajectories.absorb(mu_abs, step)
-        trajectories.scatter(sintheta, costheta, sinphi, cosphi)
-        trajectories.move(step)
+        sim.absorb(mu_abs, step)
+        sim.scatter(sintheta, costheta, sinphi, cosphi)
+        sim.move(step)
 
-        trajectories = mc.QtyTrajectory(trajectories)
+        trajectories = mc.QtyTrajectory(sim.traj)
         with pytest.warns(UserWarning):
             reflectance[i], _ = det.calc_refl_trans(trajectories, thickness,
                                                     n_medium[i],

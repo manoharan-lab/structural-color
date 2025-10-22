@@ -47,118 +47,39 @@ import copy
 
 eps = 1.e-9
 
-# some templates to use when refactoring later
-class MCSimulation:
+class Simulation:
     """
-    Input parameters and methods for running a Monte Carlo calculation.
+    Input parameters and methods for running a Monte Carlo simulation.
 
     Attributes
     ----------
+    nevents : int
+        number of scattering events
+    ntrajectories : int
+        number of trajectories
+    traj : `xr.Dataset`
+        Monte Carlo trajectories.  Contains "position" (array of position
+        vectors in cartesian coordinates), "direction" (array of direction of
+        propagation vectors), "weight" (array of photon packet weights).  May
+        also contain "fields" (electric fields of photon packets)
 
     Methods
     -------
+    absorb(mu_abs, step_size)
+        calculate absorption at each scattering event with given absorption
+        coefficient and step size.
+    scatter(sintheta, costheta, sinphi, cosphi)
+        calculate directions of propagation after each scattering event with
+        given randomly sampled scattering and azimuthal angles.
+    move(mu_scat, step_size)
+        calculate new positions of the trajectory with given scattering
+        coefficient, obtained from either Mie theory or the single scattering
+        model.
     run()
-
-    """
-    def __init__(self):
-        """
-        Constructor for MCSimulation object.
-
-        Parameters
-        ----------
-
-        """
-        pass
-
-    def run(self):
-        """
-        Run the simulation.
-
-        Parameters
-        ----------
-
-        Returns
-        -------
-
-        MCResult object:
-            results of simulation
-
-        """
-        pass
-
-
-class MCResult:
-    """
-    Results from running Monte Carlo simulation.
-
-    Attributes
-    ----------
-    Methods
-    -------
-
-    """
-    def __init__(self):
-        """
-        Constructor for MCResult object.
-
-        Parameters
-        ----------
-
-        """
-        pass
-
-class QtyTrajectory():
-    """Temporary class to convert xarray-based trajectories to Quantity objects
-    for processing by calc_refl_trans() and other functions. Can be removed
-    when these functions have been refactored to use DataArrays.
-
-    Notes
-    -----
-    For compatibility with the event processing code (calc_refl_trans and
-    associated functions), we set the size of the weights array to
-    nevents*ntraj by trimming the first event (where the weight is 1 by
-    definition). Therefore the weights array begins with the weight of the
-    photons after their first event.
-
-    """
-    def __init__(self, trajectory):
-        self.position = sc.Quantity(trajectory.traj["position"]
-                                    .squeeze(drop=True).to_numpy(),
-                                    sc.LENGTH_UNIT)
-        self.direction = sc.Quantity(trajectory.traj["direction"]
-                                     .squeeze(drop=True).dropna("event")
-                                     .to_numpy(), "")
-        self.weight = trajectory.traj["weight"].sel(event=slice(1, None))
-        self.weight = sc.Quantity(self.weight.squeeze(drop=True)
-                                  .dropna("event").to_numpy(),
-                                  "")
-        if "fields" in trajectory.traj:
-            self.fields = sc.Quantity(trajectory.traj["fields"]
-                                      .squeeze(drop=True).to_numpy(), "")
-        else:
-            self.fields = None
-        if "kz0_rot" in trajectory.traj:
-            self.kz0_rot = sc.Quantity(trajectory.traj["kz0_rot"].to_numpy(),
-                                       "")
-        else:
-            self.kz0_rot = None
-        if "kz0_refl" in trajectory.traj:
-            self.kz0_refl = sc.Quantity(trajectory.traj["kz0_refl"].to_numpy(),
-                                        "")
-        else:
-            self.kz0_refl = None
-
-    @property
-    def nevents(self):
-        return self.weight.shape[0]
-
-    @property
-    def ntrajectories(self):
-        return self.weight.shape[1]
-
-class Trajectory:
-    """Class that describes trajectories of photons packets in a scattering
-    and/or absorbing medium.
+    calc_fields()
+    plot_coord(ntraj, three_dim=False)
+        plot positions of trajectories as a function of number scattering
+        events.
 
     Notes
     -----
@@ -173,7 +94,8 @@ class Trajectory:
     (and fields) because we calculate the position and weight (and field) of
     each packet after the last step.
 
-    The dimension names and coords of the DataArrays are as follows:
+    The dimension names and coords of the DataArrays in Simulation.traj are as
+    follows:
     - position:  component x,y,z, event 0:nevents+1, trajectory 0:ntraj
     - weight:                     event 0:nevents+1, trajectory 0:ntraj
     - direction: component x,y,z, event 0:nevents,   trajectory 0:ntraj
@@ -182,88 +104,30 @@ class Trajectory:
 
     Note that the step (or step_size) array is not stored by the class, but
     instead is specified as an argument to the move() and absorb() methods.
-
-    Attributes
-    ----------
-    position: `xr.DataArray`
-        array of position vectors in cartesian coordinates of n trajectories
-    direction: `xr.DataArray`
-        array of direction of propagation vectors in cartesian coordinates
-        of n trajectories after every scattering event
-    weight: `xr.DataArray`
-        array of photon packet weights for absorption modeling of n
-        trajectories
-    field: `xr.DataArray`
-        electric fields of photon packets in cartesian coordinates
-    nevents: int
-        number of scattering events
-
-    Methods
-    -------
-    absorb(mu_abs, step_size)
-        calculate absorption at each scattering event with given absorption
-        coefficient and step size.
-    scatter(sintheta, costheta, sinphi, cosphi)
-        calculate directions of propagation after each scattering event with
-        given randomly sampled scattering and azimuthal angles.
-    move(mu_scat, step_size)
-        calculate new positions of the trajectory with given scattering
-        coefficient, obtained from either Mie theory or the single scattering
-        model.
-    calc_fields()
-    plot_coord(ntraj, three_dim=False)
-        plot positions of trajectories as a function of number scattering
-        events.
+    Also note that in the Simulation.traj Dataset, all of these DataArrays are
+    aligned, so that nans are inserted where there is no data (e.g. for
+    direction.sel(event=nevents+1))
 
     """
-
-    def __init__(self, position, direction, weight,
-                 fields=None, kz0_rot=None, kz0_refl=None):
+    def __init__(self, nevents, ntraj, n_medium, n_sample, boundary,
+                 rng=None,
+                 incidence_theta_min=sc.Quantity(0.,'rad'),
+                 incidence_theta_max=sc.Quantity(0.,'rad'),
+                 incidence_theta_data=None,
+                 incidence_phi_min=sc.Quantity(0.,'rad'),
+                 incidence_phi_max=sc.Quantity(2*np.pi,'rad'),
+                 incidence_phi_data=None,
+                 plot_initial=False,
+                 spot_size=sc.Quantity('1.0 um'),
+                 sample_diameter=None,
+                 coarse_roughness=0.,
+                 coherent=False,
+                 polarized=True,
+                 fields=False):
         """
-        # TODO: remove phase and polarization as they have been replaced by
-        # fields
-        Constructor for Trajectory object.
+        Constructor for Simulation object.
 
-        Attributes
-        ----------
-        position : see Class attributes
-            Dimensions of (3, nevents+1, number of trajectories)
-        direction : see Class attributes
-            Dimensions of (3, nevents, number of trajectories)
-        weight : see Class attributes
-            Dimensions of (nevents+1, number of trajectories)
-
-        """
-        self.nevents = len(direction.coords["event"])
-        self.ntrajectories = len(direction.coords["trajectory"])
-
-        self.traj = xr.Dataset({"position": position,
-                                "direction": direction,
-                                "weight": weight})
-        if fields is not None:
-            self.traj["fields"] = fields
-        if kz0_rot is not None:
-            self.traj["kz0_rot"] = kz0_rot
-        if kz0_refl is not None:
-            self.traj["kz0_refl"] = kz0_refl
-
-    @classmethod
-    def initialize(cls, nevents, ntraj, n_medium, n_sample, boundary,
-                   rng=None,
-                   incidence_theta_min=sc.Quantity(0.,'rad'),
-                   incidence_theta_max=sc.Quantity(0.,'rad'),
-                   incidence_theta_data=None,
-                   incidence_phi_min=sc.Quantity(0.,'rad'),
-                   incidence_phi_max=sc.Quantity(2*np.pi,'rad'),
-                   incidence_phi_data=None,
-                   plot_initial=False,
-                   spot_size=sc.Quantity('1.0 um'),
-                   sample_diameter=None,
-                   coarse_roughness=0.,
-                   coherent=False,
-                   polarized=True,
-                   fields=False):
-        """Sets the trajectories' initial conditions (position, direction,
+        Sets the trajectories' initial conditions (position, direction,
         weight, and polarization if set to True).
         The initial positions are determined randomly in the x-y plane.
 
@@ -395,6 +259,10 @@ class Trajectory:
         definition of rsm slope of the surface).
 
         """
+
+        self.nevents = nevents
+        self.ntrajectories = ntraj
+
         if rng is None:
             rng = sc.rng
 
@@ -517,6 +385,11 @@ class Trajectory:
         # remaining 1s in the array will be overwritten during the simulation
         weight = xr.ones_like(position.sel(component='x', drop=True))
 
+        # set up trajectory Dataset.  Wait to include directions until after
+        # we've accounted for coarse roughness
+        self.traj = xr.Dataset({"position": position,
+                                "weight": weight})
+
         if coarse_roughness == 0:
             # plot the initial positions and directions of the trajectories
             if plot_initial and (boundary == 'sphere'): # pragma: no cover
@@ -544,14 +417,15 @@ class Trajectory:
                 z = sample_radius-sample_radius*np.cos(v)
                 ax.plot_wireframe(x, y, z, color=[0.8,0.8,0.8])
 
-            kz0_rot = None
-            kz0_refl = None
-
         # if the surface has coarse roughness
         else:
             args = [direction, n_medium, n_sample, coarse_roughness, boundary]
             direction, kz0_rot, kz0_refl = coarse_roughness_enter(*args,
                                                                   rng=rng)
+            self.traj["kz0_rot"] = kz0_rot
+            self.traj["kz0_refl"] = kz0_refl
+
+        self.traj["direction"] = direction
 
         if fields:
             # The field is initialized with nevents+1 because we want to save
@@ -576,10 +450,23 @@ class Trajectory:
 
             # first step into the sample is same
             fields.loc[dict(event=1)] = fields.sel(event=0)
-        else:
-            fields = None
+            self.traj["fields"] = fields
 
-        return cls(position, direction, weight, fields, kz0_rot, kz0_refl)
+    def run(self):
+        """
+        Run the simulation.
+
+        Parameters
+        ----------
+
+        Returns
+        -------
+
+        MCResult object:
+            results of simulation
+
+        """
+        pass
 
     def absorb(self, mu_abs, step_size):
         """
@@ -958,6 +845,77 @@ class Trajectory:
                              self.traj["position"][1,:,n],
                              self.traj["position"][2,:,n],
                              color=next(colors))
+
+
+class MCResult:
+    """
+    Results from running Monte Carlo simulation.
+
+    Attributes
+    ----------
+    Methods
+    -------
+
+    """
+    def __init__(self):
+        """
+        Constructor for MCResult object.
+
+        Parameters
+        ----------
+
+        """
+        pass
+
+
+class QtyTrajectory():
+    """Temporary class to convert xarray-based trajectories to Quantity objects
+    for processing by calc_refl_trans() and other functions. Can be removed
+    when these functions have been refactored to use DataArrays.
+
+    Notes
+    -----
+    For compatibility with the event processing code (calc_refl_trans and
+    associated functions), we set the size of the weights array to
+    nevents*ntraj by trimming the first event (where the weight is 1 by
+    definition). Therefore the weights array begins with the weight of the
+    photons after their first event.
+
+    """
+    def __init__(self, trajectory):
+        self.position = sc.Quantity(trajectory["position"]
+                                    .squeeze(drop=True).to_numpy(),
+                                    sc.LENGTH_UNIT)
+        self.direction = sc.Quantity(trajectory["direction"]
+                                     .squeeze(drop=True).dropna("event")
+                                     .to_numpy(), "")
+        self.weight = trajectory["weight"].sel(event=slice(1, None))
+        self.weight = sc.Quantity(self.weight.squeeze(drop=True)
+                                  .dropna("event").to_numpy(),
+                                  "")
+        if "fields" in trajectory:
+            self.fields = sc.Quantity(trajectory["fields"]
+                                      .squeeze(drop=True).to_numpy(), "")
+        else:
+            self.fields = None
+        if "kz0_rot" in trajectory:
+            self.kz0_rot = sc.Quantity(trajectory["kz0_rot"].to_numpy(),
+                                       "")
+        else:
+            self.kz0_rot = None
+        if "kz0_refl" in trajectory:
+            self.kz0_refl = sc.Quantity(trajectory["kz0_refl"].to_numpy(),
+                                        "")
+        else:
+            self.kz0_refl = None
+
+    @property
+    def nevents(self):
+        return self.weight.shape[0]
+
+    @property
+    def ntrajectories(self):
+        return self.weight.shape[1]
 
 
 def calc_scat(model, wavelen,
