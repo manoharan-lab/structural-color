@@ -289,13 +289,10 @@ def test_surface_roughness_mc():
                         incidence_phi_max = incidence_phi_max,
                         coarse_roughness = coarse_roughness)
 
-    sintheta, costheta, sinphi, cosphi, _, _ = mc.sample_angles(nevents,
-                                                                ntrajectories,
-                                                                p, rng=rng)
+    sintheta, costheta, sinphi, cosphi, _, _ = sim.sample_angles(p)
 
     # Need to specify the fine roughness parameter in this function
-    step = mc.sample_step(nevents, ntrajectories, mu_scat,
-                          fine_roughness=fine_roughness, rng=rng)
+    step = sim.sample_step(mu_scat, fine_roughness=fine_roughness)
 
     sim.absorb(mu_abs, step)
     sim.scatter(sintheta, costheta, sinphi, cosphi)
@@ -840,12 +837,10 @@ def test_detectors_mc():
                         n_sample, boundary, rng=rng)
 
     # Generate a matrix of all the randomly sampled angles first
-    sintheta, costheta, sinphi, cosphi, _, _ = mc.sample_angles(nevents,
-                                                                ntrajectories,
-                                                                p, rng=rng)
+    sintheta, costheta, sinphi, cosphi, _, _ = sim.sample_angles(p)
 
     # Create step size distribution
-    step = mc.sample_step(nevents, ntrajectories, mu_scat, rng=rng)
+    step = sim.sample_step(mu_scat)
 
     # Run photons
     sim.absorb(mu_abs, step)
@@ -992,11 +987,8 @@ def calc_montecarlo(model, nevents, ntrajectories, wavelen, seed,
                         incidence_theta_min = incidence_theta_min,
                         incidence_theta_max = incidence_theta_max)
 
-    sintheta, costheta, sinphi, cosphi, _, _= mc.sample_angles(nevents,
-                                                               ntrajectories,
-                                                               p, rng=rng)
-    step = mc.sample_step(nevents, ntrajectories, mu_scat,
-                          fine_roughness=fine_roughness, rng=rng)
+    sintheta, costheta, sinphi, cosphi, _, _= sim.sample_angles(p)
+    step = sim.sample_step(mu_scat, fine_roughness=fine_roughness)
 
     sim.absorb(mu_abs, step)
     sim.scatter(sintheta, costheta, sinphi, cosphi)

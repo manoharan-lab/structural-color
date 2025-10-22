@@ -214,12 +214,6 @@ def test_index_match():
     k0_sphere[2,0,:] = 1
     W0_sphere = xr.ones_like(r0_sphere.sel(component="x", drop=True))
 
-    # Generate a matrix of all the randomly sampled angles first
-    sintheta, costheta, sinphi, cosphi, _, _ = mc.sample_angles(nevents, ntrajectories, p)
-
-    # Create step size distribution
-    step = mc.sample_step(nevents, ntrajectories, mu_scat)
-
     # make dummy simulation object and replace trajectories in the object with
     # the ones that we've set up
     sim = mc.Simulation(nevents, ntrajectories, n_medium, n_sample, 'film')
@@ -227,6 +221,12 @@ def test_index_match():
                                       "direction": k0_sphere,
                                       "weight": W0_sphere})
     sim.traj = trajectories_sphere
+
+    # Generate a matrix of all the randomly sampled angles first
+    sintheta, costheta, sinphi, cosphi, _, _ = sim.sample_angles(p)
+
+    # Create step size distribution
+    step = sim.sample_step(mu_scat)
 
     sim.absorb(mu_abs, step)
     sim.scatter(sintheta, costheta, sinphi, cosphi)
@@ -294,12 +294,10 @@ def test_reflection_sphere_mc():
                         rng=rng)
 
     # Generate a matrix of all the randomly sampled angles first
-    sintheta, costheta, sinphi, cosphi, _, _ = mc.sample_angles(nevents,
-                                                                ntrajectories,
-                                                                p, rng=rng)
+    sintheta, costheta, sinphi, cosphi, _, _ = sim.sample_angles(p)
 
     # Create step size distribution
-    step = mc.sample_step(nevents, ntrajectories, mu_scat, rng=rng)
+    step = sim.sample_step(mu_scat)
 
     # Run photons
     sim.absorb(mu_abs, step)
@@ -403,11 +401,10 @@ def test_multiscale_mc():
                             sample_diameter = sphere_boundary_diameter, rng=rng)
 
         # Generate a matrix of all the randomly sampled angles first
-        sintheta, costheta, sinphi, cosphi, _, _ = \
-            mc.sample_angles(nevents, ntrajectories, p, rng=rng)
+        sintheta, costheta, sinphi, cosphi, _, _ = sim.sample_angles(p)
 
         # Create step size distribution
-        step = mc.sample_step(nevents, ntrajectories, mu_scat, rng=rng)
+        step = sim.sample_step(mu_scat)
 
         # Run photons
         sim.absorb(mu_abs, step)
@@ -489,13 +486,10 @@ def test_multiscale_mc():
                             boundary_bulk, rng=rng)
 
         # Sample angles
-        sintheta, costheta, sinphi, cosphi, _, _ = \
-            mc.sample_angles(nevents_bulk, ntrajectories_bulk, p_bulk[i,:],
-                             rng=rng)
+        sintheta, costheta, sinphi, cosphi, _, _= sim.sample_angles(p_bulk[i,:])
 
         # Calculate step size
-        step = mc.sample_step(nevents_bulk, ntrajectories_bulk,
-                              mu_scat_bulk[i], rng=rng)
+        step = sim.sample_step(mu_scat_bulk[i])
 
         # Run photons
         sim.scatter(sintheta, costheta, sinphi, cosphi)
@@ -616,11 +610,10 @@ def test_multiscale_polydispersity_mc():
                                 rng=rng)
 
             # Generate a matrix of all the randomly sampled angles first
-            sintheta, costheta, sinphi, cosphi, _, _ = \
-                mc.sample_angles(nevents, ntrajectories, p, rng=rng)
+            sintheta, costheta, sinphi, cosphi, _, _ = sim.sample_angles(p)
 
             # Create step size distribution
-            step = mc.sample_step(nevents, ntrajectories, mu_scat, rng=rng)
+            step = sim.sample_step(mu_scat)
 
             # Run photons
             sim.absorb(mu_abs, step)
@@ -792,11 +785,10 @@ def test_multiscale_color_mixing_mc():
                                 sample_diameter = sphere_boundary_diameter,
                                 rng=rng)
 
-            sintheta, costheta, sinphi, cosphi, _, _ = \
-                mc.sample_angles(nevents, ntrajectories, p, rng=rng)
+            sintheta, costheta, sinphi, cosphi, _, _ = sim.sample_angles(p)
 
 
-            step = mc.sample_step(nevents, ntrajectories, mu_scat, rng=rng)
+            step = sim.sample_step(mu_scat)
 
             sim.absorb(mu_abs, step)
             sim.scatter(sintheta, costheta, sinphi, cosphi)

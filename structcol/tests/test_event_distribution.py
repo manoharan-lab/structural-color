@@ -83,12 +83,10 @@ sim = mc.Simulation(nevents, ntrajectories, n_medium, n_sample,
                     boundary, rng=rng)
 
 # Generate a matrix of all the randomly sampled angles first
-sintheta, costheta, sinphi, cosphi, theta, _ = mc.sample_angles(nevents,
-                                                                ntrajectories,
-                                                                p, rng=rng)
+sintheta, costheta, sinphi, cosphi, theta, _ = sim.sample_angles(p)
 
 # Create step size distribution
-step = mc.sample_step(nevents, ntrajectories, mu_scat, rng=rng)
+step = sim.sample_step(mu_scat)
 
 # Run photons
 sim.absorb(mu_abs, step)
@@ -456,15 +454,14 @@ def test_event_distribution_wavelength_mc():
 
         ######################################################################
         # Generate a matrix of all the randomly sampled angles first
-        sintheta, costheta, sinphi, cosphi, theta, _ = \
-            mc.sample_angles(nevents, ntrajectories, p[i,:], rng=rng)
+        sintheta, costheta, sinphi, cosphi, theta, _ = sim.sample_angles(p[i,:])
         sintheta = xr.DataArray(np.sin(theta),
                                 coords={"event": range(1, nevents),
                                         "trajectory": range(ntrajectories)})
         costheta = xr.DataArray(np.cos(theta), coords=sintheta.coords)
 
         # Create step size distribution
-        step = mc.sample_step(nevents, ntrajectories, mu_scat, rng=rng)
+        step = sim.sample_step(mu_scat)
 
         # Run photons
         sim.absorb(mu_abs, step)
@@ -563,12 +560,11 @@ def test_event_distribution_angle_mc():
     trajectories0 = sim.traj.copy()
 
     # Create step size distribution
-    step = mc.sample_step(nevents, ntrajectories, mu_scat, rng=rng)
+    step = sim.sample_step(mu_scat)
 
     for j in range(theta_range.size):
         # Generate a matrix of all the randomly sampled angles first
-        _, _, sinphi, cosphi, _, _ = mc.sample_angles(nevents, ntrajectories,
-                                                      p, rng=rng)
+        _, _, sinphi, cosphi, _, _ = sim.sample_angles(p)
 
         # need nevents-1 because the first event doesn't involve a change in
         # direction.

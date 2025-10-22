@@ -66,11 +66,13 @@ def test_sampling():
                                  index_medium)
     p, mu_scat, mu_abs = mc.calc_scat(model, wavelen)
 
+    sim = mc.Simulation(nevents, ntrajectories, n_medium, n_sample, "film")
+
     # Test that 'sample_angles' runs
-    mc.sample_angles(nevents, ntrajectories, p)
+    sim.sample_angles(p)
 
     # Test that 'sample_step' runs
-    mc.sample_step(nevents, ntrajectories, mu_scat)
+    sim.sample_step(mu_scat)
 
 
 def test_simulation():
@@ -84,8 +86,7 @@ def test_simulation():
     ntrajectories = 3
 
     # Create a Simulation object
-    sim = mc.Simulation(nevents, ntrajectories, n_medium, n_sample,
-                        'film')
+    sim = mc.Simulation(nevents, ntrajectories, n_medium, n_sample, "film")
 
     # Test the absorb function
     mu_abs = 1/sc.Quantity(10.0, 'um')

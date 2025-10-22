@@ -78,7 +78,6 @@ def calc_sphere_mc():
     seed = 1
     rng = np.random.RandomState([seed])
 
-
     # caculate the effective index of the sample
     index_sample = sc.EffectiveIndex([index_particle, index_matrix],
                                      vf_particles)
@@ -100,12 +99,10 @@ def calc_sphere_mc():
                         rng=rng)
 
     # Generate a matrix of all the randomly sampled angles first
-    sintheta, costheta, sinphi, cosphi, _, _ = mc.sample_angles(nevents,
-                                                                ntrajectories,
-                                                                p, rng=rng)
+    sintheta, costheta, sinphi, cosphi, _, _ = sim.sample_angles(p)
 
     # Create step size distribution
-    step = mc.sample_step(nevents, ntrajectories, mu_scat, rng=rng)
+    step = sim.sample_step(mu_scat)
 
     # Run photons
     sim.absorb(mu_abs, step)

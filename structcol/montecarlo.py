@@ -264,7 +264,9 @@ class Simulation:
         self.ntrajectories = ntraj
 
         if rng is None:
-            rng = sc.rng
+            self.rng = sc.rng
+        else:
+            self.rng = rng
 
         # get the spot size magnitude to multiply by initial x and y positions
         spot_size_magnitude = spot_size.to_preferred().magnitude
@@ -275,7 +277,7 @@ class Simulation:
                 raise ValueError("for film geometry, sample_diameter must be "
                                  "set to None")
             # randomly choose positions on interval [0,1] for x and y
-            r0 = rng.random((2, ntraj))
+            r0 = self.rng.random((2, ntraj))
             # set z coordinate to 0 for initial position
             r0 = np.concatenate([r0, np.zeros((1, ntraj))])
 
@@ -290,8 +292,8 @@ class Simulation:
             else:
                 incidence_theta_min = incidence_theta_min.to('rad').magnitude
                 incidence_theta_max = incidence_theta_max.to('rad').magnitude
-                theta = rng.uniform(incidence_theta_min, incidence_theta_max,
-                                    ntraj)
+                theta = self.rng.uniform(incidence_theta_min,
+                                         incidence_theta_max, ntraj)
 
             if incidence_phi_data is not None:
                 if len(incidence_phi_data) != ntraj:
@@ -301,7 +303,8 @@ class Simulation:
             else:
                 incidence_phi_min = incidence_phi_min.to('rad').magnitude
                 incidence_phi_max = incidence_phi_max.to('rad').magnitude
-                phi = rng.uniform(incidence_phi_min, incidence_phi_max, ntraj)
+                phi = self.rng.uniform(incidence_phi_min, incidence_phi_max,
+                                       ntraj)
 
             sinphi = np.sin(phi)
             cosphi = np.cos(phi)
@@ -318,10 +321,10 @@ class Simulation:
                 sample_radius = sample_diameter/2
 
             # randomly choose r on interval [0,1] and scale by spot size radius
-            r = np.sqrt(rng.random(ntraj)) * spot_size_magnitude/2
+            r = np.sqrt(self.rng.random(ntraj)) * spot_size_magnitude/2
 
             # randomly choose th on interval [0,2*pi]
-            th = 2*np.pi*rng.random(ntraj)
+            th = 2*np.pi*self.rng.random(ntraj)
 
             # convert to x and y, so that the points are randomly distributed
             # across the cross sectional area of the sphere
@@ -421,7 +424,7 @@ class Simulation:
         else:
             args = [direction, n_medium, n_sample, coarse_roughness, boundary]
             direction, kz0_rot, kz0_refl = coarse_roughness_enter(*args,
-                                                                  rng=rng)
+                                                                  rng=self.rng)
             self.traj["kz0_rot"] = kz0_rot
             self.traj["kz0_refl"] = kz0_refl
 
@@ -440,7 +443,7 @@ class Simulation:
             if coherent:
                 phase = np.zeros((2,ntraj))
             else:
-                phase = rng.random((2, ntraj))*2*np.pi
+                phase = self.rng.random((2, ntraj))*2*np.pi
             if polarized:
                 fields.sel(event=0).loc["x"] = np.exp(phase[0]*1j)
             else:
@@ -467,6 +470,182 @@ class Simulation:
 
         """
         pass
+
+    def sample_angles(self, p, min_angle=0.01, rng=None):
+        """Samples scattering angles (theta) and azimuthal angles (phi)
+
+        if phase function p is 1d, phi is sampled from uniform distribution,
+        and theta from phase function distribution.
+
+        if phase function p is 2d, both theta and phi are sampled from p. Note
+        that theta must come first in the shape of the phase function
+
+        Parameters
+        ----------
+        nevents : int
+            Number of scattering events.
+        ntraj : int
+            Number of trajectories.
+        p : array_like (structcol.Quantity [dimensionless])
+            Phase function values returned from 'phase_function'.
+        min_angle: float
+            min_angle to prevent error because structure factor is zero at
+            theta=0
+        rng: numpy.random.Generator object (default None)
+            Random number generator. If not specified, use the generator stored
+            in the Simulation object
+
+        Returns
+        -------
+        sintheta, costheta, sinphi, cosphi, theta, phi : ndarray
+            Sampled azimuthal and scattering angles, and their sines and
+            cosines.
+
+        """
+        if rng is None:
+            rng = self.rng
+
+        if isinstance(p,sc.Quantity):
+            p = p.magnitude
+        num_theta = len(p)
+
+        # The direction for the first event is defined upon initialization
+        # so we only need to sample nevents-1.
+        nsamples = self.nevents-1
+        ntraj = self.ntrajectories
+
+        # Scattering angles for the phase function calculation (typically from
+        # 0 to pi). A non-zero minimum angle is needed because in the single
+        # scattering model, if the analytic formula is used, S(q=0) returns
+        # nan.
+        thetas = np.linspace(min_angle, np.pi, num_theta)
+
+        if len(p.shape)==1: # if p depends only on theta
+
+            # Randomly sample azimuthal angle phi from uniform distribution
+            # [0 - 2pi]
+            rand = rng.random((nsamples, ntraj))
+            phi = 2*np.pi*rand
+
+            # make sure probability is normalized
+            # prob is integral of p in solid angle
+            prob = p * np.sin(thetas)*2*np.pi
+             # normalize to make it add up to 1
+            prob_norm = prob/sum(prob)
+
+            # Randomly sample scattering angle theta
+            theta = rng.choice(thetas, (nsamples, ntraj), p = prob_norm)
+
+        if len(p.shape)==2: # if p depends on theta and phi
+
+            # get the number of phis from the shape of the phase function
+            num_phi = p.shape[1]
+
+            # sum for theta axis to get phi probabilities
+            p_phi = np.sum(p, axis = 0)
+
+            # define phi values from which to sample
+            phis = np.linspace(min_angle,2*np.pi, num_phi)
+
+            # sample indices for phi values
+            phi_ind = rng.choice(num_phi, (nsamples, ntraj),
+                                 p = p_phi/np.sum(p_phi))
+
+            # sample thetas based on sampled phi values
+            theta_ind = np.zeros((nsamples, ntraj))
+            theta = np.zeros((nsamples, ntraj))
+            phi = np.zeros((nsamples, ntraj))
+
+            # calculate and normalize p(theta) for each phi, event, and
+            # trajectory
+            p_theta = p[:, phi_ind] * np.sin(thetas[:, np.newaxis, np.newaxis])
+            p_theta_norm = p_theta/np.sum(p_theta, axis=0)
+
+            # It's hard to vectorize this loop because rng.choice works only
+            # with a one-dimensional probability vector p. There may be a way
+            # to vectorize using rng.multinomial, which takes an array of
+            # probs. However, rng.multinomial might not work with
+            # np.random.RandomState
+            for i in range(nsamples):
+                for j in range(ntraj):
+                    theta_ind[i,j] = rng.choice(num_theta,
+                                                p = p_theta_norm[:,i,j])
+
+            # sampled angles
+            theta = thetas[theta_ind.astype(int)]
+            phi = phis[phi_ind.astype(int)]
+
+        # set event number correctly (note again that we did not sample angles
+        # for event 0)
+        sintheta = xr.DataArray(np.sin(theta),
+                                coords = {"event": range(1, self.nevents),
+                                          "trajectory": range(ntraj)})
+        costheta = xr.DataArray(np.cos(theta), coords=sintheta.coords)
+        sinphi = xr.DataArray(np.sin(phi), coords=sintheta.coords)
+        cosphi = xr.DataArray(np.cos(phi), coords=sintheta.coords)
+
+        return sintheta, costheta, sinphi, cosphi, theta, phi
+
+
+    def sample_step(self, mu_scat, fine_roughness=0., rng=None):
+        """Samples step sizes from exponential distribution.
+
+        Parameters
+        ----------
+        mu_scat : float or 2-element array (structcol.Quantity [1/length])
+            Scattering coefficient. When fine_roughness is larger than 0,
+            mu_scat is a 2-element array, where the first element is the
+            scattering coefficient from either Mie theory or single scattering
+            model, and the second element is the scattering coefficient from
+            Mie theory.
+        fine_roughness : float (structcol.Quantity [dimensionless])
+            Fraction of the sample area that has fine roughness. Should be
+            between 0 and 1. For ex, a value of 0.3 means that 30% of incident
+            light will hit fine surface roughness (e.g. will "see" a Mie
+            scatterer first). The rest of the light will see a smooth surface,
+            which could be flat or have coarse roughness (long in the
+            lengthscale of light).
+        rng : `numpy.random.Generator` object (default None)
+            Random number generator. If not specified, use the generator stored
+            in the Simulation object
+
+        Returns
+        -------
+        step : ndarray
+            Sampled step sizes for all trajectories and scattering events.
+
+        """
+        if rng is None:
+            rng = self.rng
+        nevents = self.nevents
+        ntraj = self.ntrajectories
+
+        if fine_roughness > 1. or fine_roughness < 0.:
+            raise ValueError('fine roughness fraction must be between 0 and 1')
+
+        # check whether mu_scat contains two values
+        if len(np.array([mu_scat.magnitude]).flatten()) > 1:
+            mu_scat, mu_scat_mie = mu_scat
+        else:
+            mu_scat_mie = None
+
+        # Generate array of random numbers from 0 to 1
+        rand = rng.random((nevents,ntraj)) #uncomment
+
+        # sample step sizes
+        step = -np.log(1.0-rand) / mu_scat
+
+        # If there is fine surface roughness, sample the first step from Mie
+        # theory for the number of trajectories set by fine_roughness
+        if mu_scat_mie is not None:
+            ntraj_mie = int(round(ntraj * fine_roughness))
+            rand_ntraj = rng.random(ntraj_mie)
+            step[0,0:ntraj_mie] = -np.log(1.0-rand_ntraj) / mu_scat_mie
+
+        step = xr.DataArray(step.to_preferred().magnitude,
+                            coords = {"event": range(nevents),
+                                      "trajectory": range(ntraj)})
+        return step
 
     def absorb(self, mu_abs, step_size):
         """
@@ -1044,178 +1223,6 @@ def calc_scat(model, wavelen,
 
     return p, mu_scat, mu_abs
 
-
-def sample_angles(nevents, ntraj, p, min_angle=0.01, rng=None):
-    """
-    Samples scattering angles (theta) and azimuthal angles (phi)
-
-    if phase function p is 1d, phi is sampled from uniform distribution, and
-    theta from phase function distribution.
-
-    if phase function p is 2d, both theta and phi are sampled from p. Note that
-    theta must come first in the shape of the phase function
-
-    Parameters
-    ----------
-    nevents : int
-        Number of scattering events.
-    ntraj : int
-        Number of trajectories.
-    p : array_like (structcol.Quantity [dimensionless])
-        Phase function values returned from 'phase_function'.
-    min_angle: float
-        min_angle to prevent error because structure factor is zero at theta=0
-    rng: numpy.random.Generator object (default None) random number generator.
-        If not specified, use the default generator initialized on loading the
-        package
-
-    Returns
-    -------
-    sintheta, costheta, sinphi, cosphi, theta, phi : ndarray
-        Sampled azimuthal and scattering angles, and their sines and cosines.
-
-    """
-    if rng is None:
-        rng = sc.rng
-
-    if isinstance(p,sc.Quantity):
-        p = p.magnitude
-    num_theta = len(p)
-
-    # The direction for the first event is defined upon initialization
-    # so we only need to sample nevents-1.
-    nsamples = nevents-1
-
-    # Scattering angles for the phase function calculation (typically from 0 to
-    # pi). A non-zero minimum angle is needed because in the single scattering
-    # model, if the analytic formula is used, S(q=0) returns nan.
-    thetas = np.linspace(min_angle, np.pi, num_theta)
-
-    if len(p.shape)==1: # if p depends only on theta
-
-        # Randomly sample azimuthal angle phi from uniform distribution [0 -
-        # 2pi]
-        rand = rng.random((nsamples, ntraj))
-        phi = 2*np.pi*rand
-
-        # make sure probability is normalized
-        # prob is integral of p in solid angle
-        prob = p * np.sin(thetas)*2*np.pi
-         # normalize to make it add up to 1
-        prob_norm = prob/sum(prob)
-
-        # Randomly sample scattering angle theta
-        theta = rng.choice(thetas, (nsamples, ntraj), p = prob_norm)
-
-    if len(p.shape)==2: # if p depends on theta and phi
-
-        # get the number of phis from the shape of the phase function
-        num_phi = p.shape[1]
-
-        # sum for theta axis to get phi probabilities
-        p_phi = np.sum(p, axis = 0)
-
-        # define phi values from which to sample
-        phis = np.linspace(min_angle,2*np.pi, num_phi)
-
-        # sample indices for phi values
-        phi_ind = rng.choice(num_phi, (nsamples, ntraj),
-                             p = p_phi/np.sum(p_phi))
-
-        # sample thetas based on sampled phi values
-        theta_ind = np.zeros((nsamples, ntraj))
-        theta = np.zeros((nsamples, ntraj))
-        phi = np.zeros((nsamples, ntraj))
-
-        # calculate and normalize p(theta) for each phi, event, and trajectory
-        p_theta = p[:, phi_ind] * np.sin(thetas[:, np.newaxis, np.newaxis])
-        p_theta_norm = p_theta/np.sum(p_theta, axis=0)
-
-        # It's hard to vectorize this loop because rng.choice works only with a
-        # one-dimensional probability vector p.  There may be a way to
-        # vectorize using rng.multinomial, which takes an array of probs.
-        # However, rng.multinomial might not work with np.random.RandomState
-        for i in range(nsamples):
-            for j in range(ntraj):
-                theta_ind[i,j] = rng.choice(num_theta,
-                                            p = p_theta_norm[:,i,j])
-
-        # sampled angles
-        theta = thetas[theta_ind.astype(int)]
-        phi = phis[phi_ind.astype(int)]
-
-    # set event number correctly (note again that we did not sample angles for
-    # event 0)
-    sintheta = xr.DataArray(np.sin(theta),
-                            coords = {"event": range(1, nevents),
-                                      "trajectory": range(ntraj)})
-    costheta = xr.DataArray(np.cos(theta), coords=sintheta.coords)
-    sinphi = xr.DataArray(np.sin(phi), coords=sintheta.coords)
-    cosphi = xr.DataArray(np.cos(phi), coords=sintheta.coords)
-
-    return sintheta, costheta, sinphi, cosphi, theta, phi
-
-
-def sample_step(nevents, ntraj, mu_scat, fine_roughness=0., rng=None):
-    """
-    Samples step sizes from exponential distribution.
-
-    Parameters
-    ----------
-    nevents : int
-        Number of scattering events.
-    ntraj : int
-        Number of trajectories.
-    mu_scat : float or 2-element array (structcol.Quantity [1/length])
-        Scattering coefficient. When fine_roughness is larger than 0, mu_scat
-        is a 2-element array, where the first element is the scattering
-        coefficient from either Mie theory or single scattering model, and the
-        second element is the scattering coefficient from Mie theory.
-    fine_roughness : float (structcol.Quantity [dimensionless])
-        Fraction of the sample area that has fine roughness. Should be between
-        0 and 1. For ex, a value of 0.3 means that 30% of incident light will
-        hit fine surface roughness (e.g. will "see" a Mie scatterer first). The
-        rest of the light will see a smooth surface, which could be flat or
-        have coarse roughness (long in the lengthscale of light).
-    rng: numpy.random.Generator object (default None) random number generator.
-        If not specified, use the default generator initialized on loading the
-        package
-
-    Returns
-    -------
-    step : ndarray
-        Sampled step sizes for all trajectories and scattering events.
-
-    """
-    if rng is None:
-        rng = sc.rng
-
-    if fine_roughness > 1. or fine_roughness < 0.:
-        raise ValueError('fine roughness fraction must be between 0 and 1')
-
-    # check whether mu_scat contains two values
-    if len(np.array([mu_scat.magnitude]).flatten()) > 1:
-        mu_scat, mu_scat_mie = mu_scat
-    else:
-        mu_scat_mie = None
-
-    # Generate array of random numbers from 0 to 1
-    rand = rng.random((nevents,ntraj)) #uncomment
-
-    # sample step sizes
-    step = -np.log(1.0-rand) / mu_scat
-
-    # If there is fine surface roughness, sample the first step from Mie theory
-    # for the number of trajectories set by fine_roughness
-    if mu_scat_mie is not None:
-        ntraj_mie = int(round(ntraj * fine_roughness))
-        rand_ntraj = rng.random(ntraj_mie)
-        step[0,0:ntraj_mie] = -np.log(1.0-rand_ntraj) / mu_scat_mie
-
-    step = xr.DataArray(step.to_preferred().magnitude,
-                        coords = {"event": range(nevents),
-                                  "trajectory": range(ntraj)})
-    return step
 
 def coarse_roughness_enter(k, n_medium, n_sample, coarse_roughness, boundary,
                            rng=None):

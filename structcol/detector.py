@@ -2169,11 +2169,10 @@ def run_sphere_fresnel_traj(refl_per_traj_nf, trans_per_traj_nf,
     sim.traj = trajectories_fresnel
 
     # Generate a matrix of all the randomly sampled angles first
-    sintheta, costheta, sinphi, cosphi, _, _ = mc.sample_angles(nevents, ntraj,
-                                                                p, rng=rng)
+    sintheta, costheta, sinphi, cosphi, _, _ = sim.sample_angles(p, rng=rng)
 
     # Create step size distribution
-    step = mc.sample_step(nevents, ntraj, mu_scat, rng=rng)
+    step = sim.sample_step(mu_scat, rng=rng)
 
     # Run photons
     sim.absorb(mu_abs, step)

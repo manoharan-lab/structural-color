@@ -362,9 +362,8 @@ def test_structure_factor_data_reflectances():
         sim = mc.Simulation(nevents, ntrajectories, n_medium[i], n_sample,
                             boundary, rng=rng)
 
-        sintheta, costheta, sinphi, cosphi, _, _ = \
-            mc.sample_angles(nevents, ntrajectories, p, rng=rng)
-        step = mc.sample_step(nevents, ntrajectories, mu_scat, rng=rng)
+        sintheta, costheta, sinphi, cosphi, _, _ = sim.sample_angles(p)
+        step = sim.sample_step(mu_scat)
 
         sim.absorb(mu_abs, step)
         sim.scatter(sintheta, costheta, sinphi, cosphi)

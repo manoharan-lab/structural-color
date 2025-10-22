@@ -74,10 +74,9 @@ def test_2pi_shift():
                         fields=True)
 
     # Sample trajectory angles
-    sintheta, costheta, sinphi, cosphi, theta, phi = mc.sample_angles(nevents,
-                                                                      ntrajectories, p)
+    sintheta, costheta, sinphi, cosphi, theta, phi = sim.sample_angles(p)
     # Sample step sizes
-    step = mc.sample_step(nevents, ntrajectories, mu_scat)
+    step = sim.sample_step(mu_scat)
 
     # Update trajectories based on sampled values
     sim.scatter(sintheta, costheta, sinphi, cosphi)
@@ -274,10 +273,9 @@ def test_field_normalized():
                         boundary, fields=True)
 
     # Sample trajectory angles
-    sintheta, costheta, sinphi, cosphi, theta, phi= mc.sample_angles(nevents,
-                                                               ntrajectories,p)
+    sintheta, costheta, sinphi, cosphi, theta, phi= sim.sample_angles(p)
     # Sample step sizes
-    step = mc.sample_step(nevents, ntrajectories, mu_scat)
+    step = sim.sample_step(mu_scat)
 
     # Update trajectories based on sampled values
     sim.scatter(sintheta, costheta, sinphi, cosphi)
@@ -346,10 +344,9 @@ def test_field_perp_direction():
                         fields=True)
 
     # Sample trajectory angles
-    sintheta, costheta, sinphi, cosphi, theta, phi =\
-        mc.sample_angles(nevents, ntrajectories,p)
+    sintheta, costheta, sinphi, cosphi, theta, phi = sim.sample_angles(p)
 
-    step = mc.sample_step(nevents, ntrajectories, mu_scat)
+    step = sim.sample_step(mu_scat)
 
     # Update trajectories based on sampled values
     sim.scatter(sintheta, costheta, sinphi, cosphi)
@@ -418,11 +415,10 @@ def test_field_reflectance_mc():
                         coherent=False, fields=True, rng=rng)
 
     # Sample trajectory angles
-    sintheta, costheta, sinphi, cosphi, theta, phi = \
-        mc.sample_angles(nevents, ntrajectories, p, rng=rng)
+    sintheta, costheta, sinphi, cosphi, theta, phi = sim.sample_angles(p)
 
     # Sample step sizes
-    step = mc.sample_step(nevents, ntrajectories, mu_scat, rng=rng)
+    step = sim.sample_step(mu_scat)
 
     # Update trajectories based on sampled values
     sim.scatter(sintheta, costheta, sinphi, cosphi)
@@ -518,10 +514,9 @@ def test_field_co_cross_mc():
         sim = mc.Simulation(nevents, ntrajectories, n_medium[i], n_sample,
                             boundary, fields=True, coherent=False, rng=rng)
 
-        sintheta, costheta, sinphi, cosphi, theta, phi =\
-            mc.sample_angles(nevents, ntrajectories, p, rng=rng)
+        sintheta, costheta, sinphi, cosphi, theta, phi = sim.sample_angles(p)
 
-        step = mc.sample_step(nevents, ntrajectories, mu_scat, rng=rng)
+        step = sim.sample_step(mu_scat)
 
         sim.scatter(sintheta, costheta, sinphi, cosphi)
         sim.move(step)
