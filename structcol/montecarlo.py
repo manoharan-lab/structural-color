@@ -121,26 +121,30 @@ class QtyTrajectory():
     photons after their first event.
 
     """
-    def __init__(self, trajectories):
-        self.position = sc.Quantity(trajectories.position.squeeze(drop=True)
-                                    .to_numpy(),
+    def __init__(self, trajectory):
+        self.position = sc.Quantity(trajectory.traj["position"]
+                                    .squeeze(drop=True).to_numpy(),
                                     sc.LENGTH_UNIT)
-        self.direction = sc.Quantity(trajectories.direction.squeeze(drop=True)
+        self.direction = sc.Quantity(trajectory.traj["direction"]
+                                     .squeeze(drop=True).dropna("event")
                                      .to_numpy(), "")
-        self.weight = trajectories.weight.sel(event=slice(1, None))
-        self.weight = sc.Quantity(self.weight.squeeze(drop=True).to_numpy(),
+        self.weight = trajectory.traj["weight"].sel(event=slice(1, None))
+        self.weight = sc.Quantity(self.weight.squeeze(drop=True)
+                                  .dropna("event").to_numpy(),
                                   "")
-        if trajectories.fields is not None:
-            self.fields = sc.Quantity(trajectories.fields.squeeze(drop=True)
-                                      .to_numpy(), "")
+        if "fields" in trajectory.traj:
+            self.fields = sc.Quantity(trajectory.traj["fields"]
+                                      .squeeze(drop=True).to_numpy(), "")
         else:
             self.fields = None
-        if trajectories.kz0_rot is not None:
-            self.kz0_rot = sc.Quantity(trajectories.kz0_rot.to_numpy(), "")
+        if "kz0_rot" in trajectory.traj:
+            self.kz0_rot = sc.Quantity(trajectory.traj["kz0_rot"].to_numpy(),
+                                       "")
         else:
             self.kz0_rot = None
-        if trajectories.kz0_refl is not None:
-            self.kz0_refl = sc.Quantity(trajectories.kz0_refl.to_numpy(), "")
+        if "kz0_refl" in trajectory.traj:
+            self.kz0_refl = sc.Quantity(trajectory.traj["kz0_refl"].to_numpy(),
+                                        "")
         else:
             self.kz0_refl = None
 
@@ -230,13 +234,18 @@ class Trajectory:
             Dimensions of (nevents+1, number of trajectories)
 
         """
+        self.nevents = len(direction.coords["event"])
+        self.ntrajectories = len(direction.coords["trajectory"])
 
-        self.position = position
-        self.direction = direction
-        self.weight = weight
-        self.fields = fields
-        self.kz0_rot = kz0_rot
-        self.kz0_refl = kz0_refl
+        self.traj = xr.Dataset({"position": position,
+                                "direction": direction,
+                                "weight": weight})
+        if fields is not None:
+            self.traj["fields"] = fields
+        if kz0_rot is not None:
+            self.traj["kz0_rot"] = kz0_rot
+        if kz0_refl is not None:
+            self.traj["kz0_refl"] = kz0_refl
 
     @classmethod
     def initialize(cls, nevents, ntraj, n_medium, n_sample, boundary,
@@ -572,14 +581,6 @@ class Trajectory:
 
         return cls(position, direction, weight, fields, kz0_rot, kz0_refl)
 
-    @property
-    def nevents(self):
-        return len(self.direction.coords["event"])
-
-    @property
-    def ntrajectories(self):
-        return len(self.direction.coords["trajectory"])
-
     def absorb(self, mu_abs, step_size):
         """
         Calculates absorption of photon packet due to traveling the sample
@@ -599,10 +600,12 @@ class Trajectory:
         step = xr.DataArray(step_size)
         step.coords["event"] = range(1, self.nevents + 1)
 
+        mu_abs = mu_abs.to_preferred().magnitude
+
         # beer lambert
-        weight = (self.weight * np.exp(-(mu_abs.to_preferred().magnitude
-                                         * step.cumsum("event"))))
-        self.weight.loc[dict(event=slice(1, None))] = weight
+        weight = (self.traj["weight"]
+                  * np.exp(-(mu_abs * step.cumsum("event"))))
+        self.traj["weight"].loc[dict(event=slice(1, None))] = weight
 
     def scatter(self, sintheta, costheta, sinphi, cosphi):
         """
@@ -623,7 +626,7 @@ class Trajectory:
             system. All have dimensions of (nevents, ntrajectories).
 
         """
-        kn = self.direction
+        kn = self.traj["direction"]
 
         # Calculate the new x, y, z coordinates of the propagation
         # direction using the following equations, which can be derived by
@@ -655,7 +658,7 @@ class Trajectory:
                                      .rename({"i": "component"}))
 
         # Update all the directions of the trajectories
-        self.direction = kn
+        self.traj["direction"] = kn
 
     def calc_fields(self, theta, phi, sintheta, costheta, sinphi, cosphi,
                     n_particle, n_sample, radius, wavelen, step,
@@ -779,7 +782,7 @@ class Trajectory:
         S4 = S[2]*cosphi*sinphi - S[1]*cosphi*sinphi
 
         # mutliply the scat amp mats
-        En = self.fields
+        En = self.traj["fields"]
 
         # En has shape (3, nevents+1, ntraj)
         Ex = En[0, 0, :]
@@ -874,7 +877,7 @@ class Trajectory:
         coords = En.coords
         En = normalize(*En, return_nan=False)
 
-        self.fields = xr.DataArray(En, coords=coords)
+        self.traj["fields"] = xr.DataArray(En, coords=coords)
 
     def move(self, step):
         """
@@ -891,7 +894,7 @@ class Trajectory:
 
         """
         # calculate vector displacement after each event
-        disp = self.direction * step
+        disp = self.traj["direction"] * step
         # shift event coord so that displacement maps correctly onto position
         disp.coords["event"] = range(1, self.nevents + 1)
 
@@ -899,8 +902,14 @@ class Trajectory:
         # displacements. Note: we use da.cumsum() because
         # da.cumulative("event").sum() will be much slower if numbagg is not
         # installed. See https://github.com/pydata/xarray/issues/6528
-        r0 = self.position.sel(event=0)
-        self.position[dict(event=slice(1, None))] = disp.cumsum("event") + r0
+        cumul_disp = disp.cumsum("event")
+
+        # initial position
+        r0 = self.traj["position"].sel(event=0)
+        # event numbers to update
+        events = dict(event=slice(1, None))
+
+        self.traj["position"].loc[events] = (r0 + cumul_disp)
 
     def plot_coord(self, ntraj, three_dim=False): # pragma: no cover
         """
@@ -922,32 +931,32 @@ class Trajectory:
 
         f, ax = plt.subplots(3, figsize=(8,17), sharex=True)
 
-        ax[0].plot(np.arange(len(self.position[0,:,0].magnitude)),
-                   self.position[0,:,:].magnitude, '-')
+        ax[0].plot(np.arange(len(self.traj["position"][0,:,0])),
+                   self.traj["position"][0,:,:], '-')
         ax[0].set_title('Positions during trajectories')
-        ax[0].set_ylabel('x (' + str(self.position.units) + ')')
+        ax[0].set_ylabel('x (' + str(sc.LENGTH_UNIT) + ')')
 
-        ax[1].plot(np.arange(len(self.position[1,:,0].magnitude)),
-                   self.position[1,:,:].magnitude, '-')
-        ax[1].set_ylabel('y (' + str(self.position.units) + ')')
+        ax[1].plot(np.arange(len(self.traj["position"][1,:,0])),
+                   self.traj["position"][1,:,:], '-')
+        ax[1].set_ylabel('y (' + str(sc.LENGTH_UNIT) + ')')
 
-        ax[2].plot(np.arange(len(self.position[2,:,0].magnitude)),
-                   self.position[2,:,:].magnitude, '-')
-        ax[2].set_ylabel('z (' + str(self.position.units) + ')')
+        ax[2].plot(np.arange(len(self.traj["position"][2,:,0])),
+                   self.traj["position"][2,:,:], '-')
+        ax[2].set_ylabel('z (' + str(sc.LENGTH_UNIT) + ')')
         ax[2].set_xlabel('scattering event')
 
         if three_dim:
             fig = plt.figure(figsize=(8,6))
             ax3D = fig.add_subplot(111, projection='3d')
-            ax3D.set_xlabel('x (' + str(self.position.units) + ')')
-            ax3D.set_ylabel('y (' + str(self.position.units) + ')')
-            ax3D.set_zlabel('z (' + str(self.position.units) + ')')
+            ax3D.set_xlabel('x (' + str(sc.LENGTH_UNIT) + ')')
+            ax3D.set_ylabel('y (' + str(sc.LENGTH_UNIT) + ')')
+            ax3D.set_zlabel('z (' + str(sc.LENGTH_UNIT) + ')')
             ax3D.set_title('Positions during trajectories')
 
             for n in np.arange(ntraj):
-                ax3D.scatter(self.position[0,:,n].magnitude,
-                             self.position[1,:,n].magnitude,
-                             self.position[2,:,n].magnitude,
+                ax3D.scatter(self.traj["position"][0,:,n],
+                             self.traj["position"][1,:,n],
+                             self.traj["position"][2,:,n],
                              color=next(colors))
 
 

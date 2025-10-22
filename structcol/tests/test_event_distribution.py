@@ -28,6 +28,7 @@ from structcol import detector as det
 import numpy as np
 import xarray as xr
 from numpy.testing import assert_equal, assert_almost_equal, assert_array_less
+import copy
 import pytest
 
 # Monte Carlo parameters
@@ -582,9 +583,7 @@ def test_event_distribution_angle_mc():
         costheta = xr.DataArray(np.cos(theta), coords=sintheta.coords)
 
         # Create trajectories object
-        trajectories = mc.Trajectory(trajectories0.position,
-                                     trajectories0.direction,
-                                     trajectories0.weight)
+        trajectories = copy.deepcopy(trajectories0)
 
         # Run photons
         trajectories.absorb(mu_abs, step)

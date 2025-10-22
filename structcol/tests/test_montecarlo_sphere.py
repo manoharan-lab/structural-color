@@ -62,5 +62,6 @@ def test_trajectories():
                                             sample_diameter =
                                             sc.Quantity('1.0 um'))
 
-    trajectories = mc.Trajectory(trajectories.position, trajectories.direction,
-                                 trajectories.weight)
+    trajectories = mc.Trajectory(trajectories.traj["position"],
+                                 trajectories.traj["direction"],
+                                 trajectories.traj["weight"])

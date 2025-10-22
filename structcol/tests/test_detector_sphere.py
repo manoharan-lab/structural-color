@@ -146,16 +146,33 @@ def test_calc_refl_trans():
     assert_almost_equal(refl + trans, 1.)
 
 def test_get_angles_sphere():
+    nevents = 3
+    ntrajectories = 4
     z_pos = np.array([[0,0,0,0],[1,1,1,1],[-1,11,2,11],[-2,12,4,12]])
     x_pos = np.array([[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,-0,0,0]])
     y_pos = np.array([[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0]])
+    positions = xr.DataArray([x_pos, y_pos, z_pos],
+                             coords = {"component": ["x", "y", "z"],
+                                       "event": range(nevents + 1),
+                                       "trajectory": range(ntrajectories)})
+
     kx = np.zeros((3,4))
     ky = np.zeros((3,4))
     kz = np.array([[1,1,1,1],[-1,1,1,1],[-1,1,1,1]])
-    trajectories = mc.Trajectory([x_pos, y_pos, z_pos],[kx, ky, kz], None)
+    directions = xr.DataArray([kx, ky, kz],
+                              coords=positions.isel(event=slice(0, -1)).coords)
+
+    weights = xr.DataArray(np.ones((4, 4)),
+                           coords =
+                           positions.sel(component="x", drop=True).coords)
+
+    trajectories = mc.Trajectory(positions, directions, weights)
+    trajectories = mc.QtyTrajectory(trajectories)
 
     indices = np.array([1,1,1,1])
-    thetas, _ = det.get_angles(indices, 'sphere', trajectories, assembly_radius, init_dir = 1)
+    thetas, _ = det.get_angles(indices, 'sphere', trajectories,
+                               sc.Quantity(assembly_radius, "um"),
+                               init_dir = 1)
     assert_almost_equal(np.sum(thetas.magnitude), 0.)
 
 def test_index_match():

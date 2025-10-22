@@ -1033,15 +1033,26 @@ def test_goniometer_detector():
     # test
     z_pos = np.array([[0,0,0,0],[1,1,1,1],[-1,-1,2,2],[-2,-2,20,-0.0000001]])
     ntrajectories = z_pos.shape[1]
-    nevents = z_pos.shape[0]
-    x_pos = np.zeros((nevents, ntrajectories))
-    y_pos = np.zeros((nevents, ntrajectories))
-    ky = np.zeros((nevents-1, ntrajectories))
+    nevents = z_pos.shape[0] - 1
+    x_pos = np.zeros((nevents+1, ntrajectories))
+    y_pos = np.zeros((nevents+1, ntrajectories))
+    ky = np.zeros((nevents, ntrajectories))
     kx = np.array([[0,0,0,0],[0,0,0,0],[0,0,0,1/np.sqrt(2)]])
     kz = np.array([[1,1,1,1],[-1,-1,1,1],[-1,-1,1,-1/np.sqrt(2)]])
-    weights = np.ones((nevents, ntrajectories))
-    trajectories = mc.Trajectory(np.array([x_pos, y_pos, z_pos]),
-                                 np.array([kx, ky, kz]), weights)
+    positions = xr.DataArray(np.array([x_pos, y_pos, z_pos]),
+                             coords = {"component": ["x", "y", "z"],
+                                       "event": range(nevents + 1),
+                                       "trajectory": range(ntrajectories)})
+    directions = xr.DataArray(np.array([kx, ky, kz]),
+                              coords =
+                              positions.isel(event=slice(0, -1)).coords)
+
+    weights = xr.DataArray(np.ones((nevents+1, ntrajectories)),
+                           coords =
+                           positions.sel(component="x", drop=True).coords)
+
+    trajectories = mc.Trajectory(positions, directions, weights)
+    trajectories = mc.QtyTrajectory(trajectories)
     thickness = 10
     n_medium = 1
     n_sample = 1

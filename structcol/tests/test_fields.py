@@ -27,6 +27,7 @@ from .. import montecarlo as mc
 from .. import detector as det
 from .. import detector_polarization_phase as detp
 import numpy as np
+import xarray as xr
 from numpy.testing import assert_almost_equal
 import pytest
 
@@ -122,16 +123,32 @@ def test_intensity_coherent():
 
     # construct 2 identical trajectories that exit at same event
     ntrajectories = 2
-    nevents = 3
+    nevents = 2
     z_pos = np.array([[0,0],[1,1],[-1,-1]])
-    kz = np.array([[1,1],[-1,1],[-1,1]])
-    directions = np.array([kz,kz,kz])
-    weights = np.array([[1, 1],[1, 1],[1, 1]])
-    trajectories = mc.Trajectory([np.nan, np.nan, z_pos], directions, weights)
-    trajectories.fields = np.zeros((3, nevents, ntrajectories))
-    trajectories.fields[:,0,:] = 0.5
-    trajectories.fields[:,1,:] = 1
-    trajectories.fields[:,2,:] = 1.5
+    x_pos = np.zeros_like(z_pos)
+    y_pos = np.zeros_like(z_pos)
+    positions = xr.DataArray([x_pos, y_pos, z_pos],
+                             coords = {"component": ["x", "y", "z"],
+                                       "event": range(nevents+1),
+                                       "trajectory": range(ntrajectories)})
+    kz = np.array([[1,1],[-1,1]])
+    directions = xr.DataArray([kz,kz,kz],
+                              coords =
+                              positions.isel(event=slice(0, -1)).coords)
+
+    weights = xr.DataArray(np.array([[1, 1],[1, 1],[1, 1]]),
+                           coords =
+                           positions.sel(component="x", drop=True).coords)
+
+    fields = xr.DataArray(np.zeros((3, nevents+1, ntrajectories),
+                                   dtype = complex),
+                          coords = positions.coords)
+    fields[:,0,:] = 0.5
+    fields[:,1,:] = 1
+    fields[:,2,:] = 1.5
+
+    trajectories = mc.Trajectory(positions, directions, weights, fields)
+    trajectories = mc.QtyTrajectory(trajectories)
 
     # calculate reflectance phase
     refl_per_traj = np.array([0.5, 0.5])
@@ -142,10 +159,10 @@ def test_intensity_coherent():
     intensity = refl_phase*intensity_incident
 
     # Calculate I = (E1 + E2)*(E1 + E2) = E1*E1 + E2*E2 + E1*E2 + E2*E1
-    ev = 2
-    field_x = np.sqrt(trajectories.weight[ev,:])*trajectories.fields[0,ev,:]
-    field_y = np.sqrt(trajectories.weight[ev,:])*trajectories.fields[1,ev,:]
-    field_z = np.sqrt(trajectories.weight[ev,:])*trajectories.fields[2,ev,:]
+    ev = 1
+    field_x = np.sqrt(trajectories.weight[ev,:])*trajectories.fields[0,ev+1,:]
+    field_y = np.sqrt(trajectories.weight[ev,:])*trajectories.fields[1,ev+1,:]
+    field_z = np.sqrt(trajectories.weight[ev,:])*trajectories.fields[2,ev+1,:]
     intensity_x = (np.conj(field_x[0])*field_x[0]
                    + np.conj(field_x[1])*field_x[1]
                    + np.conj(field_x[0])*field_x[1]
@@ -161,7 +178,7 @@ def test_intensity_coherent():
     intensity_2 = intensity_x + intensity_y + intensity_z
 
     # compare values
-    assert_almost_equal(intensity, intensity_2, decimal=15)
+    assert_almost_equal(intensity.magnitude, intensity_2.magnitude, decimal=15)
 
 def test_pi_shift_zero():
     # tests if a pi shift leads to zero intensity. This test should produce a
@@ -170,16 +187,33 @@ def test_pi_shift_zero():
     # construct 2 trajectories with relative pi phase shift that exit at same
     # event
     ntrajectories = 2
-    nevents = 3
+    nevents = 2
     z_pos = np.array([[0,0],[1,1],[-1,-1]])
     x_pos = np.array([[0,0],[1,1],[-1,-1]])
-    kz = np.array([[1,1],[-1,1],[-1,1]])
-    directions = np.array([kz,kz,kz])
-    weights = np.array([[1, 1],[1, 1],[1, 1]])
-    trajectories = mc.Trajectory([x_pos, np.nan, z_pos],directions, weights)
-    trajectories.fields = np.zeros((3, nevents, ntrajectories), dtype=complex)
-    trajectories.fields[:,2,0] = 1
-    trajectories.fields[:,2,1] = np.exp(np.pi*1j)
+    y_pos = np.zeros_like(x_pos)
+    positions = xr.DataArray([x_pos, y_pos, z_pos],
+                             coords = {"component": ["x", "y", "z"],
+                                       "event": range(nevents+1),
+                                       "trajectory": range(ntrajectories)})
+    kz = np.array([[1,1],[-1,1]])
+    directions = xr.DataArray([kz,kz,kz],
+                              coords =
+                              positions.isel(event=slice(0, -1)).coords)
+
+    weights = xr.DataArray(np.array([[1, 1],[1, 1],[1, 1]]),
+                           coords =
+                           positions.sel(component="x", drop=True).coords)
+
+    fields = xr.DataArray(np.zeros((3, nevents+1, ntrajectories),
+                                   dtype = complex),
+                          coords = positions.coords)
+
+    fields[:,2,0] = 1
+    fields[:,2,1] = np.exp(np.pi*1j)
+
+    trajectories = mc.Trajectory(positions, directions, weights, fields)
+    trajectories = mc.QtyTrajectory(trajectories)
+
 
     # calculate reflectance phase
     refl_per_traj = np.array([0.5, 0.5])

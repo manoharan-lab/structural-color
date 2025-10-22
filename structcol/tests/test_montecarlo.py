@@ -91,7 +91,8 @@ def test_trajectories():
     trajectories.absorb(mu_abs, step)
     # since step size is given (not sampled), this test should produce a
     # deterministic result
-    assert_almost_equal(trajectories.weight.squeeze(drop=True).to_numpy(),
+    assert_almost_equal(trajectories.traj["weight"]
+                        .squeeze(drop=True).to_numpy(),
                         np.array([[ 1.0, 1.0, 1.0],
                                   [ 0.90483742,  0.90483742,  0.90483742],
                                   [ 0.81873075,  0.81873075,  0.81873075]]))
@@ -117,13 +118,16 @@ def test_trajectories():
     kz = np.array([[1., 1., 1.], [-1., -1., -1.]])
     k = np.array([kx, ky, kz])
 
-    assert_equal(trajectories.direction.squeeze(drop=True).to_numpy(), k)
+    assert_equal(trajectories.traj["direction"].dropna("event")
+                 .squeeze(drop=True).to_numpy(),
+                 k)
 
 
     # Test the move function.  Should also produce a deterministic result since
     # step sizes are given.
     trajectories.move(step)
-    assert_equal(trajectories.position.sel(component="z").squeeze(drop=True),
+    assert_equal(trajectories.traj["position"].sel(component="z")
+                 .squeeze(drop=True),
                  np.array([[0, 0, 0], [1, 1, 1], [0, 0, 0]]))
 
 # NOTE: the test below will no longer work, since the
