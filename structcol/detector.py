@@ -2086,7 +2086,7 @@ def run_sphere_fresnel_traj(refl_per_traj_nf, trans_per_traj_nf,
     weights_fresnel = xr.DataArray(np.ones((nevents+1, ntraj)),
                                    coords = {"event": range(nevents+1),
                                              "trajectory": range(ntraj)})
-    weights_fresnel[1:,:] = refl_fresnel + trans_fresnel + stuck_weights
+    weights_fresnel[:,:] = refl_fresnel + trans_fresnel + stuck_weights
 
     # Add refl and trans indices for all attempted or successful exit indices
     indices = refl_indices + trans_indices + tir_indices
@@ -2162,11 +2162,12 @@ def run_sphere_fresnel_traj(refl_per_traj_nf, trans_per_traj_nf,
 #            directions = np.delete(directions, indices,axis = 0)
 
     # create new simulation object and insert our existing trajectories
-    sim = mc.Simulation(nevents, ntraj, n_medium, n_sample, "film")
+    sim = mc.Simulation(nevents, ntraj, n_medium, n_sample, boundary,
+                        sample_diameter = thickness*2)
     trajectories_fresnel = xr.Dataset({"position": positions,
                                        "direction": directions,
                                        "weight": weights_fresnel})
-    sim.traj = trajectories_fresnel
+    sim.traj = trajectories_fresnel.expand_dims(n_sample.coords).copy()
 
     # Generate a matrix of all the randomly sampled angles first
     sintheta, costheta, sinphi, cosphi, _, _ = sim.sample_angles(p, rng=rng)

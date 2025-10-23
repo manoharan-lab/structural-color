@@ -69,9 +69,10 @@ def test_calc_refl_trans():
     index_medium = sc.index.vacuum
 
     # test absoprtion and stuck without fresnel
-    z_pos = np.array([[0,0,0,0],[1,1,1,1],[-1,11,2,11],[-2,12,4,12]])
-    x_pos = np.array([[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0]])
-    y_pos = np.array([[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0]])
+    z_pos = np.array([[0,0,0,0],[1,1,1,1],[-1,11,2,11],[-2,12,4,12]],
+                     dtype=float)
+    x_pos = np.array([[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0]], dtype=float)
+    y_pos = np.array([[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0]], dtype=float)
     nevents = z_pos.shape[0] - 1
     ntrajectories = z_pos.shape[1]
     pos_coords = {"component": ["x", "y", "z"],
@@ -116,7 +117,8 @@ def test_calc_refl_trans():
     assert_almost_equal(trans, np.sum(expected_trans_array))
 
     # test steps in z longer than sample thickness
-    z_pos = np.array([[0,0,0,0],[1,1,14,12],[-1,11,2,11],[-2,12,4,12]])
+    z_pos = np.array([[0,0,0,0],[1,1,14,12],[-1,11,2,11],[-2,12,4,12]],
+                     dtype=float)
     r0 = xr.DataArray([x_pos, y_pos, z_pos], coords=pos_coords)
     trajectories = xr.Dataset({"position": r0,
                                "direction": k0,
@@ -133,7 +135,8 @@ def test_calc_refl_trans():
     assert_almost_equal(trans, np.sum(expected_trans_array))
 
     # test tir
-    z_pos = np.array([[0,0,0,0],[1,1,1,1],[-1,11,2,11],[-2,12,4,12]])
+    z_pos = np.array([[0,0,0,0],[1,1,1,1],[-1,11,2,11],[-2,12,4,12]],
+                     dtype=float)
     r0 = xr.DataArray([x_pos, y_pos, z_pos], coords=pos_coords)
     weights = xr.ones_like(r0.sel(component="x", drop=True))
     trajectories = xr.Dataset({"position": r0,
@@ -155,17 +158,18 @@ def test_calc_refl_trans():
 def test_get_angles_sphere():
     nevents = 3
     ntrajectories = 4
-    z_pos = np.array([[0,0,0,0],[1,1,1,1],[-1,11,2,11],[-2,12,4,12]])
-    x_pos = np.array([[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,-0,0,0]])
-    y_pos = np.array([[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0]])
+    z_pos = np.array([[0,0,0,0],[1,1,1,1],[-1,11,2,11],[-2,12,4,12]],
+                     dtype=float)
+    x_pos = np.array([[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,-0,0,0]], dtype=float)
+    y_pos = np.array([[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0]], dtype=float)
     positions = xr.DataArray([x_pos, y_pos, z_pos],
                              coords = {"component": ["x", "y", "z"],
                                        "event": range(nevents + 1),
                                        "trajectory": range(ntrajectories)})
 
-    kx = np.zeros((3,4))
-    ky = np.zeros((3,4))
-    kz = np.array([[1,1,1,1],[-1,1,1,1],[-1,1,1,1]])
+    kx = np.zeros((3,4), dtype=float)
+    ky = np.zeros((3,4), dtype=float)
+    kz = np.array([[1,1,1,1],[-1,1,1,1],[-1,1,1,1]], dtype=float)
     directions = xr.DataArray([kx, ky, kz],
                               coords=positions.isel(event=slice(0, -1)).coords)
 
@@ -178,7 +182,7 @@ def test_get_angles_sphere():
                                "weight": weights})
     trajectories = mc.QtyTrajectory(trajectories)
 
-    indices = np.array([1,1,1,1])
+    indices = np.array([1,1,1,1], dtype=float)
     thetas, _ = det.get_angles(indices, 'sphere', trajectories,
                                sc.Quantity(assembly_radius, "um"),
                                init_dir = 1)
@@ -216,7 +220,8 @@ def test_index_match():
 
     # make dummy simulation object and replace trajectories in the object with
     # the ones that we've set up
-    sim = mc.Simulation(nevents, ntrajectories, n_medium, n_sample, 'film')
+    sim = mc.Simulation(nevents, ntrajectories, n_medium, n_sample, "sphere",
+                        sample_diameter = microsphere_radius*2)
     trajectories_sphere = xr.Dataset({"position": r0_sphere,
                                       "direction": k0_sphere,
                                       "weight": W0_sphere})

@@ -556,8 +556,6 @@ def test_event_distribution_angle_mc():
     # Initialize the simulation
     sim = mc.Simulation(nevents, ntrajectories, n_medium, n_sample,
                         boundary, rng=rng)
-    # save initial state
-    trajectories0 = sim.traj.copy()
 
     # Create step size distribution
     step = sim.sample_step(mu_scat)
@@ -575,8 +573,8 @@ def test_event_distribution_angle_mc():
                                           "trajectory": range(ntrajectories)})
         costheta = xr.DataArray(np.cos(theta), coords=sintheta.coords)
 
-        # re-insert our initial conditions into the simulation
-        sim.traj = trajectories0.copy()
+        # reset sim to initial conditions
+        sim.reset()
 
         # Run photons
         sim.absorb(mu_abs, step)

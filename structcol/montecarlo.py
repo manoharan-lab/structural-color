@@ -57,11 +57,16 @@ class Simulation:
         number of scattering events
     ntrajectories : int
         number of trajectories
+    initial_state : `xr.Dataset`
+        Initial state of the photon packets in the simulation. Contains
+        "position" (array of initial position vectors in cartesian
+        coordinates), "direction" (array of initial propagation directions),
+        "weight" (array of initial photon packet weights). May also contain
+        "fields" (initial electric fields of photon packets)
     traj : `xr.Dataset`
-        Monte Carlo trajectories.  Contains "position" (array of position
-        vectors in cartesian coordinates), "direction" (array of direction of
-        propagation vectors), "weight" (array of photon packet weights).  May
-        also contain "fields" (electric fields of photon packets)
+        Monte Carlo trajectories.  As with initial_state, traj Contains
+        "position", "direction", "weight", and (optionally) "fields", but for
+        all events in every trajectory.
 
     Methods
     -------
@@ -451,9 +456,22 @@ class Simulation:
 
             fields.loc[dict(event=0)] = normalize(*fields.sel(event=0))
 
-            # first step into the sample is same
+            # first step into the sample has the same field vector as before
             fields.loc[dict(event=1)] = fields.sel(event=0)
             self.traj["fields"] = fields
+
+        # save initial state
+        self.initial_state = self.traj.sel(event=0)
+
+    def reset(self):
+        """Resets trajectories to initial state.
+        """
+        # fill existing traj array with nans
+        self.traj = xr.full_like(self.traj, np.nan)
+        # now copy initial positions
+        self.traj.loc[dict(event=0)] = self.initial_state
+        if "fields" in self.traj:
+            self.traj.fields.loc[dict(event=1)] = self.traj.fields.sel(event=0)
 
     def run(self):
         """
@@ -669,7 +687,7 @@ class Simulation:
         mu_abs = mu_abs.to_preferred().magnitude
 
         # beer lambert
-        weight = (self.traj["weight"]
+        weight = (self.traj["weight"].sel(event=0)
                   * np.exp(-(mu_abs * step.cumsum("event"))))
         self.traj["weight"].loc[dict(event=slice(1, None))] = weight
 
