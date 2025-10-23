@@ -30,111 +30,145 @@ from .. import montecarlo as mc
 import numpy as np
 import xarray as xr
 from numpy.testing import assert_equal, assert_almost_equal
+import pytest
 
-# Define a system to be used for the tests
-nevents = 3
-ntrajectories = 4
-radius = sc.Quantity('150.0 nm')
-volume_fraction = 0.5
-volume_fraction_da = xr.DataArray([[0.5, 1-0.5]],
-                                  coords={sc.Coord.VOLFRAC: [volume_fraction],
-                                          sc.Coord.MAT: range(2)})
-angles = sc.Quantity(np.linspace(0.01, np.pi, 200), 'rad')
-wavelen = sc.Quantity('400.0 nm')
-index_particle = sc.Index.constant(1.5)
-sphere = sc.Sphere(index_particle, radius)
-n_particle = index_particle(wavelen)
-index_matrix = sc.Index.constant(1.0)
-n_matrix = index_matrix(wavelen)
-index_medium = sc.Index.constant(1.0)
-n_medium = index_medium(wavelen)
-index_sample = sc.EffectiveIndex([index_particle, index_matrix],
-                                 volume_fraction_da)
-n_sample = index_sample(wavelen)
-
-# Index of the scattering event and trajectory corresponding to the reflected
-# photons
-refl_index = np.array([2, 0, 2])
-
-
-def test_sampling():
-    # Test that calc_scat() runs. Since this test just looks to see whether
-    # sampling angles and steps works, it's better if we don't give it a seeded
-    # random number generator, so that we can ensure that sampling works with
-    # the default generator.
-    model = sc.model.HardSpheres(sphere, volume_fraction, index_matrix,
-                                 index_medium)
-    p, mu_scat, mu_abs = mc.calc_scat(model, wavelen)
-
-    sim = mc.Simulation(nevents, ntrajectories, n_medium, n_sample, "film")
-
-    # Test that 'sample_angles' runs
-    sim.sample_angles(p)
-
-    # Test that 'sample_step' runs
-    sim.sample_step(mu_scat)
-
-
-def test_simulation():
-    """Tests that the Simulation object initializes and that
-    Simulation.absorb(), Simulation.scatter(), and Simulation.move() return
-    correct results.
+class TestSimulation():
+    """Tests for the Simulation class and methods
 
     """
-    # Initialize runs
-    nevents = 2
-    ntrajectories = 3
+    # Define a system to be used for the tests
+    nevents = 3
+    ntrajectories = 4
+    radius = sc.Quantity('150.0 nm')
+    volume_fraction = 0.5
+    volume_fraction_da = xr.DataArray([[0.5, 1-0.5]],
+                                      coords={sc.Coord.VOLFRAC: [volume_fraction],
+                                              sc.Coord.MAT: range(2)})
+    angles = sc.Quantity(np.linspace(0.01, np.pi, 200), 'rad')
+    wavelen = sc.Quantity('400.0 nm')
+    index_particle = sc.Index.constant(1.5)
+    sphere = sc.Sphere(index_particle, radius)
+    n_particle = index_particle(wavelen)
+    index_matrix = sc.Index.constant(1.0)
+    n_matrix = index_matrix(wavelen)
+    index_medium = sc.Index.constant(1.0)
+    n_medium = index_medium(wavelen)
+    index_sample = sc.EffectiveIndex([index_particle, index_matrix],
+                                     volume_fraction_da)
+    n_sample = index_sample(wavelen)
 
-    # Create a Simulation object
-    sim = mc.Simulation(nevents, ntrajectories, n_medium, n_sample, "film")
+    # Index of the scattering event and trajectory corresponding to the reflected
+    # photons
+    refl_index = np.array([2, 0, 2])
 
-    # Test the absorb function
-    mu_abs = 1/sc.Quantity(10.0, 'um')
-    # step size is 1 in all events and trajectories
-    step = xr.DataArray([[1, 1, 1], [1, 1, 1]],
-                        coords={"event": range(nevents),
-                                "trajectory": range(ntrajectories)})
-    sim.absorb(mu_abs, step)
-    # since step size is given (not sampled), this test should produce a
-    # deterministic result
-    assert_almost_equal(sim.traj["weight"]
-                        .squeeze(drop=True).to_numpy(),
-                        np.array([[ 1.0, 1.0, 1.0],
-                                  [ 0.90483742,  0.90483742,  0.90483742],
-                                  [ 0.81873075,  0.81873075,  0.81873075]]))
+    def test_sampling(self):
+        # Test that calc_scat() runs. Since this test just looks to see whether
+        # sampling angles and steps works, it's better if we don't give it a
+        # seeded random number generator, so that we can ensure that sampling
+        # works with the default generator.
+        model = sc.model.HardSpheres(self.sphere, self.volume_fraction,
+                                     self.index_matrix, self.index_medium)
+        p, mu_scat, mu_abs = mc.calc_scat(model, self.wavelen)
 
-    # Make up some test theta and phi. Note that event 0 is assumed to be
-    # propagation straight into the film, so we specify only event 1
-    sintheta = xr.DataArray([[0., 0., 0.]],
-                            coords = {"event": [1],
-                                      "trajectory": range(ntrajectories)})
-    costheta = xr.DataArray([[-1., -1., -1.]],
-                            coords=sintheta.coords)
-    sinphi = xr.DataArray([[0., 0., 0.]],
-                          coords=sintheta.coords)
-    cosphi = xr.DataArray([[0., 0., 0.]],
-                          coords=sintheta.coords)
+        sim = mc.Simulation(self.nevents, self.ntrajectories, self.n_medium,
+                            self.n_sample, "film")
 
-    # Test the scatter function. Should also produce a deterministic result
-    sim.scatter(sintheta, costheta, sinphi, cosphi)
+        # Test that 'sample_angles' runs
+        sim.sample_angles(p)
 
-    # Expected propagation directions
-    kx = np.array([[0., 0., 0.], [0., 0., 0.]])
-    ky = np.array([[0., 0., 0.], [0., 0., 0.]])
-    kz = np.array([[1., 1., 1.], [-1., -1., -1.]])
-    k = np.array([kx, ky, kz])
+        # Test that 'sample_step' runs
+        sim.sample_step(mu_scat)
 
-    assert_equal(sim.traj["direction"].dropna("event")
-                 .squeeze(drop=True).to_numpy(),
-                 k)
+    @pytest.mark.parametrize("reset", [True, False])
+    def test_initialization(self, reset):
+        """Ensure that trajectory shapes are correct and that initial values are
+        inserted where they should be
 
+        """
+        sim = mc.Simulation(self.nevents, self.ntrajectories, self.n_medium,
+                            self.n_sample, "film")
+        if reset:
+            sim.reset()
+        # check for correct shapes in both trajectory object and initial state
+        assert sim.traj.sizes["component"] == 3
+        assert sim.traj.sizes["event"] == self.nevents + 1
+        assert sim.traj.sizes["trajectory"] == self.ntrajectories
+        assert "event" not in sim.initial_state.sizes
+        assert sim.initial_state.sizes["trajectory"] == self.ntrajectories
+        # make sure all the coords in the sample index have been passed through
+        # (should include wavelength and volume fraction)
+        for coord in self.n_sample.coords:
+            assert coord in sim.traj.coords
+            assert coord in sim.initial_state
 
-    # Test the move function.  Should also produce a deterministic result since
-    # step sizes are given.
-    sim.move(step)
-    assert_equal(sim.traj["position"].sel(component="z")
-                 .squeeze(drop=True),
-                 np.array([[0, 0, 0], [1, 1, 1], [0, 0, 0]]))
+        xr.testing.assert_equal(sim.traj.sel(event=0), sim.initial_state)
+
+    def test_simulation(self):
+        """Tests that the Simulation object initializes and that
+        Simulation.absorb(), Simulation.scatter(), and Simulation.move() return
+        correct results.
+
+        """
+        # Initialize runs
+        nevents = 2
+        ntrajectories = 3
+
+        # Create a Simulation object
+        sim = mc.Simulation(nevents, ntrajectories, self.n_medium,
+                            self.n_sample, "film")
+
+        # Test the absorb function
+        mu_abs = 1/sc.Quantity(10.0, 'um')
+        # step size is 1 in all events and trajectories
+        step = xr.DataArray([[1, 1, 1], [1, 1, 1]],
+                            coords={"event": range(nevents),
+                                    "trajectory": range(ntrajectories)})
+        sim.absorb(mu_abs, step)
+        # since step size is given (not sampled), this test should produce a
+        # deterministic result
+        assert_almost_equal(sim.traj["weight"]
+                            .squeeze(drop=True).to_numpy(),
+                            np.array([[ 1.0, 1.0, 1.0],
+                                      [ 0.90483742,  0.90483742,  0.90483742],
+                                      [ 0.81873075,  0.81873075,  0.81873075]]))
+
+        # Make up some test theta and phi. Note that event 0 is assumed to be
+        # propagation straight into the film, so we specify only event 1
+        sintheta = xr.DataArray([[0., 0., 0.]],
+                                coords = {"event": [1],
+                                          "trajectory": range(ntrajectories)})
+        costheta = xr.DataArray([[-1., -1., -1.]],
+                                coords=sintheta.coords)
+        sinphi = xr.DataArray([[0., 0., 0.]],
+                              coords=sintheta.coords)
+        cosphi = xr.DataArray([[0., 0., 0.]],
+                              coords=sintheta.coords)
+
+        # Test the scatter function. Should also produce a deterministic result
+        sim.scatter(sintheta, costheta, sinphi, cosphi)
+
+        # Expected propagation directions
+        kx = np.array([[0., 0., 0.], [0., 0., 0.]])
+        ky = np.array([[0., 0., 0.], [0., 0., 0.]])
+        kz = np.array([[1., 1., 1.], [-1., -1., -1.]])
+        k = np.array([kx, ky, kz])
+
+        assert_equal(sim.traj["direction"].dropna("event")
+                     .squeeze(drop=True).to_numpy(),
+                     k)
+
+        # Test the move function.  Should also produce a deterministic result since
+        # step sizes are given.
+        sim.move(step)
+        assert_equal(sim.traj["position"].sel(component="z")
+                     .squeeze(drop=True),
+                     np.array([[0, 0, 0], [1, 1, 1], [0, 0, 0]]))
+
+        # check to make sure there are NaNs in the direction after the final
+        # event (we keep track of the end position of the trajectory at
+        # nevents+1 but not the direction)
+        direction = sim.traj["direction"].isel(event=-1).to_numpy().squeeze()
+        assert_equal(direction, np.full_like(direction, np.nan))
 
 # NOTE: the test below will no longer work, since the
 # differential_cross_section() function was removed from model.py (all
