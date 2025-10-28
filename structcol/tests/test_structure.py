@@ -343,29 +343,22 @@ def test_structure_factor_data_reflectances():
     boundary = "film"
     thickness = sc.Quantity("50 um")
 
-    vf_array = sphere.volume_fraction(volume_fraction)
-
-    index_sample_eff = sc.EffectiveIndex([index_particle, index_matrix],
-                                         vf_array)
-
-
     ql_data = np.arange(0.001, 75, 0.1)
     structure_factor = sc.structure.PercusYevick(volume_fraction)
     s_data = structure_factor(ql_data)
 
     reflectance = np.zeros(wavelengths.size)
     for i in range(wavelengths.size):
-        p, mu_scat, mu_abs = mc.calc_scat(model, wavelengths[i])
 
-        n_sample = index_sample_eff(wavelengths[i])
+        n_sample = model.index_external(wavelengths[i])
 
-        sim = mc.Simulation(nevents, ntrajectories, n_medium[i], n_sample,
+        sim = mc.Simulation(model, wavelengths[i], nevents, ntrajectories,
                             boundary, rng=rng)
 
-        sintheta, costheta, sinphi, cosphi, _, _ = sim.sample_angles(p)
-        step = sim.sample_step(mu_scat)
+        sintheta, costheta, sinphi, cosphi, _, _ = sim.sample_angles()
+        step = sim.sample_step()
 
-        sim.absorb(mu_abs, step)
+        sim.absorb(step)
         sim.scatter(sintheta, costheta, sinphi, cosphi)
         sim.move(step)
 

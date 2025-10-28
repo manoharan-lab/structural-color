@@ -48,8 +48,7 @@ import copy
 eps = 1.e-9
 
 class Simulation:
-    """
-    Input parameters and methods for running a Monte Carlo simulation.
+    """Input parameters and methods for running a Monte Carlo simulation.
 
     Attributes
     ----------
@@ -57,16 +56,42 @@ class Simulation:
         number of scattering events
     ntrajectories : int
         number of trajectories
+    p : array_like (structcol.Quantity [dimensionless])
+        Phase function from either Mie theory or single scattering model.
+    mu_scat : float or 2-element array (structcol.Quantity [1/length])
+        Scattering coefficient from single scattering model.
+    mu_scat_mie : float
+        When fine_roughness is larger than 0, we also calculate a scattering
+        coefficient from Mie theory and store as mu_scat_mie.
+    mu_abs : float (structcol.Quantity [1/length])
+        Absorption coefficient of the sample as an effective medium.
     initial_state : `xr.Dataset`
         Initial state of the photon packets in the simulation. Contains
         "position" (array of initial position vectors in cartesian
         coordinates), "direction" (array of initial propagation directions),
         "weight" (array of initial photon packet weights). May also contain
-        "fields" (initial electric fields of photon packets)
+        "fields" (initial electric fields of photon packets).  The initial
+        positions are randomized within an area on the x-y plane commensurate
+        with the diameter of a sphere (if using a sphere geometry). The initial
+        z-positions correspond to the top of the film or sphere boundary.  The
+        initial directions are set according to the illumination parameters.
+        Initial packet weights are set to 1.
     traj : `xr.Dataset`
         Monte Carlo trajectories.  As with initial_state, traj Contains
         "position", "direction", "weight", and (optionally) "fields", but for
         all events in every trajectory.
+    coarse_roughness : float
+    fine_roughness : float
+        Fine and coarse roughness (see constructor).  If coarse_roughness is
+        nonzero, the `Simulation.initial_state` and `Simulation.traj` Datasets
+        also contains "kz0_rot" and "kz0_refl":
+            - kz0_rot: Initial z-directions that are rotated to account for the
+              fact that coarse surface roughness changes the angle of incidence
+              of light. Thus these are the incident z-directions relative to
+              the local normal to the surface.
+            - kz0_refl: z-directions of the Fresnel reflected light after it
+              hits the sample surface for the first time. These directions are
+              in the global coordinate system.
 
     Methods
     -------
@@ -113,8 +138,28 @@ class Simulation:
     aligned, so that nans are inserted where there is no data (e.g. for
     direction.sel(event=nevents+1))
 
+    Note also that the packet weight represents the fraction of that particular
+    packet that is propagated through the sample. It does not represent the
+    packet's weight relative to other photons. The weight array is initialized
+    to 1 because we start with the full weight of the initial photons. To
+    make the relative weights of photons different, introduce a new variable
+    (e.g., relative intensity), rather than changing the
+    intialization of the weights array.
+
+    The phase function is given by:
+        p = diff. scatt. cross section / cscat
+    The single scattering model calculates the differential cross section and
+    the total cross section. In a non-absorbing system, we can choose to
+    calculate these from Mie theory:
+        diff. scat. cross section = S11 / k^2
+        p = S11 / (k^2 * cscat)
+        (Bohren and Huffmann, chapter 13.3)
+    When there is fine roughness, we assume that light goes from the index
+    of the matrix to the index of the scatterer. Thus we assume that fine
+    roughness particles are not embedded in an effective medium.
+
     """
-    def __init__(self, nevents, ntraj, n_medium, n_sample, boundary,
+    def __init__(self, model, wavelen, nevents, ntraj, boundary,
                  rng=None,
                  incidence_theta_min=sc.Quantity(0.,'rad'),
                  incidence_theta_max=sc.Quantity(0.,'rad'),
@@ -122,15 +167,18 @@ class Simulation:
                  incidence_phi_min=sc.Quantity(0.,'rad'),
                  incidence_phi_max=sc.Quantity(2*np.pi,'rad'),
                  incidence_phi_data=None,
+                 min_angle = 0.01,
+                 num_thetas = 200,
+                 num_phis = 300,
                  plot_initial=False,
                  spot_size=sc.Quantity('1.0 um'),
                  sample_diameter=None,
+                 fine_roughness=0.0,
                  coarse_roughness=0.,
                  coherent=False,
                  polarized=True,
                  fields=False):
-        """
-        Constructor for Simulation object.
+        """Constructor for Simulation object.
 
         Sets the trajectories' initial conditions (position, direction,
         weight, and polarization if set to True).
@@ -152,57 +200,79 @@ class Simulation:
 
         Parameters
         ----------
-        nevents: int
-            Number of scattering events
-        ntraj: int
+        model : `sc.Model` object
+            scattering model to use
+        wavelen : float (structcol.Quantity [length])
+            Wavelength of light in vacuum.                 ):
+        nevents : int
+            Number of scattering events in each trajectory
+        ntraj : int
             Number of trajectories
-        n_medium : `xr.DataArray`
-            Refractive index of the medium, as output from an `sc.Index` object
-        n_sample: `xr.DataArray`
-            Refractive index of the sample, as output from an `sc.Index` object
-        boundary: string
+        boundary : string
             Geometrical boundary for Monte Carlo calculations. Current options
             are 'film' or 'sphere'
-        rng: numpy.random.Generator object (default None)
+        rng : numpy.random.Generator object (default None)
             If not specified, use the default generator initialized on loading
             the package
-        incidence_theta_min: float (structcol.Quantity [angle])
+        incidence_theta_min : float (structcol.Quantity [angle])
             Minimum value for theta when it incides onto the sample.
             Should be >= 0 and < pi/2.
-        incidence_theta_max: float (structcol.Quantity [angle])
+        incidence_theta_max : float (structcol.Quantity [angle])
             Maximum value for theta when it incides onto the sample.
             Should be >= 0 and < pi/2.
-        incidence_theta_data: array (structcol.Quantity [angle]) (optional)
+        incidence_theta_data : array (structcol.Quantity [angle]) (optional)
             Array of values for the incident theta for each trajectory. Length
             of the array must therefore be the same as number of trajectories.
             If None, the code will randomly sample theta angles from a uniform
             distribution between incidence_theta_min and incidence_theta_max.
             If user does not specify units, values must be in radians.
-        incidence_phi_min: float (structcol.Quantity [angle])
+        incidence_phi_min : float (structcol.Quantity [angle])
             Minimum value for phi when it incides onto the sample.
             Should be >= 0 and <= pi.
-        incidence_phi_max: float (structcol.Quantity [angle])
+        incidence_phi_max : float (structcol.Quantity [angle])
             Maximum value for phi when it incides onto the sample.
             Should be >= 0 and <= pi.
-        incidence_phi_data: array (structcol.Quantity [angle]) (optional)
+        incidence_phi_data : array (structcol.Quantity [angle]) (optional)
             Array of values for the incident phi for each trajectory. Length of
             the array must therefore be the same as number of trajectories. If
             None, the code will randomly sample phi angles from a uniform
             distribution between incidence_phi_min and incidence_phi_max.  If
             user does not specify units, values must be in radians.
-        plot_initial: boolean
+        min_angle : float
+            min_angle to prevent numerical artifacts associated with
+            calculating structure factor at theta=0
+        num_thetas : int
+            Sets the number of thetas at which phase function p will be
+            calculated.
+        num_phis : int
+            Sets the number of phis at which phase function p will be
+            calculated. Only used if polarization is True.
+        plot_initial : boolean
             If plot_initial is set to True, function will create a 3d plot
             showing initial positions and directions of trajectories before
             entering the sphere and directly after refraction correction upon
             entering the sphere.
-        spot_size: float (structcol.Quantity [length])
+        spot_size : float (structcol.Quantity [length])
             For film sample, side length of a square spot size. For sphere
             sample diameter of a circular spot size.
-        sample_diameter: None or float (structcol.Quantity [length])
+        sample_diameter : None or float (structcol.Quantity [length])
             Diameter of the sample. Default is None. Should be None if sample
             geometry is a film. Should be float equal to the sphere diameter if
             sample is a sphere.
-        coarse_roughness : float (can be structcol.Quantity [dimensionless])
+        fine_roughness : float
+            When the sample has surface roughness that is comparable to the
+            wavelength of light, then the first step is calculated with Mie
+            theory because light "sees" the Mie scatterer first instead of the
+            sample as a whole. After taking the first step, light is inside the
+            sample and is scattered in in the usual way, with the phase
+            function based on the effective medium approximation. This
+            parameter should be between 0 and 1 and corresponds to the fraction
+            of the sample area that has fine roughness. For ex, a value of 0.3
+            means that 30% of incident light will hit fine surface roughness
+            (e.g. will "see" a Mie scatterer first). The rest of the light will
+            see a smooth surface, which could be flat or have coarse roughness
+            (long in the lengthscale of light).
+        coarse_roughness : float
             Coarse surface roughness should be included when the roughness is
             large on the scale of the wavelength of light. This means that
             light encounters a locally smooth surface that has a slope relative
@@ -213,9 +283,9 @@ class Simulation:
             no upper bound, but when the coarse roughness tends to infinity,
             the surface becomes too "spiky" and light can no longer hit it,
             which reduces the reflectance down to 0.
-        fields: boolean
+        fields : boolean
             If True, also returns the initial fields of trajectories
-        coherent: boolean
+        coherent : boolean
             If True, assumes the intial relative phases between trajectories
             are zero. If coherent is set to True while fields is set to False,
             then the coherent value is ignored, since there can be no coherence
@@ -223,47 +293,79 @@ class Simulation:
 
         Returns
         -------
-        position : `xr.DataArray`
-            Trajectory positions. Has shape (..., 3, number of events + 1,
-            number of trajectories). r0[..., 0,0,:] contains random x-positions
-            within a circle on the x-y plane whose radius is the sphere radius.
-            r0[..., 1, 0, :] contains random y-positions within the same circle
-            on the x-y plane. r0[..., 2, 0, :] contains z-positions on the top
-            hemisphere at the sphere boundary. The rest of the elements are
-            initialized to zero.
-        direction : `xr.DataArray`
-            Initial direction of propagation. Has shape (..., 3, number of
-            events, number of trajectories). k0[..., 0,:,:] and k0[..., 1,:,:]
-            are initialized to zero, and k0[..., 2,0,:] is initalized to 1.
-        weight : `xr.DataArray`
-            Initial weight. Has shape of (..., number of events, number of
-            trajectories). Note that the packet weight represents the fraction
-            of that particular packet that is propagated through the sample. It
-            does not represent the packet's weight relative to other photons.
-            The weight array is initialized to 1 because we start with the full
-            weight of the initial photons. If you want to make the relative
-            weights of photons different, you would need to introduce a new
-            variable (e.g., relative intensity), NOT change the intialization
-            of the weights array.
-        kz0_rot : `xr.DataArray`
-            Initial z-directions that are rotated to account for the fact that
-            coarse surface roughness changes the angle of incidence of light.
-            Thus these are the incident z-directions relative to the local
-            normal to the surface. The array size is (1, ntraj). Only returned
-            if coarse_roughness is set to > 0.
-        kz0_refl : `xr.DataArray`
-            z-directions of the Fresnel reflected light after it hits the
-            sample surface for the first time. These directions are in the
-            global coordinate system. The array size is (1, ntraj). Only
-            returned if coarse_roughness is set to > 0.
+        None
 
-        Reference
-        ---------
+        References
+        ----------
         B. van Ginneken, M. Stavridi, J. J. Koenderink, “Diffuse and specular
         reflectance from rough surfaces”, Applied Optics, 37, 1 (1998) (has
         definition of rsm slope of the surface).
 
         """
+
+        wavelen = wavelen.to_preferred()
+        units = wavelen.units
+        self.wavelen = wavelen
+
+        self.model = model
+
+        n_sample = model.index_external(wavelen)
+        n_medium = model.index_medium(wavelen)
+
+        self.coarse_roughness = coarse_roughness
+        self.fine_roughness = fine_roughness
+        self.min_angle = min_angle
+        self.num_thetas = num_thetas
+        self.num_phis = num_phis
+
+        # calculate the absorption coefficient
+        mu_abs = 4*np.pi*n_sample.imag.to_numpy().squeeze()/wavelen
+
+        # Define angles at which phase function will be calculated, based on
+        # whether light is polarized or unpolarized Scattering angles
+        # (typically from a small angle to pi). A non-zero small angle may be
+        # needed because S(q=0) can be subject to numerical artifacts. To
+        # prevent any errors or warnings, set the minimum value of angles to be
+        # a small value, such as 0.01.
+        angles = np.linspace(min_angle, np.pi, num_thetas)
+
+        thetas = angles
+        if fields:
+            phis = np.linspace(min_angle, 2*np.pi, num_phis)
+        else:
+            phis = None
+
+        # calculate scattering quantities using the Model object
+        dscat = model.differential_cross_section(wavelen, thetas, phis=phis)
+        cscat = model.scattering_cross_section(dscat)
+        self.p = model.phase_function(dscat).to_numpy().squeeze()
+
+        mu_scat = model.number_density * (cscat.loc["avg"].to_numpy().squeeze()
+                                          * units**2)
+
+        # standardize units and store
+        self.mu_scat = mu_scat.to_preferred()
+        self.mu_abs = mu_abs.to_preferred()
+
+        # if there is fine surface roughness, also calculate and return the
+        # scatt coeff from Mie theory. We assume that fine roughness particles
+        # are in the matrix and not in the effective sample medium.
+        if fine_roughness > 0.:
+            # We use the same form factor and lengthscale from the existing
+            # model. Just need to change the external index to that of the
+            # matrix and change the structure factor to a constant. We copy the
+            # model to avoid modifying the original
+            roughness_model = copy.deepcopy(model)
+            roughness_model.index_external = roughness_model.index_matrix
+            roughness_model.structure_factor = sc.structure.Constant(1.0)
+
+            dscat = roughness_model.differential_cross_section(wavelen, thetas)
+            cscat_total_mie = roughness_model.scattering_cross_section(dscat)
+            mu_scat_mie = (roughness_model.number_density
+                           * (cscat_total_mie.loc["avg"].to_numpy().squeeze()
+                              * units**2))
+
+            self.mu_scat_mie = mu_scat_mie.to_preferred()
 
         self.nevents = nevents
         self.ntrajectories = ntraj
@@ -489,7 +591,7 @@ class Simulation:
         """
         pass
 
-    def sample_angles(self, p, min_angle=0.01, rng=None):
+    def sample_angles(self, rng=None):
         """Samples scattering angles (theta) and azimuthal angles (phi)
 
         if phase function p is 1d, phi is sampled from uniform distribution,
@@ -500,32 +602,19 @@ class Simulation:
 
         Parameters
         ----------
-        nevents : int
-            Number of scattering events.
-        ntraj : int
-            Number of trajectories.
-        p : array_like (structcol.Quantity [dimensionless])
-            Phase function values returned from 'phase_function'.
-        min_angle: float
-            min_angle to prevent error because structure factor is zero at
-            theta=0
         rng: numpy.random.Generator object (default None)
             Random number generator. If not specified, use the generator stored
             in the Simulation object
 
         Returns
         -------
-        sintheta, costheta, sinphi, cosphi, theta, phi : ndarray
+        sintheta, costheta, sinphi, cosphi, theta, phi : array-like
             Sampled azimuthal and scattering angles, and their sines and
             cosines.
 
         """
         if rng is None:
             rng = self.rng
-
-        if isinstance(p,sc.Quantity):
-            p = p.magnitude
-        num_theta = len(p)
 
         # The direction for the first event is defined upon initialization
         # so we only need to sample nevents-1.
@@ -536,9 +625,9 @@ class Simulation:
         # 0 to pi). A non-zero minimum angle is needed because in the single
         # scattering model, if the analytic formula is used, S(q=0) returns
         # nan.
-        thetas = np.linspace(min_angle, np.pi, num_theta)
+        thetas = np.linspace(self.min_angle, np.pi, self.num_thetas)
 
-        if len(p.shape)==1: # if p depends only on theta
+        if len(self.p.shape)==1: # if p depends only on theta
 
             # Randomly sample azimuthal angle phi from uniform distribution
             # [0 - 2pi]
@@ -547,23 +636,23 @@ class Simulation:
 
             # make sure probability is normalized
             # prob is integral of p in solid angle
-            prob = p * np.sin(thetas)*2*np.pi
+            prob = self.p * np.sin(thetas)*2*np.pi
              # normalize to make it add up to 1
             prob_norm = prob/sum(prob)
 
             # Randomly sample scattering angle theta
             theta = rng.choice(thetas, (nsamples, ntraj), p = prob_norm)
 
-        if len(p.shape)==2: # if p depends on theta and phi
+        if len(self.p.shape)==2: # if p depends on theta and phi
 
-            # get the number of phis from the shape of the phase function
-            num_phi = p.shape[1]
+            num_phi = self.num_phis
 
             # sum for theta axis to get phi probabilities
-            p_phi = np.sum(p, axis = 0)
+            p_phi = np.sum(self.p, axis = 0)
 
             # define phi values from which to sample
-            phis = np.linspace(min_angle,2*np.pi, num_phi)
+            # TODO: this should be from 0, not self.min_angle
+            phis = np.linspace(self.min_angle, 2*np.pi, num_phi)
 
             # sample indices for phi values
             phi_ind = rng.choice(num_phi, (nsamples, ntraj),
@@ -576,7 +665,8 @@ class Simulation:
 
             # calculate and normalize p(theta) for each phi, event, and
             # trajectory
-            p_theta = p[:, phi_ind] * np.sin(thetas[:, np.newaxis, np.newaxis])
+            p_theta = (self.p[:, phi_ind]
+                       * np.sin(thetas[:, np.newaxis, np.newaxis]))
             p_theta_norm = p_theta/np.sum(p_theta, axis=0)
 
             # It's hard to vectorize this loop because rng.choice works only
@@ -586,7 +676,7 @@ class Simulation:
             # np.random.RandomState
             for i in range(nsamples):
                 for j in range(ntraj):
-                    theta_ind[i,j] = rng.choice(num_theta,
+                    theta_ind[i,j] = rng.choice(self.num_thetas,
                                                 p = p_theta_norm[:,i,j])
 
             # sampled angles
@@ -605,31 +695,18 @@ class Simulation:
         return sintheta, costheta, sinphi, cosphi, theta, phi
 
 
-    def sample_step(self, mu_scat, fine_roughness=0., rng=None):
+    def sample_step(self, rng=None):
         """Samples step sizes from exponential distribution.
 
         Parameters
         ----------
-        mu_scat : float or 2-element array (structcol.Quantity [1/length])
-            Scattering coefficient. When fine_roughness is larger than 0,
-            mu_scat is a 2-element array, where the first element is the
-            scattering coefficient from either Mie theory or single scattering
-            model, and the second element is the scattering coefficient from
-            Mie theory.
-        fine_roughness : float (structcol.Quantity [dimensionless])
-            Fraction of the sample area that has fine roughness. Should be
-            between 0 and 1. For ex, a value of 0.3 means that 30% of incident
-            light will hit fine surface roughness (e.g. will "see" a Mie
-            scatterer first). The rest of the light will see a smooth surface,
-            which could be flat or have coarse roughness (long in the
-            lengthscale of light).
         rng : `numpy.random.Generator` object (default None)
             Random number generator. If not specified, use the generator stored
             in the Simulation object
 
         Returns
         -------
-        step : ndarray
+        step : array-like
             Sampled step sizes for all trajectories and scattering events.
 
         """
@@ -638,34 +715,28 @@ class Simulation:
         nevents = self.nevents
         ntraj = self.ntrajectories
 
-        if fine_roughness > 1. or fine_roughness < 0.:
+        if self.fine_roughness > 1. or self.fine_roughness < 0.:
             raise ValueError('fine roughness fraction must be between 0 and 1')
-
-        # check whether mu_scat contains two values
-        if len(np.array([mu_scat.magnitude]).flatten()) > 1:
-            mu_scat, mu_scat_mie = mu_scat
-        else:
-            mu_scat_mie = None
 
         # Generate array of random numbers from 0 to 1
         rand = rng.random((nevents,ntraj)) #uncomment
 
         # sample step sizes
-        step = -np.log(1.0-rand) / mu_scat
+        step = -np.log(1.0-rand) / self.mu_scat
 
         # If there is fine surface roughness, sample the first step from Mie
         # theory for the number of trajectories set by fine_roughness
-        if mu_scat_mie is not None:
-            ntraj_mie = int(round(ntraj * fine_roughness))
+        if self.fine_roughness > 0:
+            ntraj_mie = int(round(ntraj * self.fine_roughness))
             rand_ntraj = rng.random(ntraj_mie)
-            step[0,0:ntraj_mie] = -np.log(1.0-rand_ntraj) / mu_scat_mie
+            step[0,0:ntraj_mie] = -np.log(1.0-rand_ntraj) / self.mu_scat_mie
 
         step = xr.DataArray(step.to_preferred().magnitude,
                             coords = {"event": range(nevents),
                                       "trajectory": range(ntraj)})
         return step
 
-    def absorb(self, mu_abs, step_size):
+    def absorb(self, step_size):
         """
         Calculates absorption of photon packet due to traveling the sample
         between scattering events. Absorption is modeled as a reduction of a
@@ -673,10 +744,9 @@ class Simulation:
 
         Parameters
         ----------
-        mu_abs: ndarray (structcol.Quantity [1/length])
-            Absorption coefficient of the sample as an effective medium.
-        step_size: ndarray (structcol.Quantity [length])
-            Step size of packet (sampled from scattering lengths).
+        step_size: array-like
+            Step size of packet (sampled from scattering lengths), in units
+            specified by sc.LENGTH_UNIT
 
         """
         # shift event coord so that step size maps correctly onto weight (the
@@ -684,7 +754,7 @@ class Simulation:
         step = xr.DataArray(step_size)
         step.coords["event"] = range(1, self.nevents + 1)
 
-        mu_abs = mu_abs.to_preferred().magnitude
+        mu_abs = self.mu_abs.to_preferred().magnitude
 
         # beer lambert
         weight = (self.traj["weight"].sel(event=0)
@@ -745,8 +815,7 @@ class Simulation:
         self.traj["direction"] = kn
 
     def calc_fields(self, theta, phi, sintheta, costheta, sinphi, cosphi,
-                    n_particle, n_sample, radius, wavelen, step,
-                    fine_roughness=0, tir_refl_bool=None):
+                    radius, wavelen, step, tir_refl_bool=None):
         """
         Calculates local x and y polarization rotated in reference frame where
         initial polarization is x-polarized. Assumes the incident light is in
@@ -787,23 +856,12 @@ class Simulation:
             defined with respect to the previous corresponding direction of
             propagation. Thus, they are defined in a local spherical coordinate
             system. All have dimensions of (nevents, ntrajectories).
-        n_particle: float
-            Index of refraction of particle.
-        n_sample: float
-            Index of refraction of sample.
         radius: float
             Radius of particle.
         wavelen: float
             Wavelength.
         step: ndarray (structcol.Quantity [length])
             Step sizes of packets (sampled from scattering lengths).
-        fine_roughness: float (structcol.Quantity [dimensionless])
-            Fraction of the sample area that has fine roughness. Should be
-            between 0 and 1. For ex, a value of 0.3 means that 30% of incident
-            light will hit fine surface roughness (e.g. will "see" a Mie
-            scatterer first). The rest of the light will see a smooth surface,
-            which could be flat or have coarse roughness (long in the
-            lengthscale of light).
         tir_refl_bool: 2d array of booleans (shape: nevents, ntraj)
             Describes whether a trajectory gets totally internally reflected at
             any event and also exits in the negative direction to contribute to
@@ -817,14 +875,14 @@ class Simulation:
         """
 
         # until refactoring, convert DataArrays to numpy
-        if isinstance(n_particle, xr.DataArray):
-            n_particle = n_particle.to_numpy().squeeze()
-        if isinstance(n_sample, xr.DataArray):
-            # drop VOLFRAC dimension, which will be included in all effective
-            # index calculations.
-            if sc.Coord.VOLFRAC in n_sample.coords:
-                n_sample = n_sample.isel({sc.Coord.VOLFRAC: 0}, drop=True)
-            n_sample = n_sample.to_numpy()
+        n_particle = self.model.sphere.n(wavelen)
+        n_particle = n_particle.to_numpy().squeeze()
+        n_sample = self.model.index_external(wavelen)
+        # drop VOLFRAC dimension, which is included in all effective
+        # index calculations.
+        if sc.Coord.VOLFRAC in n_sample.coords:
+            n_sample = n_sample.isel({sc.Coord.VOLFRAC: 0}, drop=True)
+        n_sample = n_sample.to_numpy()
 
         m = np.atleast_2d(n_particle/n_sample)
         x = pymie.size_parameter(wavelen, n_sample, radius)
@@ -836,6 +894,7 @@ class Simulation:
         # m = sc.index.ratio(n_particle, n_sample)
         # x = sc.size_parameter(wavelen, n_sample, radius)
         # k = sc.wavevector(n_sample).magnitude
+        # Note also that all "wavelen" should be converted to "self.wavelen"
         ntraj = theta.shape[1]
 
         # calculate the mie amplitude scattering matrix
@@ -890,12 +949,12 @@ class Simulation:
         # Deal with tir
         if tir_refl_bool is not None:
             # get indices for the first TIR event for each trajectory
-            tir_indices = np.argmax(np.vstack([np.zeros(ntraj),
+            tir_indices = np.argmax(np.vstack([np.zeros(self.ntrajectories),
                                                tir_refl_bool]), axis=0)
 
             # select the tir event for each trajectory
             theta_1 = select_events(theta, tir_indices - 2)
-            kz_tir = select_events(self.direction[2], tir_indices)
+            kz_tir = select_events(self.traj.direction[2], tir_indices)
             theta_r = np.arccos(kz_tir)
             theta_tir = 2 * (np.pi / 2 - theta_r)
             costheta_tir = np.cos(theta_1 + theta_tir)
@@ -952,7 +1011,7 @@ class Simulation:
         # multiply the fields by the phase propagation due to structure factor
         # of the initial trajectories
         # should multiply by 1 for trajectories do not have fine roughness
-        ntraj_fine = int(round(ntraj * fine_roughness))
+        ntraj_fine = int(round(ntraj * self.fine_roughness))
         En[0, 1:, :] = En[0, 1:, :] * step_phase_factor
         En[1, 1:, :] = En[1, 1:, :] * step_phase_factor
         En[2, 1:, :] = En[2, 1:, :] * step_phase_factor
@@ -1113,133 +1172,6 @@ class QtyTrajectory():
     @property
     def ntrajectories(self):
         return self.weight.shape[1]
-
-
-def calc_scat(model, wavelen,
-              fields = False,
-              fine_roughness=0.0,
-              min_angle = 0.01,
-              num_angles = 200,
-              num_phis = 300):
-    """
-    Calculates the phase function, scattering coefficient, and absorption
-    coefficient
-
-    Parameters
-    ----------
-    model : `sc.Model` object
-        scattering model to use
-    wavelen : float (structcol.Quantity [length])
-        Wavelength of light in vacuum.
-    fields: bool
-        If True, returns phase function as function of theta and phi, so
-        it can be used in field calculations
-    fine_roughness: float (structcol.Quantity [dimensionless])
-        When the sample has surface roughness that is comparable to the
-        wavelength of light, then the first step is calculated with Mie theory
-        because light "sees" the Mie scatterer first instead of the sample as a
-        whole. After taking the first step, light is inside the sample and is
-        scattered in in the usual way, with the phase function based on the
-        effective medium approximation. This parameter should be between 0 and
-        1 and corresponds to the fraction of the sample area that has fine
-        roughness. For ex, a value of 0.3 means that 30% of incident light will
-        hit fine surface roughness (e.g. will "see" a Mie scatterer first). The
-        rest of the light will see a smooth surface, which could be flat or
-        have coarse roughness (long in the lengthscale of light).
-    min_angle: float
-        min_angle to prevent error because structure factor is zero at theta=0
-    num_angles: int
-        Sets the number of thetas at which phase function p will be calculated.
-    num_phis: int
-        Sets the number of phis at which phase function p will be calculated.
-        Only used if polarization is True.
-
-    Returns
-    -------
-    p : array_like (structcol.Quantity [dimensionless])
-        Phase function from either Mie theory or single scattering model.
-    mu_scat : float or 2-element array (structcol.Quantity [1/length])
-        Scattering coefficient from either Mie theory or single scattering
-        model. When fine_roughness is larger than 0, mu_scat is a 2-element
-        array, where the first element is the scattering coefficient from
-        either Mie theory or single scattering model, and the second element is
-        the scattering coefficient from Mie theory.
-    mu_abs : float (structcol.Quantity [1/length])
-        Absorption coefficient of the sample as an effective medium.
-
-    Notes
-    -----
-    The phase function is given by:
-        p = diff. scatt. cross section / cscat
-    The single scattering model calculates the differential cross section and
-    the total cross section. In a non-absorbing system, we can choose to
-    calculate these from Mie theory:
-        diff. scat. cross section = S11 / k^2
-        p = S11 / (k^2 * cscat)
-        (Bohren and Huffmann, chapter 13.3)
-    When there is fine roughness, we assume that light goes from the index
-    of the matrix to the index of the scatterer. Thus we assume that fine
-    roughness particles are not embedded in an effective medium.
-
-    """
-    wavelen = wavelen.to_preferred()
-    units = wavelen.units
-
-    n_sample = model.index_external(wavelen)
-
-    # calculate the absorption coefficient
-    mu_abs = 4*np.pi*n_sample.imag.to_numpy().squeeze()/wavelen
-
-    # Define angles at which phase function will be calculated, based on
-    # whether light is polarized or unpolarized
-    # Scattering angles (typically from a small angle to pi). A non-zero small
-    # angle is needed because in the single scattering model, if the analytic
-    # formula is used, S(q=0) returns nan. To prevent any errors or warnings,
-    # set the minimum value of angles to be a small value, such as 0.01.
-    angles = sc.Quantity(np.linspace(min_angle, np.pi, num_angles), 'rad')
-
-    thetas = angles
-    if fields:
-        phis = sc.Quantity(np.linspace(min_angle, 2*np.pi, num_phis), 'rad')
-    else:
-        phis = None
-
-    # calculate scattering quantities using the Model object
-    dscat = model.differential_cross_section(wavelen, thetas, phis=phis)
-    cscat = model.scattering_cross_section(dscat)
-    p = model.phase_function(dscat).to_numpy().squeeze()
-
-    mu_scat = model.number_density * (cscat.loc["avg"].to_numpy().squeeze() *
-                                      units**2)
-
-    # simplify units
-    mu_scat = mu_scat.to_preferred()
-    mu_abs = mu_abs.to_preferred()
-
-    # if there is fine surface roughness, also calculate and return the scatt
-    # coeff from Mie theory. We assume that fine roughness particles are in the
-    # matrix and not in the effective sample medium.
-    if fine_roughness > 0.:
-        # We use the same form factor and lengthscale from the existing model.
-        # Just need to change the external index to that of the matrix and
-        # change the structure factor to a constant. We copy the model to avoid
-        # modifying the original
-        roughness_model = copy.deepcopy(model)
-        roughness_model.index_external = roughness_model.index_matrix
-        roughness_model.structure_factor = sc.structure.Constant(1.0)
-
-        dscat = roughness_model.differential_cross_section(wavelen, thetas)
-        cscat_total_mie = roughness_model.scattering_cross_section(dscat)
-        mu_scat_mie = (roughness_model.number_density
-                       * (cscat_total_mie.loc["avg"].to_numpy().squeeze()
-                          * units**2))
-
-        mu_scat_mie = mu_scat_mie.to_preferred()
-        mu_scat = sc.Quantity(np.array([mu_scat.magnitude,
-                                        mu_scat_mie.magnitude]),
-                              1/sc.LENGTH_UNIT)
-
-    return p, mu_scat, mu_abs
 
 
 def coarse_roughness_enter(k, n_medium, n_sample, coarse_roughness, boundary,

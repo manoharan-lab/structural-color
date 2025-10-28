@@ -45,15 +45,9 @@ def test_2pi_shift():
     n_imag = 2.1e-4
     index_particle = sc.index.polystyrene + n_imag*1j
     sphere = sc.Sphere(index_particle, radius)
-    n_particle = sphere.n(wavelength)
     index_matrix = sc.index.vacuum
     index_medium = sc.index.vacuum
     n_medium = index_medium(wavelength)
-
-    vf_array = sphere.volume_fraction(volume_fraction)
-    index_sample = sc.EffectiveIndex([index_particle, index_matrix],
-                                     vf_array)
-    n_sample = index_sample(wavelength)
 
     thickness = sc.Quantity('50.0 um')
     boundary = 'film'
@@ -66,31 +60,28 @@ def test_2pi_shift():
     model = sc.model.HardSpheres(sphere, volume_fraction, index_matrix,
                                  index_medium)
 
-    # Calculate scattering quantities
-    p, mu_scat, mu_abs = mc.calc_scat(model, wavelength, fields=True)
-
     # Initialize simulation
-    sim = mc.Simulation(nevents, ntrajectories, n_medium, n_sample, boundary,
+    sim = mc.Simulation(model, wavelength, nevents, ntrajectories, boundary,
                         fields=True)
 
     # Sample trajectory angles
-    sintheta, costheta, sinphi, cosphi, theta, phi = sim.sample_angles(p)
+    sintheta, costheta, sinphi, cosphi, theta, phi = sim.sample_angles()
     # Sample step sizes
-    step = sim.sample_step(mu_scat)
+    step = sim.sample_step()
 
     # Update trajectories based on sampled values
     sim.scatter(sintheta, costheta, sinphi, cosphi)
     sim.move(step)
-    sim.absorb(mu_abs, step)
+    sim.absorb(step)
 
     sim.calc_fields(theta, phi, sintheta, costheta, sinphi, cosphi,
-                    n_particle, n_sample, radius, wavelength,
-                    step)
+                    radius, wavelength, step)
 
     # calculate reflectance
     # (should raise warning that n_matrix and n_particle are not set, so
     # tir correction is based only on sample index)
     trajectories = mc.QtyTrajectory(sim.traj)
+    n_sample = model.index_external(wavelength)
     with pytest.warns(UserWarning):
         refl_trans_result = det.calc_refl_trans(trajectories, thickness,
                                                 n_medium, n_sample, boundary,
@@ -245,16 +236,9 @@ def test_field_normalized():
     index_particle = sc.index.polystyrene + index_imag
 
     sphere = sc.Sphere(index_particle, radius)
-    n_particle = sphere.n(wavelength)
     index_matrix = sc.index.vacuum
-    n_matrix = index_matrix(wavelength)
     index_medium = sc.index.vacuum
-    n_medium = index_medium(wavelength)
 
-    vf_array = sphere.volume_fraction(volume_fraction)
-    index_sample = sc.index.EffectiveIndex([index_particle, index_matrix],
-                                           vf_array)
-    n_sample = index_sample(wavelength)
     boundary = 'film'
 
     # Monte Carlo parameters
@@ -265,25 +249,21 @@ def test_field_normalized():
     model = sc.model.HardSpheres(sphere, volume_fraction, index_matrix,
                                  index_medium)
 
-    # Calculate scattering quantities
-    p, mu_scat, mu_abs = mc.calc_scat(model, wavelength, fields=True)
-
     # Initialize simulation
-    sim = mc.Simulation(nevents, ntrajectories, n_medium, n_sample,
+    sim = mc.Simulation(model, wavelength, nevents, ntrajectories,
                         boundary, fields=True)
 
     # Sample trajectory angles
-    sintheta, costheta, sinphi, cosphi, theta, phi= sim.sample_angles(p)
+    sintheta, costheta, sinphi, cosphi, theta, phi= sim.sample_angles()
     # Sample step sizes
-    step = sim.sample_step(mu_scat)
+    step = sim.sample_step()
 
     # Update trajectories based on sampled values
     sim.scatter(sintheta, costheta, sinphi, cosphi)
     sim.move(step)
     sim.calc_fields(theta, phi, sintheta, costheta, sinphi, cosphi,
-                                 n_particle, n_sample, radius, wavelength,
-                                 step)
-    sim.absorb(mu_abs, step)
+                    radius, wavelength, step)
+    sim.absorb(step)
 
     # take the dot product
     trajectories = mc.QtyTrajectory(sim.traj)
@@ -315,16 +295,8 @@ def test_field_perp_direction():
     index_particle = sc.index.polystyrene + index_imag
 
     sphere = sc.Sphere(index_particle, radius)
-    n_particle = sphere.n(wavelength)
     index_matrix = sc.index.vacuum
-    n_matrix = index_matrix(wavelength)
     index_medium = sc.index.vacuum
-    n_medium = index_medium(wavelength)
-
-    vf_array = sphere.volume_fraction(volume_fraction)
-    index_sample = sc.EffectiveIndex([index_particle, index_matrix],
-                                     vf_array)
-    n_sample = index_sample(wavelength)
 
     boundary = 'film'
 
@@ -336,24 +308,21 @@ def test_field_perp_direction():
     model = sc.model.HardSpheres(sphere, volume_fraction, index_matrix,
                                  index_medium)
 
-    # Calculate scattering quantities
-    p, mu_scat, mu_abs = mc.calc_scat(model, wavelength, fields=True)
-
     # Initialize trajectories
-    sim = mc.Simulation(nevents, ntrajectories, n_medium, n_sample, boundary,
+    sim = mc.Simulation(model, wavelength, nevents, ntrajectories, boundary,
                         fields=True)
 
     # Sample trajectory angles
-    sintheta, costheta, sinphi, cosphi, theta, phi = sim.sample_angles(p)
+    sintheta, costheta, sinphi, cosphi, theta, phi = sim.sample_angles()
 
-    step = sim.sample_step(mu_scat)
+    step = sim.sample_step()
 
     # Update trajectories based on sampled values
     sim.scatter(sintheta, costheta, sinphi, cosphi)
     sim.move(step)
     sim.calc_fields(theta, phi, sintheta, costheta, sinphi, cosphi,
-                             n_particle, n_sample, radius, wavelength, step)
-    sim.absorb(mu_abs, step)
+                    radius, wavelength, step)
+    sim.absorb(step)
 
     # take the dot product
     trajectories = mc.QtyTrajectory(sim.traj)
@@ -386,16 +355,9 @@ def test_field_reflectance_mc():
     index_particle = sc.index.polystyrene + index_imag
 
     sphere = sc.Sphere(index_particle, radius)
-    n_particle = sphere.n(wavelength)
     index_matrix = sc.index.vacuum
-    n_matrix = index_matrix(wavelength)
     index_medium = sc.index.vacuum
     n_medium = index_medium(wavelength)
-
-    vf_array = sphere.volume_fraction(volume_fraction)
-    index_sample = sc.EffectiveIndex([index_particle, index_matrix],
-                                     vf_array)
-    n_sample = index_sample(wavelength)
 
     thickness = sc.Quantity('800 um')
     boundary = 'film'
@@ -407,28 +369,26 @@ def test_field_reflectance_mc():
     model = sc.model.HardSpheres(sphere, volume_fraction, index_matrix,
                                  index_medium)
 
-    # Calculate scattering quantities
-    p, mu_scat, mu_abs = mc.calc_scat(model, wavelength, fields=True)
-
     # Initialize simulation
-    sim = mc.Simulation(nevents, ntrajectories, n_medium, n_sample, boundary,
-                        coherent=False, fields=True, rng=rng)
+    sim = mc.Simulation(model, wavelength, nevents, ntrajectories, boundary,
+                        coherent=False, fields=True, fine_roughness=0, rng=rng)
 
     # Sample trajectory angles
-    sintheta, costheta, sinphi, cosphi, theta, phi = sim.sample_angles(p)
+    sintheta, costheta, sinphi, cosphi, theta, phi = sim.sample_angles()
 
     # Sample step sizes
-    step = sim.sample_step(mu_scat)
+    step = sim.sample_step()
 
     # Update trajectories based on sampled values
     sim.scatter(sintheta, costheta, sinphi, cosphi)
     sim.calc_fields(theta, phi, sintheta, costheta, sinphi, cosphi,
-                    n_particle, n_sample, radius, wavelength, step,
-                    fine_roughness=0, tir_refl_bool=None)
+                    radius, wavelength, step, tir_refl_bool=None)
     sim.move(step)
-    sim.absorb(mu_abs, step)
+    sim.absorb(step)
 
     trajectories = mc.QtyTrajectory(sim.traj)
+    n_sample = model.index_external(wavelength)
+
     with pytest.warns(UserWarning):
         refl_trans_result = det.calc_refl_trans(trajectories, thickness,
                                                 n_medium, n_sample, boundary,
@@ -474,14 +434,9 @@ def test_field_co_cross_mc():
     index_particle = sc.index.polystyrene + index_imag
 
     sphere = sc.Sphere(index_particle, radius)
-    n_particle = sphere.n(wavelengths)
     index_matrix = sc.index.vacuum
     index_medium = sc.index.vacuum
     n_medium = index_medium(wavelengths)
-
-    vf_array = sphere.volume_fraction(volume_fraction)
-    index_sample_eff = sc.EffectiveIndex([index_particle, index_matrix],
-                                         vf_array)
 
     thickness = sc.Quantity('80 um')
     boundary = 'film'
@@ -505,27 +460,23 @@ def test_field_co_cross_mc():
                                  index_medium)
 
     for i in range(wavelengths.size):
-        n_sample = index_sample_eff(wavelengths[i])
-
-        # Calculate scattering quantities
-        p, mu_scat, mu_abs = mc.calc_scat(model, wavelengths[i], fields=True)
+        n_sample = model.index_external(wavelengths[i])
 
         # Initialize simulation
-        sim = mc.Simulation(nevents, ntrajectories, n_medium[i], n_sample,
+        sim = mc.Simulation(model, wavelengths[i], nevents, ntrajectories,
                             boundary, fields=True, coherent=False, rng=rng)
 
-        sintheta, costheta, sinphi, cosphi, theta, phi = sim.sample_angles(p)
+        sintheta, costheta, sinphi, cosphi, theta, phi = sim.sample_angles()
 
-        step = sim.sample_step(mu_scat)
+        step = sim.sample_step()
 
         sim.scatter(sintheta, costheta, sinphi, cosphi)
         sim.move(step)
-        sim.absorb(mu_abs, step)
+        sim.absorb(step)
 
         sim.calc_fields(theta, phi, sintheta, costheta, sinphi,
-                        cosphi, n_particle[i], n_sample, radius,
-                        wavelengths[i], step,
-                        fine_roughness=0, tir_refl_bool=None)
+                        cosphi, radius, wavelengths[i], step,
+                        tir_refl_bool=None)
 
         trajectories = mc.QtyTrajectory(sim.traj)
         with pytest.warns(UserWarning):

@@ -44,9 +44,6 @@ wavelen = sc.Quantity('400.0 nm')
 index_particle = sc.Index.constant(1.5)
 index_matrix = sc.Index.constant(1.0)
 index_medium = sc.Index.constant(1.0)
-volume_fraction_da = xr.DataArray([[0.5, 1-0.5]],
-                                  coords={sc.Coord.VOLFRAC: [volume_fraction],
-                                          sc.Coord.MAT: range(2)})
 
 # Index of the scattering event and trajectory corresponding to the reflected
 # photons
@@ -257,12 +254,7 @@ def test_surface_roughness_mc():
     sphere = sc.Sphere(index_particle, radius)
     index_matrix = sc.index.vacuum
     index_medium = sc.index.vacuum
-    n_particle = index_particle(wavelen)
     n_medium = index_medium(wavelen)
-    n_matrix = index_matrix(wavelen)
-    index_sample = sc.EffectiveIndex([index_particle, index_matrix],
-                                     volume_fraction_da)
-    n_sample = index_sample(wavelen)
     boundary = 'film'
 
     incidence_theta_min = sc.Quantity(0, 'rad')
@@ -277,24 +269,22 @@ def test_surface_roughness_mc():
     # Need to specify fine roughness parameter in this function
     model = sc.model.HardSpheres(sphere, volume_fraction, index_matrix,
                                  index_medium)
-    p, mu_scat, mu_abs = mc.calc_scat(model, wavelen,
-                                      fine_roughness=fine_roughness)
 
-    sim = mc.Simulation(nevents, ntrajectories, n_medium,
-                        n_sample, boundary,
+    sim = mc.Simulation(model, wavelen, nevents, ntrajectories, boundary,
                         rng=rng,
                         incidence_theta_min = incidence_theta_min,
                         incidence_theta_max = incidence_theta_max,
                         incidence_phi_min = incidence_phi_min,
                         incidence_phi_max = incidence_phi_max,
-                        coarse_roughness = coarse_roughness)
+                        coarse_roughness = coarse_roughness,
+                        fine_roughness = fine_roughness)
 
-    sintheta, costheta, sinphi, cosphi, _, _ = sim.sample_angles(p)
+    sintheta, costheta, sinphi, cosphi, _, _ = sim.sample_angles()
 
     # Need to specify the fine roughness parameter in this function
-    step = sim.sample_step(mu_scat, fine_roughness=fine_roughness)
+    step = sim.sample_step()
 
-    sim.absorb(mu_abs, step)
+    sim.absorb(step)
     sim.scatter(sintheta, costheta, sinphi, cosphi)
     sim.move(step)
 
@@ -304,6 +294,7 @@ def test_surface_roughness_mc():
 
     # If there is coarse roughness, need to specify kz0_rotated and
     # kz0_reflected.
+    n_sample = model.index_external(wavelen)
     with pytest.warns(UserWarning):
         R, T = det.calc_refl_trans(trajectories, cutoff, n_medium, n_sample,
                                    boundary, kz0_rot=trajectories.kz0_rot,
@@ -816,11 +807,7 @@ def test_detectors_mc():
 
     index_matrix = sc.index.vacuum
     index_medium = sc.index.vacuum
-    n_particle = index_particle(wavelength)
     n_medium = index_medium(wavelength)
-    index_sample = sc.EffectiveIndex([index_particle, index_matrix],
-                                     volume_fraction_da)
-    n_sample = index_sample(wavelength)
     thickness = sc.Quantity('80 um')
     boundary = 'film'
 
@@ -830,24 +817,24 @@ def test_detectors_mc():
 
     model = sc.model.HardSpheres(sphere, volume_fraction, index_matrix,
                                  index_medium)
-    p, mu_scat, mu_abs = mc.calc_scat(model, wavelength)
 
     # Create simulation object and initialize
-    sim = mc.Simulation(nevents, ntrajectories, n_medium,
-                        n_sample, boundary, rng=rng)
+    sim = mc.Simulation(model, wavelength, nevents, ntrajectories, boundary,
+                        rng=rng)
 
     # Generate a matrix of all the randomly sampled angles first
-    sintheta, costheta, sinphi, cosphi, _, _ = sim.sample_angles(p)
+    sintheta, costheta, sinphi, cosphi, _, _ = sim.sample_angles()
 
     # Create step size distribution
-    step = sim.sample_step(mu_scat)
+    step = sim.sample_step()
 
     # Run photons
-    sim.absorb(mu_abs, step)
+    sim.absorb(step)
     sim.scatter(sintheta, costheta, sinphi, cosphi)
     sim.move(step)
 
     # test default detector (full reflection hemisphere)
+    n_sample = model.index_external(wavelength)
     trajectories = mc.QtyTrajectory(sim.traj)
     with pytest.warns(UserWarning):
         R, _ = det.calc_refl_trans(trajectories, thickness, n_medium,
@@ -963,6 +950,7 @@ def test_surface_roughness():
 def calc_montecarlo(model, nevents, ntrajectories, wavelen, seed,
                     fine_roughness=0., coarse_roughness=0.,
                     incidence_theta_min=0., incidence_theta_max=0.):
+    # Function to run montecarlo for the tests
 
     # set up a seeded random number generator that will give consistent results
     # between numpy versions. This is to reproduce the gold values which are
@@ -976,21 +964,16 @@ def calc_montecarlo(model, nevents, ntrajectories, wavelen, seed,
     n_sample = model.index_external(wavelen)
     n_medium = model.index_medium(wavelen)
 
-    # Function to run montecarlo for the tests
-    p, mu_scat, mu_abs = mc.calc_scat(model, wavelen,
-                                      fine_roughness=fine_roughness)
-
-
-    sim = mc.Simulation(nevents, ntrajectories, n_medium,
-                        n_sample, 'film', rng=rng,
+    sim = mc.Simulation(model, wavelen, nevents, ntrajectories, "film", rng=rng,
+                        fine_roughness=fine_roughness,
                         coarse_roughness=coarse_roughness,
                         incidence_theta_min = incidence_theta_min,
                         incidence_theta_max = incidence_theta_max)
 
-    sintheta, costheta, sinphi, cosphi, _, _= sim.sample_angles(p)
-    step = sim.sample_step(mu_scat, fine_roughness=fine_roughness)
+    sintheta, costheta, sinphi, cosphi, _, _= sim.sample_angles()
+    step = sim.sample_step()
 
-    sim.absorb(mu_abs, step)
+    sim.absorb(step)
     sim.scatter(sintheta, costheta, sinphi, cosphi)
     sim.move(step)
 

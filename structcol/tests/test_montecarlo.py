@@ -41,21 +41,17 @@ class TestSimulation():
     ntrajectories = 4
     radius = sc.Quantity('150.0 nm')
     volume_fraction = 0.5
-    volume_fraction_da = xr.DataArray([[0.5, 1-0.5]],
-                                      coords={sc.Coord.VOLFRAC: [volume_fraction],
-                                              sc.Coord.MAT: range(2)})
+
     angles = sc.Quantity(np.linspace(0.01, np.pi, 200), 'rad')
     wavelen = sc.Quantity('400.0 nm')
     index_particle = sc.Index.constant(1.5)
     sphere = sc.Sphere(index_particle, radius)
-    n_particle = index_particle(wavelen)
     index_matrix = sc.Index.constant(1.0)
-    n_matrix = index_matrix(wavelen)
     index_medium = sc.Index.constant(1.0)
-    n_medium = index_medium(wavelen)
-    index_sample = sc.EffectiveIndex([index_particle, index_matrix],
-                                     volume_fraction_da)
-    n_sample = index_sample(wavelen)
+
+    model = sc.model.HardSpheres(sphere, volume_fraction, index_matrix,
+                                 index_medium)
+    n_sample = model.index_external(wavelen)
 
     # Index of the scattering event and trajectory corresponding to the reflected
     # photons
@@ -66,18 +62,14 @@ class TestSimulation():
         # sampling angles and steps works, it's better if we don't give it a
         # seeded random number generator, so that we can ensure that sampling
         # works with the default generator.
-        model = sc.model.HardSpheres(self.sphere, self.volume_fraction,
-                                     self.index_matrix, self.index_medium)
-        p, mu_scat, mu_abs = mc.calc_scat(model, self.wavelen)
-
-        sim = mc.Simulation(self.nevents, self.ntrajectories, self.n_medium,
-                            self.n_sample, "film")
+        sim = mc.Simulation(self.model, self.wavelen, self.nevents,
+                            self.ntrajectories, "film")
 
         # Test that 'sample_angles' runs
-        sim.sample_angles(p)
+        sim.sample_angles()
 
         # Test that 'sample_step' runs
-        sim.sample_step(mu_scat)
+        sim.sample_step()
 
     @pytest.mark.parametrize("reset", [True, False])
     def test_initialization(self, reset):
@@ -85,8 +77,8 @@ class TestSimulation():
         inserted where they should be
 
         """
-        sim = mc.Simulation(self.nevents, self.ntrajectories, self.n_medium,
-                            self.n_sample, "film")
+        sim = mc.Simulation(self.model, self.wavelen, self.nevents,
+                            self.ntrajectories, "film")
         if reset:
             sim.reset()
         # check for correct shapes in both trajectory object and initial state
@@ -114,16 +106,17 @@ class TestSimulation():
         ntrajectories = 3
 
         # Create a Simulation object
-        sim = mc.Simulation(nevents, ntrajectories, self.n_medium,
-                            self.n_sample, "film")
+        sim = mc.Simulation(self.model, self.wavelen, nevents, ntrajectories,
+                            "film")
 
         # Test the absorb function
         mu_abs = 1/sc.Quantity(10.0, 'um')
+        sim.mu_abs = mu_abs
         # step size is 1 in all events and trajectories
         step = xr.DataArray([[1, 1, 1], [1, 1, 1]],
                             coords={"event": range(nevents),
                                     "trajectory": range(ntrajectories)})
-        sim.absorb(mu_abs, step)
+        sim.absorb(step)
         # since step size is given (not sampled), this test should produce a
         # deterministic result
         assert_almost_equal(sim.traj["weight"]

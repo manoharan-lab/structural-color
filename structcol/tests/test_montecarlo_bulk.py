@@ -51,18 +51,14 @@ boundary_bulk = 'film'
 #
 # refractive index of particle
 index_particle = sc.index.vacuum
-n_particle = index_particle(wavelength)
 particle = sc.Sphere(index_particle, particle_radius)
-vf_particles = particle.volume_fraction(volume_fraction_particles)
 # refractive index of matrix
 index_matrix = sc.index.polystyrene
-n_matrix = index_matrix(wavelength)
 # refractive index of the bulk matrix
 index_matrix_bulk = sc.index.vacuum
 n_matrix_bulk = index_matrix_bulk(wavelength)
 # refractive index of medium outside the bulk sample.
 index_medium = sc.index.vacuum
-n_medium = index_medium(wavelength)
 
 # Monte Carlo parameters
 #
@@ -78,34 +74,30 @@ def calc_sphere_mc():
     seed = 1
     rng = np.random.RandomState([seed])
 
-    # caculate the effective index of the sample
-    index_sample = sc.EffectiveIndex([index_particle, index_matrix],
-                                     vf_particles)
-    n_sample = index_sample(wavelength)
-
     # set up scattering model
     model = sc.model.HardSpheres(particle, volume_fraction_particles,
                                  index_matrix, index_medium)
 
-    # Calculate the phase function and scattering and absorption coefficients
-    #from the single scattering model
-    # (this absorption coefficient is of the scatterer, not of an absorber
-    #added to the system)
-    p, mu_scat, mu_abs = mc.calc_scat(model, wavelength)
+    # caculate the effective index of the sample
+    n_sample = model.index_external(wavelength)
 
     # Initialize the simulation
-    sim = mc.Simulation(nevents, ntrajectories, n_matrix_bulk, n_sample,
-                        boundary,sample_diameter = sphere_boundary_diameter,
+    sim = mc.Simulation(model, wavelength, nevents, ntrajectories, boundary,
+                        sample_diameter = sphere_boundary_diameter,
                         rng=rng)
 
+    # sim = mc.Simulation(nevents, ntrajectories, n_matrix_bulk, n_sample,
+    #                     boundary,sample_diameter = sphere_boundary_diameter,
+    #                     rng=rng)
+
     # Generate a matrix of all the randomly sampled angles first
-    sintheta, costheta, sinphi, cosphi, _, _ = sim.sample_angles(p)
+    sintheta, costheta, sinphi, cosphi, _, _ = sim.sample_angles()
 
     # Create step size distribution
-    step = sim.sample_step(mu_scat)
+    step = sim.sample_step()
 
     # Run photons
-    sim.absorb(mu_abs, step)
+    sim.absorb(step)
     sim.scatter(sintheta, costheta, sinphi, cosphi)
     sim.move(step)
 
@@ -124,9 +116,9 @@ def calc_sphere_mc():
          norm_refl, norm_trans) = det.calc_refl_trans(trajectories,
                                                       sphere_boundary_diameter,
                                                       n_matrix_bulk, n_sample,
-                                                      boundary, p=p,
-                                                      mu_abs=mu_abs,
-                                                      mu_scat=mu_scat,
+                                                      boundary, p=sim.p,
+                                                      mu_abs=sim.mu_abs,
+                                                      mu_scat=sim.mu_scat,
                                                       run_fresnel_traj = False,
                                                       return_extra = True)
 

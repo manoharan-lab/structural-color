@@ -2162,21 +2162,39 @@ def run_sphere_fresnel_traj(refl_per_traj_nf, trans_per_traj_nf,
 #            directions = np.delete(directions, indices,axis = 0)
 
     # create new simulation object and insert our existing trajectories
-    sim = mc.Simulation(nevents, ntraj, n_medium, n_sample, boundary,
+    # first need to create model object; for now, since index objects are not
+    # passed, we create a model object using the passed values of refractive
+    # index (assuming single wavelength) and an arbitrary lengthscale and
+    # wavelength (neither will affect the calculation)
+    lengthscale = sc.Quantity("0.1 um")
+    wavelength = 3*lengthscale
+    volume_fraction = 0.5
+    particle = sc.Sphere(sc.Index.constant(1.0), lengthscale)
+    index_medium = sc.Index.constant(n_medium)
+    index_sample = sc.Index.constant(n_sample)
+    dummy_model = sc.model.FormStructureModel(None, None, lengthscale,
+                                              index_sample, index_medium,
+                                              volume_fraction=volume_fraction,
+                                              particle=particle)
+    sim = mc.Simulation(dummy_model, wavelength, nevents, ntraj, boundary,
                         sample_diameter = thickness*2)
     trajectories_fresnel = xr.Dataset({"position": positions,
                                        "direction": directions,
                                        "weight": weights_fresnel})
+    # insert all of our previously calculated values into the simulation
     sim.traj = trajectories_fresnel.expand_dims(n_sample.coords).copy()
+    sim.p = p
+    sim.mu_scat = mu_scat
+    sim.mu_abs = mu_abs
 
     # Generate a matrix of all the randomly sampled angles first
-    sintheta, costheta, sinphi, cosphi, _, _ = sim.sample_angles(p, rng=rng)
+    sintheta, costheta, sinphi, cosphi, _, _ = sim.sample_angles(rng=rng)
 
     # Create step size distribution
-    step = sim.sample_step(mu_scat, rng=rng)
+    step = sim.sample_step(rng=rng)
 
     # Run photons
-    sim.absorb(mu_abs, step)
+    sim.absorb(step)
     sim.scatter(sintheta, costheta, sinphi, cosphi)
     sim.move(step)
     trajectories_fresnel = mc.QtyTrajectory(sim.traj)

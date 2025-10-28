@@ -25,28 +25,18 @@ Tests for the montecarlo model for sphere geometry (in structcol/montecarlo.py)
 
 import structcol as sc
 from .. import montecarlo as mc
-import numpy as np
-import xarray as xr
 
 # Define a system to be used for the tests
-nevents = 3
-ntrajectories = 4
 radius = sc.Quantity('150.0 nm')
-assembly_radius = 5
 volume_fraction = 0.5
-volume_fraction_da = xr.DataArray([0.5, 1-0.5],
-                                  coords = {sc.Coord.MAT: range(2)})
-angles = sc.Quantity(np.linspace(0.01, np.pi, 200), 'rad')
 wavelen = sc.Quantity('400.0 nm')
 index_particle = sc.Index.constant(1.5)
 index_matrix = sc.Index.constant(1.0)
-n_matrix = index_matrix(wavelen)
-n_sample = sc.index.effective_index([index_particle, index_matrix],
-                                    volume_fraction_da, wavelen)
+index_medium = sc.index.vacuum
+sphere = sc.Sphere(index_particle, radius)
 
-# Index of the scattering event and trajectory corresponding to the reflected
-# photons
-refl_index = np.array([2,0,2])
+model = sc.model.HardSpheres(sphere, volume_fraction, index_matrix,
+                             index_medium)
 
 def test_simulation():
     # Initialize runs. Since this test just checks to make sure a Simulation
@@ -56,6 +46,6 @@ def test_simulation():
     ntrajectories = 3
 
     # Create a Simulation object
-    trajectories = mc.Simulation(nevents, ntrajectories, n_matrix, n_sample,
+    trajectories = mc.Simulation(model, wavelen, nevents, ntrajectories,
                                  'sphere',
                                  sample_diameter = sc.Quantity('1.0 um'))

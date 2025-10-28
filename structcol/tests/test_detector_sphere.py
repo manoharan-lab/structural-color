@@ -41,18 +41,10 @@ ntrajectories = 4
 radius = sc.Quantity('150.0 nm')
 assembly_radius = 5
 volume_fraction = 0.5
-volume_fraction_da = xr.DataArray([[volume_fraction, 1-volume_fraction]],
-                                  coords={sc.Coord.VOLFRAC: [volume_fraction],
-                                          sc.Coord.MAT: range(2)})
 angles = sc.Quantity(np.linspace(0.01,np.pi, 200), 'rad')
 wavelen = sc.Quantity('400.0 nm')
 index_particle = sc.Index.constant(1.5)
-n_particle = index_particle(wavelen)
 index_matrix = sc.Index.constant(1.0)
-n_matrix = index_matrix(wavelen)
-index_sample = sc.EffectiveIndex([index_particle, index_matrix],
-                                 volume_fraction_da)
-n_sample = index_sample(wavelen)
 
 sphere = sc.Sphere(index_particle, radius)
 
@@ -94,7 +86,9 @@ def test_calc_refl_trans():
 
     model = sc.model.HardSpheres(sphere, volume_fraction, index_matrix,
                                  index_medium)
-    p, mu_scat, mu_abs = mc.calc_scat(model, wavelen)
+    sim = mc.Simulation(model, wavelen, nevents, ntrajectories, "sphere",
+                        sample_diameter = assembly_radius*2)
+
     # Should raise warning that n_matrix and n_particle are not set, so
     # tir correction is based only on sample index
     with pytest.warns(UserWarning):
@@ -148,8 +142,9 @@ def test_calc_refl_trans():
     # tir correction is based only on sample index
     with pytest.warns(UserWarning):
         refl, trans = det.calc_refl_trans(trajectories, assembly_radius,
-                                          small_n, small_n, 'sphere', p=p,
-                                          mu_abs=mu_abs, mu_scat=mu_scat,
+                                          small_n, small_n, 'sphere', p=sim.p,
+                                          mu_abs=sim.mu_abs,
+                                          mu_scat=sim.mu_scat,
                                           run_fresnel_traj=True)
     # since the tir=True reruns the stuck trajectory, we don't know whether it will end up reflected or transmitted
     # all we can know is that the end refl + trans > 0.99
@@ -196,18 +191,15 @@ def test_index_match():
     microsphere_radius = sc.Quantity('10.0 um')
     volume_fraction = sc.Quantity(0.55,'')
     index_particle = sc.Index.constant(1.6)
-    n_particle = index_particle(wavelen)
     index_matrix = sc.Index.constant(1.6)
-    n_matrix = index_matrix(wavelen)
     index_sample = index_matrix
-    n_sample = n_matrix
+    n_sample = index_sample(wavelen)
     index_medium = sc.Index.constant(1.0)
     n_medium = index_medium(wavelen)
 
     sphere = sc.Sphere(index_particle, radius)
     model = sc.model.HardSpheres(sphere, volume_fraction, index_matrix,
                                  index_medium)
-    p, mu_scat, mu_abs = mc.calc_scat(model, wavelen)
 
     # initialize all at center top edge of the sphere going down
     r0_sphere = xr.DataArray(np.zeros((3, nevents+1, ntrajectories)),
@@ -220,7 +212,7 @@ def test_index_match():
 
     # make dummy simulation object and replace trajectories in the object with
     # the ones that we've set up
-    sim = mc.Simulation(nevents, ntrajectories, n_medium, n_sample, "sphere",
+    sim = mc.Simulation(model, wavelen, nevents, ntrajectories, "sphere",
                         sample_diameter = microsphere_radius*2)
     trajectories_sphere = xr.Dataset({"position": r0_sphere,
                                       "direction": k0_sphere,
@@ -228,12 +220,12 @@ def test_index_match():
     sim.traj = trajectories_sphere
 
     # Generate a matrix of all the randomly sampled angles first
-    sintheta, costheta, sinphi, cosphi, _, _ = sim.sample_angles(p)
+    sintheta, costheta, sinphi, cosphi, _, _ = sim.sample_angles()
 
     # Create step size distribution
-    step = sim.sample_step(mu_scat)
+    step = sim.sample_step()
 
-    sim.absorb(mu_abs, step)
+    sim.absorb(step)
     sim.scatter(sintheta, costheta, sinphi, cosphi)
     sim.move(step)
     trajectories_sphere = mc.QtyTrajectory(sim.traj)
@@ -245,9 +237,9 @@ def test_index_match():
         refl_sphere, trans = det.calc_refl_trans(trajectories_sphere,
                                                  microsphere_radius,
                                                  n_medium, n_sample,
-                                                 'sphere', p=p,
-                                                 mu_abs=mu_abs,
-                                                 mu_scat=mu_scat,
+                                                 'sphere', p=sim.p,
+                                                 mu_abs=sim.mu_abs,
+                                                 mu_scat=sim.mu_scat,
                                                  run_fresnel_traj = True,
                                                  max_stuck = 0.0001)
 
@@ -277,35 +269,32 @@ def test_reflection_sphere_mc():
     radius = sc.Quantity('0.125 um')
     assembly_diameter = sc.Quantity('10 um')
     index_particle = sc.Index.constant(1.54)
-    n_particle = index_particle(wavelen)
     index_matrix = sc.index.vacuum
     index_medium = sc.index.vacuum
     n_medium = index_medium(wavelen)
-    index_sample = sc.EffectiveIndex([index_particle, index_matrix],
-                                     volume_fraction_da)
-    n_sample = index_sample(wavelen)
     boundary = 'sphere'
 
     sphere = sc.Sphere(index_particle, radius)
     model = sc.model.HardSpheres(sphere, volume_fraction, index_matrix,
                                  index_medium)
-    p, mu_scat, mu_abs = mc.calc_scat(model, wavelen)
+
+    n_sample = model.index_external(wavelen)
 
     # Initialize the simulation for a sphere
-    sim = mc.Simulation(nevents, ntrajectories, n_medium, n_sample, boundary,
+    sim = mc.Simulation(model, wavelen, nevents, ntrajectories, boundary,
                         plot_initial = False,
                         sample_diameter = assembly_diameter,
                         spot_size = assembly_diameter,
                         rng=rng)
 
     # Generate a matrix of all the randomly sampled angles first
-    sintheta, costheta, sinphi, cosphi, _, _ = sim.sample_angles(p)
+    sintheta, costheta, sinphi, cosphi, _, _ = sim.sample_angles()
 
     # Create step size distribution
-    step = sim.sample_step(mu_scat)
+    step = sim.sample_step()
 
     # Run photons
-    sim.absorb(mu_abs, step)
+    sim.absorb(step)
     sim.scatter(sintheta, costheta, sinphi, cosphi)
     sim.move(step)
 
@@ -328,8 +317,8 @@ def test_reflection_sphere_mc():
     with pytest.warns(UserWarning):
         R, T = det.calc_refl_trans(trajectories, assembly_diameter, n_medium,
                                    n_sample, boundary, run_fresnel_traj = True,
-                                   mu_abs=mu_abs, mu_scat=mu_scat, p=p,
-                                   rng=rng)
+                                   mu_abs=sim.mu_abs, mu_scat=sim.mu_scat,
+                                   p=sim.p, rng=rng)
 
     R_expected = 0.2508833560792594
     T_expected = 0.7491166439207406
@@ -361,7 +350,6 @@ def test_multiscale_mc():
 
     # Refractive indices
     index_particle = sc.index.vacuum
-    n_particle = index_particle(wavelengths)
     index_matrix = sc.index.fused_silica + 9e-4*1j
     index_matrix_bulk = sc.index.vacuum
     n_matrix_bulk = index_matrix_bulk(wavelengths)
@@ -369,12 +357,6 @@ def test_multiscale_mc():
     n_medium = index_medium(wavelengths)
 
     particle = sc.Sphere(index_particle, particle_radius)
-    vf_particles = particle.volume_fraction(volume_fraction_particles)
-
-    # caculate the effective index of the sample
-    index_sample_eff = sc.EffectiveIndex([index_particle, index_matrix],
-                                         vf_particles)
-    n_sample = index_sample_eff(wavelengths)
 
     # number of trajectories to run with a spherical boundary
     ntrajectories = 2000
@@ -394,25 +376,26 @@ def test_multiscale_mc():
     # set up scattering model
     model = sc.model.HardSpheres(particle, volume_fraction_particles,
                                  index_matrix, index_medium)
+    n_sample = model.index_external(wavelengths)
 
     # loop through wavelengths
     for i in range(wavelengths.size):
         n_s = n_sample.isel(wavelength=[i])
         n_m = n_matrix_bulk.isel(wavelength=[i])
-        p, mu_scat, mu_abs = mc.calc_scat(model, wavelengths[i])
 
         # Initialize the simulation
-        sim = mc.Simulation(nevents, ntrajectories, n_m, n_s, boundary,
+        sim = mc.Simulation(model, wavelengths[i], nevents, ntrajectories,
+                            boundary,
                             sample_diameter = sphere_boundary_diameter, rng=rng)
 
         # Generate a matrix of all the randomly sampled angles first
-        sintheta, costheta, sinphi, cosphi, _, _ = sim.sample_angles(p)
+        sintheta, costheta, sinphi, cosphi, _, _ = sim.sample_angles()
 
         # Create step size distribution
-        step = sim.sample_step(mu_scat)
+        step = sim.sample_step()
 
         # Run photons
-        sim.absorb(mu_abs, step)
+        sim.absorb(step)
         sim.scatter(sintheta, costheta, sinphi, cosphi)
         sim.move(step)
 
@@ -427,8 +410,8 @@ def test_multiscale_mc():
              reflectance_sphere[i],
              _,_, norm_refl, norm_trans) = \
                  det.calc_refl_trans(trajectories, sphere_boundary_diameter,
-                                     n_m, n_s, boundary, p=p,
-                                     mu_abs=mu_abs, mu_scat=mu_scat,
+                                     n_m, n_s, boundary, p=sim.p,
+                                     mu_abs=sim.mu_abs, mu_scat=sim.mu_scat,
                                      run_fresnel_traj = False, return_extra =
                                      True)
 
@@ -482,19 +465,27 @@ def test_multiscale_mc():
     # now look at bulk film
     # initialize some quantities we want to save as a function of wavelength
     reflectance_bulk = np.zeros(wavelengths.size)
-
+    # particle doesn't matter here but is needed to set up model object
+    dummy_particle = sc.Sphere(index_particle, radius)
+    model = sc.model.HardSpheres(dummy_particle, volume_fraction_particles,
+                                 index_matrix_bulk, index_medium)
     for i in range(wavelengths.size):
         n_med = n_medium.isel(wavelength=[i])
         n_mat = n_matrix_bulk.isel(wavelength=[i])
         # Initialize the simulation
-        sim = mc.Simulation(nevents_bulk, ntrajectories_bulk, n_med, n_mat,
-                            boundary_bulk, rng=rng)
+        sim = mc.Simulation(model, wavelengths[i], nevents_bulk,
+                            ntrajectories_bulk, boundary_bulk, rng=rng)
+
+        # insert scattering quantities calculated for bulk system into object
+        sim.p = p_bulk[i, :]
+        sim.mu_scat = mu_scat_bulk[i]
+        sim.mu_abs = mu_abs_bulk[i]
 
         # Sample angles
-        sintheta, costheta, sinphi, cosphi, _, _= sim.sample_angles(p_bulk[i,:])
+        sintheta, costheta, sinphi, cosphi, _, _= sim.sample_angles()
 
         # Calculate step size
-        step = sim.sample_step(mu_scat_bulk[i])
+        step = sim.sample_step()
 
         # Run photons
         sim.scatter(sintheta, costheta, sinphi, cosphi)
@@ -558,19 +549,13 @@ def test_multiscale_polydispersity_mc():
     boundary_bulk = 'film'
 
     index_particle = sc.index.vacuum
-    n_particle = index_particle(wavelengths)
     index_matrix = sc.index.polystyrene + 2e-5*1j
-    n_matrix = index_matrix(wavelengths)
     index_matrix_bulk = sc.index.vacuum
     n_matrix_bulk = index_matrix_bulk(wavelengths)
     index_medium = sc.index.vacuum
     n_medium = index_medium(wavelengths)
 
     particle = sc.Sphere(index_particle, particle_radius)
-    vf_particles = particle.volume_fraction(volume_fraction_particles)
-    index_sample_eff = sc.EffectiveIndex([index_particle, index_matrix],
-                                         vf_particles)
-    n_sample = index_sample_eff(wavelengths)
 
     ntrajectories = 500
     nevents = 300
@@ -602,26 +587,27 @@ def test_multiscale_polydispersity_mc():
     model = sc.model.HardSpheres(particle, volume_fraction_particles,
                                  index_matrix, index_medium)
 
+    n_sample = model.index_external(wavelengths)
+
     for j in range(sphere_boundary_diameters.size):
         for i in range(wavelengths.size):
             n_m = n_matrix_bulk.isel(wavelength=[i])
             n_s = n_sample.isel(wavelength=[i])
 
-            p, mu_scat, mu_abs = mc.calc_scat(model, wavelengths[i])
-
             # Initialize the simulation
-            sim = mc.Simulation(nevents, ntrajectories, n_m, n_s, boundary,
+            sim = mc.Simulation(model, wavelengths[i], nevents, ntrajectories,
+                                boundary,
                                 sample_diameter = sphere_boundary_diameters[j],
                                 rng=rng)
 
             # Generate a matrix of all the randomly sampled angles first
-            sintheta, costheta, sinphi, cosphi, _, _ = sim.sample_angles(p)
+            sintheta, costheta, sinphi, cosphi, _, _ = sim.sample_angles()
 
             # Create step size distribution
-            step = sim.sample_step(mu_scat)
+            step = sim.sample_step()
 
             # Run photons
-            sim.absorb(mu_abs, step)
+            sim.absorb(step)
             sim.scatter(sintheta, costheta, sinphi, cosphi)
             sim.move(step)
 
@@ -668,12 +654,15 @@ def test_multiscale_polydispersity_mc():
     assert_equal(num_samples, num_samples_expected)
 
     reflectance_bulk_poly = np.zeros(wavelengths.size)
+
+    model = sc.model.HardSpheres(particle, volume_fraction_particles,
+                                 index_matrix_bulk, index_medium)
     for i in range(wavelengths.size):
         n_med = n_medium.isel(wavelength=[i])
         n_mat = n_matrix_bulk.isel(wavelength=[i])
         # Initialize the simulation
-        sim = mc.Simulation(nevents_bulk, ntrajectories_bulk, n_med, n_mat,
-                            boundary_bulk, rng=rng)
+        sim = mc.Simulation(model, wavelengths[i], nevents_bulk,
+                            ntrajectories_bulk, boundary_bulk, rng=rng)
 
         # Sample angles and calculate step size based on sampled radii
         sintheta, costheta, sinphi, cosphi, step, _, _ = \
@@ -684,11 +673,13 @@ def test_multiscale_polydispersity_mc():
                                         param_list =
                                         sphere_boundary_diameters, rng=rng)
 
+        # insert scattering quantities calculated for bulk system into object
+        sim.mu_abs = mu_abs_bulk[0, i]
 
         # Run photons. Note: polydisperse absorption does not currently work in
         # the bulk so we arbitrarily use index 0, assuming that all scattering
         # events have the same amount of absorption
-        sim.absorb(mu_abs_bulk[0,i], step)
+        sim.absorb(step)
         sim.scatter(sintheta, costheta, sinphi, cosphi)
         sim.move(step)
 
@@ -748,9 +739,7 @@ def test_multiscale_color_mixing_mc():
 
     # Refractive indices
     index_particle = sc.index.vacuum
-    n_particle = index_particle(wavelengths)
     index_matrix = sc.index.polystyrene + 2e-5*1j
-    n_matrix = index_matrix(wavelengths)
     index_matrix_bulk = sc.index.vacuum
     n_matrix_bulk = index_matrix_bulk(wavelengths)
     index_medium = sc.index.vacuum
@@ -772,30 +761,26 @@ def test_multiscale_color_mixing_mc():
 
     for j in range(particle_radii.size):
         particle = sc.Sphere(index_particle, particle_radii[j])
-        vf_array = particle.volume_fraction(volume_fraction_particles)
-        index_sample_eff = sc.EffectiveIndex([index_particle, index_matrix],
-                                             vf_array)
-        n_sample_eff = index_sample_eff(wavelengths)
 
         # set up scattering model
         model = sc.model.HardSpheres(particle, volume_fraction_particles,
                                      index_matrix, index_medium)
+        n_sample_eff = model.index_external(wavelengths)
+
         for i in range(wavelengths.size):
             n_sample = n_sample_eff.isel(wavelength=[i])
             n_mat = n_matrix_bulk.isel(wavelength=[i])
-            p, mu_scat, mu_abs = mc.calc_scat(model, wavelengths[i])
 
-            sim = mc.Simulation(nevents, ntrajectories, n_mat, n_sample,
+            sim = mc.Simulation(model, wavelengths[i], nevents, ntrajectories,
                                 boundary,
                                 sample_diameter = sphere_boundary_diameter,
                                 rng=rng)
 
-            sintheta, costheta, sinphi, cosphi, _, _ = sim.sample_angles(p)
+            sintheta, costheta, sinphi, cosphi, _, _ = sim.sample_angles()
 
+            step = sim.sample_step()
 
-            step = sim.sample_step(mu_scat)
-
-            sim.absorb(mu_abs, step)
+            sim.absorb(step)
             sim.scatter(sintheta, costheta, sinphi, cosphi)
             sim.move(step)
 
@@ -836,12 +821,16 @@ def test_multiscale_color_mixing_mc():
 
     # calculate reflectance of bulk film with spheres of two different colors
     reflectance_bulk_mix = np.zeros(wavelengths.size)
+    # particle doesn't matter here but is needed to set up model object
+    dummy_particle = sc.Sphere(index_particle, radius)
+    model = sc.model.HardSpheres(dummy_particle, volume_fraction_particles,
+                                 index_matrix_bulk, index_medium)
     for i in range(wavelengths.size):
         n_med = n_medium.isel(wavelength=[i])
         n_mat = n_matrix_bulk.isel(wavelength=[i])
         # Initialize the simulation
-        sim = mc.Simulation(nevents_bulk, ntrajectories_bulk, n_med, n_mat,
-                            boundary_bulk, rng=rng)
+        sim = mc.Simulation(model, wavelengths[i], nevents_bulk,
+                            ntrajectories_bulk, boundary_bulk, rng=rng)
 
         (sintheta, costheta, sinphi, cosphi, step, _, _) = \
             pfs.sample_angles_step_poly(nevents_bulk, ntrajectories_bulk,
@@ -850,10 +839,13 @@ def test_multiscale_color_mixing_mc():
                                         mu_scat_bulk[:,i],
                                         rng=rng)
 
+        # insert scattering quantities calculated for bulk system into object
+        sim.mu_abs = mu_abs_bulk[0, i]
+
         # Run photons
         # Note: we assume that all scattering events
         # have the same amount of absorption
-        sim.absorb(mu_abs_bulk[0,i], step)
+        sim.absorb(step)
         sim.scatter(sintheta, costheta, sinphi, cosphi)
         sim.move(step)
 

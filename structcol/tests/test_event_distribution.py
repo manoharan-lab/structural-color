@@ -53,16 +53,9 @@ boundary = 'film'
 # refractive_index module. n_matrix is the # space within sample. n_medium is
 # outside the sample.
 index_particle = sc.index.polystyrene
-n_particle = index_particle(wavelength)
 index_matrix = sc.index.vacuum
-n_matrix = index_matrix(wavelength)
 index_medium = sc.index.vacuum
 n_medium = index_medium(wavelength)
-
-# Calculate the effective refractive index of the sample
-index_sample = sc.EffectiveIndex([index_particle, index_matrix],
-                                    volume_fraction_da)
-n_sample = index_sample(wavelength)
 
 # Calculate the phase function and scattering and absorption coefficients from
 # the single scattering model (this absorption coefficient is of the scatterer,
@@ -70,8 +63,6 @@ n_sample = index_sample(wavelength)
 particle = sc.Sphere(index_particle, particle_radius)
 model = sc.model.HardSpheres(particle, volume_fraction, index_matrix,
                              index_medium)
-p, mu_scat, mu_abs = mc.calc_scat(model, wavelength)
-lscat = 1/mu_scat.magnitude # microns
 
 # set up a seeded random number generator that will give consistent results
 # between numpy versions.
@@ -79,21 +70,26 @@ seed = 1
 rng = np.random.RandomState([seed])
 
 # Initialize the simulation
-sim = mc.Simulation(nevents, ntrajectories, n_medium, n_sample,
-                    boundary, rng=rng)
+sim = mc.Simulation(model, wavelength, nevents, ntrajectories, boundary,
+                    rng=rng)
+
+lscat = 1/sim.mu_scat.magnitude # microns
 
 # Generate a matrix of all the randomly sampled angles first
-sintheta, costheta, sinphi, cosphi, theta, _ = sim.sample_angles(p)
+sintheta, costheta, sinphi, cosphi, theta, _ = sim.sample_angles()
 
 # Create step size distribution
-step = sim.sample_step(mu_scat)
+step = sim.sample_step()
 
 # Run photons
-sim.absorb(mu_abs, step)
+sim.absorb(step)
 sim.scatter(sintheta, costheta, sinphi, cosphi)
 sim.move(step)
 
 trajectories = mc.QtyTrajectory(sim.traj)
+
+# Calculate the effective refractive index of the sample
+n_sample = model.index_external(wavelength)
 
 # following calculation should raise a warning that n_particle and n_matrix are
 # not set
@@ -415,17 +411,11 @@ def test_event_distribution_wavelength_mc():
 
     # indices of refraction
     index_particle = sc.index.polystyrene
-    n_particle = index_particle(wavelengths)
     index_matrix = sc.index.vacuum
-    n_matrix = index_matrix(wavelengths)
     index_medium = sc.index.vacuum
     n_medium = index_medium(wavelengths)
 
     particle = sc.Sphere(index_particle, particle_radius)
-    vf_array = particle.volume_fraction(volume_fraction)
-    index_sample_eff = sc.EffectiveIndex([index_particle, index_matrix],
-                                         vf_array)
-    n_sample_eff = index_sample_eff(wavelengths)
 
     # initialize arrays for quantities we want to look at later
     refl_events = np.zeros((wavelengths.size, 2*nevents+1))
@@ -441,30 +431,33 @@ def test_event_distribution_wavelength_mc():
     # set up scattering model
     model = sc.model.HardSpheres(particle, volume_fraction, index_matrix,
                                  index_medium)
+    n_sample_eff = model.index_external(wavelengths)
+
 
     # run monte carlo, reflectance, and event_distribution
     for i in range(wavelengths.size):
         n_sample = n_sample_eff.isel(wavelength=i, drop=True)
 
-        p[i,:], mu_scat, mu_abs = mc.calc_scat(model, wavelengths[i])
-        lscat[i] = 1/mu_scat.magnitude # microns
-
-        sim = mc.Simulation(nevents, ntrajectories, n_medium[i], n_sample,
+        sim = mc.Simulation(model, wavelengths[i], nevents, ntrajectories,
                             boundary, rng=rng)
+
+        p[i,:] = sim.p
+        mu_scat = sim.mu_scat
+        lscat[i] = 1/mu_scat.magnitude # microns
 
         ######################################################################
         # Generate a matrix of all the randomly sampled angles first
-        sintheta, costheta, sinphi, cosphi, theta, _ = sim.sample_angles(p[i,:])
+        sintheta, costheta, sinphi, cosphi, theta, _ = sim.sample_angles()
         sintheta = xr.DataArray(np.sin(theta),
                                 coords={"event": range(1, nevents),
                                         "trajectory": range(ntrajectories)})
         costheta = xr.DataArray(np.cos(theta), coords=sintheta.coords)
 
         # Create step size distribution
-        step = sim.sample_step(mu_scat)
+        step = sim.sample_step()
 
         # Run photons
-        sim.absorb(mu_abs, step)
+        sim.absorb(step)
         sim.scatter(sintheta, costheta, sinphi, cosphi)
         sim.move(step)
 
@@ -542,27 +535,22 @@ def test_event_distribution_angle_mc():
     theta_range = sc.Quantity(np.arange(125., 150, 2),'degrees')
 
     refl_events = np.zeros((theta_range.size, 2*nevents+1))
-    refl_events_fresnel_samp = np.zeros((theta_range.size, 2*nevents+1))
-    refl_events_fresnel_avg = np.zeros((theta_range.size, 2*nevents+1))
     reflectance = np.zeros(theta_range.size)
 
     particle = sc.Sphere(index_particle, particle_radius)
     model = sc.model.HardSpheres(particle, volume_fraction, index_matrix,
                                  index_medium)
 
-    p, mu_scat, mu_abs = mc.calc_scat(model, wavelength)
-    lscat = 1/mu_scat.magnitude
-
     # Initialize the simulation
-    sim = mc.Simulation(nevents, ntrajectories, n_medium, n_sample,
-                        boundary, rng=rng)
+    sim = mc.Simulation(model, wavelength, nevents, ntrajectories, boundary,
+                        rng=rng)
 
     # Create step size distribution
-    step = sim.sample_step(mu_scat)
+    step = sim.sample_step()
 
     for j in range(theta_range.size):
         # Generate a matrix of all the randomly sampled angles first
-        _, _, sinphi, cosphi, _, _ = sim.sample_angles(p)
+        _, _, sinphi, cosphi, _, _ = sim.sample_angles()
 
         # need nevents-1 because the first event doesn't involve a change in
         # direction.
@@ -577,7 +565,7 @@ def test_event_distribution_angle_mc():
         sim.reset()
 
         # Run photons
-        sim.absorb(mu_abs, step)
+        sim.absorb(step)
         sim.scatter(sintheta, costheta, sinphi, cosphi)
         sim.move(step)
 
