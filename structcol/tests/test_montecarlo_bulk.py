@@ -81,25 +81,15 @@ def calc_sphere_mc():
     # caculate the effective index of the sample
     n_sample = model.index_external(wavelength)
 
-    # Initialize the simulation
+    # Initialize and run the simulation
     sim = mc.Simulation(model, wavelength, nevents, ntrajectories, boundary,
                         sample_diameter = sphere_boundary_diameter,
                         rng=rng)
+    sim.run()
 
     # sim = mc.Simulation(nevents, ntrajectories, n_matrix_bulk, n_sample,
     #                     boundary,sample_diameter = sphere_boundary_diameter,
     #                     rng=rng)
-
-    # Generate a matrix of all the randomly sampled angles first
-    sintheta, costheta, sinphi, cosphi, _, _ = sim.sample_angles()
-
-    # Create step size distribution
-    step = sim.sample_step()
-
-    # Run photons
-    sim.absorb(step)
-    sim.scatter(sintheta, costheta, sinphi, cosphi)
-    sim.move(step)
 
     # Calculate reflection and transmission
     # (should raise warning that n_matrix and n_particle are not set, so

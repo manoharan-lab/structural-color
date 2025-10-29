@@ -575,21 +575,40 @@ class Simulation:
         if "fields" in self.traj:
             self.traj.fields.loc[dict(event=1)] = self.traj.fields.sel(event=0)
 
-    def run(self):
+    def run(self, rng=None, radius=None, wavelength=None):
         """
         Run the simulation.
 
         Parameters
         ----------
+        rng: numpy.random.Generator object (default None)
+            Random number generator. If not specified, use the generator stored
+            in the Simulation object
+        radius : `sc.Quantity` [length]
+            radius of particle used in scattering calculation
+        wavelength : `sc.Quantity` [length]
+            wavelength of light in vacuum
 
         Returns
         -------
-
-        MCResult object:
-            results of simulation
+        None
 
         """
-        pass
+        # Sample trajectory angles
+        angles = self.sample_angles(rng=rng)
+        sintheta, costheta, sinphi, cosphi, theta, phi = angles
+        # Sample step sizes
+        step = self.sample_step(rng=rng)
+
+        # Update trajectories based on sampled values
+        self.scatter(sintheta, costheta, sinphi, cosphi)
+        self.move(step)
+        self.absorb(step)
+
+        # calculate fields if radius is specified
+        if radius is not None:
+            self.calc_fields(theta, phi, sintheta, costheta, sinphi, cosphi,
+                             step, radius, wavelength)
 
     def sample_angles(self, rng=None):
         """Samples scattering angles (theta) and azimuthal angles (phi)
@@ -815,7 +834,7 @@ class Simulation:
         self.traj["direction"] = kn
 
     def calc_fields(self, theta, phi, sintheta, costheta, sinphi, cosphi,
-                    radius, wavelen, step, tir_refl_bool=None):
+                    step, radius, wavelen, tir_refl_bool=None):
         """
         Calculates local x and y polarization rotated in reference frame where
         initial polarization is x-polarized. Assumes the incident light is in

@@ -354,13 +354,7 @@ def test_structure_factor_data_reflectances():
 
         sim = mc.Simulation(model, wavelengths[i], nevents, ntrajectories,
                             boundary, rng=rng)
-
-        sintheta, costheta, sinphi, cosphi, _, _ = sim.sample_angles()
-        step = sim.sample_step()
-
-        sim.absorb(step)
-        sim.scatter(sintheta, costheta, sinphi, cosphi)
-        sim.move(step)
+        sim.run()
 
         trajectories = mc.QtyTrajectory(sim.traj)
         with pytest.warns(UserWarning):

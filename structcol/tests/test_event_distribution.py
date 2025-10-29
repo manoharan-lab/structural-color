@@ -69,22 +69,10 @@ model = sc.model.HardSpheres(particle, volume_fraction, index_matrix,
 seed = 1
 rng = np.random.RandomState([seed])
 
-# Initialize the simulation
+# Initialize and run the simulation
 sim = mc.Simulation(model, wavelength, nevents, ntrajectories, boundary,
                     rng=rng)
-
-lscat = 1/sim.mu_scat.magnitude # microns
-
-# Generate a matrix of all the randomly sampled angles first
-sintheta, costheta, sinphi, cosphi, theta, _ = sim.sample_angles()
-
-# Create step size distribution
-step = sim.sample_step()
-
-# Run photons
-sim.absorb(step)
-sim.scatter(sintheta, costheta, sinphi, cosphi)
-sim.move(step)
+sim.run()
 
 trajectories = mc.QtyTrajectory(sim.traj)
 
@@ -420,8 +408,6 @@ def test_event_distribution_wavelength_mc():
     # initialize arrays for quantities we want to look at later
     refl_events = np.zeros((wavelengths.size, 2*nevents+1))
     reflectance = np.zeros(wavelengths.size)
-    p = sc.Quantity(np.zeros((wavelengths.size, 200)),'')
-    lscat = np.zeros(wavelengths.size)
     tir_single_events = np.zeros((wavelengths.size, 2*nevents+1))
     tir_single_refl_events = np.zeros((wavelengths.size, 2*nevents+1))
     tir_all_events = np.zeros((wavelengths.size, 2*nevents+1))
@@ -440,26 +426,7 @@ def test_event_distribution_wavelength_mc():
 
         sim = mc.Simulation(model, wavelengths[i], nevents, ntrajectories,
                             boundary, rng=rng)
-
-        p[i,:] = sim.p
-        mu_scat = sim.mu_scat
-        lscat[i] = 1/mu_scat.magnitude # microns
-
-        ######################################################################
-        # Generate a matrix of all the randomly sampled angles first
-        sintheta, costheta, sinphi, cosphi, theta, _ = sim.sample_angles()
-        sintheta = xr.DataArray(np.sin(theta),
-                                coords={"event": range(1, nevents),
-                                        "trajectory": range(ntrajectories)})
-        costheta = xr.DataArray(np.cos(theta), coords=sintheta.coords)
-
-        # Create step size distribution
-        step = sim.sample_step()
-
-        # Run photons
-        sim.absorb(step)
-        sim.scatter(sintheta, costheta, sinphi, cosphi)
-        sim.move(step)
+        sim.run()
 
         ################### Calculate reflection and transmission
         trajectories = mc.QtyTrajectory(sim.traj)

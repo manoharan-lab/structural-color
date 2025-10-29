@@ -2176,6 +2176,11 @@ def run_sphere_fresnel_traj(refl_per_traj_nf, trans_per_traj_nf,
                                               index_sample, index_medium,
                                               volume_fraction=volume_fraction,
                                               particle=particle)
+    # note that we don't pass the rng to the Simulation object because it would
+    # generate random numbers for the initial trajectories, which we already
+    # have calculated. The generation of new initial trajectories would change
+    # the state of the rng, making it hard to compare to results of regression
+    # tests. Instead we pass the rng to the run() method
     sim = mc.Simulation(dummy_model, wavelength, nevents, ntraj, boundary,
                         sample_diameter = thickness*2)
     trajectories_fresnel = xr.Dataset({"position": positions,
@@ -2187,16 +2192,9 @@ def run_sphere_fresnel_traj(refl_per_traj_nf, trans_per_traj_nf,
     sim.mu_scat = mu_scat
     sim.mu_abs = mu_abs
 
-    # Generate a matrix of all the randomly sampled angles first
-    sintheta, costheta, sinphi, cosphi, _, _ = sim.sample_angles(rng=rng)
-
-    # Create step size distribution
-    step = sim.sample_step(rng=rng)
-
     # Run photons
-    sim.absorb(step)
-    sim.scatter(sintheta, costheta, sinphi, cosphi)
-    sim.move(step)
+    sim.run(rng=rng)
+
     trajectories_fresnel = mc.QtyTrajectory(sim.traj)
 
     # Calculate reflection and transmition

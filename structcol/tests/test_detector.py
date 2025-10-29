@@ -278,15 +278,7 @@ def test_surface_roughness_mc():
                         incidence_phi_max = incidence_phi_max,
                         coarse_roughness = coarse_roughness,
                         fine_roughness = fine_roughness)
-
-    sintheta, costheta, sinphi, cosphi, _, _ = sim.sample_angles()
-
-    # Need to specify the fine roughness parameter in this function
-    step = sim.sample_step()
-
-    sim.absorb(step)
-    sim.scatter(sintheta, costheta, sinphi, cosphi)
-    sim.move(step)
+    sim.run()
 
     cutoff = sc.Quantity('50 um')
 
@@ -818,20 +810,10 @@ def test_detectors_mc():
     model = sc.model.HardSpheres(sphere, volume_fraction, index_matrix,
                                  index_medium)
 
-    # Create simulation object and initialize
+    # Create simulation object and run
     sim = mc.Simulation(model, wavelength, nevents, ntrajectories, boundary,
                         rng=rng)
-
-    # Generate a matrix of all the randomly sampled angles first
-    sintheta, costheta, sinphi, cosphi, _, _ = sim.sample_angles()
-
-    # Create step size distribution
-    step = sim.sample_step()
-
-    # Run photons
-    sim.absorb(step)
-    sim.scatter(sintheta, costheta, sinphi, cosphi)
-    sim.move(step)
+    sim.run()
 
     # test default detector (full reflection hemisphere)
     n_sample = model.index_external(wavelength)
@@ -969,13 +951,7 @@ def calc_montecarlo(model, nevents, ntrajectories, wavelen, seed,
                         coarse_roughness=coarse_roughness,
                         incidence_theta_min = incidence_theta_min,
                         incidence_theta_max = incidence_theta_max)
-
-    sintheta, costheta, sinphi, cosphi, _, _= sim.sample_angles()
-    step = sim.sample_step()
-
-    sim.absorb(step)
-    sim.scatter(sintheta, costheta, sinphi, cosphi)
-    sim.move(step)
+    sim.run()
 
     cutoff = sc.Quantity('50.0 um')
 

@@ -60,22 +60,10 @@ def test_2pi_shift():
     model = sc.model.HardSpheres(sphere, volume_fraction, index_matrix,
                                  index_medium)
 
-    # Initialize simulation
+    # Initialize and run simulation
     sim = mc.Simulation(model, wavelength, nevents, ntrajectories, boundary,
                         fields=True)
-
-    # Sample trajectory angles
-    sintheta, costheta, sinphi, cosphi, theta, phi = sim.sample_angles()
-    # Sample step sizes
-    step = sim.sample_step()
-
-    # Update trajectories based on sampled values
-    sim.scatter(sintheta, costheta, sinphi, cosphi)
-    sim.move(step)
-    sim.absorb(step)
-
-    sim.calc_fields(theta, phi, sintheta, costheta, sinphi, cosphi,
-                    radius, wavelength, step)
+    sim.run(radius=radius, wavelength=wavelength)
 
     # calculate reflectance
     # (should raise warning that n_matrix and n_particle are not set, so
@@ -249,21 +237,10 @@ def test_field_normalized():
     model = sc.model.HardSpheres(sphere, volume_fraction, index_matrix,
                                  index_medium)
 
-    # Initialize simulation
+    # Initialize and run simulation
     sim = mc.Simulation(model, wavelength, nevents, ntrajectories,
                         boundary, fields=True)
-
-    # Sample trajectory angles
-    sintheta, costheta, sinphi, cosphi, theta, phi= sim.sample_angles()
-    # Sample step sizes
-    step = sim.sample_step()
-
-    # Update trajectories based on sampled values
-    sim.scatter(sintheta, costheta, sinphi, cosphi)
-    sim.move(step)
-    sim.calc_fields(theta, phi, sintheta, costheta, sinphi, cosphi,
-                    radius, wavelength, step)
-    sim.absorb(step)
+    sim.run(radius=radius, wavelength=wavelength)
 
     # take the dot product
     trajectories = mc.QtyTrajectory(sim.traj)
@@ -308,21 +285,10 @@ def test_field_perp_direction():
     model = sc.model.HardSpheres(sphere, volume_fraction, index_matrix,
                                  index_medium)
 
-    # Initialize trajectories
+    # Initialize and run simulation
     sim = mc.Simulation(model, wavelength, nevents, ntrajectories, boundary,
                         fields=True)
-
-    # Sample trajectory angles
-    sintheta, costheta, sinphi, cosphi, theta, phi = sim.sample_angles()
-
-    step = sim.sample_step()
-
-    # Update trajectories based on sampled values
-    sim.scatter(sintheta, costheta, sinphi, cosphi)
-    sim.move(step)
-    sim.calc_fields(theta, phi, sintheta, costheta, sinphi, cosphi,
-                    radius, wavelength, step)
-    sim.absorb(step)
+    sim.run(radius=radius, wavelength=wavelength)
 
     # take the dot product
     trajectories = mc.QtyTrajectory(sim.traj)
@@ -369,22 +335,10 @@ def test_field_reflectance_mc():
     model = sc.model.HardSpheres(sphere, volume_fraction, index_matrix,
                                  index_medium)
 
-    # Initialize simulation
+    # Initialize and run simulation
     sim = mc.Simulation(model, wavelength, nevents, ntrajectories, boundary,
                         coherent=False, fields=True, fine_roughness=0, rng=rng)
-
-    # Sample trajectory angles
-    sintheta, costheta, sinphi, cosphi, theta, phi = sim.sample_angles()
-
-    # Sample step sizes
-    step = sim.sample_step()
-
-    # Update trajectories based on sampled values
-    sim.scatter(sintheta, costheta, sinphi, cosphi)
-    sim.calc_fields(theta, phi, sintheta, costheta, sinphi, cosphi,
-                    radius, wavelength, step, tir_refl_bool=None)
-    sim.move(step)
-    sim.absorb(step)
+    sim.run(radius=radius, wavelength=wavelength)
 
     trajectories = mc.QtyTrajectory(sim.traj)
     n_sample = model.index_external(wavelength)
@@ -462,21 +416,10 @@ def test_field_co_cross_mc():
     for i in range(wavelengths.size):
         n_sample = model.index_external(wavelengths[i])
 
-        # Initialize simulation
+        # Initialize and run simulation
         sim = mc.Simulation(model, wavelengths[i], nevents, ntrajectories,
                             boundary, fields=True, coherent=False, rng=rng)
-
-        sintheta, costheta, sinphi, cosphi, theta, phi = sim.sample_angles()
-
-        step = sim.sample_step()
-
-        sim.scatter(sintheta, costheta, sinphi, cosphi)
-        sim.move(step)
-        sim.absorb(step)
-
-        sim.calc_fields(theta, phi, sintheta, costheta, sinphi,
-                        cosphi, radius, wavelengths[i], step,
-                        tir_refl_bool=None)
+        sim.run(radius=radius, wavelength=wavelengths[i])
 
         trajectories = mc.QtyTrajectory(sim.traj)
         with pytest.warns(UserWarning):

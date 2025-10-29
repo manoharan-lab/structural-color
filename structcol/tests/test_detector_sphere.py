@@ -219,15 +219,9 @@ def test_index_match():
                                       "weight": W0_sphere})
     sim.traj = trajectories_sphere
 
-    # Generate a matrix of all the randomly sampled angles first
-    sintheta, costheta, sinphi, cosphi, _, _ = sim.sample_angles()
+    # now run the simulation
+    sim.run()
 
-    # Create step size distribution
-    step = sim.sample_step()
-
-    sim.absorb(step)
-    sim.scatter(sintheta, costheta, sinphi, cosphi)
-    sim.move(step)
     trajectories_sphere = mc.QtyTrajectory(sim.traj)
 
     # calculate reflectance
@@ -280,23 +274,13 @@ def test_reflection_sphere_mc():
 
     n_sample = model.index_external(wavelen)
 
-    # Initialize the simulation for a sphere
+    # Initialize and run the simulation for a sphere
     sim = mc.Simulation(model, wavelen, nevents, ntrajectories, boundary,
                         plot_initial = False,
                         sample_diameter = assembly_diameter,
                         spot_size = assembly_diameter,
                         rng=rng)
-
-    # Generate a matrix of all the randomly sampled angles first
-    sintheta, costheta, sinphi, cosphi, _, _ = sim.sample_angles()
-
-    # Create step size distribution
-    step = sim.sample_step()
-
-    # Run photons
-    sim.absorb(step)
-    sim.scatter(sintheta, costheta, sinphi, cosphi)
-    sim.move(step)
+    sim.run()
 
     # Calculate reflectance and transmittance
     # The default value of run_tir is True, so you must set it to False to
@@ -383,21 +367,11 @@ def test_multiscale_mc():
         n_s = n_sample.isel(wavelength=[i])
         n_m = n_matrix_bulk.isel(wavelength=[i])
 
-        # Initialize the simulation
+        # Initialize and run the simulation
         sim = mc.Simulation(model, wavelengths[i], nevents, ntrajectories,
                             boundary,
                             sample_diameter = sphere_boundary_diameter, rng=rng)
-
-        # Generate a matrix of all the randomly sampled angles first
-        sintheta, costheta, sinphi, cosphi, _, _ = sim.sample_angles()
-
-        # Create step size distribution
-        step = sim.sample_step()
-
-        # Run photons
-        sim.absorb(step)
-        sim.scatter(sintheta, costheta, sinphi, cosphi)
-        sim.move(step)
+        sim.run()
 
         # Calculate reflection and transmission
         trajectories = mc.QtyTrajectory(sim.traj)
@@ -480,6 +454,9 @@ def test_multiscale_mc():
         sim.p = p_bulk[i, :]
         sim.mu_scat = mu_scat_bulk[i]
         sim.mu_abs = mu_abs_bulk[i]
+
+        # TODO: change the below to include absorption (using sim.run()). Test
+        # values will need to be updated
 
         # Sample angles
         sintheta, costheta, sinphi, cosphi, _, _= sim.sample_angles()
@@ -594,22 +571,12 @@ def test_multiscale_polydispersity_mc():
             n_m = n_matrix_bulk.isel(wavelength=[i])
             n_s = n_sample.isel(wavelength=[i])
 
-            # Initialize the simulation
+            # Initialize and run the simulation
             sim = mc.Simulation(model, wavelengths[i], nevents, ntrajectories,
                                 boundary,
                                 sample_diameter = sphere_boundary_diameters[j],
                                 rng=rng)
-
-            # Generate a matrix of all the randomly sampled angles first
-            sintheta, costheta, sinphi, cosphi, _, _ = sim.sample_angles()
-
-            # Create step size distribution
-            step = sim.sample_step()
-
-            # Run photons
-            sim.absorb(step)
-            sim.scatter(sintheta, costheta, sinphi, cosphi)
-            sim.move(step)
+            sim.run()
 
             # Calculate reflection and transmition
             trajectories = mc.QtyTrajectory(sim.traj)

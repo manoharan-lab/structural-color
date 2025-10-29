@@ -71,6 +71,9 @@ class TestSimulation():
         # Test that 'sample_step' runs
         sim.sample_step()
 
+        # Test that 'run' works
+        sim.run()
+
     @pytest.mark.parametrize("reset", [True, False])
     def test_initialization(self, reset):
         """Ensure that trajectory shapes are correct and that initial values are
