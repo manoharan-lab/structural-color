@@ -166,6 +166,69 @@ class TestSimulation():
         direction = sim.traj["direction"].isel(event=-1).to_numpy().squeeze()
         assert_equal(direction, np.full_like(direction, np.nan))
 
+    @pytest.mark.parametrize("boundary", ["film", "sphere"])
+    def test_vectorized_mc(self, boundary):
+        """Tests that Monte Carlo simulations vectorize over wavelength
+        """
+        # NOTE: currently tests only initial state.  Does not yet check that
+        # runs are vectorized
+
+        # we'll use the default RNG here (more advanced than
+        # np.random.RandomState) since we're not comparing to previously
+        # simulated values
+        seed = 1
+        rng = np.random.default_rng([seed])
+        num_wavelen = 10
+        wavelen = sc.Quantity(np.linspace(400, 800, num_wavelen), "nm")
+
+        # we set incidence_theta_data and incidence_phi_data so that random
+        # numbers are not generated for angles
+        incidence_theta_data = np.zeros(self.ntrajectories)
+        incidence_phi_data = np.zeros(self.ntrajectories)
+
+        if boundary == "film":
+            sample_diameter = None
+        else:
+            sample_diameter = sc.Quantity(10, "um")
+
+        # ensure that simulation initializes when vectorized over wavelength
+        sim = mc.Simulation(self.model, wavelen, self.nevents,
+                            self.ntrajectories, boundary=boundary,
+                            sample_diameter=sample_diameter,
+                            incidence_theta_data=incidence_theta_data,
+                            incidence_phi_data=incidence_phi_data,
+                            rng=rng)
+
+        # reset RNG before doing comparisons
+        rng = np.random.default_rng([seed])
+
+        # do looped calculation first
+        looped_initials = []
+        for i in range(num_wavelen):
+            sim_loop = mc.Simulation(self.model, wavelen[i], self.nevents,
+                                     self.ntrajectories, boundary=boundary,
+                                     sample_diameter=sample_diameter,
+                                     incidence_theta_data=incidence_theta_data,
+                                     incidence_phi_data=incidence_phi_data,
+                                     rng=rng)
+            looped_initials.append(sim_loop.initial_state)
+        looped_initials = xr.concat(looped_initials, sc.Coord.WAVELEN)
+
+        # test that dimensions and sizes are the same
+        assert sim.initial_state.sizes == looped_initials.sizes
+
+        # initial states should be the same only for the first wavelength;
+        # other wavelengths will have the same initial state for the vectorized
+        # calculation and different initial states for the looped calculation
+        xr.testing.assert_equal(sim.initial_state.isel(wavelength=0),
+                                looped_initials.isel(wavelength=0))
+
+        # ensure initial states are in fact the same for each wavelength in the
+        # vectorized calculation
+        diff = sim.initial_state-sim.initial_state.isel(wavelength=0)
+        xr.testing.assert_equal(diff, xr.zeros_like(diff))
+
+
 # NOTE: the test below will no longer work, since the
 # differential_cross_section() function was removed from model.py (all
 # differential cross sections are now evaluated using Model methods).  It

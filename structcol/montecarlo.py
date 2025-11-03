@@ -158,6 +158,10 @@ class Simulation:
     of the matrix to the index of the scatterer. Thus we assume that fine
     roughness particles are not embedded in an effective medium.
 
+    Simulations can be vectorized over wavelength. In this case, the initial
+    state is broadcast, so that the same initial state is used for each
+    wavelength (and any other leading dimensions).
+
     """
     def __init__(self, model, wavelen, nevents, ntraj, boundary,
                  rng=None,
@@ -193,10 +197,6 @@ class Simulation:
         photon packets point straight down in z. The initial directions are
         corrected for refraction, for either type of boundary and for any
         incidence angle.
-
-        Notes
-        -----
-        For sphere boundary, incidence angle currently must be 0
 
         Parameters
         ----------
@@ -295,6 +295,10 @@ class Simulation:
         -------
         None
 
+        Notes
+        -----
+        For sphere boundary, incidence angle currently must be 0
+
         References
         ----------
         B. van Ginneken, M. Stavridi, J. J. Koenderink, “Diffuse and specular
@@ -338,7 +342,7 @@ class Simulation:
         # calculate scattering quantities using the Model object
         dscat = model.differential_cross_section(wavelen, thetas, phis=phis)
         cscat = model.scattering_cross_section(dscat)
-        self.p = model.phase_function(dscat).to_numpy().squeeze()
+        self.p = model.phase_function(dscat)
 
         mu_scat = model.number_density * (cscat.loc["avg"].to_numpy().squeeze()
                                           * units**2)
@@ -456,17 +460,6 @@ class Simulation:
         else:
             raise ValueError("boundary must be of type 'film' or 'sphere'")
 
-        # Set up position DataArray. Shape is (..., 3, nevents+1,
-        # ntrajectories). The last entry is the position after the final event
-        position = xr.DataArray(0.0, dims=["component", "event", "trajectory"],
-                                coords = {"component": ["x", "y", "z"],
-                                          "event": range(nevents+1),
-                                          "trajectory": range(ntraj)})
-        # set initial position
-        position.loc[dict(event=0)] = r0
-        # add dimensions and coords from refractive index (includes wavelength)
-        position = position.expand_dims(n_sample.coords)
-
         # If there is no coarse roughness (e.g. surface is flat)
         if coarse_roughness == 0:
             # Refraction of incident light upon entering the sample
@@ -476,6 +469,19 @@ class Simulation:
         else:
             theta = xr.DataArray(theta, coords={"trajectory": range(ntraj)})
             theta = theta.expand_dims(n_sample.coords)
+
+        # Set up position DataArray. Shape is (..., 3, nevents+1,
+        # ntrajectories). The last entry is the position after the final event
+        position = xr.DataArray(0.0, dims=["component", "event", "trajectory"],
+                                coords = {"component": ["x", "y", "z"],
+                                          "event": range(nevents+1),
+                                          "trajectory": range(ntraj)})
+        # add dimensions and coords from refractive index (includes wavelength)
+        position = position.expand_dims(n_sample.coords).copy()
+        # set initial position. Note that the initial position is broadcast
+        # over all the leading dimensions, so that the same initial state is
+        # used for (for example) each wavelength
+        position.loc[dict(event=0)] = r0
 
         sintheta = np.sin(theta)
         costheta = np.cos(theta)
@@ -489,6 +495,7 @@ class Simulation:
         # ntrajectories). Should have one fewer entry than position DataArray
         # because we don't track direction in the last event.
         direction = xr.zeros_like(position.isel(dict(event=slice(0, -1))))
+        # initial state should be broadcast over leading dimensions
         direction.loc[dict(event=0)] = k0
 
         # as noted in docstring, weights are set to 1 for the first event.  The
@@ -640,14 +647,25 @@ class Simulation:
         nsamples = self.nevents-1
         ntraj = self.ntrajectories
 
+        # convert phase function to numpy (for now)
+        p_is_1d = False
+        if isinstance(self.p, xr.DataArray):
+            p = self.p.to_numpy().squeeze()
+            if sc.Coord.PHI not in self.p.coords:
+                p_is_1d = True
+        else:
+            p = self.p
+            if self.p.ndim == 1:
+                p_is_1d = True
+
         # Scattering angles for the phase function calculation (typically from
         # 0 to pi). A non-zero minimum angle is needed because in the single
         # scattering model, if the analytic formula is used, S(q=0) returns
         # nan.
         thetas = np.linspace(self.min_angle, np.pi, self.num_thetas)
 
-        if len(self.p.shape)==1: # if p depends only on theta
-
+        if p_is_1d:
+            # if p depends only on theta,
             # Randomly sample azimuthal angle phi from uniform distribution
             # [0 - 2pi]
             rand = rng.random((nsamples, ntraj))
@@ -655,19 +673,19 @@ class Simulation:
 
             # make sure probability is normalized
             # prob is integral of p in solid angle
-            prob = self.p * np.sin(thetas)*2*np.pi
+            prob = p * np.sin(thetas)*2*np.pi
              # normalize to make it add up to 1
-            prob_norm = prob/sum(prob)
+            prob_norm = prob/prob.sum()
 
             # Randomly sample scattering angle theta
             theta = rng.choice(thetas, (nsamples, ntraj), p = prob_norm)
 
-        if len(self.p.shape)==2: # if p depends on theta and phi
-
+        else:
+            # if p depends on theta and phi
             num_phi = self.num_phis
 
             # sum for theta axis to get phi probabilities
-            p_phi = np.sum(self.p, axis = 0)
+            p_phi = np.sum(p, axis = 0)
 
             # define phi values from which to sample
             # TODO: this should be from 0, not self.min_angle
@@ -684,7 +702,7 @@ class Simulation:
 
             # calculate and normalize p(theta) for each phi, event, and
             # trajectory
-            p_theta = (self.p[:, phi_ind]
+            p_theta = (p[:, phi_ind]
                        * np.sin(thetas[:, np.newaxis, np.newaxis]))
             p_theta_norm = p_theta/np.sum(p_theta, axis=0)
 
@@ -712,7 +730,6 @@ class Simulation:
         cosphi = xr.DataArray(np.cos(phi), coords=sintheta.coords)
 
         return sintheta, costheta, sinphi, cosphi, theta, phi
-
 
     def sample_step(self, rng=None):
         """Samples step sizes from exponential distribution.
