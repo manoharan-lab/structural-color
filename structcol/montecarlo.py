@@ -317,6 +317,8 @@ class Simulation:
         n_medium = model.index_medium(wavelen)
 
         self.coarse_roughness = coarse_roughness
+        if fine_roughness > 1 or fine_roughness < 0:
+            raise ValueError("fine roughness fraction must be between 0 and 1")
         self.fine_roughness = fine_roughness
         self.min_angle = min_angle
         self.num_thetas = num_thetas
@@ -750,9 +752,6 @@ class Simulation:
             rng = self.rng
         nevents = self.nevents
         ntraj = self.ntrajectories
-
-        if self.fine_roughness > 1. or self.fine_roughness < 0.:
-            raise ValueError('fine roughness fraction must be between 0 and 1')
 
         # Generate array of random numbers from 0 to 1
         rand = rng.random((nevents,ntraj)) #uncomment
