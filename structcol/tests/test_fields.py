@@ -66,14 +66,11 @@ def test_2pi_shift():
     sim.run(radius=radius, wavelength=wavelength)
 
     # calculate reflectance
-    # (should raise warning that n_matrix and n_particle are not set, so
-    # tir correction is based only on sample index)
     trajectories = sim.traj
     n_sample = model.index_external(wavelength)
-    with pytest.warns(UserWarning):
-        refl_trans_result = det.calc_refl_trans(trajectories, thickness,
-                                                n_medium, n_sample, boundary,
-                                                return_extra=True)
+    refl_trans_result = det.calc_refl_trans(trajectories, thickness,
+                                            n_medium, n_sample, boundary,
+                                            return_extra=True)
 
     refl_indices = refl_trans_result[0]
     refl_per_traj = refl_trans_result[3]
@@ -340,20 +337,18 @@ def test_field_reflectance_mc():
     trajectories = sim.traj
     n_sample = model.index_external(wavelength)
 
-    with pytest.warns(UserWarning):
-        refl_trans_result = det.calc_refl_trans(trajectories, thickness,
-                                                n_medium, n_sample, boundary,
-                                                return_extra=True)
+    refl_trans_result = det.calc_refl_trans(trajectories, thickness,
+                                            n_medium, n_sample, boundary,
+                                            return_extra=True)
 
     reflectance = refl_trans_result[11]
     refl_indices = refl_trans_result[0]
     refl_per_traj = refl_trans_result[3]
 
     # calculate reflectance including phase
-    with pytest.warns(UserWarning):
-        refl_trans_result = det.calc_refl_trans(trajectories, thickness,
-                                                n_medium, n_sample, boundary,
-                                                return_extra=True)
+    refl_trans_result = det.calc_refl_trans(trajectories, thickness,
+                                            n_medium, n_sample, boundary,
+                                            return_extra=True)
 
     refl_indices = refl_trans_result[0]
     refl_per_traj = refl_trans_result[3]
@@ -419,11 +414,10 @@ def test_field_co_cross_mc():
         sim.run(radius=radius, wavelength=wavelengths[i])
 
         trajectories = sim.traj
-        with pytest.warns(UserWarning):
-            refl_trans_result = det.calc_refl_trans(trajectories,thickness,
-                                                    n_medium[i], n_sample,
-                                                    boundary,
-                                                    return_extra=True)
+        refl_trans_result = det.calc_refl_trans(trajectories,thickness,
+                                                n_medium[i], n_sample,
+                                                boundary,
+                                                return_extra=True)
 
         reflectance[i] = refl_trans_result[11]
         refl_indices = refl_trans_result[0]

@@ -88,22 +88,16 @@ def test_calc_refl_trans():
     sim = mc.Simulation(model, wavelen, nevents, ntrajectories, "sphere",
                         sample_diameter = assembly_radius*2)
 
-    # Should raise warning that n_matrix and n_particle are not set, so
-    # tir correction is based only on sample index
-    with pytest.warns(UserWarning):
-        refl, trans = det.calc_refl_trans(trajectories, assembly_radius,
-                                          small_n, small_n, 'sphere')
+    refl, trans = det.calc_refl_trans(trajectories, assembly_radius,
+                                      small_n, small_n, 'sphere')
     expected_trans_array = np.array([0., .3, 0.25, 0])/ntrajectories #calculated manually
     expected_refl_array = np.array([.7, 0., .25, 0.])/ntrajectories #calculated manually
     assert_almost_equal(refl, np.sum(expected_refl_array))
     assert_almost_equal(trans, np.sum(expected_trans_array))
 
     # test fresnel as well
-    # (should raise warning that n_matrix and n_particle are not set, so
-    # tir correction is based only on sample index)
-    with pytest.warns(UserWarning):
-        refl, trans = det.calc_refl_trans(trajectories, assembly_radius,
-                                          small_n, large_n, 'sphere')
+    refl, trans = det.calc_refl_trans(trajectories, assembly_radius,
+                                      small_n, large_n, 'sphere')
     expected_trans_array = np.array([0.0345679, .25185185, 0.22222222, 0.])/ntrajectories #calculated manually
     expected_refl_array = np.array([.69876543, 0.12592593, 0.33333333, 0.11111111])/ntrajectories #calculated manually
     assert_almost_equal(refl, np.sum(expected_refl_array))
@@ -117,11 +111,8 @@ def test_calc_refl_trans():
                                "direction": k0,
                                "weight": weights})
 
-    # Should raise warning that n_matrix and n_particle are not set, so
-    # tir correction is based only on sample index
-    with pytest.warns(UserWarning):
-        refl, trans= det.calc_refl_trans(trajectories, assembly_radius,
-                                         small_n, small_n, 'sphere')
+    refl, trans= det.calc_refl_trans(trajectories, assembly_radius,
+                                     small_n, small_n, 'sphere')
     expected_trans_array = np.array([0., .3, .9, .8])/ntrajectories #calculated manually
     expected_refl_array = np.array([.7, 0., 0., 0.])/ntrajectories #calculated manually
     assert_almost_equal(refl, np.sum(expected_refl_array))
@@ -136,9 +127,8 @@ def test_calc_refl_trans():
                                "direction": k0,
                                "weight": weights})
 
-    # Should raise warning that n_matrix and n_particle are not set, so
-    # tir correction is based only on sample index
-    with pytest.warns(UserWarning):
+    # ignore warning that too many trajectories did not exit the sample
+    with pytest.warns(UserWarning, match = "Increase Nevents"):
         refl, trans = det.calc_refl_trans(trajectories, assembly_radius,
                                           small_n, small_n, 'sphere', p=sim.p,
                                           mu_abs=sim.mu_abs,
@@ -221,17 +211,14 @@ def test_index_match():
     trajectories_sphere = sim.traj
 
     # calculate reflectance
-    # (should raise warning that n_matrix and n_particle are not set, so
-    # tir correction is based only on sample index)
-    with pytest.warns(UserWarning):
-        refl_sphere, trans = det.calc_refl_trans(trajectories_sphere,
-                                                 microsphere_radius,
-                                                 n_medium, n_sample,
-                                                 'sphere', p=sim.p,
-                                                 mu_abs=sim.mu_abs,
-                                                 mu_scat=sim.mu_scat,
-                                                 run_fresnel_traj = True,
-                                                 max_stuck = 0.0001)
+    refl_sphere, trans = det.calc_refl_trans(trajectories_sphere,
+                                             microsphere_radius,
+                                             n_medium, n_sample,
+                                             'sphere', p=sim.p,
+                                             mu_abs=sim.mu_abs,
+                                             mu_scat=sim.mu_scat,
+                                             run_fresnel_traj = True,
+                                             max_stuck = 0.0001)
 
     # calculated by hand from fresnel infinite sum
     refl_fresnel_int = 0.053 # calculated by hand
@@ -282,9 +269,8 @@ def test_reflection_sphere_mc():
     # The default value of run_tir is True, so you must set it to False to
     # exclude the fresnel reflected trajectories.
     trajectories = sim.traj
-    with pytest.warns(UserWarning):
-        R, T = det.calc_refl_trans(trajectories, assembly_diameter, n_medium,
-                                   n_sample, boundary, plot_exits = False)
+    R, T = det.calc_refl_trans(trajectories, assembly_diameter, n_medium,
+                               n_sample, boundary, plot_exits = False)
 
     R_expected = 0.24878084752516244
     T_expected = 0.7512191524748375
@@ -294,11 +280,10 @@ def test_reflection_sphere_mc():
 
     # test with Fresnel reflections
     # Calculate reflectance and transmittance
-    with pytest.warns(UserWarning):
-        R, T = det.calc_refl_trans(trajectories, assembly_diameter, n_medium,
-                                   n_sample, boundary, run_fresnel_traj = True,
-                                   mu_abs=sim.mu_abs, mu_scat=sim.mu_scat,
-                                   p=sim.p, rng=rng)
+    R, T = det.calc_refl_trans(trajectories, assembly_diameter, n_medium,
+                               n_sample, boundary, run_fresnel_traj = True,
+                               mu_abs=sim.mu_abs, mu_scat=sim.mu_scat,
+                               p=sim.p, rng=rng)
 
     R_expected = 0.2508833560792594
     T_expected = 0.7491166439207406
@@ -371,19 +356,18 @@ def test_multiscale_mc():
 
         # Calculate reflection and transmission
         trajectories = sim.traj
-        with pytest.warns(UserWarning):
-            (refl_indices,
-             trans_indices,
-             _, _, _,
-             refl_per_traj, trans_per_traj,
-             _,_,_,_,
-             reflectance_sphere[i],
-             _,_, norm_refl, norm_trans) = \
-                 det.calc_refl_trans(trajectories, sphere_boundary_diameter,
-                                     n_m, n_s, boundary, p=sim.p,
-                                     mu_abs=sim.mu_abs, mu_scat=sim.mu_scat,
-                                     run_fresnel_traj = False, return_extra =
-                                     True)
+        (refl_indices,
+         trans_indices,
+         _, _, _,
+         refl_per_traj, trans_per_traj,
+         _,_,_,_,
+         reflectance_sphere[i],
+         _,_, norm_refl, norm_trans) = \
+             det.calc_refl_trans(trajectories, sphere_boundary_diameter,
+                                 n_m, n_s, boundary, p=sim.p,
+                                 mu_abs=sim.mu_abs, mu_scat=sim.mu_scat,
+                                 run_fresnel_traj = False, return_extra =
+                                 True)
 
 
         ### Calculate phase function and lscat ###
@@ -466,10 +450,9 @@ def test_multiscale_mc():
 
         # calculate bulk reflectance
         trajectories = sim.traj
-        with pytest.warns(UserWarning):
-            reflectance_bulk[i], transmittance = \
-                det.calc_refl_trans(trajectories, bulk_thickness, n_med,
-                                    n_mat, boundary_bulk)
+        reflectance_bulk[i], transmittance = \
+            det.calc_refl_trans(trajectories, bulk_thickness, n_med,
+                                n_mat, boundary_bulk)
 
     # these numbers look a little strange (multiply them by the number of
     # trajectories, and they all become integers). That's because there's no
@@ -576,20 +559,18 @@ def test_multiscale_polydispersity_mc():
 
             # Calculate reflection and transmition
             trajectories = sim.traj
-            with pytest.warns(UserWarning):
-                (refl_indices,
-                 trans_indices,
-                 _, _, _,
-                 refl_per_traj, trans_per_traj,
-                 _,_,_,_,
-                 reflectance_sphere[i],
-                 _,_, norm_refl, norm_trans) = \
-                     det.calc_refl_trans(trajectories,
-                                         sphere_boundary_diameters[j],
-                                         n_m, n_s, boundary,
-                                         run_fresnel_traj = False,
-                                         return_extra = True)
-
+            (refl_indices,
+             trans_indices,
+             _, _, _,
+             refl_per_traj, trans_per_traj,
+             _,_,_,_,
+             reflectance_sphere[i],
+             _,_, norm_refl, norm_trans) = \
+                 det.calc_refl_trans(trajectories,
+                                     sphere_boundary_diameters[j],
+                                     n_m, n_s, boundary,
+                                     run_fresnel_traj = False,
+                                     return_extra = True)
 
             ### Calculate phase function and lscat ###
             p_bulk[j,i,:], mu_scat_bulk[j,i], mu_abs_bulk[j,i] = \
@@ -648,10 +629,9 @@ def test_multiscale_polydispersity_mc():
 
         # calculate reflectance
         trajectories = sim.traj
-        with pytest.warns(UserWarning):
-            reflectance_bulk_poly[i], transmittance = \
-                det.calc_refl_trans(trajectories, bulk_thickness, n_med,
-                                    n_mat, boundary_bulk)
+        reflectance_bulk_poly[i], transmittance = \
+            det.calc_refl_trans(trajectories, bulk_thickness, n_med,
+                                n_mat, boundary_bulk)
 
     # test reflectance from the bulk polydisperse sample
     R_expected = [0.5896236932355958, 0.5960565958801791, 0.543160195730125,
@@ -748,19 +728,18 @@ def test_multiscale_color_mixing_mc():
             sim.move(step)
 
             trajectories = sim.traj
-            with pytest.warns(UserWarning):
-                (refl_indices,
-                 trans_indices,
-                 _, _, _,
-                 refl_per_traj, trans_per_traj,
-                 _,_,_,_,
-                 reflectance_sphere[i],
-                 _,_, norm_refl, norm_trans) = \
-                     det.calc_refl_trans(trajectories,
-                                      sphere_boundary_diameter,
-                                      n_mat, n_sample, boundary,
-                                      run_fresnel_traj = False,
-                                      return_extra = True)
+            (refl_indices,
+             trans_indices,
+             _, _, _,
+             refl_per_traj, trans_per_traj,
+             _,_,_,_,
+             reflectance_sphere[i],
+             _,_, norm_refl, norm_trans) = \
+                 det.calc_refl_trans(trajectories,
+                                     sphere_boundary_diameter,
+                                     n_mat, n_sample, boundary,
+                                     run_fresnel_traj = False,
+                                     return_extra = True)
 
             p_bulk[j,i,:], mu_scat_bulk[j,i], mu_abs_bulk[j,i] = \
                 pfs.calc_scat_bulk(refl_per_traj, trans_per_traj, refl_indices,
@@ -814,10 +793,9 @@ def test_multiscale_color_mixing_mc():
 
         # calculate reflectance
         trajectories = sim.traj
-        with pytest.warns(UserWarning):
-            reflectance_bulk_mix[i], transmittance = \
-                det.calc_refl_trans(trajectories, bulk_thickness, n_med,
-                                    n_mat, boundary_bulk)
+        reflectance_bulk_mix[i], transmittance = \
+            det.calc_refl_trans(trajectories, bulk_thickness, n_med,
+                                n_mat, boundary_bulk)
 
     R_expected = [0.5826801822412575, 0.5702215184018711, 0.5731687923054422,
                   0.5766088842163823, 0.6053588610189652, 0.5845773357414805,

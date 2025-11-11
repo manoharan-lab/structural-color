@@ -26,7 +26,7 @@ import structcol as sc
 from structcol import montecarlo as mc
 from structcol import detector as det
 from structcol import phase_func_sphere as pfs
-from numpy.testing import assert_almost_equal, assert_warns
+from numpy.testing import assert_almost_equal
 import pytest
 
 ### Set parameters ###
@@ -92,25 +92,22 @@ def calc_sphere_mc():
     #                     rng=rng)
 
     # Calculate reflection and transmission
-    # (should raise warning that n_matrix and n_particle are not set, so
-    # tir correction is based only on sample index)
     trajectories = sim.traj
-    with pytest.warns(UserWarning):
-        (refl_indices,
-         trans_indices,
-         _, _, _,
-         refl_per_traj, trans_per_traj,
-         _,_,_,_,
-         reflectance_sphere,
-         _,_,
-         norm_refl, norm_trans) = det.calc_refl_trans(trajectories,
-                                                      sphere_boundary_diameter,
-                                                      n_matrix_bulk, n_sample,
-                                                      boundary, p=sim.p,
-                                                      mu_abs=sim.mu_abs,
-                                                      mu_scat=sim.mu_scat,
-                                                      run_fresnel_traj = False,
-                                                      return_extra = True)
+    (refl_indices,
+     trans_indices,
+     _, _, _,
+     refl_per_traj, trans_per_traj,
+     _,_,_,_,
+     reflectance_sphere,
+     _,_,
+     norm_refl, norm_trans) = det.calc_refl_trans(trajectories,
+                                                  sphere_boundary_diameter,
+                                                  n_matrix_bulk, n_sample,
+                                                  boundary, p=sim.p,
+                                                  mu_abs=sim.mu_abs,
+                                                  mu_scat=sim.mu_scat,
+                                                  run_fresnel_traj = False,
+                                                  return_extra = True)
 
     return (refl_indices, trans_indices, refl_per_traj, trans_per_traj,
             reflectance_sphere, norm_refl, norm_trans)
@@ -151,7 +148,8 @@ def test_mu_scat_abs_bulk():
 
 
     # make sure mu_abs reaches limit when there is no scattering
-    with assert_warns(UserWarning):
+    with pytest.warns(UserWarning,
+                      match="No trajectories reflected or transmitted"):
         _, mu_scat_bulk, mu_abs_bulk = pfs.calc_scat_bulk(np.zeros((ntrajectories)),
                                                         np.zeros((ntrajectories)),
                                                         refl_indices,

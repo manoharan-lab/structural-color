@@ -79,19 +79,16 @@ trajectories = sim.traj
 # Calculate the effective refractive index of the sample
 n_sample = model.index_external(wavelength)
 
-# following calculation should raise a warning that n_particle and n_matrix are
-# not set
-with pytest.warns(UserWarning):
-    refl_indices, trans_indices,\
-        inc_refl_per_traj,_,_, refl_per_traj, trans_per_traj,\
-        trans_frac, refl_frac,\
-        refl_fresnel,\
-        trans_fresnel,\
-        reflectance,\
-        transmittance,\
-        tir_refl_bool,_,_ = det.calc_refl_trans(trajectories, thickness,
-                                                n_medium, n_sample, boundary,
-                                                return_extra = True)
+refl_indices, trans_indices,\
+    inc_refl_per_traj,_,_, refl_per_traj, trans_per_traj,\
+    trans_frac, refl_frac,\
+    refl_fresnel,\
+    trans_fresnel,\
+    reflectance,\
+    transmittance,\
+    tir_refl_bool,_,_ = det.calc_refl_trans(trajectories, thickness,
+                                            n_medium, n_sample, boundary,
+                                            return_extra = True)
 
 refl_events, trans_events = ed.calc_refl_trans_event(refl_per_traj,
                                                      inc_refl_per_traj,
@@ -430,16 +427,15 @@ def test_event_distribution_wavelength_mc():
 
         ################### Calculate reflection and transmission
         trajectories = sim.traj
-        with pytest.warns(UserWarning):
-            refl_indices, trans_indices,\
-                inc_refl_per_traj,_,_, refl_per_traj, trans_per_traj,\
-                trans_frac, refl_frac,\
-                refl_fresnel, trans_fresnel,\
-                reflectance[i], transmittance,\
-                tir_refl_bool,_,_ = det.calc_refl_trans(trajectories,
-                                                        thickness, n_medium[i],
-                                                        n_sample, boundary,
-                                                        return_extra = True)
+        refl_indices, trans_indices,\
+            inc_refl_per_traj,_,_, refl_per_traj, trans_per_traj,\
+            trans_frac, refl_frac,\
+            refl_fresnel, trans_fresnel,\
+            reflectance[i], transmittance,\
+            tir_refl_bool,_,_ = det.calc_refl_trans(trajectories,
+                                                    thickness, n_medium[i],
+                                                    n_sample, boundary,
+                                                    return_extra = True)
 
         ################### Calculate event distributions ####################
 
@@ -538,18 +534,17 @@ def test_event_distribution_angle_mc():
 
         ################### Calculate reflection and transmition
         trajectories = sim.traj
-        with pytest.warns(UserWarning):
-            refl_indices, trans_indices,\
-                inc_refl_per_traj,_,_, refl_per_traj, trans_per_traj,\
-                trans_frac, refl_frac,\
-                refl_fresnel, trans_fresnel,\
-                reflectance[j], _,_,_,_= det.calc_refl_trans(trajectories,
-                                                             thickness,
-                                                             n_medium,
-                                                             n_sample,
-                                                             boundary,
-                                                             return_extra =
-                                                             True)
+        refl_indices, trans_indices,\
+            inc_refl_per_traj,_,_, refl_per_traj, trans_per_traj,\
+            trans_frac, refl_frac,\
+            refl_fresnel, trans_fresnel,\
+            reflectance[j], _,_,_,_= det.calc_refl_trans(trajectories,
+                                                         thickness,
+                                                         n_medium,
+                                                         n_sample,
+                                                         boundary,
+                                                         return_extra =
+                                                         True)
 
 
         ################### Calculate event distribution #####################
