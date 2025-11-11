@@ -1174,29 +1174,21 @@ class QtyTrajectory():
 
     """
     def __init__(self, trajectory):
-        self.position = sc.Quantity(trajectory["position"]
-                                    .squeeze(drop=True).to_numpy(),
-                                    sc.LENGTH_UNIT)
-        self.direction = sc.Quantity(trajectory["direction"]
-                                     .squeeze(drop=True).dropna("event")
-                                     .to_numpy(), "")
+        self.position = trajectory["position"].squeeze(drop=True).to_numpy()
+        self.direction = (trajectory["direction"].squeeze(drop=True)
+                          .dropna("event").to_numpy())
         self.weight = trajectory["weight"].sel(event=slice(1, None))
-        self.weight = sc.Quantity(self.weight.squeeze(drop=True)
-                                  .dropna("event").to_numpy(),
-                                  "")
+        self.weight = self.weight.squeeze(drop=True).dropna("event").to_numpy()
         if "fields" in trajectory:
-            self.fields = sc.Quantity(trajectory["fields"]
-                                      .squeeze(drop=True).to_numpy(), "")
+            self.fields = trajectory["fields"].squeeze(drop=True).to_numpy()
         else:
             self.fields = None
         if "kz0_rot" in trajectory:
-            self.kz0_rot = sc.Quantity(trajectory["kz0_rot"].to_numpy(),
-                                       "")
+            self.kz0_rot = trajectory["kz0_rot"].to_numpy()
         else:
             self.kz0_rot = None
         if "kz0_refl" in trajectory:
-            self.kz0_refl = sc.Quantity(trajectory["kz0_refl"].to_numpy(),
-                                        "")
+            self.kz0_refl = trajectory["kz0_refl"].to_numpy()
         else:
             self.kz0_refl = None
 

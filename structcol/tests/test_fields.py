@@ -158,7 +158,7 @@ def test_intensity_coherent():
     intensity_2 = intensity_x + intensity_y + intensity_z
 
     # compare values
-    assert_almost_equal(intensity.magnitude, intensity_2.magnitude, decimal=15)
+    assert_almost_equal(intensity, intensity_2, decimal=15)
 
 def test_pi_shift_zero():
     # tests if a pi shift leads to zero intensity. This test should produce a
@@ -244,7 +244,6 @@ def test_field_normalized():
 
     # take the dot product
     trajectories = mc.QtyTrajectory(sim.traj)
-    trajectories.fields = trajectories.fields.magnitude
 
     field_mag= np.sqrt(np.conj(trajectories.fields[0,:,:])
                        * trajectories.fields[0,:,:] +
@@ -292,8 +291,6 @@ def test_field_perp_direction():
 
     # take the dot product
     trajectories = mc.QtyTrajectory(sim.traj)
-    trajectories.direction = trajectories.direction.magnitude
-    trajectories.fields = trajectories.fields.magnitude
 
     dot_prod = (trajectories.direction[0,:,:]*trajectories.fields[0,1:,:] +
                trajectories.direction[1,:,:]*trajectories.fields[1,1:,:] +

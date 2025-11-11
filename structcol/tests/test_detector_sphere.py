@@ -178,8 +178,7 @@ def test_get_angles_sphere():
     trajectories = mc.QtyTrajectory(trajectories)
 
     indices = np.array([1,1,1,1], dtype=float)
-    thetas, _ = det.get_angles(indices, 'sphere', trajectories,
-                               sc.Quantity(assembly_radius, "um"),
+    thetas, _ = det.get_angles(indices, 'sphere', trajectories, assembly_radius,
                                init_dir = 1)
     assert_almost_equal(np.sum(thetas.magnitude), 0.)
 

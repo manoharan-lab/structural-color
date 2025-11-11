@@ -599,46 +599,6 @@ def detect_correct(indices, trajectories, weights, n_before, n_after, boundary,
     return filtered_weights
 
 
-def set_up_values(trajectories, z_low, thickness):
-    '''
-    Takes the quantities relevant to sample and trajectories
-    and converts them to numpy arrays of the proper units for
-    more efficient operations
-
-    Parameters
-    ----------
-    trajectories:Trajectory object
-        Trajectory object used in Monte Carlo simulation
-    z_low: float-like
-        starting z_values for trajectores in Monte Carlo simulation, usually
-        set to 0
-    thickness: float-ike
-        thickness of film or diameter of sphere
-
-    Returns
-    -------
-    (n_sample, trajectories, z_low, thickness): tuple of numpy arrays
-
-    '''
-    # create a copy of drajectories object to modify within the function.
-    # this should not affect the trajectories object passed by the user
-    trajectories = copy.deepcopy(trajectories)
-
-    # set up the values we need as numpy arrays for efficiency
-    if isinstance(trajectories.position, sc.Quantity):
-        trajectories.position = trajectories.position.to_preferred().magnitude
-    if isinstance(trajectories.direction, sc.Quantity):
-        trajectories.direction = trajectories.direction.magnitude
-    if isinstance(trajectories.weight, sc.Quantity):
-        trajectories.weight = trajectories.weight.magnitude
-    if isinstance(z_low, sc.Quantity):
-        z_low = z_low.to_preferred().magnitude
-    if isinstance(thickness, sc.Quantity):
-        thickness = thickness.to_preferred().magnitude
-
-    return (trajectories, z_low, thickness)
-
-
 def find_valid_exits(n_sample, n_medium, thickness, z_low, boundary,
                      trajectories):
     '''
@@ -1798,8 +1758,10 @@ def calc_refl_trans(trajectories, thickness, n_medium, n_sample, boundary,
 
     # set up values as floats and numpy arrays to be used throughout function
     ntraj = trajectories.position[2].shape[1]
-    trajectories, z_low, thickness = set_up_values(trajectories,
-                                                   z_low, thickness)
+    if isinstance(z_low, sc.Quantity):
+        z_low = z_low.to_preferred().magnitude
+    if isinstance(thickness, sc.Quantity):
+        thickness = thickness.to_preferred().magnitude
 
     # construct booleans for positive and negative exits
     # TODO: confirm this
@@ -2062,9 +2024,12 @@ def run_sphere_fresnel_traj(refl_per_traj_nf, trans_per_traj_nf,
         rng = sc.rng
 
     # Set up values to use throughout function.
-    trajectories, z_low, diameter = set_up_values(trajectories,
-                                                  z_low,
-                                                  thickness)
+    if isinstance(z_low, sc.Quantity):
+        z_low = z_low.to_preferred().magnitude
+    diameter = thickness
+    if isinstance(diameter, sc.Quantity):
+        diameter = diameter.to_preferred().magnitude
+
     radius = diameter / 2
     x,y,z = trajectories.position
     kx, ky, kz = trajectories.direction
