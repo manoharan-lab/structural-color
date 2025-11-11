@@ -76,7 +76,7 @@ def test_calc_refl_trans():
     trajectories = xr.Dataset({"position": r0,
                                "direction": k0,
                                "weight": weights})
-    trajectories = mc.QtyTrajectory(trajectories)
+
     # Should raise warning that n_matrix and n_particle are not set, so
     # tir correction is based only on sample index
     with pytest.warns(UserWarning):
@@ -131,7 +131,6 @@ def test_calc_refl_trans():
     trajectories = xr.Dataset({"position": r0,
                                "direction": k0,
                                "weight": weights})
-    trajectories = mc.QtyTrajectory(trajectories)
 
     # Should raise warning that n_matrix and n_particle are not set, so
     # tir correction is based only on sample index
@@ -187,7 +186,6 @@ def test_calc_refl_trans():
     trajectories = xr.Dataset({"position": r0,
                                "direction": k0,
                                "weight": weights})
-    trajectories = mc.QtyTrajectory(trajectories)
 
     # Should raise warning that n_matrix and n_particle are not set, so
     # tir correction is based only on sample index
@@ -282,15 +280,12 @@ def test_surface_roughness_mc():
 
     cutoff = sc.Quantity('50 um')
 
-    trajectories = mc.QtyTrajectory(sim.traj)
+    trajectories = sim.traj
 
-    # If there is coarse roughness, need to specify kz0_rotated and
-    # kz0_reflected.
     n_sample = model.index_external(wavelen)
     with pytest.warns(UserWarning):
         R, T = det.calc_refl_trans(trajectories, cutoff, n_medium, n_sample,
-                                   boundary, kz0_rot=trajectories.kz0_rot,
-                                   kz0_refl=trajectories.kz0_refl)
+                                   boundary)
 
     R_expected = 0.7166421049108462
     T_expected = 0.24500285182641726
@@ -821,7 +816,7 @@ def test_detectors_mc():
 
     # test default detector (full reflection hemisphere)
     n_sample = model.index_external(wavelength)
-    trajectories = mc.QtyTrajectory(sim.traj)
+    trajectories = sim.traj
     with pytest.warns(UserWarning):
         R, _ = det.calc_refl_trans(trajectories, thickness, n_medium,
                                    n_sample, boundary)
@@ -962,11 +957,9 @@ def calc_montecarlo(model, nevents, ntrajectories, wavelen, seed,
     # calculate R, T
     # (should raise warning that n_matrix and n_particle are not set, so
     # tir correction is based only on sample index)
-    trajectories = mc.QtyTrajectory(sim.traj)
     with pytest.warns(UserWarning):
-        R, T = det.calc_refl_trans(trajectories, cutoff, n_medium, n_sample,
-                                   'film', kz0_rot=trajectories.kz0_rot,
-                                   kz0_refl=trajectories.kz0_refl)
+        R, T = det.calc_refl_trans(sim.traj, cutoff, n_medium, n_sample,
+                               "film")
 
     return R, T
 
@@ -1007,7 +1000,7 @@ def test_goniometer_detector():
     trajectories = xr.Dataset({"position": positions,
                                "direction": directions,
                                "weight": weights})
-    trajectories = mc.QtyTrajectory(trajectories)
+
     thickness = 10
     n_medium = sc.Index.constant(1)(wavelen)
     n_sample = sc.Index.constant(1)(wavelen)

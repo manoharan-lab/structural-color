@@ -356,7 +356,7 @@ def test_structure_factor_data_reflectances():
                             boundary, rng=rng)
         sim.run()
 
-        trajectories = mc.QtyTrajectory(sim.traj)
+        trajectories = sim.traj
         with pytest.warns(UserWarning):
             reflectance[i], _ = det.calc_refl_trans(trajectories, thickness,
                                                     n_medium[i],

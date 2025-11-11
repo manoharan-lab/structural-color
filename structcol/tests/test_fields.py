@@ -68,7 +68,7 @@ def test_2pi_shift():
     # calculate reflectance
     # (should raise warning that n_matrix and n_particle are not set, so
     # tir correction is based only on sample index)
-    trajectories = mc.QtyTrajectory(sim.traj)
+    trajectories = sim.traj
     n_sample = model.index_external(wavelength)
     with pytest.warns(UserWarning):
         refl_trans_result = det.calc_refl_trans(trajectories, thickness,
@@ -82,7 +82,7 @@ def test_2pi_shift():
                                                         refl_per_traj)
 
     # now do mod 2pi
-    trajectories.fields = trajectories.fields*np.exp(2*np.pi*1j)
+    trajectories["fields"] = trajectories.fields*np.exp(2*np.pi*1j)
     reflectance_fields_shift, _ = detp.calc_refl_phase_fields(trajectories,
                                                               refl_indices,
                                                               refl_per_traj)
@@ -128,7 +128,6 @@ def test_intensity_coherent():
                                "direction": directions,
                                "weight": weights,
                                "fields": fields})
-    trajectories = mc.QtyTrajectory(trajectories)
 
     # calculate reflectance phase
     refl_per_traj = np.array([0.5, 0.5])
@@ -195,8 +194,6 @@ def test_pi_shift_zero():
                                "direction": directions,
                                "weight": weights,
                                "fields": fields})
-    trajectories = mc.QtyTrajectory(trajectories)
-
 
     # calculate reflectance phase
     refl_per_traj = np.array([0.5, 0.5])
@@ -243,7 +240,7 @@ def test_field_normalized():
     sim.run(radius=radius, wavelength=wavelength)
 
     # take the dot product
-    trajectories = mc.QtyTrajectory(sim.traj)
+    trajectories = sim.traj
 
     field_mag= np.sqrt(np.conj(trajectories.fields[0,:,:])
                        * trajectories.fields[0,:,:] +
@@ -289,12 +286,15 @@ def test_field_perp_direction():
                         fields=True)
     sim.run(radius=radius, wavelength=wavelength)
 
-    # take the dot product
-    trajectories = mc.QtyTrajectory(sim.traj)
+    # direction at event=n and field at event=n+1 should be orthogonal
+    dot_prod = xr.dot(sim.traj.direction.shift(event=1, fill_value=0),
+                      sim.traj.fields.sel(event=slice(1, None)),
+                      dim="component")
 
-    dot_prod = (trajectories.direction[0,:,:]*trajectories.fields[0,1:,:] +
-               trajectories.direction[1,:,:]*trajectories.fields[1,1:,:] +
-               trajectories.direction[2,:,:]*trajectories.fields[2,1:,:])
+    # equivalent code for numpy arrays
+    # dot_prod = (trajectories.direction[0,:,:]*trajectories.fields[0,1:,:] +
+    #            trajectories.direction[1,:,:]*trajectories.fields[1,1:,:] +
+    #            trajectories.direction[2,:,:]*trajectories.fields[2,1:,:])
 
     assert_almost_equal(np.sum(dot_prod), 0., decimal=14)
 
@@ -337,7 +337,7 @@ def test_field_reflectance_mc():
                         coherent=False, fields=True, fine_roughness=0, rng=rng)
     sim.run(radius=radius, wavelength=wavelength)
 
-    trajectories = mc.QtyTrajectory(sim.traj)
+    trajectories = sim.traj
     n_sample = model.index_external(wavelength)
 
     with pytest.warns(UserWarning):
@@ -418,7 +418,7 @@ def test_field_co_cross_mc():
                             boundary, fields=True, coherent=False, rng=rng)
         sim.run(radius=radius, wavelength=wavelengths[i])
 
-        trajectories = mc.QtyTrajectory(sim.traj)
+        trajectories = sim.traj
         with pytest.warns(UserWarning):
             refl_trans_result = det.calc_refl_trans(trajectories,thickness,
                                                     n_medium[i], n_sample,

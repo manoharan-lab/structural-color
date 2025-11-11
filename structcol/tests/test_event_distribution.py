@@ -74,7 +74,7 @@ sim = mc.Simulation(model, wavelength, nevents, ntrajectories, boundary,
                     rng=rng)
 sim.run()
 
-trajectories = mc.QtyTrajectory(sim.traj)
+trajectories = sim.traj
 
 # Calculate the effective refractive index of the sample
 n_sample = model.index_external(wavelength)
@@ -429,7 +429,7 @@ def test_event_distribution_wavelength_mc():
         sim.run()
 
         ################### Calculate reflection and transmission
-        trajectories = mc.QtyTrajectory(sim.traj)
+        trajectories = sim.traj
         with pytest.warns(UserWarning):
             refl_indices, trans_indices,\
                 inc_refl_per_traj,_,_, refl_per_traj, trans_per_traj,\
@@ -537,7 +537,7 @@ def test_event_distribution_angle_mc():
         sim.move(step)
 
         ################### Calculate reflection and transmition
-        trajectories = mc.QtyTrajectory(sim.traj)
+        trajectories = sim.traj
         with pytest.warns(UserWarning):
             refl_indices, trans_indices,\
                 inc_refl_per_traj,_,_, refl_per_traj, trans_per_traj,\

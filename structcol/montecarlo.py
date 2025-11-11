@@ -1159,10 +1159,10 @@ class MCResult:
         pass
 
 
-class QtyTrajectory():
-    """Temporary class to convert xarray-based trajectories to Quantity objects
-    for processing by calc_refl_trans() and other functions. Can be removed
-    when these functions have been refactored to use DataArrays.
+class NumpyTrajectory():
+    """Temporary class to convert xarray-based trajectories to numpy for
+    processing by calc_refl_trans() and other functions. Can be removed when
+    these functions have been refactored to use DataArrays.
 
     Notes
     -----

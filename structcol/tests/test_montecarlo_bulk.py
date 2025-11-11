@@ -94,7 +94,7 @@ def calc_sphere_mc():
     # Calculate reflection and transmission
     # (should raise warning that n_matrix and n_particle are not set, so
     # tir correction is based only on sample index)
-    trajectories = mc.QtyTrajectory(sim.traj)
+    trajectories = sim.traj
     with pytest.warns(UserWarning):
         (refl_indices,
          trans_indices,

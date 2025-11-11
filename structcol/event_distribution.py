@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 import structcol as sc
 from . import select_events
 from structcol.detector import fresnel_pass_frac
+from structcol import montecarlo as mc
 from structcol import detector as det
 
 def calc_refl_trans_event(refl_per_traj, inc_refl_per_traj, trans_per_traj,
@@ -282,6 +283,8 @@ def calc_tir(tir_refl_bool, refl_indices, trans_indices, inc_refl_per_traj,
         after a single scattering event.
     '''
     # until refactoring, convert DataArrays to numpy
+    if isinstance(trajectories, xr.Dataset):
+        trajectories = mc.NumpyTrajectory(trajectories)
     if isinstance(n_sample, xr.DataArray):
         # drop VOLFRAC dimension, which will be included in all effective index
         # calculations.

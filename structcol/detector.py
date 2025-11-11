@@ -1688,15 +1688,6 @@ def calc_refl_trans(trajectories, thickness, n_medium, n_sample, boundary,
         distance from the sample to the detector
     plot_detector: boolean
         if True, will plot refraction plots and exit and detected trajectories
-    kz0_rot : None or array_like (structcol.Quantity [dimensionless])
-        Initial z-directions that are rotated to account for the fact that
-        coarse surface roughness changes the angle of incidence of light. Thus
-        these are the incident z-directions relative to the local normal to the
-        surface. The array size is (1, ntraj).
-    kz0_refl : None or array_like (structcol.Quantity [dimensionless])
-        z-directions of the Fresnel reflected light after it hits the sample
-        surface for the first time. These directions are in the global
-        coordinate system. The array size is (1, ntraj).
     save_stuck_weights: boolean (optional)
         default is False. If set to True, saves a file with the stuck weight
         fraction. Useful for testing whether event number is sufficiently high.
@@ -1757,6 +1748,10 @@ def calc_refl_trans(trajectories, thickness, n_medium, n_sample, boundary,
                          'must specify both kz0_rot and kz0_refl')
 
     # set up values as floats and numpy arrays to be used throughout function
+    if isinstance(trajectories, xr.Dataset):
+        trajectories = mc.NumpyTrajectory(trajectories)
+        kz0_rot = trajectories.kz0_rot
+        kz0_refl = trajectories.kz0_refl
     ntraj = trajectories.position[2].shape[1]
     if isinstance(z_low, sc.Quantity):
         z_low = z_low.to_preferred().magnitude
@@ -2024,6 +2019,8 @@ def run_sphere_fresnel_traj(refl_per_traj_nf, trans_per_traj_nf,
         rng = sc.rng
 
     # Set up values to use throughout function.
+    if isinstance(trajectories, xr.Dataset):
+        trajectories = mc.NumpyTrajectory(trajectories)
     if isinstance(z_low, sc.Quantity):
         z_low = z_low.to_preferred().magnitude
     diameter = thickness
@@ -2150,7 +2147,7 @@ def run_sphere_fresnel_traj(refl_per_traj_nf, trans_per_traj_nf,
     # Run photons
     sim.run(rng=rng)
 
-    trajectories_fresnel = mc.QtyTrajectory(sim.traj)
+    trajectories_fresnel = sim.traj
 
     # Calculate reflection and transmition
     (_, trans_indices_fresnel, _, _, _,

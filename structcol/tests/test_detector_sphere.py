@@ -82,7 +82,6 @@ def test_calc_refl_trans():
     trajectories = xr.Dataset({"position": r0,
                                "direction": k0,
                                "weight": weights})
-    trajectories = mc.QtyTrajectory(trajectories)
 
     model = sc.model.HardSpheres(sphere, volume_fraction, index_matrix,
                                  index_medium)
@@ -117,7 +116,7 @@ def test_calc_refl_trans():
     trajectories = xr.Dataset({"position": r0,
                                "direction": k0,
                                "weight": weights})
-    trajectories = mc.QtyTrajectory(trajectories)
+
     # Should raise warning that n_matrix and n_particle are not set, so
     # tir correction is based only on sample index
     with pytest.warns(UserWarning):
@@ -137,7 +136,6 @@ def test_calc_refl_trans():
                                "direction": k0,
                                "weight": weights})
 
-    trajectories = mc.QtyTrajectory(trajectories)
     # Should raise warning that n_matrix and n_particle are not set, so
     # tir correction is based only on sample index
     with pytest.warns(UserWarning):
@@ -175,7 +173,6 @@ def test_get_angles_sphere():
     trajectories = xr.Dataset({"position": positions,
                                "direction": directions,
                                "weight": weights})
-    trajectories = mc.QtyTrajectory(trajectories)
 
     indices = np.array([1,1,1,1], dtype=float)
     thetas, _ = det.get_angles(indices, 'sphere', trajectories, assembly_radius,
@@ -221,7 +218,7 @@ def test_index_match():
     # now run the simulation
     sim.run()
 
-    trajectories_sphere = mc.QtyTrajectory(sim.traj)
+    trajectories_sphere = sim.traj
 
     # calculate reflectance
     # (should raise warning that n_matrix and n_particle are not set, so
@@ -284,7 +281,7 @@ def test_reflection_sphere_mc():
     # Calculate reflectance and transmittance
     # The default value of run_tir is True, so you must set it to False to
     # exclude the fresnel reflected trajectories.
-    trajectories = mc.QtyTrajectory(sim.traj)
+    trajectories = sim.traj
     with pytest.warns(UserWarning):
         R, T = det.calc_refl_trans(trajectories, assembly_diameter, n_medium,
                                    n_sample, boundary, plot_exits = False)
@@ -373,7 +370,7 @@ def test_multiscale_mc():
         sim.run()
 
         # Calculate reflection and transmission
-        trajectories = mc.QtyTrajectory(sim.traj)
+        trajectories = sim.traj
         with pytest.warns(UserWarning):
             (refl_indices,
              trans_indices,
@@ -468,7 +465,7 @@ def test_multiscale_mc():
         sim.move(step)
 
         # calculate bulk reflectance
-        trajectories = mc.QtyTrajectory(sim.traj)
+        trajectories = sim.traj
         with pytest.warns(UserWarning):
             reflectance_bulk[i], transmittance = \
                 det.calc_refl_trans(trajectories, bulk_thickness, n_med,
@@ -578,7 +575,7 @@ def test_multiscale_polydispersity_mc():
             sim.run()
 
             # Calculate reflection and transmition
-            trajectories = mc.QtyTrajectory(sim.traj)
+            trajectories = sim.traj
             with pytest.warns(UserWarning):
                 (refl_indices,
                  trans_indices,
@@ -650,7 +647,7 @@ def test_multiscale_polydispersity_mc():
         sim.move(step)
 
         # calculate reflectance
-        trajectories = mc.QtyTrajectory(sim.traj)
+        trajectories = sim.traj
         with pytest.warns(UserWarning):
             reflectance_bulk_poly[i], transmittance = \
                 det.calc_refl_trans(trajectories, bulk_thickness, n_med,
@@ -750,7 +747,7 @@ def test_multiscale_color_mixing_mc():
             sim.scatter(sintheta, costheta, sinphi, cosphi)
             sim.move(step)
 
-            trajectories = mc.QtyTrajectory(sim.traj)
+            trajectories = sim.traj
             with pytest.warns(UserWarning):
                 (refl_indices,
                  trans_indices,
@@ -816,7 +813,7 @@ def test_multiscale_color_mixing_mc():
         sim.move(step)
 
         # calculate reflectance
-        trajectories = mc.QtyTrajectory(sim.traj)
+        trajectories = sim.traj
         with pytest.warns(UserWarning):
             reflectance_bulk_mix[i], transmittance = \
                 det.calc_refl_trans(trajectories, bulk_thickness, n_med,
