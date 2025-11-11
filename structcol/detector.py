@@ -622,12 +622,6 @@ def set_up_values(n_sample, trajectories, z_low, thickness):
     (n_sample, trajectories, z_low, thickness): tuple of numpy arrays
 
     '''
-
-    # if the particle has a complex refractive index, the n_sample will be
-    # complex too and the code will give lots of warning messages. Better to
-    # take only the absolute value of n_sample from the beggining
-    n_sample = np.abs(n_sample)
-
     # create a copy of drajectories object to modify within the function.
     # this should not affect the trajectories object passed by the user
     trajectories = copy.deepcopy(trajectories)

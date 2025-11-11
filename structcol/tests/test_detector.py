@@ -31,7 +31,7 @@ from .. import detector as det
 import numpy as np
 import xarray as xr
 import warnings
-from numpy.testing import assert_equal, assert_almost_equal
+from numpy.testing import assert_equal, assert_almost_equal, assert_allclose
 import pytest
 
 # Define a system to be used for the tests
@@ -376,10 +376,12 @@ def test_reflection_core_shell():
     T_abs_before = 0.02335228504958959 #before correcting nevents in sample_angles: 0.009944245822685388
     T_cs_abs_before = 0.023352285049450985 #before correcting nevents in sample_angles: 0.009944245822595715
 
-    assert_almost_equal(R_abs, R_abs_before, decimal=10)
-    assert_almost_equal(R_cs_abs, R_cs_abs_before, decimal=10)
-    assert_almost_equal(T_abs, T_abs_before, decimal=10)
-    assert_almost_equal(T_cs_abs, T_cs_abs_before, decimal=10)
+    # increased acceptable error after fixing complex index handling in
+    # detector.py (used to use assert_almost_equal with decimal=10)
+    assert_allclose(R_abs, R_abs_before, rtol=1e-6)
+    assert_allclose(R_cs_abs, R_cs_abs_before, rtol=1e-6)
+    assert_allclose(T_abs, T_abs_before, rtol=1e-6)
+    assert_allclose(T_cs_abs, T_cs_abs_before, rtol=1e-6)
 
     # Same as previous test but with absorbing matrix as well
     # Reflection using a non-core-shell absorbing system
@@ -409,10 +411,12 @@ def test_reflection_core_shell():
     T_abs_before = 0.0038425936376528256 #before correcting nevents in sample_angles: 0.0006391960305096798
     T_cs_abs_before = 0.0038425936376528256 #before correcting nevents in sample_angles: 0.0006391960305096798
 
-    assert_almost_equal(R_abs, R_abs_before)
-    assert_almost_equal(R_cs_abs, R_cs_abs_before)
-    assert_almost_equal(T_abs, T_abs_before)
-    assert_almost_equal(T_cs_abs, T_cs_abs_before)
+    # increased acceptable error after fixing complex index handling in
+    # detector.py (used to use assert_almost_equal with default tolerance)
+    assert_allclose(R_abs, R_abs_before, rtol=1e-5)
+    assert_allclose(R_cs_abs, R_cs_abs_before, rtol=1e-5)
+    assert_allclose(T_abs, T_abs_before, rtol=1e-5)
+    assert_allclose(T_cs_abs, T_cs_abs_before, rtol=1e-5)
 
 def test_reflection_core_shell_mc():
     # Tests whether the reflectance is what we expect from a simulation on a
@@ -538,8 +542,8 @@ def test_reflection_absorption_mc():
 
     R, T = calc_montecarlo(model, nevents, ntrajectories, wavelen, seed)
 
-    R_expected = 0.17023086537622875
-    T_expected = 0.09485003836166318
+    R_expected = 0.17047479609558655
+    T_expected = 0.0948230136065759
 
     assert_almost_equal(R, R_expected)
     assert_almost_equal(T, T_expected)
