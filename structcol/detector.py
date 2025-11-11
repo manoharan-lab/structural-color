@@ -599,7 +599,7 @@ def detect_correct(indices, trajectories, weights, n_before, n_after, boundary,
     return filtered_weights
 
 
-def set_up_values(n_sample, trajectories, z_low, thickness):
+def set_up_values(trajectories, z_low, thickness):
     '''
     Takes the quantities relevant to sample and trajectories
     and converts them to numpy arrays of the proper units for
@@ -607,8 +607,6 @@ def set_up_values(n_sample, trajectories, z_low, thickness):
 
     Parameters
     ----------
-    n_sample: float-like
-        Refractive index of the sample
     trajectories:Trajectory object
         Trajectory object used in Monte Carlo simulation
     z_low: float-like
@@ -638,7 +636,7 @@ def set_up_values(n_sample, trajectories, z_low, thickness):
     if isinstance(thickness, sc.Quantity):
         thickness = thickness.to_preferred().magnitude
 
-    return (n_sample, trajectories, z_low, thickness)
+    return (trajectories, z_low, thickness)
 
 
 def find_valid_exits(n_sample, n_medium, thickness, z_low, boundary,
@@ -1784,10 +1782,10 @@ def calc_refl_trans(trajectories, thickness, n_medium, n_sample, boundary,
     # numpy arrays, but retain original DataArrays
     if isinstance(n_medium, xr.DataArray):
         n_med = n_medium.to_numpy()
-    if isinstance(n_sample, xr.DataArray):
+    n_samp = n_sample.copy()
+    if isinstance(n_samp, xr.DataArray):
         # drop VOLFRAC dimension, which will be included in all effective index
         # calculations.
-        n_samp = n_sample.copy()
         if sc.Coord.VOLFRAC in n_samp.coords:
             n_samp = n_samp.isel({sc.Coord.VOLFRAC: 0}, drop=True)
         n_samp = n_samp.to_numpy()
@@ -1800,9 +1798,8 @@ def calc_refl_trans(trajectories, thickness, n_medium, n_sample, boundary,
 
     # set up values as floats and numpy arrays to be used throughout function
     ntraj = trajectories.position[2].shape[1]
-    n_samp, trajectories, z_low, thickness = set_up_values(n_samp,
-                                                           trajectories,
-                                                           z_low, thickness)
+    trajectories, z_low, thickness = set_up_values(trajectories,
+                                                   z_low, thickness)
 
     # construct booleans for positive and negative exits
     # TODO: confirm this
@@ -2065,10 +2062,9 @@ def run_sphere_fresnel_traj(refl_per_traj_nf, trans_per_traj_nf,
         rng = sc.rng
 
     # Set up values to use throughout function.
-    n_sample, trajectories, z_low, diameter = set_up_values(n_sample,
-                                                            trajectories,
-                                                            z_low,
-                                                            thickness)
+    trajectories, z_low, diameter = set_up_values(trajectories,
+                                                  z_low,
+                                                  thickness)
     radius = diameter / 2
     x,y,z = trajectories.position
     kx, ky, kz = trajectories.direction
