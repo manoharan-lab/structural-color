@@ -59,6 +59,7 @@ def test_calc_refl_trans():
     index_large_n = sc.Index.constant(2.0)
     large_n = index_large_n(wavelen)
     index_medium = sc.index.vacuum
+    index_matrix = index_small_n
 
     # test absoprtion and stuck without fresnel
     z_pos = np.array([[0,0,0,0],[1,1,1,1],[-1,11,2,11],[-2,12,4,12]],
@@ -83,21 +84,31 @@ def test_calc_refl_trans():
                                "direction": k0,
                                "weight": weights})
 
-    model = sc.model.HardSpheres(sphere, volume_fraction, index_matrix,
+    # set up a dummy simulation and insert the trajectories
+    # (index match particle so that effective index is same as matrix)
+    particle = sc.Sphere(index_small_n, radius)
+    model = sc.model.HardSpheres(particle, volume_fraction, index_small_n,
                                  index_medium)
     sim = mc.Simulation(model, wavelen, nevents, ntrajectories, "sphere",
                         sample_diameter = assembly_radius*2)
+    sim.traj = trajectories
 
-    refl, trans = det.calc_refl_trans(trajectories, assembly_radius,
-                                      small_n, small_n, 'sphere')
+    refl, trans = det.calc_refl_trans(sim, assembly_radius)
     expected_trans_array = np.array([0., .3, 0.25, 0])/ntrajectories #calculated manually
     expected_refl_array = np.array([.7, 0., .25, 0.])/ntrajectories #calculated manually
     assert_almost_equal(refl, np.sum(expected_refl_array))
     assert_almost_equal(trans, np.sum(expected_trans_array))
 
     # test fresnel as well
-    refl, trans = det.calc_refl_trans(trajectories, assembly_radius,
-                                      small_n, large_n, 'sphere')
+    # (need to change index of sample to be higher than that of medium)
+    particle = sc.Sphere(index_large_n, radius)
+    model = sc.model.HardSpheres(particle, volume_fraction, index_large_n,
+                                 index_medium)
+    sim = mc.Simulation(model, wavelen, nevents, ntrajectories, "sphere",
+                        sample_diameter = assembly_radius*2)
+    sim.traj = trajectories
+
+    refl, trans = det.calc_refl_trans(sim, assembly_radius)
     expected_trans_array = np.array([0.0345679, .25185185, 0.22222222, 0.])/ntrajectories #calculated manually
     expected_refl_array = np.array([.69876543, 0.12592593, 0.33333333, 0.11111111])/ntrajectories #calculated manually
     assert_almost_equal(refl, np.sum(expected_refl_array))
@@ -111,8 +122,15 @@ def test_calc_refl_trans():
                                "direction": k0,
                                "weight": weights})
 
-    refl, trans= det.calc_refl_trans(trajectories, assembly_radius,
-                                     small_n, small_n, 'sphere')
+    # (go back to small index for matrix and particle)
+    particle = sc.Sphere(index_small_n, radius)
+    model = sc.model.HardSpheres(particle, volume_fraction, index_small_n,
+                                 index_medium)
+    sim = mc.Simulation(model, wavelen, nevents, ntrajectories, "sphere",
+                        sample_diameter = assembly_radius*2)
+    sim.traj = trajectories
+
+    refl, trans= det.calc_refl_trans(sim, assembly_radius)
     expected_trans_array = np.array([0., .3, .9, .8])/ntrajectories #calculated manually
     expected_refl_array = np.array([.7, 0., 0., 0.])/ntrajectories #calculated manually
     assert_almost_equal(refl, np.sum(expected_refl_array))
@@ -127,12 +145,11 @@ def test_calc_refl_trans():
                                "direction": k0,
                                "weight": weights})
 
+    sim.traj = trajectories
+
     # ignore warning that too many trajectories did not exit the sample
     with pytest.warns(UserWarning, match = "Increase Nevents"):
-        refl, trans = det.calc_refl_trans(trajectories, assembly_radius,
-                                          small_n, small_n, 'sphere', p=sim.p,
-                                          mu_abs=sim.mu_abs,
-                                          mu_scat=sim.mu_scat,
+        refl, trans = det.calc_refl_trans(sim, assembly_radius,
                                           run_fresnel_traj=True)
     # since the tir=True reruns the stuck trajectory, we don't know whether it will end up reflected or transmitted
     # all we can know is that the end refl + trans > 0.99
@@ -208,15 +225,8 @@ def test_index_match():
     # now run the simulation
     sim.run()
 
-    trajectories_sphere = sim.traj
-
     # calculate reflectance
-    refl_sphere, trans = det.calc_refl_trans(trajectories_sphere,
-                                             microsphere_radius,
-                                             n_medium, n_sample,
-                                             'sphere', p=sim.p,
-                                             mu_abs=sim.mu_abs,
-                                             mu_scat=sim.mu_scat,
+    refl_sphere, trans = det.calc_refl_trans(sim, microsphere_radius,
                                              run_fresnel_traj = True,
                                              max_stuck = 0.0001)
 
@@ -248,14 +258,11 @@ def test_reflection_sphere_mc():
     index_particle = sc.Index.constant(1.54)
     index_matrix = sc.index.vacuum
     index_medium = sc.index.vacuum
-    n_medium = index_medium(wavelen)
     boundary = 'sphere'
 
     sphere = sc.Sphere(index_particle, radius)
     model = sc.model.HardSpheres(sphere, volume_fraction, index_matrix,
                                  index_medium)
-
-    n_sample = model.index_external(wavelen)
 
     # Initialize and run the simulation for a sphere
     sim = mc.Simulation(model, wavelen, nevents, ntrajectories, boundary,
@@ -268,9 +275,7 @@ def test_reflection_sphere_mc():
     # Calculate reflectance and transmittance
     # The default value of run_tir is True, so you must set it to False to
     # exclude the fresnel reflected trajectories.
-    trajectories = sim.traj
-    R, T = det.calc_refl_trans(trajectories, assembly_diameter, n_medium,
-                               n_sample, boundary, plot_exits = False)
+    R, T = det.calc_refl_trans(sim, assembly_diameter, plot_exits = False)
 
     R_expected = 0.24878084752516244
     T_expected = 0.7512191524748375
@@ -280,10 +285,10 @@ def test_reflection_sphere_mc():
 
     # test with Fresnel reflections
     # Calculate reflectance and transmittance
-    R, T = det.calc_refl_trans(trajectories, assembly_diameter, n_medium,
-                               n_sample, boundary, run_fresnel_traj = True,
-                               mu_abs=sim.mu_abs, mu_scat=sim.mu_scat,
-                               p=sim.p, rng=rng)
+    # (need to pass rng here because run_fresnel_traj=True will run additional
+    # MC simulations)
+    R, T = det.calc_refl_trans(sim, assembly_diameter, run_fresnel_traj = True,
+                               rng=rng)
 
     R_expected = 0.2508833560792594
     T_expected = 0.7491166439207406
@@ -363,11 +368,9 @@ def test_multiscale_mc():
          _,_,_,_,
          reflectance_sphere[i],
          _,_, norm_refl, norm_trans) = \
-             det.calc_refl_trans(trajectories, sphere_boundary_diameter,
-                                 n_m, n_s, boundary, p=sim.p,
-                                 mu_abs=sim.mu_abs, mu_scat=sim.mu_scat,
-                                 run_fresnel_traj = False, return_extra =
-                                 True)
+             det.calc_refl_trans(sim, sphere_boundary_diameter,
+                                 run_fresnel_traj = False,
+                                 return_extra = True)
 
 
         ### Calculate phase function and lscat ###
@@ -451,8 +454,7 @@ def test_multiscale_mc():
         # calculate bulk reflectance
         trajectories = sim.traj
         reflectance_bulk[i], transmittance = \
-            det.calc_refl_trans(trajectories, bulk_thickness, n_med,
-                                n_mat, boundary_bulk)
+            det.calc_refl_trans(sim, bulk_thickness)
 
     # these numbers look a little strange (multiply them by the number of
     # trajectories, and they all become integers). That's because there's no
@@ -566,9 +568,8 @@ def test_multiscale_polydispersity_mc():
              _,_,_,_,
              reflectance_sphere[i],
              _,_, norm_refl, norm_trans) = \
-                 det.calc_refl_trans(trajectories,
+                 det.calc_refl_trans(sim,
                                      sphere_boundary_diameters[j],
-                                     n_m, n_s, boundary,
                                      run_fresnel_traj = False,
                                      return_extra = True)
 
@@ -630,8 +631,7 @@ def test_multiscale_polydispersity_mc():
         # calculate reflectance
         trajectories = sim.traj
         reflectance_bulk_poly[i], transmittance = \
-            det.calc_refl_trans(trajectories, bulk_thickness, n_med,
-                                n_mat, boundary_bulk)
+            det.calc_refl_trans(sim, bulk_thickness)
 
     # test reflectance from the bulk polydisperse sample
     R_expected = [0.5896236932355958, 0.5960565958801791, 0.543160195730125,
@@ -735,9 +735,8 @@ def test_multiscale_color_mixing_mc():
              _,_,_,_,
              reflectance_sphere[i],
              _,_, norm_refl, norm_trans) = \
-                 det.calc_refl_trans(trajectories,
+                 det.calc_refl_trans(sim,
                                      sphere_boundary_diameter,
-                                     n_mat, n_sample, boundary,
                                      run_fresnel_traj = False,
                                      return_extra = True)
 
@@ -794,8 +793,7 @@ def test_multiscale_color_mixing_mc():
         # calculate reflectance
         trajectories = sim.traj
         reflectance_bulk_mix[i], transmittance = \
-            det.calc_refl_trans(trajectories, bulk_thickness, n_med,
-                                n_mat, boundary_bulk)
+            det.calc_refl_trans(sim, bulk_thickness)
 
     R_expected = [0.5826801822412575, 0.5702215184018711, 0.5731687923054422,
                   0.5766088842163823, 0.6053588610189652, 0.5845773357414805,

@@ -350,16 +350,12 @@ def test_structure_factor_data_reflectances():
     reflectance = np.zeros(wavelengths.size)
     for i in range(wavelengths.size):
 
-        n_sample = model.index_external(wavelengths[i])
-
         sim = mc.Simulation(model, wavelengths[i], nevents, ntrajectories,
                             boundary, rng=rng)
         sim.run()
 
-        trajectories = sim.traj
-        reflectance[i], _ = det.calc_refl_trans(trajectories, thickness,
-                                                n_medium[i],
-                                                n_sample, boundary)
+        reflectance[i], _ = det.calc_refl_trans(sim, thickness)
+
     reflectance_expected = [0.8095144529605994, 0.7708351929683783,
                             0.7683968574771831, 0.7731988230034157,
                             0.7926600420894914, 0.7581023055101348,

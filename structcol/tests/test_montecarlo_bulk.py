@@ -78,9 +78,6 @@ def calc_sphere_mc():
     model = sc.model.HardSpheres(particle, volume_fraction_particles,
                                  index_matrix, index_medium)
 
-    # caculate the effective index of the sample
-    n_sample = model.index_external(wavelength)
-
     # Initialize and run the simulation
     sim = mc.Simulation(model, wavelength, nevents, ntrajectories, boundary,
                         sample_diameter = sphere_boundary_diameter,
@@ -92,7 +89,6 @@ def calc_sphere_mc():
     #                     rng=rng)
 
     # Calculate reflection and transmission
-    trajectories = sim.traj
     (refl_indices,
      trans_indices,
      _, _, _,
@@ -100,12 +96,8 @@ def calc_sphere_mc():
      _,_,_,_,
      reflectance_sphere,
      _,_,
-     norm_refl, norm_trans) = det.calc_refl_trans(trajectories,
+     norm_refl, norm_trans) = det.calc_refl_trans(sim,
                                                   sphere_boundary_diameter,
-                                                  n_matrix_bulk, n_sample,
-                                                  boundary, p=sim.p,
-                                                  mu_abs=sim.mu_abs,
-                                                  mu_scat=sim.mu_scat,
                                                   run_fresnel_traj = False,
                                                   return_extra = True)
 

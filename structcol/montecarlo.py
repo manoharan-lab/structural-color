@@ -375,6 +375,7 @@ class Simulation:
 
         self.nevents = nevents
         self.ntrajectories = ntraj
+        self.boundary = boundary
 
         if rng is None:
             self.rng = sc.rng

@@ -28,7 +28,7 @@ from structcol import detector as det
 import numpy as np
 import xarray as xr
 from numpy.testing import assert_equal, assert_almost_equal, assert_array_less
-import pytest
+
 
 # Monte Carlo parameters
 ntrajectories = 300
@@ -86,8 +86,7 @@ refl_indices, trans_indices,\
     trans_fresnel,\
     reflectance,\
     transmittance,\
-    tir_refl_bool,_,_ = det.calc_refl_trans(trajectories, thickness,
-                                            n_medium, n_sample, boundary,
+    tir_refl_bool,_,_ = det.calc_refl_trans(sim, thickness,
                                             return_extra = True)
 
 refl_events, trans_events = ed.calc_refl_trans_event(refl_per_traj,
@@ -432,9 +431,7 @@ def test_event_distribution_wavelength_mc():
             trans_frac, refl_frac,\
             refl_fresnel, trans_fresnel,\
             reflectance[i], transmittance,\
-            tir_refl_bool,_,_ = det.calc_refl_trans(trajectories,
-                                                    thickness, n_medium[i],
-                                                    n_sample, boundary,
+            tir_refl_bool,_,_ = det.calc_refl_trans(sim, thickness,
                                                     return_extra = True)
 
         ################### Calculate event distributions ####################
@@ -538,13 +535,8 @@ def test_event_distribution_angle_mc():
             inc_refl_per_traj,_,_, refl_per_traj, trans_per_traj,\
             trans_frac, refl_frac,\
             refl_fresnel, trans_fresnel,\
-            reflectance[j], _,_,_,_= det.calc_refl_trans(trajectories,
-                                                         thickness,
-                                                         n_medium,
-                                                         n_sample,
-                                                         boundary,
-                                                         return_extra =
-                                                         True)
+            reflectance[j], _,_,_,_= det.calc_refl_trans(sim, thickness,
+                                                         return_extra = True)
 
 
         ################### Calculate event distribution #####################

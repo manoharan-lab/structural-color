@@ -67,9 +67,7 @@ def test_2pi_shift():
 
     # calculate reflectance
     trajectories = sim.traj
-    n_sample = model.index_external(wavelength)
-    refl_trans_result = det.calc_refl_trans(trajectories, thickness,
-                                            n_medium, n_sample, boundary,
+    refl_trans_result = det.calc_refl_trans(sim, thickness,
                                             return_extra=True)
 
     refl_indices = refl_trans_result[0]
@@ -317,7 +315,6 @@ def test_field_reflectance_mc():
     sphere = sc.Sphere(index_particle, radius)
     index_matrix = sc.index.vacuum
     index_medium = sc.index.vacuum
-    n_medium = index_medium(wavelength)
 
     thickness = sc.Quantity('800 um')
     boundary = 'film'
@@ -335,23 +332,15 @@ def test_field_reflectance_mc():
     sim.run(radius=radius, wavelength=wavelength)
 
     trajectories = sim.traj
-    n_sample = model.index_external(wavelength)
 
-    refl_trans_result = det.calc_refl_trans(trajectories, thickness,
-                                            n_medium, n_sample, boundary,
+    # calculate reflectance including phase
+    refl_trans_result = det.calc_refl_trans(sim, thickness,
                                             return_extra=True)
 
     reflectance = refl_trans_result[11]
     refl_indices = refl_trans_result[0]
     refl_per_traj = refl_trans_result[3]
 
-    # calculate reflectance including phase
-    refl_trans_result = det.calc_refl_trans(trajectories, thickness,
-                                            n_medium, n_sample, boundary,
-                                            return_extra=True)
-
-    refl_indices = refl_trans_result[0]
-    refl_per_traj = refl_trans_result[3]
     refl_fields, _ = detp.calc_refl_phase_fields(trajectories,
                                                  refl_indices,
                                                  refl_per_traj)
@@ -406,17 +395,13 @@ def test_field_co_cross_mc():
                                  index_medium)
 
     for i in range(wavelengths.size):
-        n_sample = model.index_external(wavelengths[i])
-
         # Initialize and run simulation
         sim = mc.Simulation(model, wavelengths[i], nevents, ntrajectories,
                             boundary, fields=True, coherent=False, rng=rng)
         sim.run(radius=radius, wavelength=wavelengths[i])
 
         trajectories = sim.traj
-        refl_trans_result = det.calc_refl_trans(trajectories,thickness,
-                                                n_medium[i], n_sample,
-                                                boundary,
+        refl_trans_result = det.calc_refl_trans(sim, thickness,
                                                 return_extra=True)
 
         reflectance[i] = refl_trans_result[11]

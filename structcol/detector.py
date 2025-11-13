@@ -1572,12 +1572,12 @@ def shift_traj_tir(trajectories, tir_indices):
     trajectories.direction[2, :, :] = kz_incl_tir_refl
 
 
-def calc_refl_trans(trajectories, thickness, n_medium, n_sample, boundary,
+def calc_refl_trans(sim,
+                    thickness,
                     z_low=0,
                     detection_angle=np.pi / 2,
                     n_front=None,
                     n_back=None,
-                    p=None,
                     return_extra=False,
                     run_fresnel_traj=False,
                     fresnel_traj=False,
@@ -1585,19 +1585,12 @@ def calc_refl_trans(trajectories, thickness, n_medium, n_sample, boundary,
                     max_call_depth=20,
                     max_stuck=0.01,
                     plot_exits=False,
-                    mu_scat=None,
-                    mu_abs=None,
                     detector=False,
                     det_theta=None,
                     det_len=None,
                     det_dist=None,
                     plot_detector=False,
-                    kz0_rot=None,
-                    kz0_refl=None,
                     save_stuck_weights=False,
-                    fine_roughness=0,
-                    n_particle=None,
-                    n_matrix=None,
                     rng=None):
     """
     Calculates the weight fraction of reflected and transmitted trajectories
@@ -1607,17 +1600,10 @@ def calc_refl_trans(trajectories, thickness, n_medium, n_sample, boundary,
 
     Parameters
     ----------
-    trajectories : Trajectory object
-        Trajectory object used in Monte Carlo simulation
-    thickness: float (structcol.Quantity [length])
+    sim : `sc.Simulation` object
+        Monte Carlo simulation with results for trajectories
+    thickness : float (structcol.Quantity [length])
         thickness of film or diameter of sphere
-    n_medium: float (structcol.Quantity [dimensionless])
-        Refractive index of the medium.
-    n_sample: float (structcol.Quantity [dimensionless])
-        Refractive index of the sample.
-    boundary: string
-        Geometrical boundary for Monte Carlo calculations. Current options
-        are 'film' or 'sphere'.
     z_low : float (structcol.Quantity [length])
         Initial z-position of sample closest to incident light source.
         Should normally be set to 0.
@@ -1630,8 +1616,6 @@ def calc_refl_trans(trajectories, thickness, n_medium, n_sample, boundary,
         Refractive index of the front cover of the sample (default None)
     n_back: float (structcol.Quantity [dimensionless])
         Refractive index of the back cover of the sample (default None)
-    p: array_like (structcol.Quantity [dimensionless])
-        Phase function from either Mie theory or single scattering model.
     return_extra: boolean
         determines whether to return a host of extra variables that are used
         for additional calculations using the trajectories
@@ -1670,11 +1654,6 @@ def calc_refl_trans(trajectories, thickness, n_medium, n_sample, boundary,
         the sphere, the first point of the trajectory outside the sphere,
         and the point on the sphere boundary at which the trajectory exits,
         making one plot for reflection and one plot for transmission
-    mu_scat : float (structcol.Quantity [1/length])
-        Scattering coefficient from either Mie theory or single scattering
-        model.
-    mu_abs : float (structcol.Quantity [1/length])
-        Absorption coefficient from Mie theory.
     detector: boolean
         Set to true if you want to calculate reflection while using a
         goniometer detector (detector at a specified angle).
@@ -1691,9 +1670,6 @@ def calc_refl_trans(trajectories, thickness, n_medium, n_sample, boundary,
     save_stuck_weights: boolean (optional)
         default is False. If set to True, saves a file with the stuck weight
         fraction. Useful for testing whether event number is sufficiently high.
-    fine_roughness: TODO document argument
-    n_particle: TODO document argument
-    n_matrix: TODO document argument
     rng: numpy.random.Generator object (default None) random number generator.
         If not specified, use the default generator initialized on loading the
         package.  The RNG is needed only when run_fresnel_traj is True.
@@ -1728,51 +1704,50 @@ def calc_refl_trans(trajectories, thickness, n_medium, n_sample, boundary,
         transmittance
 
     """
-
     # until this function is refactored to use xarray, convert all indices to
-    # numpy arrays, but retain original DataArrays
-    if isinstance(n_medium, xr.DataArray):
-        n_med = n_medium.to_numpy()
-    n_samp = n_sample.copy()
-    if isinstance(n_samp, xr.DataArray):
-        # drop VOLFRAC dimension, which will be included in all effective index
-        # calculations.
-        if sc.Coord.VOLFRAC in n_samp.coords:
-            n_samp = n_samp.isel({sc.Coord.VOLFRAC: 0}, drop=True)
-        n_samp = n_samp.to_numpy()
-
-    # make sure roughness-related values make sense
-    if ((kz0_rot is None and kz0_refl is not None)
-        or (kz0_rot is not None and kz0_refl is None)):
-        raise ValueError('when including coarse surface roughness, '
-                         'must specify both kz0_rot and kz0_refl')
+    # numpy arrays
+    n_med = sim.model.index_medium(sim.wavelen).to_numpy()
+    n_samp = sim.model.index_external(sim.wavelen)
+    # drop VOLFRAC dimension, which will be included in all effective index
+    # calculations.
+    if sc.Coord.VOLFRAC in n_samp.coords:
+        n_samp = n_samp.isel({sc.Coord.VOLFRAC: 0}, drop=True)
+    n_samp = n_samp.to_numpy()
 
     # set up values as floats and numpy arrays to be used throughout function
-    if isinstance(trajectories, xr.Dataset):
-        trajectories = mc.NumpyTrajectory(trajectories)
-        kz0_rot = trajectories.kz0_rot
-        kz0_refl = trajectories.kz0_refl
-    ntraj = trajectories.position[2].shape[1]
+    trajectories = mc.NumpyTrajectory(sim.traj)
+    kz0_rot = trajectories.kz0_rot
+    kz0_refl = trajectories.kz0_refl
+    ntraj = sim.ntrajectories
     if isinstance(z_low, sc.Quantity):
         z_low = z_low.to_preferred().magnitude
     if isinstance(thickness, sc.Quantity):
         thickness = thickness.to_preferred().magnitude
 
+    boundary = sim.boundary
+    fine_roughness = sim.fine_roughness
+
     # construct booleans for positive and negative exits
     # TODO: confirm this
-    if (n_particle is not None) and (n_matrix is not None):
-        if n_particle < n_matrix:
-            n_tir = (fine_roughness
-                     * n_matrix + (1 - fine_roughness) * n_samp)
-        else:
-            n_tir = (fine_roughness
-                     * n_particle + (1 - fine_roughness) * n_samp)
-    else:
-        if fine_roughness > 0:
+    if fine_roughness > 0:
+        n_matrix = sim.model.index_matrix(sim.wavelen).to_numpy()
+        try:
+            n_particle = sim.model.sphere.n(sim.wavelen).to_numpy()
+            # TODO use xr.where to handle vectorization over wavelength
+            if n_particle < n_matrix:
+                n_tir = (fine_roughness
+                         * n_matrix + (1 - fine_roughness) * n_samp)
+            else:
+                n_tir = (fine_roughness
+                         * n_particle + (1 - fine_roughness) * n_samp)
+        except AttributeError:
             warnings.warn("n_particle and n_matrix not specified; using "
                           "n_sample for n_tir instead of roughness correction",
                           category=UserWarning, stacklevel=2)
+            n_tir = n_samp
+    else:
         n_tir = n_samp
+
     exits_pos_dir, exits_neg_dir, tir_refl_bool = find_valid_exits(n_tir,
                                                                 n_med,
                                                                 thickness,
@@ -1861,12 +1836,12 @@ def calc_refl_trans(trajectories, thickness, n_medium, n_sample, boundary,
          trans_per_traj) = run_sphere_fresnel_traj(refl_per_traj_nf,
                                                    trans_per_traj_nf,
                                                    refl_fresnel,
-                                                   trans_fresnel,stuck_weights,
-                                                   trajectories, refl_indices,
+                                                   trans_fresnel,
+                                                   stuck_weights,
+                                                   refl_indices,
                                                    trans_indices, tir_indices,
-                                                   thickness, boundary, z_low,
-                                                   p, n_medium, n_sample,
-                                                   mu_scat, mu_abs, max_stuck,
+                                                   sim, thickness, z_low,
+                                                   max_stuck,
                                                    call_depth, plot_exits,
                                                    rng=rng)
     else:
@@ -1924,10 +1899,8 @@ def calc_refl_trans(trajectories, thickness, n_medium, n_sample, boundary,
 
 def run_sphere_fresnel_traj(refl_per_traj_nf, trans_per_traj_nf,
                             refl_fresnel, trans_fresnel, stuck_weights,
-                            trajectories, refl_indices, trans_indices,
-                            tir_indices, thickness, boundary, z_low,
-                            p, n_medium, n_sample,
-                            mu_scat, mu_abs,
+                            refl_indices, trans_indices,
+                            tir_indices, sim, thickness, z_low,
                             max_stuck, call_depth, plot_exits,
                             rng=None):
     '''
@@ -1957,8 +1930,6 @@ def run_sphere_fresnel_traj(refl_per_traj_nf, trans_per_traj_nf,
         into the sample
     stuck_weights: 1d array (length: ntraj)
         weights of stuck trajectories
-    trajectories: Trajectory object
-        Trajectory object used in Monte Carlo simulation
     refl_indices: 1d array (length: ntraj)
         array of event indices for reflected trajectories
     trans_indices: 1d array (length: ntraj)
@@ -1967,25 +1938,13 @@ def run_sphere_fresnel_traj(refl_per_traj_nf, trans_per_traj_nf,
         array of event indices for totally internally reflected trajectories
     stuck_indices: 1d array (length: ntraj)
         array of event indices for stuck trajectories
-    thickness: float (structcol.Quantity [length])
+    sim : `sc.Simulation` object
+        Monte Carlo simulation with results
+    thickness : float (structcol.Quantity [length])
         thickness of film or diameter of sphere
-    boundary: string
-        Geometrical boundary for Monte Carlo calculations. Current options
-        are 'film' or 'sphere'.
     z_low : float (structcol.Quantity [length])
         Initial z-position of sample closest to incident light source.
         Should normally be set to 0.
-    p: array_like (structcol.Quantity [dimensionless])
-        Phase function from either Mie theory or single scattering model.
-    n_medium: float (structcol.Quantity [dimensionless])
-        Refractive index of the medium.
-    n_sample: float (structcol.Quantity [dimensionless])
-        Refractive index of the sample.
-    mu_scat : float (structcol.Quantity [1/length])
-        Scattering coefficient from either Mie theory or single scattering
-        model.
-    mu_abs : float (structcol.Quantity [1/length])
-        Absorption coefficient from Mie theory.
     max_stuck:float
         The maximum weight of stuck trajectories to leave in the sample
         without creating new trajectories to rerun. This argument is only used
@@ -2020,8 +1979,7 @@ def run_sphere_fresnel_traj(refl_per_traj_nf, trans_per_traj_nf,
         rng = sc.rng
 
     # Set up values to use throughout function.
-    if isinstance(trajectories, xr.Dataset):
-        trajectories = mc.NumpyTrajectory(trajectories)
+    trajectories = mc.NumpyTrajectory(sim.traj)
     if isinstance(z_low, sc.Quantity):
         z_low = z_low.to_preferred().magnitude
     diameter = thickness
@@ -2115,40 +2073,22 @@ def run_sphere_fresnel_traj(refl_per_traj_nf, trans_per_traj_nf,
 #            directions = np.delete(directions, indices,axis = 0)
 
     # create new simulation object and insert our existing trajectories
-    # first need to create model object; for now, since index objects are not
-    # passed, we create a model object using the passed values of refractive
-    # index (assuming single wavelength) and an arbitrary lengthscale and
-    # wavelength (neither will affect the calculation)
-    lengthscale = sc.Quantity("0.1 um")
-    wavelength = 3*lengthscale
-    volume_fraction = 0.5
-    particle = sc.Sphere(sc.Index.constant(1.0), lengthscale)
-    index_medium = sc.Index.constant(n_medium)
-    index_sample = sc.Index.constant(n_sample)
-    dummy_model = sc.model.FormStructureModel(None, None, lengthscale,
-                                              index_sample, index_medium,
-                                              volume_fraction=volume_fraction,
-                                              particle=particle)
     # note that we don't pass the rng to the Simulation object because it would
     # generate random numbers for the initial trajectories, which we already
     # have calculated. The generation of new initial trajectories would change
     # the state of the rng, making it hard to compare to results of regression
     # tests. Instead we pass the rng to the run() method
-    sim = mc.Simulation(dummy_model, wavelength, nevents, ntraj, boundary,
-                        sample_diameter = thickness*2)
+    sim_fresnel = mc.Simulation(sim.model, sim.wavelen, nevents, ntraj,
+                                sim.boundary, sample_diameter = thickness*2)
     trajectories_fresnel = xr.Dataset({"position": positions,
                                        "direction": directions,
                                        "weight": weights_fresnel})
-    # insert all of our previously calculated values into the simulation
-    sim.traj = trajectories_fresnel.expand_dims(n_sample.coords).copy()
-    sim.p = p
-    sim.mu_scat = mu_scat
-    sim.mu_abs = mu_abs
+    # insert our previously calculated values into the simulation
+    n_sample = sim.model.index_external(sim.wavelen)
+    sim_fresnel.traj = trajectories_fresnel.expand_dims(n_sample.coords).copy()
 
     # Run photons
-    sim.run(rng=rng)
-
-    trajectories_fresnel = sim.traj
+    sim_fresnel.run(rng=rng)
 
     # Calculate reflection and transmition
     (_, trans_indices_fresnel, _, _, _,
@@ -2157,11 +2097,8 @@ def run_sphere_fresnel_traj(refl_per_traj_nf, trans_per_traj_nf,
      _, _, _, _,
      reflectance_fresnel,
      transmittance_fresnel,_,
-     norm_refl_f, norm_trans_f) = calc_refl_trans(trajectories_fresnel,
-                                                  thickness, n_medium,
-                                                  n_sample, boundary,
-                                                  p = p, mu_abs = mu_abs,
-                                                  mu_scat = mu_scat,
+     norm_refl_f, norm_trans_f) = calc_refl_trans(sim_fresnel, thickness,
+                                                  z_low = z_low,
                                                   plot_exits = plot_exits,
                                                   run_fresnel_traj = True,
                                                   fresnel_traj = True,

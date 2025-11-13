@@ -44,6 +44,10 @@ wavelen = sc.Quantity('400.0 nm')
 index_particle = sc.Index.constant(1.5)
 index_matrix = sc.Index.constant(1.0)
 index_medium = sc.Index.constant(1.0)
+particle = sc.Sphere(index_particle, radius)
+model = sc.model.HardSpheres(particle, volume_fraction, index_matrix,
+                             index_medium)
+boundary = "film"
 
 # Index of the scattering event and trajectory corresponding to the reflected
 # photons
@@ -52,8 +56,13 @@ refl_index = np.array([2,0,2])
 def test_calc_refl_trans():
     # this test is deterministic; no rng is involved
     high_thresh = 10
-    small_n = sc.Index.constant(1)(wavelen)
-    large_n = sc.Index.constant(2)(wavelen)
+    index_medium = sc.Index.constant(1)
+    index_matrix_small = sc.Index.constant(1)
+    index_matrix_large = sc.Index.constant(2)
+    large_n = index_matrix_large(wavelen)
+
+    # index match particle to matrix so that effective index is same as matrix
+    particle = sc.Sphere(index_matrix, radius)
 
     # test absoprtion and stuck without fresnel
     z_pos = np.array([[0,0,0,0],[1,1,1,1],[-1,11,2,11],[-2,12,4,12]])
@@ -77,8 +86,13 @@ def test_calc_refl_trans():
                                "direction": k0,
                                "weight": weights})
 
-    refl, trans = det.calc_refl_trans(trajectories, high_thresh, small_n,
-                                      small_n, 'film')
+    # set up a dummy simulation and insert the trajectories
+    model = sc.model.HardSpheres(particle, volume_fraction, index_matrix_small,
+                                 index_medium)
+    sim = mc.Simulation(model, wavelen, nevents, ntrajectories, boundary)
+    sim.traj = trajectories
+
+    refl, trans = det.calc_refl_trans(sim, high_thresh)
     # calculated manually
     expected_trans_array = np.array([0, .3, .25, 0]) / ntrajectories
     # calculated manually
@@ -87,8 +101,7 @@ def test_calc_refl_trans():
     assert_almost_equal(trans, np.sum(expected_trans_array))
 
     # test above but with covers on front and back
-    refl, trans = det.calc_refl_trans(trajectories, high_thresh, small_n,
-                                      small_n, 'film',
+    refl, trans = det.calc_refl_trans(sim, high_thresh,
                                       n_front=large_n.to_numpy().squeeze(),
                                       n_back=large_n.to_numpy().squeeze())
     # calculated manually
@@ -126,8 +139,14 @@ def test_calc_refl_trans():
                                "direction": k0,
                                "weight": weights})
 
-    refl, trans= det.calc_refl_trans(trajectories, high_thresh, small_n,
-                                     large_n, 'film')
+    # set up a dummy simulation and insert the trajectories
+    particle = sc.Sphere(index_matrix_large, radius)
+    model = sc.model.HardSpheres(particle, volume_fraction, index_matrix_large,
+                                 index_medium)
+    sim = mc.Simulation(model, wavelen, nevents, ntrajectories, boundary)
+    sim.traj = trajectories
+
+    refl, trans = det.calc_refl_trans(sim, high_thresh)
     # calculated manually
     expected_trans_array = (np.array([ .00167588, .00062052, .22222222,
                                        .11075425]) / ntrajectories)
@@ -138,8 +157,8 @@ def test_calc_refl_trans():
     assert_almost_equal(trans, np.sum(expected_trans_array))
 
     # test refraction and detection_angle
-    refl, trans= det.calc_refl_trans(trajectories, high_thresh, small_n,
-                                     large_n, 'film', detection_angle=0.1)
+    refl, trans= det.calc_refl_trans(sim, high_thresh,
+                                     detection_angle=0.1)
     # calculated manually
     expected_trans_array = (np.array([ .00167588, .00062052, .22222222,
                                        .11075425]) / ntrajectories)
@@ -175,8 +194,14 @@ def test_calc_refl_trans():
                                "direction": k0,
                                "weight": weights})
 
-    refl, trans= det.calc_refl_trans(trajectories, thin_sample_thickness,
-                                     small_n, large_n, 'film')
+    # set up a dummy simulation and insert the trajectories
+    model = sc.model.HardSpheres(particle, volume_fraction, index_matrix_large,
+                                 index_medium)
+    sim = mc.Simulation(model, wavelen, nevents, ntrajectories, boundary)
+    sim.traj = trajectories
+
+    refl, trans= det.calc_refl_trans(sim, thin_sample_thickness)
+
     # calculated manually
     expected_trans_array = (np.array([.8324515, .8324515, .8324515, .05643739,
                                      .05643739, .05643739, .8324515]) /
@@ -237,7 +262,6 @@ def test_surface_roughness_mc():
     sphere = sc.Sphere(index_particle, radius)
     index_matrix = sc.index.vacuum
     index_medium = sc.index.vacuum
-    n_medium = index_medium(wavelen)
     boundary = 'film'
 
     incidence_theta_min = sc.Quantity(0, 'rad')
@@ -265,14 +289,13 @@ def test_surface_roughness_mc():
 
     cutoff = sc.Quantity('50 um')
 
-    trajectories = sim.traj
+    R, T = det.calc_refl_trans(sim, cutoff)
 
-    n_sample = model.index_external(wavelen)
-    R, T = det.calc_refl_trans(trajectories, cutoff, n_medium, n_sample,
-                               boundary)
-
-    R_expected = 0.7166421049108462
-    T_expected = 0.24500285182641726
+    # previous values were based on using n_tir = n_sample in detector.py.
+    # Updated values to handle case when n_matrix and n_particle are used to
+    # calculate n_tir:
+    R_expected = 0.6868088783398588
+    T_expected = 0.25255636332566694
 
     assert_almost_equal(R, R_expected)
     assert_almost_equal(T, T_expected)
@@ -782,7 +805,6 @@ def test_detectors_mc():
 
     index_matrix = sc.index.vacuum
     index_medium = sc.index.vacuum
-    n_medium = index_medium(wavelength)
     thickness = sc.Quantity('80 um')
     boundary = 'film'
 
@@ -799,10 +821,7 @@ def test_detectors_mc():
     sim.run()
 
     # test default detector (full reflection hemisphere)
-    n_sample = model.index_external(wavelength)
-    trajectories = sim.traj
-    R, _ = det.calc_refl_trans(trajectories, thickness, n_medium,
-                               n_sample, boundary)
+    R, _ = det.calc_refl_trans(sim, thickness)
 
     R_expected = 0.42179454919817455
 
@@ -811,8 +830,7 @@ def test_detectors_mc():
     # test with 80 degree large-aperture detector
     detection_angle = sc.Quantity('80 degrees')
 
-    R, _ = det.calc_refl_trans(trajectories, thickness, n_medium, n_sample,
-                               boundary,
+    R, _ = det.calc_refl_trans(sim, thickness,
                                detection_angle = detection_angle)
 
     R_expected = 0.4130249995689382
@@ -826,8 +844,7 @@ def test_detectors_mc():
     det_dist = sc.Quantity('10 cm')
 
     # Calculate reflectance
-    R, _ = det.calc_refl_trans(trajectories, thickness, n_medium, n_sample,
-                               boundary,
+    R, _ = det.calc_refl_trans(sim, thickness,
                                detector = detector,
                                det_theta = det_theta,
                                det_len = det_len,
@@ -901,12 +918,13 @@ def test_surface_roughness():
                                      seed, fine_roughness=1e-4,
                                      coarse_roughness=1e-5)
 
-    assert_almost_equal(R, R_fine)
-    assert_almost_equal(T, T_fine)
-    assert_almost_equal(R, R_coarse)
-    assert_almost_equal(T, T_coarse)
-    assert_almost_equal(R, R_both)
-    assert_almost_equal(T, T_both)
+    # tolerances set to handle small differences due to roughness
+    assert_allclose(R, R_fine, rtol=1e-5)
+    assert_allclose(T, T_fine, rtol=1e-5)
+    assert_allclose(R, R_coarse, rtol=1e-5)
+    assert_allclose(T, T_coarse, rtol=1e-5)
+    assert_allclose(R, R_both, rtol=1e-5)
+    assert_allclose(T, T_both, rtol=1e-5)
 
 
 def calc_montecarlo(model, nevents, ntrajectories, wavelen, seed,
@@ -923,9 +941,6 @@ def calc_montecarlo(model, nevents, ntrajectories, wavelen, seed,
     incidence_theta_min=sc.Quantity(incidence_theta_min,'rad')
     incidence_theta_max=sc.Quantity(incidence_theta_min,'rad')
 
-    n_sample = model.index_external(wavelen)
-    n_medium = model.index_medium(wavelen)
-
     sim = mc.Simulation(model, wavelen, nevents, ntrajectories, "film", rng=rng,
                         fine_roughness=fine_roughness,
                         coarse_roughness=coarse_roughness,
@@ -936,8 +951,7 @@ def calc_montecarlo(model, nevents, ntrajectories, wavelen, seed,
     cutoff = sc.Quantity('50.0 um')
 
     # calculate R, T
-    R, T = det.calc_refl_trans(sim.traj, cutoff, n_medium, n_sample,
-                               "film")
+    R, T = det.calc_refl_trans(sim, cutoff)
 
     return R, T
 
@@ -979,11 +993,19 @@ def test_goniometer_detector():
                                "direction": directions,
                                "weight": weights})
 
+    # set up a dummy simulation and insert the trajectories
+    index_medium = sc.Index.constant(1)
+    index_matrix = sc.Index.constant(1)
+    # particle is index matched to matrix so that effective index is 1
+    particle = sc.Sphere(index_matrix, radius)
+    model = sc.model.HardSpheres(particle, volume_fraction, index_matrix,
+                                 index_medium)
+    sim = mc.Simulation(model, wavelen, nevents, ntrajectories, boundary)
+    sim.traj = trajectories
+
     thickness = 10
-    n_medium = sc.Index.constant(1)(wavelen)
-    n_sample = sc.Index.constant(1)(wavelen)
-    R, T = det.calc_refl_trans(trajectories, thickness, n_medium, n_sample,
-                               'film', detector=True,
+    R, T = det.calc_refl_trans(sim, thickness,
+                               detector=True,
                                det_theta=sc.Quantity('45.0 degrees'),
                                det_len=sc.Quantity('1.0 um'),
                                det_dist=sc.Quantity('10.0 cm'),
