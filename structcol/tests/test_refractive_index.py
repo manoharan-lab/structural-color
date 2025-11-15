@@ -61,24 +61,6 @@ class TestIndex:
         with pytest.raises(ValueError, match="wavelen must be either"):
             my_index(np.linspace(400, 800, 100))
 
-    def test_index_from_constant(self):
-        # test that making an index object from a constant works
-        my_index = sc.Index.constant(1.88)
-        assert_equal(my_index(self.wavelen), np.ones_like(self.wavelen) * 1.88)
-
-        # check that giving dimensional constant gives error
-        with pytest.raises(ValueError):
-            my_index = sc.Index.constant(sc.Quantity(1.45, "um"))
-            my_index(self.wavelen)
-
-        # check that wavelengths with wrong units gives error
-        with pytest.raises(DimensionalityError):
-            my_index(sc.Quantity("400 kg"))
-
-        # test that dimensions of index are stripped
-        my_index = sc.Index.constant(sc.Quantity(1.33, ""))
-        assert not isinstance(my_index(sc.Quantity("400 nm")), sc.Quantity)
-
     def test_index_from_data(self):
         # test that making an index object from a data works as expected
 
@@ -193,7 +175,7 @@ class TestIndex:
         xr.testing.assert_equal(index(self.wavelen), expected)
 
         # test with constant Index object
-        constant = sc.Index.constant(0.01j)
+        constant = sc.ConstantIndex(0.01j)
         index = sc.index.fused_silica + constant
         expected = (sc.index.fused_silica(self.wavelen) +
                     constant(self.wavelen))
@@ -207,8 +189,39 @@ class TestIndex:
         with pytest.raises(ValueError):
             index = sc.index.polystyrene + [1.3]
 
+class TestConstantIndex():
+    """Tests for the ConstantIndex class
+
+    """
+    wavelen = sc.Quantity(np.linspace(400, 800, 100), "nm")
+
+    def test_constant_index_objects(self):
+        # test that making an index object from a constant works
+        my_index = sc.ConstantIndex(1.88)
+        assert_equal(my_index(self.wavelen), np.ones_like(self.wavelen) * 1.88)
+
+        # test that complex index works
+        my_index = sc.ConstantIndex(1.88 + 0.1j)
+        assert_equal(my_index(self.wavelen), (np.ones_like(self.wavelen)
+                                              * (1.88 + 0.1j)))
+
+        # check that giving dimensional constant gives error
+        with pytest.raises(ValueError):
+            my_index = sc.ConstantIndex(sc.Quantity(1.45, "um"))
+            my_index(self.wavelen)
+
+        # check that wavelengths with wrong units gives error
+        with pytest.raises(DimensionalityError):
+            my_index(sc.Quantity("400 kg"))
+
+        # test that dimensions of index are stripped
+        my_index = sc.ConstantIndex(sc.Quantity(1.33, ""))
+        assert not isinstance(my_index(sc.Quantity("400 nm")), sc.Quantity)
+
+
 class TestEffectiveIndex():
     """Tests for the EffectiveIndex class and related effective_index function
+
     """
     def test_effective_index_objects(self):
         # test that we can build an effective index object and that it returns
@@ -239,8 +252,8 @@ class TestEffectiveIndex():
         # test that at low volume fractions, Maxwell-Garnett and Bruggeman
         # roughly match for a non-core-shell particle
         wavelen = sc.Quantity(500.0, "nm")
-        index_particle = sc.Index.constant(2.7)
-        index_matrix = sc.Index.constant(2.2)
+        index_particle = sc.ConstantIndex(2.7)
+        index_matrix = sc.ConstantIndex(2.2)
         vf = xr.DataArray(np.array([0.001, 1-0.001]),
                           coords={sc.Coord.MAT: range(2)})
 
@@ -281,8 +294,8 @@ class TestEffectiveIndex():
         xr.testing.assert_allclose(neff_bg3, neff_bg3_cs)
 
         # repeat the tests using complex indices
-        index_particle_complex = sc.Index.constant(2.7+0.001j)
-        index_matrix_complex = sc.Index.constant(2.2+0.001j)
+        index_particle_complex = sc.ConstantIndex(2.7+0.001j)
+        index_matrix_complex = sc.ConstantIndex(2.2+0.001j)
 
         neff_mg_complex = sc.index.effective_index([index_particle_complex,
                                                     index_matrix_complex], vf,
@@ -298,8 +311,8 @@ class TestEffectiveIndex():
         # test that the non-core-shell particle with Maxwell-Garnett matches
         # with the core-shell of shell index matched to matrix with Bruggeman
         # at low volume fractions
-        indices = [sc.Index.constant(2.7+0.001j),
-                   sc.Index.constant(2.2+0.001j)]
+        indices = [sc.ConstantIndex(2.7+0.001j),
+                   sc.ConstantIndex(2.2+0.001j)]
         neff_bg2_complex = sc.index.effective_index(indices +
                                                     [index_matrix_complex],
                                                     vf2, wavelen,
@@ -324,7 +337,7 @@ class TestEffectiveIndex():
         xr.testing.assert_allclose(neff_bg3_complex, neff_bg3_cs_complex)
 
     @pytest.mark.parametrize("index_particle", [sc.index.polystyrene,
-                                                sc.Index.constant(2.2+0.001j)])
+                                                sc.ConstantIndex(2.2+0.001j)])
     def test_effective_index_from_sphere(self, index_particle):
         # test construction of an EffectiveIndex object from a Sphere object
         wavelen = sc.Quantity(np.linspace(400, 800, 20), "nm")
@@ -353,10 +366,10 @@ class TestEffectiveIndex():
         # five layers, all same index.  Total volume fraction is 1, so result
         # should not depend on index of matrix
         wavelen = sc.Quantity(500.0, "nm")
-        index = sc.Index.constant(1.33)
+        index = sc.ConstantIndex(1.33)
         layers = 5
         index_particle = [index]*layers
-        index_matrix = sc.Index.constant(1.0)
+        index_matrix = sc.ConstantIndex(1.0)
         vf = xr.DataArray([1/layers]*layers + [0],
                           coords={sc.Coord.MAT: range(layers+1)})
         n_eff = sc.index.effective_index(index_particle + [index_matrix], vf,
@@ -368,9 +381,9 @@ class TestEffectiveIndex():
         wavelen = sc.Quantity(np.linspace(400, 800, 10), "nm")
         # three layers, outer layer same as matrix.  Should return same as two
         # layers
-        index_matrix = sc.Index.constant(1.33)
-        index_particle = [sc.Index.constant(1.0), sc.Index.constant(1.59),
-                          sc.Index.constant(1.33)]
+        index_matrix = sc.ConstantIndex(1.33)
+        index_particle = [sc.ConstantIndex(1.0), sc.ConstantIndex(1.59),
+                          sc.ConstantIndex(1.33)]
         vf = xr.DataArray(np.array([0.2, 0.2, 0.2, 1-0.6]),
                           coords={sc.Coord.MAT: range(4)})
         n_threelayer_eff = sc.index.effective_index(index_particle +
@@ -378,7 +391,7 @@ class TestEffectiveIndex():
                                                     wavelen)
 
         # two layers
-        index_particle = [sc.Index.constant(1.0), sc.Index.constant(1.59)]
+        index_particle = [sc.ConstantIndex(1.0), sc.ConstantIndex(1.59)]
         vf = xr.DataArray(np.array([0.2, 0.2, 1-0.4]),
                           coords={sc.Coord.MAT: range(3)})
         n_twolayer_eff = sc.index.effective_index(index_particle +
@@ -393,8 +406,8 @@ class TestEffectiveIndex():
         # since indices are constant, should get same result at all wavelengths
         # as at a single wavelength
         wavelen = sc.Quantity(np.linspace(400.0, 800.0, 10), "nm")
-        index_particle = sc.Index.constant(1.33)
-        index_matrix = sc.Index.constant(1.00)
+        index_particle = sc.ConstantIndex(1.33)
+        index_matrix = sc.ConstantIndex(1.00)
         vf = xr.DataArray(np.array([0.5, 0.5]),
                           coords={sc.Coord.MAT: range(2)})
         n_mg_vector = sc.index.effective_index([index_particle, index_matrix],
@@ -415,14 +428,14 @@ class TestEffectiveIndex():
         """
         num_wavelengths = 10
         wavelen = sc.Quantity(np.linspace(400, 800, num_wavelengths), "nm")
-        index_particle = sc.Index.constant(1.33)
+        index_particle = sc.ConstantIndex(1.33)
         num_layers = 5
         index_list = [index_particle] * num_layers
         radius = sc.Quantity(np.array([100, 120, 140, 150, 160]), "nm")
         # radius shouldn't matter for this calculation
         sphere = sc.Sphere(index_list, radius)
         vf_array = sphere.volume_fraction(total_volume_fraction=1.0)
-        index_matrix = sc.Index.constant(1.00)
+        index_matrix = sc.ConstantIndex(1.00)
 
         n_effective = sc.index.effective_index(index_list + [index_matrix],
                                                vf_array, wavelen,

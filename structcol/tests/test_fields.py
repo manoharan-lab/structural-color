@@ -212,7 +212,7 @@ def test_field_normalized():
     # sample parameters
     radius = sc.Quantity('0.140 um')
     volume_fraction = 0.55
-    index_imag = sc.Index.constant(2.1e-4*1j)
+    index_imag = sc.ConstantIndex(2.1e-4*1j)
     index_particle = sc.index.polystyrene + index_imag
 
     sphere = sc.Sphere(index_particle, radius)
@@ -259,7 +259,7 @@ def test_field_perp_direction():
     # sample parameters
     radius = sc.Quantity('0.140 um')
     volume_fraction = 0.55
-    index_imag = sc.Index.constant(2.1e-4*1j)
+    index_imag = sc.ConstantIndex(2.1e-4*1j)
     index_particle = sc.index.polystyrene + index_imag
 
     sphere = sc.Sphere(index_particle, radius)
@@ -309,7 +309,7 @@ def test_field_reflectance_mc():
     # sample parameters
     radius = sc.Quantity('0.140 um')
     volume_fraction = 0.55
-    index_imag = sc.Index.constant(2.1e-4*1j)
+    index_imag = sc.ConstantIndex(2.1e-4*1j)
     index_particle = sc.index.polystyrene + index_imag
 
     sphere = sc.Sphere(index_particle, radius)
@@ -365,7 +365,7 @@ def test_field_co_cross_mc():
 
     radius = sc.Quantity('0.140 um')
     volume_fraction = 0.55
-    index_imag = sc.Index.constant(2.1e-5*1j)
+    index_imag = sc.ConstantIndex(2.1e-5*1j)
     index_particle = sc.index.polystyrene + index_imag
 
     sphere = sc.Sphere(index_particle, radius)

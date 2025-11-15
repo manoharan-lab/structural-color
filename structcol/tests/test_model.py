@@ -352,13 +352,13 @@ class TestModel():
         """
 
         wavelen = self.wavelen
-        index_matrix = sc.Index.constant(1.0)
+        index_matrix = sc.ConstantIndex(1.0)
         index_medium = sc.index.vacuum
         angles = sc.Quantity(np.linspace(np.pi/2, np.pi, 200), "rad")
 
         # Differential cross section for non-core-shells
         radius = sc.Quantity("100.0 nm")
-        index_particle = sc.Index.constant(1.5)
+        index_particle = sc.ConstantIndex(1.5)
         sphere = sc.Sphere(index_particle, radius)
         volume_fraction = 1e-5
 
@@ -369,7 +369,7 @@ class TestModel():
         # Differential cross section for core-shells. Core is equal to
         # non-core-shell particle, and shell is made of vacuum
         radius_cs = sc.Quantity(np.array([100.0, 110.0]), "nm")
-        index_cs = [sc.Index.constant(1.5), sc.Index.constant(1.0)]
+        index_cs = [sc.ConstantIndex(1.5), sc.ConstantIndex(1.0)]
         sphere_cs = sc.Sphere(index_cs, radius_cs)
         n_particle_cs = sphere_cs.n(wavelen)
 
@@ -386,7 +386,7 @@ class TestModel():
         assert_allclose(diff[1], diff_cs[1], rtol=1e-4)
 
     @pytest.mark.parametrize("index_matrix", [sc.index.water,
-                                              sc.Index.constant(1.59+0.001j)])
+                                              sc.ConstantIndex(1.59+0.001j)])
     def test_scattering_cross_section(self, index_matrix):
         """Test that the scattering_cross_section() method returns reasonable
         values (the above tests mostly focus on the
@@ -488,7 +488,7 @@ class TestModel():
         # with more tests of integrate_intensity_complex_medium()
 
     @pytest.mark.parametrize("index_matrix", [sc.index.water,
-                                              sc.Index.constant(1.59+0.001j)])
+                                              sc.ConstantIndex(1.59+0.001j)])
     def test_scattering_cross_section_polydisperse(self, index_matrix):
         """Test the scattering_cross_section() method for the
         PolydisperseHardSpheres model
@@ -593,8 +593,8 @@ class TestModel():
         assert_allclose(cscat_cart.loc["avg"], cscat.loc["avg"])
 
     @pytest.mark.parametrize("index_matrix", [sc.index.water,
-                                              sc.Index.constant(1.59 + 0.001j),
-                                              sc.Index.constant(1.59 + 0.1j)])
+                                              sc.ConstantIndex(1.59 + 0.001j),
+                                              sc.ConstantIndex(1.59 + 0.1j)])
     def test_phase_function(self, index_matrix):
         """Test that the phase functions for polydisperse and monodisperse
         systems are approximately equal when the polydispersity is small.
@@ -779,8 +779,8 @@ class TestDetector():
 def test_fresnel():
     # test the fresnel reflection and transmission coefficients
     wavelen = sc.Quantity(400, "nm")
-    n1 = sc.Index.constant(1.00)(wavelen)
-    n2 = sc.Index.constant(1.5)(wavelen)
+    n1 = sc.ConstantIndex(1.00)(wavelen)
+    n2 = sc.ConstantIndex(1.5)(wavelen)
 
     # quantities calculated from
     # http://www.calctool.org/CALC/phys/optics/reflec_refrac
@@ -857,10 +857,10 @@ def test_theta_refraction():
     wavelength = sc.Quantity(np.linspace(400, 800, 11), "nm")
     radius = sc.Quantity("100.0 nm")
     volume_fraction = 0.5
-    index_particle = sc.Index.constant(1.0)
+    index_particle = sc.ConstantIndex(1.0)
     particle = sc.Sphere(index_particle, radius)
-    index_matrix =  sc.Index.constant(1.0)
-    index_medium = sc.Index.constant(2.0)
+    index_matrix =  sc.ConstantIndex(1.0)
+    index_medium = sc.ConstantIndex(2.0)
     n_medium = index_medium(wavelength)
     theta_min = sc.Quantity(np.pi/2, "rad")
 
@@ -950,9 +950,9 @@ def test_reflection_core_shell():
     # Non core-shell particles with Maxwell-Garnett effective index
     volume_fraction = 0.5
     radius = sc.Quantity("120.0 nm")
-    index_particle = sc.Index.constant(1.5)
+    index_particle = sc.ConstantIndex(1.5)
     sphere = sc.Sphere(index_particle, radius)
-    index_matrix = sc.Index.constant(1.0)
+    index_matrix = sc.ConstantIndex(1.0)
     index_medium = index_matrix
 
     model = sc.model.HardSpheres(sphere, volume_fraction, index_matrix,
@@ -972,7 +972,7 @@ def test_reflection_core_shell():
     # Core-shell particles of core diameter equal to non core shell particles,
     # and shell index of air. With Bruggeman effective index
     radius3 = sc.Quantity(np.array([120.0, 130.0]), "nm")
-    index3 = [sc.Index.constant(1.5), sc.Index.constant(1.0)]
+    index3 = [sc.ConstantIndex(1.5), sc.ConstantIndex(1.0)]
     sphere_cs = sc.Sphere(index3, radius3)
     volume_fraction3 = volume_fraction2 * (radius3[1]**3 / radius3[0]**3)
     model = sc.model.HardSpheres(sphere_cs, volume_fraction3, index_matrix,
@@ -1013,7 +1013,7 @@ def test_reflection_core_shell():
 
     # Absorbing non-core-shell
     radius4 = sc.Quantity("120.0 nm")
-    index_particle4 = sc.Index.constant(1.5+0.001j)
+    index_particle4 = sc.ConstantIndex(1.5+0.001j)
     sphere = sc.Sphere(index_particle4, radius4)
     model = sc.model.HardSpheres(sphere, volume_fraction, index_matrix,
                                  index_medium)
@@ -1021,7 +1021,7 @@ def test_reflection_core_shell():
 
     # Absorbing core-shell
     radius5 = sc.Quantity(np.array([110.0, 120.0]), "nm")
-    index5 = [sc.Index.constant(1.5+0.001j), sc.Index.constant(1.5+0.001j)]
+    index5 = [sc.ConstantIndex(1.5+0.001j), sc.ConstantIndex(1.5+0.001j)]
     sphere_cs = sc.Sphere(index5, radius5)
     model = sc.model.HardSpheres(sphere_cs, volume_fraction, index_matrix,
                                  index_medium)
@@ -1032,18 +1032,18 @@ def test_reflection_core_shell():
     # Same as previous test but with absorbing matrix
     # Non-core-shell
     radius6 = sc.Quantity("120.0 nm")
-    index_particle6 = sc.Index.constant(1.5+0.001j)
+    index_particle6 = sc.ConstantIndex(1.5+0.001j)
     sphere = sc.Sphere(index_particle6, radius6)
-    index_matrix6 = sc.Index.constant(1.0+0.001j)
+    index_matrix6 = sc.ConstantIndex(1.0+0.001j)
     model = sc.model.HardSpheres(sphere, volume_fraction, index_matrix6,
                                  index_medium)
     refl6 = sc.model.reflection(model, wavelength, thickness=thickness)
 
     # Core-shell
-    index7 = [sc.Index.constant(1.5+0.001j), sc.Index.constant(1.5+0.001j)]
+    index7 = [sc.ConstantIndex(1.5+0.001j), sc.ConstantIndex(1.5+0.001j)]
     radius7 = sc.Quantity(np.array([110.0, 120.0]), "nm")
     sphere_cs = sc.Sphere(index7, radius7)
-    index_matrix7 = sc.Index.constant(1.0+0.001j)
+    index_matrix7 = sc.ConstantIndex(1.0+0.001j)
     model = sc.model.HardSpheres(sphere_cs, volume_fraction, index_matrix7,
                                  index_medium)
     refl7 = sc.model.reflection(model, wavelength, thickness=thickness)
@@ -1057,11 +1057,11 @@ def test_reflection_absorbing_particle():
     wavelength = sc.Quantity(500.0, "nm")
     volume_fraction = 0.5
     radius = sc.Quantity("120.0 nm")
-    index_matrix = sc.Index.constant(1.0)
+    index_matrix = sc.ConstantIndex(1.0)
     index_medium = index_matrix
-    index_particle_real = sc.Index.constant(1.5)
+    index_particle_real = sc.ConstantIndex(1.5)
     sphere_real = sc.Sphere(index_particle_real, radius)
-    index_particle_complex = sc.Index.constant(1.5 + 0j)
+    index_particle_complex = sc.ConstantIndex(1.5 + 0j)
     sphere_complex = sc.Sphere(index_particle_complex, radius)
 
     # With Maxwell-Garnett
@@ -1128,7 +1128,7 @@ def test_reflection_absorbing_particle():
 
     # test that the reflectance is (almost) the same when using an
     # almost-non-absorbing index vs a non-absorbing index
-    index_particle_complex2 = sc.Index.constant(1.5+1e-8j)
+    index_particle_complex2 = sc.ConstantIndex(1.5+1e-8j)
     sphere_complex2 = sc.Sphere(index_particle_complex2, radius)
 
     thickness = sc.Quantity("100.0 um")
@@ -1151,12 +1151,12 @@ def test_calc_g():
 
     # calculate g using the model
     radius = sc.Quantity(np.array([120.0, 130.0]), "nm")
-    index = [sc.Index.constant(1.5), sc.Index.constant(1.0)]
+    index = [sc.ConstantIndex(1.5), sc.ConstantIndex(1.0)]
     sphere = sc.Sphere(index, radius)
     n_particle = sphere.n(wavelength)
 
     volume_fraction = 0.01
-    index_matrix = sc.Index.constant(1.0)
+    index_matrix = sc.ConstantIndex(1.0)
     index_medium = index_matrix
     index_sample = sc.EffectiveIndex.from_particle(sphere, volume_fraction,
                                                    index_matrix)
@@ -1195,9 +1195,9 @@ def test_transport_length_dilute():
     wavelength = sc.Quantity(500.0, "nm")
     volume_fraction = 0.0000001
     radius = sc.Quantity("120.0 nm")
-    index_particle = sc.Index.constant(1.5)
+    index_particle = sc.ConstantIndex(1.5)
     sphere = sc.Sphere(index_particle, radius)
-    index_matrix = sc.Index.constant(1.0)
+    index_matrix = sc.ConstantIndex(1.0)
     index_medium = index_matrix
 
     model = sc.model.HardSpheres(sphere, volume_fraction, index_matrix,
@@ -1230,10 +1230,10 @@ def test_reflection_absorbing_matrix():
     wavelength = sc.Quantity(np.linspace(400, 800, 11), "nm")
     volume_fraction = 0.5
     radius = sc.Quantity("120.0 nm")
-    index_matrix_real = sc.Index.constant(1.0)
-    index_matrix_imag = sc.Index.constant(1.0 + 0j)
-    index_medium = sc.Index.constant(1.0)
-    index_particle = sc.Index.constant(1.5)
+    index_matrix_real = sc.ConstantIndex(1.0)
+    index_matrix_imag = sc.ConstantIndex(1.0 + 0j)
+    index_medium = sc.ConstantIndex(1.0)
+    index_particle = sc.ConstantIndex(1.5)
     sphere = sc.Sphere(index_particle, radius)
 
     # With Maxwell-Garnett
@@ -1260,7 +1260,7 @@ def test_reflection_absorbing_matrix():
 
     # test that the reflectance is (almost) the same when using an
     # almost-non-absorbing index vs a non-absorbing index
-    index_matrix_imag2 = sc.Index.constant(1.0 + 1e-8j)
+    index_matrix_imag2 = sc.ConstantIndex(1.0 + 1e-8j)
 
     # With Bruggeman
     model = sc.model.HardSpheres(sphere, volume_fraction, index_matrix_imag2,
@@ -1275,9 +1275,9 @@ def test_reflection_polydispersity():
     wavelength = sc.Quantity(500.0, "nm")
     volume_fraction = 0.5
     radius = sc.Quantity("120.0 nm")
-    index_matrix = sc.Index.constant(1.0)
-    index_medium = sc.Index.constant(1.0)
-    index_particle = sc.Index.constant(1.5)
+    index_matrix = sc.ConstantIndex(1.0)
+    index_medium = sc.ConstantIndex(1.0)
+    index_particle = sc.ConstantIndex(1.5)
     sphere = sc.Sphere(index_particle, radius)
     radius2 = sc.Quantity("120.0 nm")
     sphere2 = sc.Sphere(index_particle, radius2)
@@ -1451,9 +1451,9 @@ def test_reflection_polydispersity_with_absorption():
     wavelength = sc.Quantity(500.0, "nm")
     volume_fraction = 0.5
     radius = sc.Quantity("120.0 nm")
-    index_matrix = sc.Index.constant(1.0+0.0003j)
-    index_medium = sc.Index.constant(1.0)
-    index_particle = sc.Index.constant(1.5+0.0005j)
+    index_matrix = sc.ConstantIndex(1.0+0.0003j)
+    index_medium = sc.ConstantIndex(1.0)
+    index_particle = sc.ConstantIndex(1.5+0.0005j)
     radius2 = sc.Quantity("120.0 nm")
     concentration = sc.Quantity(np.array([0.9,0.1]), "")
     pdi = sc.Quantity(np.array([1e-7, 1e-7]), "")  # monodisperse limit
@@ -1587,10 +1587,10 @@ def test_reflection_polydispersity_with_absorption():
     # test that the reflectances are (almost) the same when using an
     # almost-non-absorbing vs an non-absorbing polydisperse system
     ## When there is 1 mean diameter
-    index_matrix2 = sc.Index.constant(1.0+1e-20j)
-    index_matrix2_real = sc.Index.constant(1.0)
-    index_particle2 = sc.Index.constant(1.5+1e-20j)
-    index_particle2_real = sc.Index.constant(1.5)
+    index_matrix2 = sc.ConstantIndex(1.0+1e-20j)
+    index_matrix2_real = sc.ConstantIndex(1.0)
+    index_particle2 = sc.ConstantIndex(1.5+1e-20j)
+    index_particle2_real = sc.ConstantIndex(1.5)
     radius2 = sc.Quantity("150.0 nm")
     pdi2 = sc.Quantity(np.array([0.33, 0.33]), "")
 
@@ -1644,9 +1644,9 @@ def test_g_transport_length():
     wavelength = sc.Quantity(600.0, "nm")
     volume_fraction = 0.55
     radius = sc.Quantity("100.0 nm")
-    index_matrix = sc.Index.constant(1.0+0.0004j)
-    index_medium = sc.Index.constant(1.0)
-    index_particle = sc.Index.constant(1.5+0.0006j)
+    index_matrix = sc.ConstantIndex(1.0+0.0004j)
+    index_medium = sc.ConstantIndex(1.0)
+    index_particle = sc.ConstantIndex(1.5+0.0006j)
     sphere = sc.Sphere(index_particle, radius)
     thickness1 = sc.Quantity("10.0 um")
     thickness2 = sc.Quantity("100.0 um")
@@ -1666,9 +1666,9 @@ def test_reflection_throws_warnings_for_unspecified_parameters():
     wavelength = sc.Quantity(500.0, "nm")
     volume_fraction = sc.Quantity(0.5, "")
     radius = sc.Quantity(np.array([110.0, 120.0]), "nm")
-    index_particle = [sc.Index.constant(1.5), sc.Index.constant(1.5)]
-    index_matrix = sc.Index.constant(1.0)
-    index_medium = sc.Index.constant(1.0)
+    index_particle = [sc.ConstantIndex(1.5), sc.ConstantIndex(1.5)]
+    index_matrix = sc.ConstantIndex(1.0)
+    index_medium = sc.ConstantIndex(1.0)
     thickness = sc.Quantity(10, "um")
 
     sphere = sc.Sphere(index_particle, radius)

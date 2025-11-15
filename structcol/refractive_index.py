@@ -116,7 +116,7 @@ class Index:
             # wavelength is given
             if not wavelen.check('[length]'):
                 raise DimensionalityError(wavelen.units, "[length]")
-            wavelen = np.atleast_1d(wavelen).to_preferred()
+            wavelen = np.atleast_1d(wavelen.to_preferred())
         else:
             raise ValueError("wavelen must be either Quantity or DataArray")
 
@@ -170,26 +170,6 @@ class Index:
                              f"{type(other_index).__name__}")
 
     @classmethod
-    def constant(cls, index):
-        """Makes an Index object with a constant index of refraction for all
-        wavelengths.
-
-        Parameters
-        ----------
-        index : float or complex
-            Index of refraction
-
-        """
-        if isinstance(index, sc.Quantity):
-            if index.to_base_units().units != '':
-                raise ValueError("Specified constant index has units "
-                                 f"{index.units}.  Should be dimensionless "
-                                 "or not a Quantity object")
-            index = index.to_base_units().magnitude
-
-        return cls(partial(_constant_index, index))
-
-    @classmethod
     @sc.ureg.check(None, '[length]', None, None)
     def from_data(cls, wavelength_data, index_data, kind=None):
         """Make an Index object that interpolates from data to calculate
@@ -228,6 +208,27 @@ class Index:
         def index_func(wavelen):
             return fit(wavelen.to_preferred().magnitude)
         return cls(index_func)
+
+
+class ConstantIndex(Index):
+    """Class describing an constant (wavelength-independent) index of
+    refraction.
+
+    Attributes
+    ----------
+    index : float or complex
+        constant value for index of refraction
+
+    """
+    def __init__(self, index):
+        if isinstance(index, sc.Quantity):
+            if index.to_base_units().units != '':
+                raise ValueError("Specified constant index has units "
+                                 f"{index.units}.  Should be dimensionless "
+                                 "or not a Quantity object")
+            index = index.to_base_units().magnitude
+
+        super().__init__(partial(_constant_index, index))
 
 
 class EffectiveIndex(Index):
@@ -351,7 +352,7 @@ def _indexes_from_list(index_list, wavelen):
 # dispersion relation returns the proper values of the refractive index at two
 # or more points.
 
-vacuum = Index.constant(1.0)
+vacuum = ConstantIndex(1.0)
 
 def _water_sellmeier(wavelen):
     # water data from M. Daimon and A. Masumura. Measurement of the refractive
@@ -499,13 +500,13 @@ ethanol = Index(_ethanol_cauchy)
 # for the rest of these materials, need to find dispersion relations and
 # implement the functions in the dictionary.
 
-silica_colloidal = Index.constant(1.40)
+silica_colloidal = ConstantIndex(1.40)
 
-keratin = Index.constant(1.532)
+keratin = ConstantIndex(1.532)
 
 # from
 # http://www.sigmaaldrich.com/catalog/product/aldrich/181587?lang=en&region=US
-ptmba = Index.constant(1.46)
+ptmba = ConstantIndex(1.46)
 
 
 #------------------------------------------------------------------------------

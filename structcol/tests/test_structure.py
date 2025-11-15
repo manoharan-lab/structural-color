@@ -233,11 +233,11 @@ class TestStructureFactor():
         """
         wavelen = sc.Quantity("400.0 nm")
         angles = sc.Quantity(np.pi, "rad")
-        index_matrix = sc.Index.constant(1.0)
+        index_matrix = sc.ConstantIndex(1.0)
 
         # Structure factor for non-core-shell particles
         radius = sc.Quantity("100.0 nm")
-        index_particle = sc.Index.constant(1.5)
+        index_particle = sc.ConstantIndex(1.5)
         sphere = sc.Sphere(index_particle, radius)
         volume_fraction = 0.0001         # IS VF TOO LOW?
         volume_fraction_da = sphere.volume_fraction(total_volume_fraction =
@@ -252,7 +252,7 @@ class TestStructureFactor():
         # Structure factor for core-shell particles with core size equal to
         # radius of non-core-shell particle
         radius_cs = sc.Quantity(np.array([100.0, 105.0]), "nm")
-        index_particle = [sc.Index.constant(1.5), sc.Index.constant(1.0)]
+        index_particle = [sc.ConstantIndex(1.5), sc.ConstantIndex(1.0)]
         sphere_cs = sc.Sphere(index_particle, radius_cs)
         volume_fraction_da = sphere_cs.volume_fraction(total_volume_fraction =
                                                        volume_fraction)

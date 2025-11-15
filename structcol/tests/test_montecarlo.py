@@ -44,10 +44,10 @@ class TestSimulation():
 
     angles = sc.Quantity(np.linspace(0.01, np.pi, 200), 'rad')
     wavelen = sc.Quantity('400.0 nm')
-    index_particle = sc.Index.constant(1.5)
+    index_particle = sc.ConstantIndex(1.5)
     sphere = sc.Sphere(index_particle, radius)
-    index_matrix = sc.Index.constant(1.0)
-    index_medium = sc.Index.constant(1.0)
+    index_matrix = sc.ConstantIndex(1.0)
+    index_medium = sc.ConstantIndex(1.0)
 
     model = sc.model.HardSpheres(sphere, volume_fraction, index_matrix,
                                  index_medium)
@@ -248,8 +248,8 @@ class TestSimulation():
 #     # (mie.diff_scat_intensity_complex_medium() with near_fields=False)
 #     wavelen = sc.Quantity('550.0 nm')
 #     radius = sc.Quantity('105.0 nm')
-#     n_matrix = sc.Index.constant(1.47 + 0.001j)(wavelen)
-#     n_particle = sc.Index.constant(1.5 + 1e-1 * 1.0j)(wavelen)
+#     n_matrix = sc.ConstantIndex(1.47 + 0.001j)(wavelen)
+#     n_particle = sc.ConstantIndex(1.5 + 1e-1 * 1.0j)(wavelen)
 #     m = sc.index.ratio(n_particle, n_matrix)
 #     x = sc.size_parameter(n_matrix, radius)
 #     k = sc.wavevector(n_matrix)

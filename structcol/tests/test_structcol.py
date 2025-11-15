@@ -66,7 +66,7 @@ def test_size_parameter(wavelen, volume_fraction):
 
     # first look at non-effective index, single-layer particle
     index_matrix = sc.index.water
-    index_particle = sc.Index.constant(1.5 + 0.1j)
+    index_particle = sc.ConstantIndex(1.5 + 0.1j)
     radius = sc.Quantity(0.2, "um")
     sphere = sc.Sphere(index_particle, radius)
     n_particle = sphere.n(wavelen)

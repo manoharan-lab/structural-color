@@ -32,8 +32,8 @@ def test_cross_sections():
     # test case is PS sphere in water
     wavelen = sc.Quantity("658.0 nm")
     radius = sc.Quantity("0.85 um")
-    n_matrix = sc.Index.constant(1.33)(wavelen)
-    n_particle = sc.Index.constant(1.59 + 1e-4 * 1.0j)(wavelen)
+    n_matrix = sc.ConstantIndex(1.33)(wavelen)
+    n_particle = sc.ConstantIndex(1.59 + 1e-4 * 1.0j)(wavelen)
     m = sc.index.ratio(n_particle, n_matrix).to_numpy()
     x = sc.size_parameter(n_matrix, radius).to_numpy()
     qscat, qext, qback = mie.calc_efficiencies(m, x)
@@ -63,8 +63,8 @@ def test_cross_sections():
 def test_form_factor():
     wavelen = sc.Quantity("658.0 nm")
     radius = sc.Quantity("0.85 um")
-    n_matrix = sc.Index.constant(1.00)(wavelen)
-    n_particle = sc.Index.constant(1.59 + 1e-4 * 1.0j)(wavelen)
+    n_matrix = sc.ConstantIndex(1.00)(wavelen)
+    n_particle = sc.ConstantIndex(1.59 + 1e-4 * 1.0j)(wavelen)
     m = sc.index.ratio(n_particle, n_matrix).to_numpy()
     x = sc.size_parameter(n_matrix, radius).to_numpy()
 
@@ -123,8 +123,8 @@ def test_efficiencies():
                             0.331000402174976])
 
     wavelen = sc.Quantity("658.0 nm")
-    n_matrix = sc.Index.constant(1.00)(wavelen)
-    n_particle = sc.Index.constant(1.59 + 1e-4 * 1.0j)(wavelen)
+    n_matrix = sc.ConstantIndex(1.00)(wavelen)
+    n_particle = sc.ConstantIndex(1.59 + 1e-4 * 1.0j)(wavelen)
     m = sc.index.ratio(n_particle, n_matrix).to_numpy()
 
     effs = [mie.calc_efficiencies(m, np.array([[x]])) for x in x]
@@ -150,8 +150,8 @@ def test_efficiencies():
 def test_absorbing_materials():
     # test calculations for gold, which has a high imaginary refractive index
     wavelen = sc.Quantity("658.0 nm")
-    n_matrix = sc.Index.constant(1.00)(wavelen)
-    n_particle = sc.Index.constant(0.1425812 + 3.6813284 * 1.0j)(wavelen)
+    n_matrix = sc.ConstantIndex(1.00)(wavelen)
+    n_particle = sc.ConstantIndex(0.1425812 + 3.6813284 * 1.0j)(wavelen)
     m = sc.index.ratio(n_particle, n_matrix).to_numpy()
     x = np.array([[10.0]])
 

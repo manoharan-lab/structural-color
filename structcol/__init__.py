@@ -49,7 +49,7 @@ from .metadata import Coord, Attr
 from .quantity import LENGTH_UNIT, ureg, Quantity
 from pymie import mie
 from . import refractive_index as index
-from .refractive_index import Index, EffectiveIndex
+from .refractive_index import Index, EffectiveIndex, ConstantIndex
 from .particle import Particle, Sphere, SphereDistribution
 from . import structure, model
 

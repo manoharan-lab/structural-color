@@ -30,8 +30,8 @@ from .. import montecarlo as mc
 radius = sc.Quantity('150.0 nm')
 volume_fraction = 0.5
 wavelen = sc.Quantity('400.0 nm')
-index_particle = sc.Index.constant(1.5)
-index_matrix = sc.Index.constant(1.0)
+index_particle = sc.ConstantIndex(1.5)
+index_matrix = sc.ConstantIndex(1.0)
 index_medium = sc.index.vacuum
 sphere = sc.Sphere(index_particle, radius)
 

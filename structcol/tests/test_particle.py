@@ -39,13 +39,13 @@ class TestParticle():
 
         # particle construction without units or with wrong units should fail
         with pytest.raises(DimensionalityError):
-            my_particle = sc.Particle(sc.Index.constant(index),
+            my_particle = sc.Particle(sc.ConstantIndex(index),
                                                 0.15)
         with pytest.raises(DimensionalityError):
-            my_particle = sc.Particle(sc.Index.constant(index),
+            my_particle = sc.Particle(sc.ConstantIndex(index),
                                                 sc.Quantity(0.15, 'kg'))
 
-        my_particle = sc.Particle(sc.Index.constant(index), size)
+        my_particle = sc.Particle(sc.ConstantIndex(index), size)
         # make sure index is stored and calculated correctly
         n = my_particle.n(self.wavelen)
         assert_equal(n, np.ones_like(self.wavelen)*index)
@@ -260,9 +260,9 @@ class TestParticle():
         # we just check to see if we get the same results as pymie
         wavelen = sc.Quantity("658.0 nm")
         radius = sc.Quantity("0.85 um")
-        index_matrix = sc.Index.constant(1.00)
+        index_matrix = sc.ConstantIndex(1.00)
         n_matrix = index_matrix(wavelen)
-        index_particle = sc.Index.constant(1.59 + 1e-4 * 1.0j)
+        index_particle = sc.ConstantIndex(1.59 + 1e-4 * 1.0j)
         sphere = sc.Sphere(index_particle, radius)
         angles = sc.Quantity(np.linspace(0, 180., 19),
                              "deg").to("rad").magnitude
@@ -285,8 +285,8 @@ class TestParticle():
         wavelen = sc.Quantity("658.0 nm")
         x = np.array([[10.0]])
         radius = x/(2*np.pi/wavelen)
-        index_matrix = sc.Index.constant(1.00)
-        gold_index = sc.Index.constant(0.1425812 + 3.6813284 * 1.0j)
+        index_matrix = sc.ConstantIndex(1.00)
+        gold_index = sc.ConstantIndex(0.1425812 + 3.6813284 * 1.0j)
         sphere = sc.Sphere(gold_index, radius)
         angles = sc.Quantity(np.linspace(0, 90., 10),
                              "deg").to("rad").magnitude
@@ -306,9 +306,9 @@ class TestParticle():
         # units are converted in different ways. So to test for equality, we
         # first convert radius and distance to preferred units.
         radius = sc.Quantity("120.0 nm").to_preferred()
-        sphere = sc.Sphere(sc.Index.constant(1.5+0.001j), radius)
+        sphere = sc.Sphere(sc.ConstantIndex(1.5+0.001j), radius)
         distance = radius
-        index_matrix = sc.Index.constant(1.0+0.001j)
+        index_matrix = sc.ConstantIndex(1.0+0.001j)
         angles = sc.Quantity(np.linspace(0, 90., 10),
                              "deg").to("rad").magnitude
 

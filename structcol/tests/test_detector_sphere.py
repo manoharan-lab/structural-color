@@ -43,8 +43,8 @@ assembly_radius = 5
 volume_fraction = 0.5
 angles = sc.Quantity(np.linspace(0.01,np.pi, 200), 'rad')
 wavelen = sc.Quantity('400.0 nm')
-index_particle = sc.Index.constant(1.5)
-index_matrix = sc.Index.constant(1.0)
+index_particle = sc.ConstantIndex(1.5)
+index_matrix = sc.ConstantIndex(1.0)
 
 sphere = sc.Sphere(index_particle, radius)
 
@@ -54,9 +54,9 @@ refl_index = np.array([2,0,2])
 
 def test_calc_refl_trans():
     # this test should give deterministic results
-    index_small_n = sc.Index.constant(1.0)
+    index_small_n = sc.ConstantIndex(1.0)
     small_n = index_small_n(wavelen)
-    index_large_n = sc.Index.constant(2.0)
+    index_large_n = sc.ConstantIndex(2.0)
     large_n = index_large_n(wavelen)
     index_medium = sc.index.vacuum
     index_matrix = index_small_n
@@ -193,11 +193,11 @@ def test_index_match():
     radius = sc.Quantity('0.140 um')
     microsphere_radius = sc.Quantity('10.0 um')
     volume_fraction = sc.Quantity(0.55,'')
-    index_particle = sc.Index.constant(1.6)
-    index_matrix = sc.Index.constant(1.6)
+    index_particle = sc.ConstantIndex(1.6)
+    index_matrix = sc.ConstantIndex(1.6)
     index_sample = index_matrix
     n_sample = index_sample(wavelen)
-    index_medium = sc.Index.constant(1.0)
+    index_medium = sc.ConstantIndex(1.0)
     n_medium = index_medium(wavelen)
 
     sphere = sc.Sphere(index_particle, radius)
@@ -255,7 +255,7 @@ def test_reflection_sphere_mc():
     wavelen = sc.Quantity('600 nm')
     radius = sc.Quantity('0.125 um')
     assembly_diameter = sc.Quantity('10 um')
-    index_particle = sc.Index.constant(1.54)
+    index_particle = sc.ConstantIndex(1.54)
     index_matrix = sc.index.vacuum
     index_medium = sc.index.vacuum
     boundary = 'sphere'

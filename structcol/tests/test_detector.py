@@ -41,9 +41,9 @@ radius = sc.Quantity('150.0 nm')
 volume_fraction = 0.5
 angles = sc.Quantity(np.linspace(0.01, np.pi, 200), 'rad')
 wavelen = sc.Quantity('400.0 nm')
-index_particle = sc.Index.constant(1.5)
-index_matrix = sc.Index.constant(1.0)
-index_medium = sc.Index.constant(1.0)
+index_particle = sc.ConstantIndex(1.5)
+index_matrix = sc.ConstantIndex(1.0)
+index_medium = sc.ConstantIndex(1.0)
 particle = sc.Sphere(index_particle, radius)
 model = sc.model.HardSpheres(particle, volume_fraction, index_matrix,
                              index_medium)
@@ -56,9 +56,9 @@ refl_index = np.array([2,0,2])
 def test_calc_refl_trans():
     # this test is deterministic; no rng is involved
     high_thresh = 10
-    index_medium = sc.Index.constant(1)
-    index_matrix_small = sc.Index.constant(1)
-    index_matrix_large = sc.Index.constant(2)
+    index_medium = sc.ConstantIndex(1)
+    index_matrix_small = sc.ConstantIndex(1)
+    index_matrix_large = sc.ConstantIndex(2)
     large_n = index_matrix_large(wavelen)
 
     # index match particle to matrix so that effective index is same as matrix
@@ -226,7 +226,7 @@ def test_reflection_mc():
     wavelen = sc.Quantity('600 nm')
     radius = sc.Quantity('0.125 um')
     volume_fraction = 0.5
-    index_particle = sc.Index.constant(1.54)
+    index_particle = sc.ConstantIndex(1.54)
     sphere = sc.Sphere(index_particle, radius)
     index_matrix = sc.index.vacuum
     index_medium = sc.index.vacuum
@@ -258,7 +258,7 @@ def test_surface_roughness_mc():
     wavelen = sc.Quantity('600 nm')
     radius = sc.Quantity('0.125 um')
     volume_fraction = 0.5
-    index_particle = sc.Index.constant(1.54)
+    index_particle = sc.ConstantIndex(1.54)
     sphere = sc.Sphere(index_particle, radius)
     index_matrix = sc.index.vacuum
     index_medium = sc.index.vacuum
@@ -321,7 +321,7 @@ def test_reflection_core_shell():
     ## specify the radii from innermost to outermost layer
     radius_cs = sc.Quantity(np.array([100.0, 150.0]), 'nm')
     ## specify the index from innermost to outermost layer
-    index_cs = [sc.Index.constant(1.5), sc.Index.constant(1.5)]
+    index_cs = [sc.ConstantIndex(1.5), sc.ConstantIndex(1.5)]
     sphere_cs = sc.Sphere(index_cs, radius_cs)
     model_cs = sc.model.HardSpheres(sphere_cs, volume_fraction, index_matrix,
                                     index_medium)
@@ -347,7 +347,7 @@ def test_reflection_core_shell():
     # the same refractive indices for all layers) and a non-core-shell that
     # absorbs with the same index
     # Reflection using a non-core-shell absorbing system
-    index_particle_abs = sc.Index.constant(1.5+0.001j)
+    index_particle_abs = sc.ConstantIndex(1.5+0.001j)
     radius = sc.Quantity(150.0, 'nm')
     particle_abs = sc.Sphere(index_particle_abs, radius)
     model_abs = sc.model.HardSpheres(particle_abs, volume_fraction,
@@ -356,8 +356,8 @@ def test_reflection_core_shell():
                                    seed)
 
     # Reflection using core-shells with the shell index-matched to the core
-    index_cs_abs = [sc.Index.constant(1.5+0.001j),
-                    sc.Index.constant(1.5+0.001j)]
+    index_cs_abs = [sc.ConstantIndex(1.5+0.001j),
+                    sc.ConstantIndex(1.5+0.001j)]
     sphere_cs_abs = sc.Sphere(index_cs_abs, radius_cs)
     model_cs_abs = sc.model.HardSpheres(sphere_cs_abs, volume_fraction,
                                         index_matrix, index_medium)
@@ -387,17 +387,17 @@ def test_reflection_core_shell():
 
     # Same as previous test but with absorbing matrix as well
     # Reflection using a non-core-shell absorbing system
-    index_particle_abs = sc.Index.constant(1.5+0.001j)
+    index_particle_abs = sc.ConstantIndex(1.5+0.001j)
     particle_abs = sc.Sphere(index_particle_abs, radius)
-    index_matrix_abs = sc.Index.constant(1.+0.001j)
+    index_matrix_abs = sc.ConstantIndex(1.+0.001j)
     model_abs_mat = sc.model.HardSpheres(particle_abs, volume_fraction,
                                          index_matrix_abs, index_medium)
     R_abs, T_abs = calc_montecarlo(model_abs_mat, nevents, ntrajectories,
                                    wavelen, seed)
 
     # Reflection using core-shells with the shell index-matched to the core
-    index_cs_abs = [sc.Index.constant(1.5+0.001j),
-                    sc.Index.constant(1.5+0.001j)]
+    index_cs_abs = [sc.ConstantIndex(1.5+0.001j),
+                    sc.ConstantIndex(1.5+0.001j)]
     sphere_cs_abs = sc.Sphere(index_cs_abs, radius_cs)
     model_cs_abs_match = sc.model.HardSpheres(sphere_cs_abs, volume_fraction,
                                               index_matrix_abs, index_medium)
@@ -432,7 +432,7 @@ def test_reflection_core_shell_mc():
 
     wavelen = sc.Quantity('600 nm')
     radius = sc.Quantity(np.array([0.125, 0.13]), 'um')
-    index_particle = [sc.Index.constant(1.54), sc.Index.constant(1.33)]
+    index_particle = [sc.ConstantIndex(1.54), sc.ConstantIndex(1.33)]
     sphere = sc.Sphere(index_particle, radius)
     index_matrix = sc.index.vacuum
     index_medium = sc.index.vacuum
@@ -464,7 +464,7 @@ def test_reflection_absorbing_particle_or_matrix():
     R, T = calc_montecarlo(model, nevents, ntrajectories, wavelen, seed)
 
     # Reflection using particle with an imaginary component of 0
-    index_particle_abs = sc.Index.constant(1.5 + 0j)
+    index_particle_abs = sc.ConstantIndex(1.5 + 0j)
     sphere_abs = sc.Sphere(index_particle_abs, radius)
     model_abs = sc.model.HardSpheres(sphere_abs, volume_fraction, index_matrix,
                                      index_medium)
@@ -487,7 +487,7 @@ def test_reflection_absorbing_particle_or_matrix():
 
     # Same as previous test but with absorbing matrix
     # Reflection using matrix with an imaginary component of 0
-    index_matrix_abs = sc.Index.constant(1. + 0j)
+    index_matrix_abs = sc.ConstantIndex(1. + 0j)
     sphere = sc.Sphere(index_particle, radius)
 
     model_abs_mat = sc.model.HardSpheres(sphere, volume_fraction,
@@ -511,7 +511,7 @@ def test_reflection_absorbing_particle_or_matrix():
 
     # test that the reflection is essentially the same when the imaginary
     # index is 0 or very close to 0
-    index_matrix_abs = sc.Index.constant(1. + 1e-10j)
+    index_matrix_abs = sc.ConstantIndex(1. + 1e-10j)
 
     model_abs = sc.model.HardSpheres(sphere, volume_fraction,
                                      index_matrix_abs, index_medium)
@@ -535,7 +535,7 @@ def test_reflection_absorption_mc():
     wavelen = sc.Quantity('600 nm')
     radius = sc.Quantity('0.125 um')
     volume_fraction = 0.5
-    index_particle = sc.Index.constant(1.54 + 0.001j)
+    index_particle = sc.ConstantIndex(1.54 + 0.001j)
     index_matrix = sc.index.vacuum + 0.0001j
 
     sphere = sc.Sphere(index_particle, radius)
@@ -590,8 +590,8 @@ def test_reflection_polydispersity():
 
     # With absorption: test that the reflectance using with very small
     # polydispersity is the same as the monodisperse case
-    index_particle_abs = sc.Index.constant(1.5+0.0001j)
-    index_matrix_abs = sc.Index.constant(1.+0.0001j)
+    index_particle_abs = sc.ConstantIndex(1.5+0.0001j)
+    index_matrix_abs = sc.ConstantIndex(1.+0.0001j)
 
     sphere_abs = sc.Sphere(index_particle_abs, radius)
     model_mono_abs = sc.model.HardSpheres(sphere_abs, volume_fraction,
@@ -690,8 +690,8 @@ def test_reflection_polydispersity():
     ## When there's only 1 mean diameter
     radius1 = sc.Quantity("100.0 nm")
     radius2 = sc.Quantity("150.0 nm")
-    index_matrix_noabs = sc.Index.constant(1.)
-    index_matrix_abs = sc.Index.constant(1. + 1e-40*1j)
+    index_matrix_noabs = sc.ConstantIndex(1.)
+    index_matrix_abs = sc.ConstantIndex(1. + 1e-40*1j)
 
     sphere1 = sc.Sphere(index_particle, radius1)
     sphere2 = sc.Sphere(index_particle, radius2)
@@ -758,7 +758,7 @@ def test_reflection_polydispersity_mc():
     nevents = 100
     wavelen = sc.Quantity("600 nm")
     volume_fraction = 0.5
-    index_particle = sc.Index.constant(1.54)
+    index_particle = sc.ConstantIndex(1.54)
     index_matrix = sc.index.vacuum
 
     # define the parameters for polydispersity
@@ -800,7 +800,7 @@ def test_detectors_mc():
                                       coords = {sc.Coord.VOLFRAC: [0.55],
                                                 sc.Coord.MAT: range(2)})
     n_imag = 2.1e-4 * 1j
-    index_particle = sc.index.polystyrene + sc.Index.constant(n_imag)
+    index_particle = sc.index.polystyrene + sc.ConstantIndex(n_imag)
     sphere = sc.Sphere(index_particle, radius)
 
     index_matrix = sc.index.vacuum
@@ -873,7 +873,7 @@ def test_throw_valueerror_for_polydisperse_core_shells():
     # specify the radii from innermost to outermost layer
     radius_cs = sc.Quantity(np.array([100.0, 150.0]), 'nm')
     # specify the index from innermost to outermost layer
-    index_particle_cs = [sc.Index.constant(1.5), sc.Index.constant(1.5)]
+    index_particle_cs = [sc.ConstantIndex(1.5), sc.ConstantIndex(1.5)]
     sphere_cs = sc.Sphere(index_particle_cs, radius_cs)
     radius2 = radius
     sphere_cs_2 = sc.Sphere(index_particle, radius2)
@@ -994,8 +994,8 @@ def test_goniometer_detector():
                                "weight": weights})
 
     # set up a dummy simulation and insert the trajectories
-    index_medium = sc.Index.constant(1)
-    index_matrix = sc.Index.constant(1)
+    index_medium = sc.ConstantIndex(1)
+    index_matrix = sc.ConstantIndex(1)
     # particle is index matched to matrix so that effective index is 1
     particle = sc.Sphere(index_matrix, radius)
     model = sc.model.HardSpheres(particle, volume_fraction, index_matrix,
