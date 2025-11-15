@@ -169,11 +169,37 @@ class Index:
                              "object to an existing Index object, not "
                              f"{type(other_index).__name__}")
 
-    @classmethod
+
+class ConstantIndex(Index):
+    """Class describing an wavelength-independent index of refraction.
+
+    """
+    def __init__(self, index):
+        """Constructor for ConstantIndex
+
+        Parameters
+        ----------
+        index : float or complex
+            constant value for index of refraction
+
+        """
+        if isinstance(index, sc.Quantity):
+            if index.to_base_units().units != '':
+                raise ValueError("Specified constant index has units "
+                                 f"{index.units}.  Should be dimensionless "
+                                 "or not a Quantity object")
+            index = index.to_base_units().magnitude
+
+        super().__init__(partial(_constant_index, index))
+
+
+class InterpolatedIndex(Index):
+    """Index subclass that interpolates from data.
+
+    """
     @sc.ureg.check(None, '[length]', None, None)
-    def from_data(cls, wavelength_data, index_data, kind=None):
-        """Make an Index object that interpolates from data to calculate
-        indices of refraction.
+    def __init__(self, wavelength_data, index_data, kind=None):
+        """Constructor for InterpolatedIndex
 
         Parameters
         ----------
@@ -207,28 +233,8 @@ class Index:
         fit = interp1d(wavelen, index_data, kind=kind)
         def index_func(wavelen):
             return fit(wavelen.to_preferred().magnitude)
-        return cls(index_func)
 
-
-class ConstantIndex(Index):
-    """Class describing an constant (wavelength-independent) index of
-    refraction.
-
-    Attributes
-    ----------
-    index : float or complex
-        constant value for index of refraction
-
-    """
-    def __init__(self, index):
-        if isinstance(index, sc.Quantity):
-            if index.to_base_units().units != '':
-                raise ValueError("Specified constant index has units "
-                                 f"{index.units}.  Should be dimensionless "
-                                 "or not a Quantity object")
-            index = index.to_base_units().magnitude
-
-        super().__init__(partial(_constant_index, index))
+        super().__init__(index_func)
 
 
 class EffectiveIndex(Index):

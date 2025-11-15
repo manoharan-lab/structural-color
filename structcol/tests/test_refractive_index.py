@@ -61,55 +61,6 @@ class TestIndex:
         with pytest.raises(ValueError, match="wavelen must be either"):
             my_index(np.linspace(400, 800, 100))
 
-    def test_index_from_data(self):
-        # test that making an index object from a data works as expected
-
-        # Test that output calculations match input data
-        wavelength = sc.Quantity(np.array([400.0, 500.0, 600.0]), "nm")
-        data = np.array([1.5,1.55,1.6])
-        assert_equal(sc.Index.from_data(wavelength, data)(wavelength), data)
-
-        # Test that it also works for complex values
-        data_complex = np.array([1.5+0.01j,1.55+0.02j,1.6+0.03j])
-        assert_equal(sc.Index.from_data(wavelength, data_complex)(wavelength),
-                     data_complex)
-
-        # generate "data" over visible range from existing dispersion formula
-        wavelength_data = sc.Quantity(np.linspace(400, 800, 10), "nm")
-        index_data = sc.index.water(wavelength_data)
-
-        # next construct interpolating function
-        interpolated_index_linear = sc.Index.from_data(wavelength_data,
-                                                       index_data,
-                                                       kind="linear")
-        interpolated_index_cubic = sc.Index.from_data(wavelength_data,
-                                                      index_data, kind="cubic")
-
-        # linear should roughly agree; cubic should have better agreement
-        assert_almost_equal(interpolated_index_linear(self.wavelen).to_numpy(),
-                            sc.index.water(self.wavelen).to_numpy(), decimal=3)
-        assert_almost_equal(interpolated_index_cubic(self.wavelen).to_numpy(),
-                            sc.index.water(self.wavelen).to_numpy(), decimal=5)
-
-        # test that specifying wavelength in the wrong units gives error
-        with pytest.raises(DimensionalityError):
-            index_data = sc.index.water(wavelength_data)
-            wavelength_wrong = wavelength_data.magnitude *  sc.Quantity("kg")
-            index = sc.Index.from_data(wavelength_wrong, index_data)
-
-        # test that dimensions of index are stripped
-        index_data = sc.Quantity(sc.index.water(wavelength_data).to_numpy(),
-                                 "")
-        interpolated_index = sc.Index.from_data(wavelength_data, index_data)
-        assert not isinstance(interpolated_index(sc.Quantity("400 nm")),
-                              sc.Quantity)
-
-        # test that exception is thrown if lengths of arrays are not identical
-        index_data = index_data[1:]
-        with pytest.raises(ValueError):
-            interpolated_index = sc.Index.from_data(wavelength_data,
-                                                    index_data)
-
     def test_dimensions(self):
         # try inputs with various dimensions to make sure the appropriate
         # exceptions are thrown and the index is always dimensionless
@@ -217,6 +168,62 @@ class TestConstantIndex():
         # test that dimensions of index are stripped
         my_index = sc.ConstantIndex(sc.Quantity(1.33, ""))
         assert not isinstance(my_index(sc.Quantity("400 nm")), sc.Quantity)
+
+class TestInterpolatedIndex():
+    """Tests for the InterpolatedIndex class
+
+    """
+    wavelen = sc.Quantity(np.linspace(400, 800, 100), "nm")
+
+    def test_interpolated_index_objects(self):
+        # test that making an index object from a data works as expected
+
+        # Test that output calculations match input data
+        wavelength = sc.Quantity(np.array([400.0, 500.0, 600.0]), "nm")
+        data = np.array([1.5,1.55,1.6])
+        assert_equal(sc.InterpolatedIndex(wavelength, data)(wavelength), data)
+
+        # Test that it also works for complex values
+        data_complex = np.array([1.5+0.01j,1.55+0.02j,1.6+0.03j])
+        assert_equal(sc.InterpolatedIndex(wavelength, data_complex)(wavelength),
+                     data_complex)
+
+        # generate "data" over visible range from existing dispersion formula
+        wavelength_data = sc.Quantity(np.linspace(400, 800, 10), "nm")
+        index_data = sc.index.water(wavelength_data)
+
+        # next construct interpolating function
+        interpolated_index_linear = sc.InterpolatedIndex(wavelength_data,
+                                                         index_data,
+                                                         kind="linear")
+        interpolated_index_cubic = sc.InterpolatedIndex(wavelength_data,
+                                                        index_data,
+                                                        kind="cubic")
+
+        # linear should roughly agree; cubic should have better agreement
+        assert_almost_equal(interpolated_index_linear(self.wavelen).to_numpy(),
+                            sc.index.water(self.wavelen).to_numpy(), decimal=3)
+        assert_almost_equal(interpolated_index_cubic(self.wavelen).to_numpy(),
+                            sc.index.water(self.wavelen).to_numpy(), decimal=5)
+
+        # test that specifying wavelength in the wrong units gives error
+        with pytest.raises(DimensionalityError):
+            index_data = sc.index.water(wavelength_data)
+            wavelength_wrong = wavelength_data.magnitude *  sc.Quantity("kg")
+            index = sc.InterpolatedIndex(wavelength_wrong, index_data)
+
+        # test that dimensions of index are stripped
+        index_data = sc.Quantity(sc.index.water(wavelength_data).to_numpy(),
+                                 "")
+        interpolated_index = sc.InterpolatedIndex(wavelength_data, index_data)
+        assert not isinstance(interpolated_index(sc.Quantity("400 nm")),
+                              sc.Quantity)
+
+        # test that exception is thrown if lengths of arrays are not identical
+        index_data = index_data[1:]
+        with pytest.raises(ValueError):
+            interpolated_index = sc.InterpolatedIndex(wavelength_data,
+                                                      index_data)
 
 
 class TestEffectiveIndex():
