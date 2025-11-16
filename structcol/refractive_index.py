@@ -169,6 +169,12 @@ class Index:
                              "object to an existing Index object, not "
                              f"{type(other_index).__name__}")
 
+    # define addition to be commutative.  Note that right addition (where the
+    # Index object is on the right side of the + sign) will not work properly
+    # when an sc.Quantity object is on the left, since sc.Quantity defines its
+    # own left addition operator.
+    __radd__ = __add__
+
 
 class ConstantIndex(Index):
     """Class describing an wavelength-independent index of refraction.

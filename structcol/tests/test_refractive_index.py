@@ -93,14 +93,19 @@ class TestIndex:
                                dims=sc.Coord.WAVELEN)
         my_index(wavelen)
 
-    def test_add(self):
+    @pytest.mark.parametrize("radd", [False, True])
+    def test_add(self, radd):
         """Test that addition of Index objects and addition of scalars to Index
         objects works correctly.
 
         """
         self.wavelen = sc.Quantity(np.linspace(400, 800, 5), "nm")
         def check_add_index(initial, constant):
-            index = initial + constant
+            # radd determines whether object is on right of addition sign
+            if radd:
+                index = constant + initial
+            else:
+                index = initial + constant
             if isinstance(constant, str):
                 expected = initial(self.wavelen) + float(constant)
             else:
@@ -109,15 +114,20 @@ class TestIndex:
             # make sure that computed indexes are not Quantity objects
             assert not isinstance(index(self.wavelen).data, sc.Quantity)
 
-
-        # adding complex, float, string, int, Quantity should all work
+        # adding complex, float, string, int should all work
         check_add_index(sc.index.polystyrene, constant = 1.33 + 0.1j)
         check_add_index(sc.index.water, constant = 0.1555)
         check_add_index(sc.index.pmma, constant = "0.55")
         check_add_index(sc.index.vacuum, constant = int(1))
-        check_add_index(sc.index.fused_silica, constant = sc.Quantity("0.1"))
-        check_add_index(sc.index.fused_silica,
-                        constant = sc.Quantity(0.1j, ""))
+
+        # adding sc.Quantity will work for left addition but not right addition
+        # since sc.Quantity defines its own left addition operator, which gets
+        # called when sc.Quantity is on the left of the addition sign
+        if radd is False:
+            check_add_index(sc.index.fused_silica,
+                            constant = sc.Quantity("0.1"))
+            check_add_index(sc.index.fused_silica,
+                            constant = sc.Quantity(0.1j, ""))
 
         # test with Index object from dispersion relation
         index = sc.index.polystyrene + sc.index.vacuum
