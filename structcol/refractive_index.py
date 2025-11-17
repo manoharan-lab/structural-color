@@ -155,25 +155,53 @@ class Index:
             return Index(lambda w : self(w) + constant)
         except TypeError:
             pass
+        # now handle complex input
         try:
             constant = complex(other_index)
             return Index(lambda w : self(w) + constant)
         except TypeError:
             pass
+        # finally deal with adding Index objects
         if isinstance(other_index, Index):
             def new_index_func(wavelen):
                 return self._n(wavelen) + other_index._n(wavelen)
             return Index(new_index_func)
         else:
-            raise ValueError("Can only add a constant or another Index "
-                             "object to an existing Index object, not "
-                             f"{type(other_index).__name__}")
+            raise TypeError("Can only add a constant or another Index "
+                            "object to an existing Index object, not "
+                            f"{type(other_index).__name__}")
 
     # define addition to be commutative.  Note that right addition (where the
     # Index object is on the right side of the + sign) will not work properly
     # when an sc.Quantity object is on the left, since sc.Quantity defines its
     # own left addition operator.
     __radd__ = __add__
+
+    def __mul__(self, scalar):
+        """Multiply Index object by a scalar.
+
+        Parameters
+        ----------
+        scalar : scalar that can be coerced to float/complex
+            The constant to multiply the index by
+
+        """
+        # convert to float or complex (this will work for float, complex,
+        # integers, strings)
+        try:
+            constant = float(scalar)
+            return Index(lambda w : self(w) * constant)
+        except TypeError:
+            try:
+                constant = complex(scalar)
+            except TypeError:
+                raise TypeError("Can multiply an Index object by a scalar "
+                                f"only, not {type(scalar).__name__}")
+
+        return Index(lambda w : self(w) * constant)
+
+    # define multiplication to be commutative.
+    __rmul__ = __mul__
 
 
 class ConstantIndex(Index):

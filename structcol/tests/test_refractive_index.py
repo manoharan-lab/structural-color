@@ -99,7 +99,6 @@ class TestIndex:
         objects works correctly.
 
         """
-        self.wavelen = sc.Quantity(np.linspace(400, 800, 5), "nm")
         def check_add_index(initial, constant):
             # radd determines whether object is on right of addition sign
             if radd:
@@ -143,12 +142,64 @@ class TestIndex:
         xr.testing.assert_equal(index(self.wavelen), expected)
 
         # adding another type of object should not work
-        with pytest.raises(ValueError):
+        with pytest.raises(TypeError):
             index = sc.index.polystyrene + np.ones(3)
-        with pytest.raises(ValueError):
+        with pytest.raises(TypeError):
             index = sc.index.polystyrene + {}
-        with pytest.raises(ValueError):
+        with pytest.raises(TypeError):
             index = sc.index.polystyrene + [1.3]
+
+    @pytest.mark.parametrize("rmul", [False, True])
+    def test_mul(self, rmul):
+        """Test that multiplication of Index objects by scalars works correctly.
+
+        """
+        def check_mul_index(initial, scalar):
+            # rmul determines whether object is on right of multiplication sign
+            if rmul:
+                index = scalar * initial
+            else:
+                index = initial * scalar
+            if isinstance(scalar, str):
+                expected = initial(self.wavelen) * float(scalar)
+            else:
+                expected = initial(self.wavelen) * scalar
+            xr.testing.assert_equal(index(self.wavelen), expected)
+            # make sure that computed indexes are not Quantity objects
+            assert not isinstance(index(self.wavelen).data, sc.Quantity)
+
+        # adding complex, float, string, int should all work
+        check_mul_index(sc.index.polystyrene, 1.33 + 0.1j)
+        check_mul_index(sc.index.water, 0.1555)
+        check_mul_index(sc.index.pmma, "0.55")
+        check_mul_index(sc.index.vacuum, int(1))
+
+        # as with addition, multiplying by sc.Quantity will work for left but
+        # not right multiplication (see above)
+        if rmul is False:
+            check_mul_index(sc.index.fused_silica, sc.Quantity("0.1"))
+            check_mul_index(sc.index.fused_silica, sc.Quantity(0.1j, ""))
+
+        # multiplying by another type of object should not work
+        with pytest.raises(TypeError):
+            index = sc.index.polystyrene * sc.index.vacuum
+        with pytest.raises(TypeError):
+            index = sc.index.polystyrene * np.ones(3)
+        with pytest.raises(TypeError):
+            index = sc.index.polystyrene * {}
+        with pytest.raises(TypeError):
+            index = sc.index.polystyrene * [1.3]
+
+    def test_linear_combination(self):
+        """Test that linear combinations of index objects works
+
+        """
+        scalar = 3
+        constant = 0.001j
+        combo = scalar * sc.index.vacuum + constant
+        expected = sc.ConstantIndex(3 + constant)
+        xr.testing.assert_equal(combo(self.wavelen), expected(self.wavelen))
+
 
 class TestConstantIndex():
     """Tests for the ConstantIndex class
