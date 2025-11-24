@@ -53,6 +53,119 @@ boundary = "film"
 # photons
 refl_index = np.array([2,0,2])
 
+# this will fail at seeds 230 and 261 because trajectories exit at the same
+# event as total internal reflection
+seed_list = list(range(200, 300))
+reason = "total internal reflection at same event as exit"
+seed_list[30] = pytest.param(230, marks=pytest.mark.xfail(reason=reason))
+seed_list[61] = pytest.param(261, marks=pytest.mark.xfail(reason=reason))
+@pytest.mark.parametrize("seed", seed_list)
+def test_exit_detection(seed):
+    """Tests whether exit detection routines in detector.py correctly detects
+    transmitted and reflected trajectories. We do this by comparing to results
+    from looping through all the trajectories, accounting for total internal
+    reflection.  Currently tests only film geometry.
+
+    """
+    # use modern random number generator.  We don't use default_rng here because
+    # the default generator could change in new versions of numpy
+    rng = np.random.Generator(np.random.PCG64([seed]))
+
+    # run simulation
+    sim = mc.Simulation(model, wavelen, nevents, ntrajectories, boundary,
+                        rng=rng)
+    sim.run()
+
+    thickness = 10
+    n_sample = model.index_external(wavelen).to_numpy().squeeze()
+    n_medium = index_medium(wavelen).to_numpy().squeeze()
+    refl_indices_expected = np.zeros(ntrajectories, dtype=int)
+    trans_indices_expected = np.zeros_like(refl_indices_expected)
+    stuck_indices_expected = np.zeros_like(refl_indices_expected)
+    tir_refl_expected = np.zeros((nevents, ntrajectories), dtype=bool)
+
+    # need to do deep copy to avoid modifying the original
+    traj = sim.traj.copy(deep=True)
+    # use loop to figure out where each trajectory exits
+    for j in range(ntrajectories):
+        for i in range(1, nevents+1):
+            # end position after event i-1 is the start position of event i
+            # (again, need to use copy here to avoid modifying)
+            z = traj.position.sel(component="z", event=i, trajectory=j).copy()
+            # direction that took us to this position happened after last event
+            kz_prev = traj.direction.sel(component="z", event=i-1,
+                                         trajectory=j)
+            # condition on magnitude of z-direction for TIR
+            tir = np.abs(kz_prev) <= np.cos(np.arcsin(n_medium / n_sample))
+            if (z < 0) and not tir:
+                # trajectory j exited backward (reflection) at event i
+                refl_indices_expected[j] = i
+                break
+            elif (z > thickness) and not tir:
+                # trajectory j exited forward (transmission) at event i
+                trans_indices_expected[j] = i
+                break
+            elif i==nevents:
+                stuck_indices_expected[j] = i
+            if tir:
+                # trajectory j met criteria for totally internal reflection
+                # after event i-1 but we first need to check if it actually hit
+                # an interface
+                if ((z < 0) or (z > thickness)):
+                    # need to reverse the z-component of the direction of all
+                    # trajectories after the reflection
+                    el = {"component": "z",
+                          "trajectory": j,
+                          "event": slice(i, None)}
+                    traj.direction.loc[el] = -traj.direction.loc[el]
+                    # and flip the z-component about the boundary for this and
+                    # all subsequent postions
+                    if z < 0:
+                        traj.position.loc[el] = -traj.position.loc[el]
+                    if z > thickness:
+                        traj.position.loc[el] = (2*thickness
+                                                 - traj.position.loc[el])
+                    # check if direction was in reflection dir; if so, we count
+                    # toward tir_refl_bool
+                    if z < 0:
+                        tir_refl_expected[i-1,j] = True
+                    # check if exit happened in tir event. This is rare, but
+                    # can happen when scattering length is comparable to
+                    # thickness.
+                    el = {"component": "z",
+                          "trajectory": j,
+                          "event": i}
+                    if traj.position.loc[el] < 0:
+                        refl_indices_expected[j] = i
+                        break
+                    if traj.position.loc[el] > thickness:
+                        trans_indices_expected[j] = i
+                        break
+
+    tir_indices_expected = np.argmax(np.vstack([np.zeros(ntrajectories),
+                                                tir_refl_expected]),
+                                     axis=0)
+
+    exit_tuple = det.find_exits(n_sample, n_medium, thickness, 0, boundary,
+                                sim.traj)
+    (tir_refl_bool, refl_indices, trans_indices, stuck_indices,
+     tir_indices) = exit_tuple
+
+    # tir_refl_expected will not match tir_refl_bool because tir_refl_bool
+    # includes trajectories that have already exited.  Also
+    # tir_indices_expected will not match tir_indices for the same reason.
+    assert_equal(refl_indices, refl_indices_expected)
+    assert_equal(trans_indices, trans_indices_expected)
+    assert_equal(stuck_indices, stuck_indices_expected)
+
+    # check to make sure also that find_exits() returns unambiguous
+    # transmitted, reflected, and stuck indices (meaning that each trajectory
+    # can have a non-zero entry in only one of the three arrays)
+    assert not np.any(trans_indices & refl_indices)
+    assert not np.any(stuck_indices & refl_indices)
+    assert not np.any(stuck_indices & trans_indices)
+
+
 def test_calc_refl_trans():
     # this test is deterministic; no rng is involved
     high_thresh = 10
@@ -65,7 +178,15 @@ def test_calc_refl_trans():
     particle = sc.Sphere(index_matrix, radius)
 
     # test absoprtion and stuck without fresnel
-    z_pos = np.array([[0,0,0,0],[1,1,1,1],[-1,11,2,11],[-2,12,4,12]])
+    z_pos = np.array([[0,   0,  0,  0],
+                      [1,   1,  1,  1],
+                      [-1, 11,  2,  11],
+                      [-2, 12,  4,  12]])
+    # looking at the array (and recalling that thickness=10), we can see that:
+    # - trajectory 1 (column 1) has exited in -z dir (reflection) at event 2
+    # - trajectory 2 (column 2) has exited in +z dir (transmission) at event 2
+    # - trajectory 3 has not exited the sample
+    # - trajectory 4 (column 3) has exited in +z dir (transmission) at event 2
     nevents = z_pos.shape[0]-1
     ntrajectories = z_pos.shape[1]
     pos_coords = {"component": ["x", "y", "z"],
@@ -81,6 +202,11 @@ def test_calc_refl_trans():
                             [.7, .3, .7, 0],
                             [.1, .1, .5, 0]],
                            coords=r0.sel(component="x", drop=True).coords)
+    # now we can see that the weights at exit are as follows
+    # - trajectory 1: 0.7
+    # - trajectory 2: 0.3
+    # - trajectory 3: did not exit, so weight is set to final weight (0.5)
+    # - trajectory 4: 0
 
     trajectories = xr.Dataset({"position": r0,
                                "direction": k0,
@@ -94,6 +220,14 @@ def test_calc_refl_trans():
 
     refl, trans = det.calc_refl_trans(sim, high_thresh)
     # calculated manually
+    # this array contains the weight at exit for each trajectory, depending on
+    # whether it is transmitted or reflected. Trajectory 1 was reflected with
+    # weight 0.7, which gives the first element of expected_refl_array.
+    # Trajectories 2 and 4 were transmitted with weights 0.3 and 0., which
+    # gives the second and fourth elements of expected_trans_array. Trajectory
+    # 3 is stuck with weight 0.5, so det.distribute_ambig_traj_weights()
+    # distributes it equally between reflected and transmitted, both with
+    # weight 0.25
     expected_trans_array = np.array([0, .3, .25, 0]) / ntrajectories
     # calculated manually
     expected_refl_array = np.array([.7, 0, .25, 0]) / ntrajectories
@@ -114,8 +248,11 @@ def test_calc_refl_trans():
     assert_almost_equal(trans, np.sum(expected_trans_array))
 
     # test fresnel as well
-    z_pos = np.array([[0,0,0,0], [5,5,5,5], [-5,-5,15,15], [5,-15,5,25],
-                      [-5,-25,6,35]])
+    z_pos = np.array([[ 0,   0,  0,  0],
+                      [ 5,   5,  5,  5],
+                      [-5,  -5, 15, 15],
+                      [ 5, -15,  5, 25],
+                      [-5, -25,  6, 35]])
     nevents = z_pos.shape[0] - 1
     ntrajectories = z_pos.shape[1]
     pos_coords = {"component": ["x", "y", "z"],
@@ -124,8 +261,10 @@ def test_calc_refl_trans():
     r0 = xr.DataArray(np.zeros((3, nevents+1, ntrajectories)),
                       coords=pos_coords)
     r0.loc["z"] = z_pos
-    kz = np.array([[1,1,1,0.86746757864487367], [-.1,-.1,.1,.1],
-                   [0.1,-.1,-.1,0.1], [-1,-.9,1,1]])
+    kz = np.array([[ 1.0,  1.0,  1.0,  0.86746757864487367],
+                   [-0.1, -0.1,  0.1,  0.1],
+                   [ 0.1, -0.1, -0.1,  0.1],
+                   [-1.0, -0.9,  1.0,  1.0]])
     k0 = xr.zeros_like(r0.isel(event=slice(0, -1)))
     k0.loc["z"] = kz
     weights = xr.DataArray([[1., 1., 1., 1.],

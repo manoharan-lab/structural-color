@@ -197,6 +197,7 @@ def exit_kz(indices, trajectories, boundary, thickness, n_inside, n_outside):
         z components of refracted kz upon trajectory exit
 
     '''
+    trajectories = mc.NumpyTrajectory(trajectories)
 
     # Get the angles between trajectories and the normal,
     # along with their normal vectors.
@@ -599,9 +600,8 @@ def detect_correct(indices, trajectories, weights, n_before, n_after, boundary,
     return filtered_weights
 
 
-def find_valid_exits(n_sample, n_medium, thickness, z_low, boundary,
-                     trajectories):
-    '''
+def find_exits(n_sample, n_medium, thickness, z_low, boundary, trajectories):
+    """
     Find booleans describing valid exits for each event and trajectory. Value
     of 1 indicates a valid exit, value of 0 indicates no valid exit.
 
@@ -623,24 +623,46 @@ def find_valid_exits(n_sample, n_medium, thickness, z_low, boundary,
 
     Returns
     -------
-    exits_pos_dir: 2d array (shape: nevents, ntraj)
-        boolean for positive exits. Value of 1 means the trajectory exited in
-        the positive (transmission) direction for that event.
-    exits_neg_dir: 2d array (shape: nevents, ntraj)
-        boolean for negative exits. Value of 1 means the trajectory exited in
-        the negative (reflection) direction for that event
-        trajectory and event.
     tir_refl_bool: 2d array of booleans (shape: nevents, ntraj)
         describe whether a trajectory gets totally internally reflected at any
         event and also exits in the negative direction to contribute to
         reflectance
-    '''
+    refl_indices: 1d array (length: ntraj)
+        array of event indices for reflected trajectories
+    trans_indices: 1d array (length: ntraj)
+        array of event indices for transmitted trajectories
+    stuck_indices: 1d array (length: ntraj)
+        array of event indices for stuck trajectories
+    tir_indices: 1d array (length: ntraj)
+        array of event indices for stuck trajectories
+
+    """
 
     if boundary == 'film':
 
+        # We consider a periodic extension of the film as follows:
+        #                                                             floor
+        #
+        #  bot   ---------------------------------------------------  -1
+        #
+        #
+        #  top   -------------*-------------------------------------  0
+        #                      \
+        #                       \
+        #  bot   ---------------------------------------------------  1
+        #                         \
+        #                          \
+        #  top   ---------------------------------------------------  2
+        #
+        # With this scheme, an internally reflected trajectory, like the one
+        # shown, can be considered to continue to move in the same direction.
+        # Trajectories that are not internally reflected but cross a boundary
+        # have exited the sample.
+
         # Get variables we need from trajectories.
-        kz = trajectories.direction[2]
-        z = trajectories.position[2]
+        kz = (trajectories["direction"].sel(component="z").dropna("event")
+              .to_numpy().squeeze())
+        z = trajectories["position"].sel(component="z").to_numpy().squeeze()
 
         # Rescale z in terms of integer numbers of sample thickness.
         z_floors = np.floor((z - z_low) / (thickness - z_low))
@@ -654,6 +676,28 @@ def find_valid_exits(n_sample, n_medium, thickness, z_low, boundary,
 
         # Exit in positive direction (transmission) occurs
         # iff crossing odd boundary.
+        ##
+        ## Truth table
+        ## -----------
+        ## let a = floor at event n
+        ##     b = floor at event n+1 - floor at event n
+        ## a odd,  b > : (odd  +  1) % 2 = 0 = False
+        ## a odd,  b = : (odd  +  0) % 2 = 1 = True
+        ## a odd,  b < : (odd  +  0) % 2 = 1 = True
+        ## a even, b > : (even +  1) % 2 = 1 = True
+        ## a even, b = : (even +  0) % 2 = 0 = False
+        ## a even, b < : (even +  0) % 2 = 0 = False
+        ##
+        ## after logical AND with potential_exits, the equality cases are
+        ## rendered false, so we only have to deal with two cases where pos_dir
+        ## is True:
+        ##
+        ## a odd,  b < : (odd  +  0) % 2 = 1 = True
+        ## a even, b > : (even +  1) % 2 = 1 = True
+        ##
+        ## in both cases, True means that the trajectory has crossed an odd
+        ## boundary, meaning it has come out the bottom of the film
+        #
         pos_dir = np.mod(z_floors[:-1]
                          + 1 * (z_floors[1:] > z_floors[:-1]), 2).astype(bool)
 
@@ -663,12 +707,14 @@ def find_valid_exits(n_sample, n_medium, thickness, z_low, boundary,
 
         # Construct boolean array to describe whether a trajectory gets
         # totally internally reflected at any event.
-        tir_refl_bool = potential_exits & ~no_tir.astype(bool) & ~pos_dir
+        # (the ~pos_dir seems to be placed here with the assumption that only
+        # reflected TIR trajectories will be detected)
+        tir_refl_bool = potential_exits & ~no_tir & ~pos_dir
 
     if boundary == 'sphere':
 
         # Get variables we need from trajectories.
-        x, y, z = trajectories.position
+        x, y, z = trajectories["position"].to_numpy().squeeze()
 
         # Get number of trajectories.
         ntraj = z.shape[1]
@@ -703,42 +749,10 @@ def find_valid_exits(n_sample, n_medium, thickness, z_low, boundary,
         # Construct boolean array to describe whether a trajectory gets
         # totally internally reflected at any event
         # for the sphere.
-        tir_refl_bool = potential_exits & ~no_tir.astype(bool)
+        tir_refl_bool = potential_exits & ~no_tir
 
-    return exits_pos_dir, exits_neg_dir, tir_refl_bool
-
-
-def find_event_indices(exits_neg_dir, exits_pos_dir, tir_refl_bool):
-    '''
-    Parameters
-    ----------
-    exits_neg_dir: 2d array (shape: nevents, ntraj)
-        boolean for negative exits. Value of 1 means the trajectory exited in
-        the negative (reflection) direction for that event
-        trajectory and event.
-    exits_pos_dir: 2d array (shape: nevents, ntraj)
-        boolean for positive exits. Value of 1 means the trajectory exited in
-        the positive (transmission) direction for that event.
-    tir_refl_bool: 2d array of booleans (shape: nevents, ntraj)
-        describe whether a trajectory gets totally internally reflected
-        at any event and also exits in the negative direction
-        to contribute to reflectance
-
-    Returns
-    -------
-    refl_indices: 1d array (length: ntraj)
-        array of event indices for reflected trajectories
-    trans_indices: 1d array (length: ntraj)
-        array of event indices for transmitted trajectories
-    stuck_indices: 1d array (length: ntraj)
-        array of event indices for stuck trajectories
-    tir_indices: 1d array (length: ntraj)
-        array of event indices for stuck trajectories
-    '''
-
-    nevents = exits_neg_dir.shape[0]
-    ntraj = exits_neg_dir.shape[1]
-
+    ntraj = trajectories.coords["trajectory"].shape[0]
+    nevents = trajectories.coords["event"].shape[0] - 1
     # find first valid exit of each trajectory in each direction
     # note we convert to 2 1D arrays with len = Ntraj
     # need vstack to reproduce earlier behaviour:
@@ -746,6 +760,7 @@ def find_event_indices(exits_neg_dir, exits_pos_dir, tir_refl_bool):
     # note that exits_neg_dir and exits_pos_dir contain values of 0 or 1,
     # and argmax returns the *first* instance of the max (1), in cases
     # where there are multiple 1's
+    # ("low" here appears to mean low in the sense of small z)
     low_event = np.argmax(np.vstack([np.zeros(ntraj), exits_neg_dir]), axis=0)
     high_event = np.argmax(np.vstack([np.zeros(ntraj), exits_pos_dir]), axis=0)
 
@@ -766,11 +781,14 @@ def find_event_indices(exits_neg_dir, exits_pos_dir, tir_refl_bool):
     # find where each trajectory first exits
     refl_indices = low_event * low_first
     trans_indices = high_event * high_first
+    ## set stuck indices to nevents for each stuck trajectory
     stuck_indices = never_exit * nevents
+    ## following will find first (i.e., minimum) index at which TIR occurs
     tir_indices = np.argmax(np.vstack([np.zeros(ntraj), tir_refl_bool]),
                             axis=0)
 
-    return refl_indices, trans_indices, stuck_indices, tir_indices
+    return (tir_refl_bool, refl_indices, trans_indices, stuck_indices,
+            tir_indices)
 
 
 def calc_outcome_weights(inc_fraction, refl_indices, trans_indices,
@@ -1712,23 +1730,11 @@ def calc_refl_trans(sim,
     # calculations.
     if sc.Coord.VOLFRAC in n_samp.coords:
         n_samp = n_samp.isel({sc.Coord.VOLFRAC: 0}, drop=True)
-    n_samp = n_samp.to_numpy()
-
-    # set up values as floats and numpy arrays to be used throughout function
-    trajectories = mc.NumpyTrajectory(sim.traj)
-    kz0_rot = trajectories.kz0_rot
-    kz0_refl = trajectories.kz0_refl
-    ntraj = sim.ntrajectories
-    if isinstance(z_low, sc.Quantity):
-        z_low = z_low.to_preferred().magnitude
-    if isinstance(thickness, sc.Quantity):
-        thickness = thickness.to_preferred().magnitude
+        n_samp = n_samp.to_numpy()
 
     boundary = sim.boundary
     fine_roughness = sim.fine_roughness
 
-    # construct booleans for positive and negative exits
-    # TODO: confirm this
     if fine_roughness > 0:
         n_matrix = sim.model.index_matrix(sim.wavelen).to_numpy()
         try:
@@ -1748,19 +1754,23 @@ def calc_refl_trans(sim,
     else:
         n_tir = n_samp
 
-    exits_pos_dir, exits_neg_dir, tir_refl_bool = find_valid_exits(n_tir,
-                                                                n_med,
-                                                                thickness,
-                                                                z_low,
-                                                                boundary,
-                                                                trajectories)
+    # set up values as floats and numpy arrays to be used throughout function
+    ntraj = sim.ntrajectories
+    if isinstance(z_low, sc.Quantity):
+        z_low = z_low.to_preferred().magnitude
+    if isinstance(thickness, sc.Quantity):
+        thickness = thickness.to_preferred().magnitude
 
-    # Find event indices for each trajectory outcome.
-    (refl_indices,
-     trans_indices,
-     stuck_indices,
-     tir_indices) = find_event_indices(exits_neg_dir, exits_pos_dir,
-                                       tir_refl_bool)
+    # Find event indices for each trajectory outcome
+    exit_tuple = find_exits(n_tir, n_med, thickness, z_low, boundary, sim.traj)
+
+    (tir_refl_bool, refl_indices, trans_indices, stuck_indices,
+     tir_indices) = exit_tuple
+
+    # convert dataarrays to numpy
+    trajectories = mc.NumpyTrajectory(sim.traj)
+    kz0_rot = trajectories.kz0_rot
+    kz0_refl = trajectories.kz0_refl
 
     # Correct indices to account for detector.
     # TODO make this work for trans_indices as well
@@ -1791,12 +1801,16 @@ def calc_refl_trans(sim,
      trans_weights_pass,
      refl_fresnel, trans_fresnel,
      norm_vec_refl, norm_vec_trans) = fresnel_correct_exit(n_tir, n_med,
-                                                n_front, n_back, refl_indices,
-                                                trans_indices, refl_weights,
-                                                trans_weights, absorb_weights,
-                                                boundary, thickness,
-                                                trajectories, fresnel_traj,
-                                                plot_exits)
+                                                           n_front, n_back,
+                                                           refl_indices,
+                                                           trans_indices,
+                                                           refl_weights,
+                                                           trans_weights,
+                                                           absorb_weights,
+                                                           boundary, thickness,
+                                                           trajectories,
+                                                           fresnel_traj,
+                                                           plot_exits)
 
     # Correct for effect of detection angle upon leaving sample.
     (inc_refl_detected,
@@ -1855,15 +1869,15 @@ def calc_refl_trans(sim,
          transmittance,
          refl_per_traj,
          trans_per_traj) = distribute_ambig_traj_weights(refl_fresnel,
-                                                        trans_fresnel,
-                                                        refl_frac, trans_frac,
-                                                        refl_det_frac,
-                                                        trans_det_frac,
-                                                        refl_detected,
-                                                        trans_detected,
-                                                        stuck_weights,
-                                                        inc_refl_detected,
-                                                        boundary, detector)
+                                                         trans_fresnel,
+                                                         refl_frac, trans_frac,
+                                                         refl_det_frac,
+                                                         trans_det_frac,
+                                                         refl_detected,
+                                                         trans_detected,
+                                                         stuck_weights,
+                                                         inc_refl_detected,
+                                                         boundary, detector)
 
     # Return desired results.
     if return_extra:
@@ -2000,6 +2014,9 @@ def run_sphere_fresnel_traj(refl_per_traj_nf, trans_per_traj_nf,
     weights_fresnel[:,:] = refl_fresnel + trans_fresnel + stuck_weights
 
     # Add refl and trans indices for all attempted or successful exit indices
+    # (this works because refl_indices is 0 for any trajectory that is not
+    # reflected out of the sample; similar for trans and tir; also no
+    # trajectory should have a nonzero element in more than one of the arrays)
     indices = refl_indices + trans_indices + tir_indices
 
     # Get positions outside of sphere boundary from after exit
