@@ -176,10 +176,12 @@ def select_events(inarray, events):
               events values.
 
     '''
-    # make inarray a numpy array if not already
-    if isinstance(inarray, Quantity):
-        inarray = inarray.magnitude
-    inarray = np.array(inarray)
+    if isinstance(inarray, xr.DataArray):
+        ev = xr.DataArray(events,
+                          coords={"trajectory": range(events.shape[0])})
+        ev = ev.where(ev > 0, drop=True)
+        return inarray.sel(event=ev, trajectory=ev.coords["trajectory"],
+                           drop=True)
 
     # there is no 0th event, so disregard a 0 (or less) in the events array
     valid_events = (events > 0)
@@ -193,7 +195,7 @@ def select_events(inarray, events):
 
     # want output of the same form as events, so create variable
     # for object type
-    dtype = type(np.ndarray.flatten(inarray)[0])
+    dtype = inarray.dtype
 
     # get an output array with elements corresponding to the input events
     if len(inarray.shape) == 2:
@@ -204,8 +206,6 @@ def select_events(inarray, events):
         outarray = np.zeros((inarray.shape[0], len(events)), dtype=dtype)
         outarray[:, valid_events] = inarray[:, ev, tr]
 
-    if isinstance(inarray, Quantity):
-        outarray = Quantity(outarray, inarray.units)
     return outarray
 
 

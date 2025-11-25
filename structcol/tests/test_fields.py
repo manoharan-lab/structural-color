@@ -47,8 +47,6 @@ def test_2pi_shift():
     sphere = sc.Sphere(index_particle, radius)
     index_matrix = sc.index.vacuum
     index_medium = sc.index.vacuum
-    n_medium = index_medium(wavelength)
-
     thickness = sc.Quantity('50.0 um')
     boundary = 'film'
 

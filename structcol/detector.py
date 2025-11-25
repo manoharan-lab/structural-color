@@ -422,7 +422,6 @@ def get_angles(indices, boundary, trajectories, thickness,
 
         # calulate the angle between the normal vector and the exit vector
         angles = np.arccos(np.nan_to_num(dot_norm))
-        angles = sc.Quantity(angles, '')
 
         # plot the points before exit, after exit, and on exit boundary
         if plot_exits:  # pragma: no cover
@@ -456,12 +455,10 @@ def get_angles(indices, boundary, trajectories, thickness,
             cosz = select_events(kz, indices)
 
         # Calculate angle to normal from cos_z component (only want magnitude).
-        angles = sc.Quantity(np.arccos(np.abs(cosz)), '')
+        angles = np.arccos(np.abs(cosz))
 
         # Calculate the normal vector.
         norm = np.zeros((3, kz.shape[0], kz.shape[1]))
-        if isinstance(cosz, sc.Quantity):
-            cosz = cosz.magnitude
         norm[2, :, :] = np.sign(cosz)
 
     # Turn nan values to zeros.
