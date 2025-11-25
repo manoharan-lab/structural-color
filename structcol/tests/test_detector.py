@@ -53,12 +53,10 @@ boundary = "film"
 # photons
 refl_index = np.array([2,0,2])
 
+seed_list = list(range(229, 262))
 # this will fail at seeds 230 and 261 because trajectories exit at the same
 # event as total internal reflection
-seed_list = list(range(200, 300))
-reason = "total internal reflection at same event as exit"
-seed_list[30] = pytest.param(230, marks=pytest.mark.xfail(reason=reason))
-seed_list[61] = pytest.param(261, marks=pytest.mark.xfail(reason=reason))
+xfail_reason = "total internal reflection at same event as exit"
 @pytest.mark.parametrize("seed", seed_list)
 def test_exit_detection(seed):
     """Tests whether exit detection routines in detector.py correctly detects
@@ -94,7 +92,7 @@ def test_exit_detection(seed):
             z = traj.position.sel(component="z", event=i, trajectory=j).copy()
             # direction that took us to this position happened after last event
             kz_prev = traj.direction.sel(component="z", event=i-1,
-                                         trajectory=j)
+                                         trajectory=j).copy()
             # condition on magnitude of z-direction for TIR
             tir = np.abs(kz_prev) <= np.cos(np.arcsin(n_medium / n_sample))
             if (z < 0) and not tir:
@@ -135,11 +133,13 @@ def test_exit_detection(seed):
                     el = {"component": "z",
                           "trajectory": j,
                           "event": i}
-                    if traj.position.loc[el] < 0:
+                    if (traj.position.loc[el] < 0):
                         refl_indices_expected[j] = i
+                        pytest.xfail(reason=xfail_reason)
                         break
-                    if traj.position.loc[el] > thickness:
+                    if (traj.position.loc[el] > thickness):
                         trans_indices_expected[j] = i
+                        pytest.xfail(reason=xfail_reason)
                         break
 
     tir_indices_expected = np.argmax(np.vstack([np.zeros(ntrajectories),
@@ -151,12 +151,11 @@ def test_exit_detection(seed):
     (tir_refl_bool, refl_indices, trans_indices, stuck_indices,
      tir_indices) = exit_tuple
 
-    # tir_refl_expected will not match tir_refl_bool because tir_refl_bool
-    # includes trajectories that have already exited.  Also
-    # tir_indices_expected will not match tir_indices for the same reason.
     assert_equal(refl_indices, refl_indices_expected)
     assert_equal(trans_indices, trans_indices_expected)
     assert_equal(stuck_indices, stuck_indices_expected)
+    assert_equal(tir_refl_bool, tir_refl_expected)
+    assert_equal(tir_indices, tir_indices_expected)
 
     # check to make sure also that find_exits() returns unambiguous
     # transmitted, reflected, and stuck indices (meaning that each trajectory
@@ -1107,15 +1106,24 @@ def test_goniometer_normalization():
     assert_almost_equal(refl_renorm, 0.368700804483) # calculated by hand
 
 def test_goniometer_detector():
-    # test
-    z_pos = np.array([[0,0,0,0],[1,1,1,1],[-1,-1,2,2],[-2,-2,20,-0.0000001]])
+    # test that goniometer (fixed angle) detection works
+    z_pos = np.array([[ 0,  0,  0,  0],
+                      [ 1,  1,  1,  1],
+                      [-1, -1,  2,  2],
+                      [-2, -2, 20, -0.0000001]])
     ntrajectories = z_pos.shape[1]
     nevents = z_pos.shape[0] - 1
     x_pos = np.zeros((nevents+1, ntrajectories))
     y_pos = np.zeros((nevents+1, ntrajectories))
+    # direction is set so that the last trajectory reflects at 45 degrees to the
+    # normal
     ky = np.zeros((nevents, ntrajectories))
-    kx = np.array([[0,0,0,0],[0,0,0,0],[0,0,0,1/np.sqrt(2)]])
-    kz = np.array([[1,1,1,1],[-1,-1,1,1],[-1,-1,1,-1/np.sqrt(2)]])
+    kx = np.array([[ 0,  0,  0,  0],
+                   [ 0,  0,  0,  0],
+                   [ 0,  0,  0,  1/np.sqrt(2)]])
+    kz = np.array([[ 1,  1,  1,  1],
+                   [-1, -1,  1,  1],
+                   [-1, -1,  1, -1/np.sqrt(2)]])
     positions = xr.DataArray(np.array([x_pos, y_pos, z_pos]),
                              coords = {"component": ["x", "y", "z"],
                                        "event": range(nevents + 1),
@@ -1135,7 +1143,8 @@ def test_goniometer_detector():
     # set up a dummy simulation and insert the trajectories
     index_medium = sc.ConstantIndex(1)
     index_matrix = sc.ConstantIndex(1)
-    # particle is index matched to matrix so that effective index is 1
+    # particle is index matched to matrix so that effective index is 1 and there
+    # is no refraction at the boundary
     particle = sc.Sphere(index_matrix, radius)
     model = sc.model.HardSpheres(particle, volume_fraction, index_matrix,
                                  index_medium)
@@ -1143,11 +1152,19 @@ def test_goniometer_detector():
     sim.traj = trajectories
 
     thickness = 10
-    R, T = det.calc_refl_trans(sim, thickness,
-                               detector=True,
-                               det_theta=sc.Quantity('45.0 degrees'),
-                               det_len=sc.Quantity('1.0 um'),
-                               det_dist=sc.Quantity('10.0 cm'),
-                               plot_detector=False)
+    out = det.calc_refl_trans(sim, thickness,
+                              detector=True,
+                              det_theta=sc.Quantity('45.0 degrees'),
+                              det_len=sc.Quantity('1.0 um'),
+                              det_dist=sc.Quantity('10.0 cm'),
+                              plot_detector=False, return_extra=True)
 
+    R = out[11]
+
+    # one out of the four trajectories should hit the detector
     assert_almost_equal(R, 0.25)
+
+    # there should be no internal reflection
+    tir_refl_bool = out[13]
+    assert_equal(tir_refl_bool, np.zeros_like(tir_refl_bool))
+

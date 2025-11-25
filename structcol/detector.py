@@ -783,6 +783,17 @@ def find_exits(n_sample, n_medium, thickness, z_low, boundary, trajectories):
     trans_indices = high_event * high_first
     ## set stuck indices to nevents for each stuck trajectory
     stuck_indices = never_exit * nevents
+
+    # correct tir_refl_bool to be True only before exit
+    event_indices = np.arange(nevents)
+    ## we can add these arrays because they are 0 when the trajectory does not
+    ## fall into a category (reflected, transmitted, stuck), and the three
+    ## categories are mutually exclusive
+    exit_indices = refl_indices + trans_indices + stuck_indices
+    ## following will select only indices on or after exit events
+    exited = event_indices[:, np.newaxis] >= exit_indices
+    tir_refl_bool = tir_refl_bool & ~exited
+
     ## following will find first (i.e., minimum) index at which TIR occurs
     tir_indices = np.argmax(np.vstack([np.zeros(ntraj), tir_refl_bool]),
                             axis=0)
