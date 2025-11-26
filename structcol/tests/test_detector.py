@@ -148,13 +148,11 @@ def test_exit_detection(seed):
 
     exit_tuple = det.find_exits(n_sample, n_medium, thickness, 0, boundary,
                                 sim.traj)
-    (tir_refl_bool, refl_indices, trans_indices, stuck_indices,
-     tir_indices) = exit_tuple
+    refl_indices, trans_indices, stuck_indices, tir_indices = exit_tuple
 
     assert_equal(refl_indices, refl_indices_expected)
     assert_equal(trans_indices, trans_indices_expected)
     assert_equal(stuck_indices, stuck_indices_expected)
-    assert_equal(tir_refl_bool, tir_refl_expected)
     assert_equal(tir_indices, tir_indices_expected)
 
     # check to make sure also that find_exits() returns unambiguous
@@ -1159,12 +1157,12 @@ def test_goniometer_detector():
                               det_dist=sc.Quantity('10.0 cm'),
                               plot_detector=False, return_extra=True)
 
-    R = out[11]
+    R = out[13]
 
     # one out of the four trajectories should hit the detector
     assert_almost_equal(R, 0.25)
 
     # there should be no internal reflection
-    tir_refl_bool = out[13]
-    assert_equal(tir_refl_bool, np.zeros_like(tir_refl_bool))
+    tir_indices = out[3]
+    assert_equal(tir_indices, np.zeros_like(tir_indices))
 

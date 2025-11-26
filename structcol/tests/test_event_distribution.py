@@ -79,15 +79,14 @@ trajectories = sim.traj
 # Calculate the effective refractive index of the sample
 n_sample = model.index_external(wavelength)
 
-refl_indices, trans_indices,\
+refl_indices, trans_indices, stuck_indices, tir_indices,\
     inc_refl_per_traj,_,_, refl_per_traj, trans_per_traj,\
     trans_frac, refl_frac,\
     refl_fresnel,\
     trans_fresnel,\
     reflectance,\
     transmittance,\
-    tir_refl_bool,_,_ = det.calc_refl_trans(sim, thickness,
-                                            return_extra = True)
+    _,_ = det.calc_refl_trans(sim, thickness, return_extra = True)
 
 refl_events, trans_events = ed.calc_refl_trans_event(refl_per_traj,
                                                      inc_refl_per_traj,
@@ -158,7 +157,7 @@ def test_tir_events():
     tir_all_refl,\
     tir_single,\
     tir_single_refl,\
-    tir_indices_single = ed.calc_tir(tir_refl_bool, refl_indices,
+    tir_indices_single = ed.calc_tir(tir_indices, refl_indices,
                                      trans_indices, inc_refl_per_traj,
                                      n_sample,
                                      n_medium,
@@ -426,13 +425,12 @@ def test_event_distribution_wavelength_mc():
 
         ################### Calculate reflection and transmission
         trajectories = sim.traj
-        refl_indices, trans_indices,\
+        refl_indices, trans_indices, stuck_indices, tir_indices,\
             inc_refl_per_traj,_,_, refl_per_traj, trans_per_traj,\
             trans_frac, refl_frac,\
             refl_fresnel, trans_fresnel,\
             reflectance[i], transmittance,\
-            tir_refl_bool,_,_ = det.calc_refl_trans(sim, thickness,
-                                                    return_extra = True)
+            _,_ = det.calc_refl_trans(sim, thickness, return_extra = True)
 
         ################### Calculate event distributions ####################
 
@@ -446,7 +444,7 @@ def test_event_distribution_wavelength_mc():
             tir_all_refl_events[i,:],\
             tir_single_events[i,:],\
             tir_single_refl_events[i,:],\
-            tir_indices_single_events[i,:] = ed.calc_tir(tir_refl_bool,
+            tir_indices_single_events[i,:] = ed.calc_tir(tir_indices,
                                                          refl_indices,
                                                          trans_indices,
                                                          inc_refl_per_traj,
@@ -531,11 +529,11 @@ def test_event_distribution_angle_mc():
 
         ################### Calculate reflection and transmition
         trajectories = sim.traj
-        refl_indices, trans_indices,\
+        refl_indices, trans_indices, stuck_indices, tir_indices,\
             inc_refl_per_traj,_,_, refl_per_traj, trans_per_traj,\
             trans_frac, refl_frac,\
             refl_fresnel, trans_fresnel,\
-            reflectance[j], _,_,_,_= det.calc_refl_trans(sim, thickness,
+            reflectance[j], _,_,_= det.calc_refl_trans(sim, thickness,
                                                          return_extra = True)
 
 

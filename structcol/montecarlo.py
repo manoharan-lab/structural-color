@@ -851,7 +851,7 @@ class Simulation:
         self.traj["direction"] = kn
 
     def calc_fields(self, theta, phi, sintheta, costheta, sinphi, cosphi,
-                    step, radius, wavelen, tir_refl_bool=None):
+                    step, radius, wavelen, tir_indices=None):
         """
         Calculates local x and y polarization rotated in reference frame where
         initial polarization is x-polarized. Assumes the incident light is in
@@ -898,10 +898,8 @@ class Simulation:
             Wavelength.
         step: ndarray (structcol.Quantity [length])
             Step sizes of packets (sampled from scattering lengths).
-        tir_refl_bool: 2d array of booleans (shape: nevents, ntraj)
-            Describes whether a trajectory gets totally internally reflected at
-            any event and also exits in the negative direction to contribute to
-            reflectance
+        tir_indices: array (shape: ntraj)
+            array of event indices for trajectories with TIR before exit
 
         Calculates:
         ----------
@@ -983,11 +981,7 @@ class Simulation:
             En[1, n, :] = Ey
 
         # Deal with tir
-        if tir_refl_bool is not None:
-            # get indices for the first TIR event for each trajectory
-            tir_indices = np.argmax(np.vstack([np.zeros(self.ntrajectories),
-                                               tir_refl_bool]), axis=0)
-
+        if tir_indices is not None:
             # select the tir event for each trajectory
             theta_1 = select_events(theta, tir_indices - 2)
             kz_tir = select_events(self.traj.direction[2], tir_indices)

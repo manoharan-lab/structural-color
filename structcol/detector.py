@@ -543,10 +543,6 @@ def find_exits(n_sample, n_medium, thickness, z_low, boundary, trajectories):
 
     Returns
     -------
-    tir_refl_bool: 2d array of booleans (shape: nevents, ntraj)
-        describe whether a trajectory gets totally internally reflected at any
-        event and also exits in the negative direction to contribute to
-        reflectance
     refl_indices: 1d array (length: ntraj)
         array of event indices for reflected trajectories
     trans_indices: 1d array (length: ntraj)
@@ -554,7 +550,7 @@ def find_exits(n_sample, n_medium, thickness, z_low, boundary, trajectories):
     stuck_indices: 1d array (length: ntraj)
         array of event indices for stuck trajectories
     tir_indices: 1d array (length: ntraj)
-        array of event indices for stuck trajectories
+        array of event indices for trajectories with TIR before exit
 
     """
 
@@ -718,8 +714,7 @@ def find_exits(n_sample, n_medium, thickness, z_low, boundary, trajectories):
     tir_indices = np.argmax(np.vstack([np.zeros(ntraj), tir_refl_bool]),
                             axis=0)
 
-    return (tir_refl_bool, refl_indices, trans_indices, stuck_indices,
-            tir_indices)
+    return (refl_indices, trans_indices, stuck_indices, tir_indices)
 
 
 def calc_outcome_weights(inc_fraction, refl_indices, trans_indices,
@@ -1662,8 +1657,7 @@ def calc_refl_trans(sim,
     # Find event indices for each trajectory outcome
     exit_tuple = find_exits(n_tir, n_med, thickness, z_low, boundary, sim.traj)
 
-    (tir_refl_bool, refl_indices, trans_indices, stuck_indices,
-     tir_indices) = exit_tuple
+    refl_indices, trans_indices, stuck_indices, tir_indices = exit_tuple
 
     # convert dataarrays to numpy
     trajectories = mc.NumpyTrajectory(sim.traj)
@@ -1781,6 +1775,8 @@ def calc_refl_trans(sim,
     if return_extra:
         refl_trans_result = (refl_indices,
                              trans_indices,
+                             stuck_indices,
+                             tir_indices,
                              inc_refl_detected / ntraj,
                              refl_weights_pass / ntraj,
                              trans_weights_pass / ntraj,
@@ -1792,7 +1788,6 @@ def calc_refl_trans(sim,
                              trans_fresnel / ntraj,
                              reflectance,
                              transmittance,
-                             tir_refl_bool,
                              norm_vec_refl,
                              norm_vec_trans)
 
@@ -1987,12 +1982,12 @@ def run_sphere_fresnel_traj(refl_per_traj_nf, trans_per_traj_nf,
     sim_fresnel.run(rng=rng)
 
     # Calculate reflection and transmition
-    (_, trans_indices_fresnel, _, _, _,
+    (_, trans_indices_fresnel, _, _, _, _, _,
      refl_per_traj_fresnel,
      trans_per_traj_fresnel,
      _, _, _, _,
      reflectance_fresnel,
-     transmittance_fresnel,_,
+     transmittance_fresnel,
      norm_refl_f, norm_trans_f) = calc_refl_trans(sim_fresnel, thickness,
                                                   z_low = z_low,
                                                   plot_exits = plot_exits,

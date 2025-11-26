@@ -55,11 +55,8 @@ refl_index = np.array([2,0,2])
 def test_calc_refl_trans():
     # this test should give deterministic results
     index_small_n = sc.ConstantIndex(1.0)
-    small_n = index_small_n(wavelen)
     index_large_n = sc.ConstantIndex(2.0)
-    large_n = index_large_n(wavelen)
     index_medium = sc.index.vacuum
-    index_matrix = index_small_n
 
     # test absoprtion and stuck without fresnel
     z_pos = np.array([[0,0,0,0],[1,1,1,1],[-1,11,2,11],[-2,12,4,12]],
@@ -197,10 +194,7 @@ def test_index_match():
     volume_fraction = sc.Quantity(0.55,'')
     index_particle = sc.ConstantIndex(1.6)
     index_matrix = sc.ConstantIndex(1.6)
-    index_sample = index_matrix
-    n_sample = index_sample(wavelen)
     index_medium = sc.ConstantIndex(1.0)
-    n_medium = index_medium(wavelen)
 
     sphere = sc.Sphere(index_particle, radius)
     model = sc.model.HardSpheres(sphere, volume_fraction, index_matrix,
@@ -362,13 +356,12 @@ def test_multiscale_mc():
 
         # Calculate reflection and transmission
         trajectories = sim.traj
-        (refl_indices,
-         trans_indices,
+        (refl_indices, trans_indices, stuck_indices, tir_indices,
          _, _, _,
          refl_per_traj, trans_per_traj,
          _,_,_,_,
          reflectance_sphere[i],
-         _,_, norm_refl, norm_trans) = \
+         _, norm_refl, norm_trans) = \
              det.calc_refl_trans(sim, sphere_boundary_diameter,
                                  run_fresnel_traj = False,
                                  return_extra = True)
@@ -562,13 +555,12 @@ def test_multiscale_polydispersity_mc():
 
             # Calculate reflection and transmition
             trajectories = sim.traj
-            (refl_indices,
-             trans_indices,
+            (refl_indices, trans_indices, stuck_indices, tir_indices,
              _, _, _,
              refl_per_traj, trans_per_traj,
              _,_,_,_,
              reflectance_sphere[i],
-             _,_, norm_refl, norm_trans) = \
+             _, norm_refl, norm_trans) = \
                  det.calc_refl_trans(sim,
                                      sphere_boundary_diameters[j],
                                      run_fresnel_traj = False,
@@ -729,13 +721,12 @@ def test_multiscale_color_mixing_mc():
             sim.move(step)
 
             trajectories = sim.traj
-            (refl_indices,
-             trans_indices,
+            (refl_indices, trans_indices, stuck_indices, tir_indices,
              _, _, _,
              refl_per_traj, trans_per_traj,
              _,_,_,_,
              reflectance_sphere[i],
-             _,_, norm_refl, norm_trans) = \
+             _, norm_refl, norm_trans) = \
                  det.calc_refl_trans(sim,
                                      sphere_boundary_diameter,
                                      run_fresnel_traj = False,

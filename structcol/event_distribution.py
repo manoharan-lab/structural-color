@@ -213,7 +213,7 @@ def calc_thetas_event_traj(theta, refl_indices, nevents, ntraj = 100):
 
     return theta_event_traj
 
-def calc_tir(tir_refl_bool, refl_indices, trans_indices, inc_refl_per_traj,
+def calc_tir(tir_indices, refl_indices, trans_indices, inc_refl_per_traj,
              n_sample, n_medium, boundary, trajectories, thickness,
              phase=False):
     '''
@@ -224,9 +224,8 @@ def calc_tir(tir_refl_bool, refl_indices, trans_indices, inc_refl_per_traj,
 
     Parameters
     ----------
-    tir_refl_bool: boolean (shape: nevents, ntrajectories)
-        Boolean describing whether a trajectory is totally internally reflected
-        at a given event
+    tir_indices: array (shape: ntrajectories)
+        array of event indices for trajectories with TIR before exit
     refl_indices: 1d array (length: ntrajectories)
         Event indices at which each trajectory is reflected. Value of 0 means
         trajectory is not reflected at any event.
@@ -305,9 +304,6 @@ def calc_tir(tir_refl_bool, refl_indices, trans_indices, inc_refl_per_traj,
         n_medium = n_medium.magnitude
 
     ### tir for all events ###
-
-    # get the event indices for which trajectories are tir'd
-    tir_indices = np.argmax(np.vstack([np.zeros(ntraj),tir_refl_bool]), axis=0)
 
     # make event indices of zero larger than possible nevents so that
     # refl_events of 0 never have a smaller number than any other events
@@ -425,7 +421,7 @@ def calc_tir(tir_refl_bool, refl_indices, trans_indices, inc_refl_per_traj,
             tir_indices_single)
 
 
-def calc_tir_phase_event_input(tir_refl_bool,step, refl_indices, radius,
+def calc_tir_phase_event_input(tir_indices, step, refl_indices, radius,
                                volume_fraction, n_particle, n_sample,
                                wavelength, trajectories, refl_per_traj,
                                bin_width=sc.Quantity(40,'fs')):
@@ -436,10 +432,8 @@ def calc_tir_phase_event_input(tir_refl_bool,step, refl_indices, radius,
 
     Parameters
     ----------
-    tir_refl_bool: 2d array of booleans (shape: nevents, ntraj)
-        describe whether a trajectory gets totally internally reflected at any
-        event and also exits in the negative direction to contribute to
-        reflectance
+    tir_indices: array (shape: ntraj)
+        array of event indices for trajectories with TIR before exit
     step: 2d array (structcol.Quantity [length])
         Step sizes between scattering events in each of the trajectories.
     refl_indices: 1d array (length: ntraj)
@@ -484,8 +478,6 @@ def calc_tir_phase_event_input(tir_refl_bool,step, refl_indices, radius,
                                                  bin_width=bin_width)
 
 
-    # calculate tir_indices_refl
-    tir_indices = np.argmax(np.vstack([np.zeros(ntraj),tir_refl_bool]), axis=0)
     # make event indices of zero larger than possible nevents so that
     # refl_events of 0 never have a smaller number than any other events
     refl_ind_inf = np.copy(refl_indices)

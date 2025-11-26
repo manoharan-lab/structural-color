@@ -89,13 +89,12 @@ def calc_sphere_mc():
     #                     rng=rng)
 
     # Calculate reflection and transmission
-    (refl_indices,
-     trans_indices,
+    (refl_indices, trans_indices, stuck_indices, tir_indices,
      _, _, _,
      refl_per_traj, trans_per_traj,
      _,_,_,_,
      reflectance_sphere,
-     _,_,
+     _,
      norm_refl, norm_trans) = det.calc_refl_trans(sim,
                                                   sphere_boundary_diameter,
                                                   run_fresnel_traj = False,

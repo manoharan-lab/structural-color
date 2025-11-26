@@ -69,7 +69,7 @@ def test_2pi_shift():
                                             return_extra=True)
 
     refl_indices = refl_trans_result[0]
-    refl_per_traj = refl_trans_result[3]
+    refl_per_traj = refl_trans_result[5]
     reflectance_fields, _ = detp.calc_refl_phase_fields(trajectories,
                                                         refl_indices,
                                                         refl_per_traj)
@@ -335,9 +335,9 @@ def test_field_reflectance_mc():
     refl_trans_result = det.calc_refl_trans(sim, thickness,
                                             return_extra=True)
 
-    reflectance = refl_trans_result[11]
+    reflectance = refl_trans_result[13]
     refl_indices = refl_trans_result[0]
-    refl_per_traj = refl_trans_result[3]
+    refl_per_traj = refl_trans_result[5]
 
     refl_fields, _ = detp.calc_refl_phase_fields(trajectories,
                                                  refl_indices,
@@ -402,9 +402,9 @@ def test_field_co_cross_mc():
         refl_trans_result = det.calc_refl_trans(sim, thickness,
                                                 return_extra=True)
 
-        reflectance[i] = refl_trans_result[11]
+        reflectance[i] = refl_trans_result[13]
         refl_indices = refl_trans_result[0]
-        refl_per_traj = refl_trans_result[3]
+        refl_per_traj = refl_trans_result[5]
 
         # calculate reflectance including fields
         refl_fields, _ = detp.calc_refl_phase_fields(trajectories,
