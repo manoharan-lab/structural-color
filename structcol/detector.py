@@ -59,7 +59,7 @@ def inf_to_large(pos0, pos1, radius):
         position of first point
     pos1 : array
         position of second point
-    radius: float
+    radius : float
         value that scales the large value that replaces the infinite value.
 
     Returns
@@ -186,11 +186,7 @@ def exit_kz(indices, trajectories, boundary, thickness, n_inside, n_outside):
     theta = theta_2 - theta_1
 
     # Perform the rotation.
-    _, _, k2z = rotate_refract(norm[0] * thickness / 2,
-                               norm[1] * thickness / 2,
-                               norm[2] * thickness / 2,
-                               kr[0], kr[1], kr[2],
-                               k1[0], k1[1], k1[2], theta)
+    _, _, k2z = rotate_refract(norm * thickness / 2, kr, k1, theta)
 
     # If k2z is nan, leave uncorrected.
     # Since nan means the trajectory was totally internally reflected, the
@@ -201,44 +197,28 @@ def exit_kz(indices, trajectories, boundary, thickness, n_inside, n_outside):
     return k2z
 
 
-def rotate_refract(a, b, c, u, v, w, kx_1, ky_1, kz_1, alpha):
+def rotate_refract(point, axis, vec, alpha):
     '''
     Rotates vector <k1> by angle alpha about the unit vector <uvw>,
     where (a,b,c) is a point on the vector we are rotating about.
 
     Parameters
     ----------
-    a: 1d array
-        x-coordinate of point on the vector <uvw> to rotate about
-    b: 1d array
-        y-coordinate of point on the vector <uvw> to rotate about
-    c: 1d array
-        z-coordinate of point on the vector <uvw> to rotate about
-    u: 1d array
-        x-component of vector to rotate about
-    v: 1d array
-        y-component of vector to rotate about
-    w: 1d array
-        z-component of vector to rotate about
-    kx_1: 1d array
-        x-component of vector to rotate
-    ky_1: 1d array
-        y-component of vector to rotate
-    kz_1: 1d array
-        z-component of vector to rotate
-    alpha: 1d array
+    point : array
+        point on the vector <uvw> to rotate about
+    axis : array
+        vector to rotate about
+    vec : array
+        vector to rotate
+    alpha : 1d array
         angle by which to rotate <k1>
 
     length of each of these arrays is number of trajectories being rotated
 
     Returns
     -------
-    kx_2: 1d array
-        x-component of vector to rotate
-    ky_2: 1d array
-        y-component of vector to rotate
-    kz_2: 1d array
-        z-component of vector to rotate
+    newvec : array
+        rotated vector
 
     Notes
     -----
@@ -248,11 +228,12 @@ def rotate_refract(a, b, c, u, v, w, kx_1, ky_1, kz_1, alpha):
     -and-formulas/rotation-about-an-arbitrary-axis-in-3-dimensions
     '''
 
+    a, b, c = point
+    u, v, w = axis
+
     # (x,y,z) is a physical point on the k vector
     # we find the point by adding a,b,c to the normalized k vector
-    x = a + kx_1
-    y = b + ky_1
-    z = c + kz_1
+    x, y, z = point + vec
 
     # rotation matrix
     x_rot = (a * (v**2 + w**2) \
@@ -270,11 +251,9 @@ def rotate_refract(a, b, c, u, v, w, kx_1, ky_1, kz_1, alpha):
 
     # to recover the k vector from the point rotated in space, we must subtract
     # a,b,c
-    kx_2 = x_rot - a
-    ky_2 = y_rot - b
-    kz_2 = z_rot - c
+    newvec = np.array([x_rot, y_rot, z_rot]) - point
 
-    return kx_2, ky_2, kz_2
+    return newvec
 
 
 def get_angles(indices, boundary, trajectories, thickness,
@@ -1255,86 +1234,66 @@ def distribute_ambig_traj_weights(refl_fresnel, trans_fresnel,
     return reflectance, transmittance, refl_per_traj, trans_per_traj
 
 
-def calc_refracted_direction(kx_1, ky_1, kz_1, x_1, y_1, z_1, n1, n2, plot):
+def calc_refracted_direction(dir, pos, n1, n2, plot):
     '''
     TODO: make this work for transmission
     TODO: make this work for sphere
 
-    refracts <k1> across an interface of two refractive indeces, n1 and n2
+    refracts <dir> across an interface of two refractive indices, n1 and n2
 
     Parameters
     ----------
-    kx_1: 1d array
-        x-component of initial direction vector
-    ky_1: 1d array
-        y-component of initial direction vector
-    kz_1: 1d array
-        z-component of initial direction vector
-    x_1: 1d array
-        x-position before trajectory exit
-    y_1: 1d array
-        y-position before trajectory exit
-    z_1: 1d array
-        z-position before trajectory exit
-    n1: float
+    dir : array
+        initial direction vector
+    pos : array
+        position before trajectory exit
+    n1 : float
         index of refraction of initial medium
-    n2: float
+    n2 : float
         index of refraction of medium to enter
-    plot: boolean
+    plot : boolean
         If True, plots the intersection point with film incident plane
         and k refraction
 
     Returns
     -------
-    kx_2: 1d array
-        x-component of refracted direction vector
-    ky_2: 1d array
-        y-component of refracted direction vector
-    kz_2: 1d array
-        z-component of refracted direction vector
-    x_plane: 1d array
-        x-coordinate of intersection of direction vector and incident plane
-    y_plane: 1d array
-        y-coordinate of intersection of direction vector and incident plane
-    z_plane: 1d array
-        z-coordinate of intersection of direction vector and incident plane
+    newdir : array
+        refracted direction vector
+    point : array
+        point of intersection of direction vector and incident plane
 
-    all 1d arrays have length of number of trajectories
+    all arrays have length of number of trajectories
     '''
 
     # Find point on the vector around which to rotate.
     # We choose the point where the plane and line intersect
     # see Annie Stephenson lab notebook #3 pg 91 for derivation.
     with np.errstate(divide='ignore', invalid='ignore'):
-        x_plane = -z_1 / kz_1 * kx_1 + x_1
-        y_plane = -z_1 / kz_1 * ky_1 + y_1
+        x_plane = -pos[2] / dir[2] * dir[0] + pos[0]
+        y_plane = -pos[2] / dir[2] * dir[1] + pos[1]
     # any point on film incident plane is z = 0
-    z_plane = np.zeros((x_plane.shape))
+    point = np.array([x_plane, y_plane, np.zeros_like(x_plane)])
 
     # Negate positive kz for reflection.
     # Remember that trajectories with positie kz can count as reflected
     # due to the imposed periodic boundary conditions imposed
     # in the trajectories in the film case.
-    pos_kz = np.where(kz_1 > 0)
-    kz_1[pos_kz] = -kz_1[pos_kz]
+    pos_kz = np.where(dir[2] > 0)
+    dir[2][pos_kz] = -dir[2][pos_kz]
 
     # Find vector around which to rotate: k1 X - z.
-    u = -ky_1
-    v = kx_1
-    w = np.zeros((v.shape))
-    u, v, w = normalize(np.array([u, v, w]))
+    axis = normalize(np.array([-dir[1], dir[0], np.zeros_like(dir[0])]))
 
     # Calculate the angle with respect to the normal at which the trajectories
     # leave
-    theta_1 = np.arccos(np.abs(kz_1))
+    theta_1 = np.arccos(np.abs(dir[2]))
     theta_2 = refraction(theta_1, n1, n2).to_numpy()
 
     # Find angle by which to rotate trajectory direction.
     alpha = - (theta_2 - theta_1)
 
     # Rotate exit direction by refracted angle.
-    kx_2, ky_2, kz_2 = rotate_refract(x_plane, y_plane, z_plane,
-                                      u, v, w, kx_1, ky_1, kz_1, alpha)
+    newdir = rotate_refract(point, axis, dir, alpha)
 
     if plot:    # pragma: no cover
         fig = plt.figure()
@@ -1343,7 +1302,7 @@ def calc_refracted_direction(kx_1, ky_1, kz_1, x_1, y_1, z_1, n1, n2, plot):
         ax.set_xlabel('x')
         ax.set_ylabel('y')
         ax.set_zlabel('z')
-        ax.scatter(x_plane, y_plane, z_plane, s=5)
+        ax.scatter(point[0], point[1], point[2], s=5)
 
         fig = plt.figure()
         ax = fig.add_subplot(111, projection='3d')
@@ -1351,14 +1310,14 @@ def calc_refracted_direction(kx_1, ky_1, kz_1, x_1, y_1, z_1, n1, n2, plot):
         ax.set_xlabel('x')
         ax.set_ylabel('y')
         ax.set_zlabel('z')
-        ax.scatter(kx_1, ky_1, kz_1, s=10, label='k1')
-        ax.scatter(kx_2, ky_2, kz_2, s=20, label='k2')
+        ax.scatter(dir[0], dir[1], dir[2], s=10, label='k1')
+        ax.scatter(newdir[0], newdir[1], newdir[3], s=20, label='k2')
         ax.set_xlim([-1, 1])
         ax.set_ylim([-1, 1])
         ax.set_zlim([-1, 1])
         plt.legend()
 
-    return kx_2, ky_2, kz_2, x_plane, y_plane, z_plane
+    return newdir, point
 
 
 def calc_indices_detected(indices, trajectories, det_theta, det_len, det_dist,
@@ -1416,18 +1375,12 @@ def calc_indices_detected(indices, trajectories, det_theta, det_len, det_dist,
         det_len = det_len.to_preferred().magnitude
 
     # coordinates and directions at exit events for all trajectories
-    x0 = select_events(x[1:], indices)
-    y0 = select_events(y[1:], indices)
-    z0 = select_events(z[1:], indices)
-
-    kx0 = select_events(kx, indices)
-    ky0 = select_events(ky, indices)
-    kz0 = select_events(kz, indices)
+    pos0 = select_events(trajectories.position[:, 1:, :], indices)
+    dir0 = select_events(trajectories.direction, indices)
 
     # Calculate new directions from refraction at exit interface.
-    kx, ky, kz, x, y, z = calc_refracted_direction(kx0, ky0, kz0, x0, y0, z0,
-                                                   nsample, nmedium,
-                                                   plot=False)
+    dir, pos = calc_refracted_direction(dir0, pos0, nsample, nmedium,
+                                        plot=False)
 
     # Get the radius of the detection hemisphere.
     det_rad = np.sqrt(det_dist**2 + (det_len / 2) ** 2)
@@ -1447,9 +1400,9 @@ def calc_indices_detected(indices, trajectories, det_theta, det_len, det_dist,
     # Solve for the intersection of the scattering hemisphere at the detector
     # arm length and the exit trajectories using parameterization.
     # See Annie Stephenson lab notebook #3, pg 18 for details
-    a = kx ** 2 + ky ** 2 + kz ** 2
-    b = 2 * (kx * x + ky * y + kz * z)
-    c = x ** 2 + y ** 2 + z ** 2 - det_rad ** 2
+    a = np.sum(dir**2, axis=0)
+    b = 2 * np.sum(dir * pos, axis=0)
+    c = np.sum(pos**2, axis=0) - det_rad ** 2
     t_p = (-b + np.sqrt(b ** 2 - 4 * a * c)) / (2 * a)
     t_m = (-b - np.sqrt(b ** 2 - 4 * a * c)) / (2 * a)
 
@@ -1458,24 +1411,18 @@ def calc_indices_detected(indices, trajectories, det_theta, det_len, det_dist,
     else:
         t = t_m
 
-    x_int = x + t * kx
-    y_int = y + t * ky
-    z_int = z + t * kz
+    intersect = pos + t * dir
 
     # check whether trajectory positions at detector hemisphere fall within
     # the detector limits, and update indices_detected to reflect this
     indices_detected = np.zeros(indices.size)
-    x_int_detected = np.zeros(x_int.size)
-    y_int_detected = np.zeros(y_int.size)
-    z_int_detected = np.zeros(z_int.size)
+    int_detected = np.zeros_like(intersect)
     for i in range(indices.size):
-        if (x_int[i] < x_max and x_int[i] > x_min)\
-           and (y_int[i] < y_max and y_int[i] > y_min)\
-           and (z_int[i] < 0):
+        if (intersect[0, i] < x_max and intersect[0, i] > x_min)\
+           and (intersect[1, i] < y_max and intersect[1, i] > y_min)\
+           and (intersect[2, i] < 0):
             indices_detected[i] = indices[i]
-            x_int_detected[i] = x_int[i]
-            y_int_detected[i] = y_int[i]
-            z_int_detected[i] = z_int[i]
+            int_detected[:, i] = intersect[:, i]
 
     if plot:    # pragma: no cover
         fig = plt.figure()
@@ -1488,9 +1435,9 @@ def calc_indices_detected(indices, trajectories, det_theta, det_len, det_dist,
         ax.set_ylim([-1.2 * det_rad, 1.2 * det_rad])
         ax.set_zlim([-1.2 * det_rad, 1.2 * det_rad])
         ax.scatter(x, y, z, s=5)  # plot last position in film before exit
-        ax.scatter(x_int.magnitude, y_int.magnitude, z_int.magnitude,
+        ax.scatter(intersect[0], intersect[1], intersect[2],
                    s=3, c='b', label='exit traj')
-        ax.scatter(x_int_detected, y_int_detected, z_int_detected,
+        ax.scatter(int_detected[0], int_detected[1], int_detected[2],
                    s=20, label='detected traj')
         ax.view_init(elev=-148., azim=-112)
         plt.legend()
