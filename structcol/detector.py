@@ -1442,8 +1442,10 @@ def calc_indices_detected(indices, trajectories, det_theta, det_len, det_dist,
 def select_tir_traj(inarray, events):
     '''
     selects a given value (inarray) for all trajectories,
-    replacing that value with the previous one
+    replacing that value with the negative of the previous one
     for TIR'd trajectories
+
+    intended to work only for films
     '''
     ntraj = events.size
     nevents = inarray.shape[0]
@@ -1454,6 +1456,10 @@ def select_tir_traj(inarray, events):
     outarray = np.zeros((nevents, ntraj))
     outarray[ev, tr] = inarray[ev, tr]
     outarray[0, :] = inarray[0, :]
+    # logic for negating TIR events below is buggy. Idea is to flip the sign of
+    # the z component for both the direction and position, but only after TIR
+    # events. As written, though, the code flips the signs of all the
+    # directions and all positions after event 2, even if no TIR.
     for i in range(1, nevents):
         nonzero = outarray[i-1, :] != 0
         nonzero = nonzero.astype(int)

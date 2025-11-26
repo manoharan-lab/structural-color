@@ -929,7 +929,6 @@ class Simulation:
         # x = sc.size_parameter(wavelen, n_sample, radius)
         # k = sc.wavevector(n_sample).magnitude
         # Note also that all "wavelen" should be converted to "self.wavelen"
-        ntraj = theta.shape[1]
 
         # calculate the mie amplitude scattering matrix
         # we need to calculate the full matrix, rather than just the vector
@@ -1027,24 +1026,18 @@ class Simulation:
             # Ez =  -En[0,n:,:]*sintheta[n-2,:] + En[2,n:,:]*costheta[n-2,:]
             # En[:,n:,:] = Ex, Ey, Ez
 
-        # Calculate the structure factor field contribution.
-        # Insert a row of zeros since first event does not change direction
-        # Note that this will only work for normal incidence.
-        theta2 = np.insert(theta,0,np.zeros(ntraj),axis=0)
-
         # calculate the step propagation factor
         step_cumul = np.abs(k) * step.cumsum("event")
         step_phase_factor = np.exp(1j*np.abs(k)*step_cumul)
         # shift event coord so that step_phase_factor maps correctly onto field
         step_phase_factor.coords["event"] = range(1, self.nevents + 1)
 
-        # multiply the fields by the phase propagation due to structure factor
-        # of the initial trajectories
+        # multiply the fields by the phase propagation factor
+        # TODO: account for fine roughness by accounting for different phase
+        # shift on scattering from fine roughness particles.
         # should multiply by 1 for trajectories do not have fine roughness
-        ntraj_fine = int(round(ntraj * self.fine_roughness))
-        En[0, 1:, :] = En[0, 1:, :] * step_phase_factor
-        En[1, 1:, :] = En[1, 1:, :] * step_phase_factor
-        En[2, 1:, :] = En[2, 1:, :] * step_phase_factor
+        # ntraj_fine = int(round(ntraj * self.fine_roughness))
+        En[:, 1:, :] = En[:, 1:, :] * step_phase_factor
 
         # Normalize
         coords = En.coords
