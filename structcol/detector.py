@@ -48,46 +48,31 @@ from . import normalize, refraction, select_events
 EPS = 1.e-9
 
 
-def inf_to_large(x0, y0, z0, x1, y1, z1, radius):
+def inf_to_large(pos0, pos1, radius):
     '''
     convert two sets of trajectory coordinates from infinite values to a large
     value instead
 
     Parameters
     ----------
-    x0: array
-        1st cooordinate of first point
-    y0: array
-        2nd cooordinate of first point
-    z0: array
-        3rd cooordinate of first point
-    x1: array
-        1st cooordinate of second point
-    y1: array
-        2nd cooordinate of second point
-    z1: array
-        3rd cooordinate of second point
+    pos0 : array
+        position of first point
+    pos1 : array
+        position of second point
     radius: float
         value that scales the large value that replaces the infinite value.
 
     Returns
     -------
-    x0, y0, z0, x1, y1, z1: arrays
+    pos0, pos1 : arrays
         coordinates with infinite values replaced with large ones
     '''
-    x0[x0 > 1e20 * radius] = 100 * radius
-    y0[y0 > 1e20 * radius] = 100 * radius
-    z0[z0 > 1e20 * radius] = 100 * radius
-    x1[x1 > 1e20 * radius] = 100 * radius
-    y1[y1 > 1e20 * radius] = 100 * radius
-    z1[z1 > 1e20 * radius] = 100 * radius
-    x0[x0 < -1e20 * radius] = -100 * radius
-    y0[y0 < -1e20 * radius] = -100 * radius
-    x1[x1 < -1e20 * radius] = -100 * radius
-    y1[y1 < -1e20 * radius] = -100 * radius
-    z1[z1 < -1e20 * radius] = -100 * radius
+    pos0[pos0 > 1e20 * radius] = 100 * radius
+    pos1[pos1 > 1e20 * radius] = 100 * radius
+    pos0[pos0 < -1e20 * radius] = -100 * radius
+    pos1[pos1 < -1e20 * radius] = -100 * radius
 
-    return x0, y0, z0, x1, y1, z1
+    return pos0, pos1
 
 
 def find_vec_sphere_intersect(x0, y0, z0, x1, y1, z1, radius):
@@ -121,7 +106,9 @@ def find_vec_sphere_intersect(x0, y0, z0, x1, y1, z1, radius):
     """
 
     # Find k vector from point inside and outside sphere.
-    kx, ky, kz = normalize(x1 - x0, y1 - y0, z1 - z0)
+    pos0 = np.array([x0, y0, z0])
+    pos1 = np.array([x1, y1, z1])
+    kx, ky, kz = normalize(pos1 - pos0)
 
     # Solve for intersection of k with sphere surface using parameterization.
     # There will be two solutions for each k vector, corresponding to the two
@@ -342,12 +329,12 @@ def get_angles(indices, boundary, trajectories, thickness,
     '''
 
     if boundary == 'sphere':
-        x, y, z = trajectories.position
+        pos = trajectories.position.copy()
         radius = thickness / 2
 
         # Subtract radius from z to center the sphere at 0,0,0. This makes the
         # following calculations much easier.
-        z = z - radius
+        pos[2] = pos[2] - radius
 
         # If incident light..
         if init_dir is not None:
@@ -365,43 +352,34 @@ def get_angles(indices, boundary, trajectories, thickness,
             # Initial positions are on the sphere boundary.
             # Multiply by minus sign to flip normal vector so the dot product
             # with k1 has the right sign.
-            x_inter = -select_events(x, indices)
-            y_inter = -select_events(y, indices)
-            z_inter = -select_events(z, indices)
+            x_inter = -select_events(pos[0], indices)
+            y_inter = -select_events(pos[1], indices)
+            z_inter = -select_events(pos[2], indices)
         else:
 
             # Get positions outside of sphere boundary from after exit
             # (or entrance if this is for first event).
             # Index starting with 1 so we pick point after exit event, since
             # it skips the initial point.
-            select_x1 = select_events(x[1:, :], indices)
-            select_y1 = select_events(y[1:, :], indices)
-            select_z1 = select_events(z[1:, :], indices)
+            pos1 = select_events(pos[:, 1:, :], indices)
 
             # Get positions inside sphere boundary from before exit
             # Index starting with len(x)-1 so we pick point before
             # exit event, since it starts with initial point before
             # the first event.
-            select_x0 = select_events(x[:len(x) - 1, :], indices)
-            select_y0 = select_events(y[:len(y) - 1, :], indices)
-            select_z0 = select_events(z[:len(z) - 1, :], indices)
+            pos0 = select_events(pos[:, :-1, :], indices)
 
             # Make sure there are no infinite values in the coordinates.
             # This prevents an error for the extreme case
             # where mu_scat is infinite, which means that the index contrast
             # between the particle and matrix is 0
-            (select_x0,
-             select_y0,
-             select_z0,
-             select_x1,
-             select_y1,
-             select_z1) = inf_to_large(select_x0, select_y0, select_z0,
-                                       select_x1, select_y1, select_z1, radius)
+            pos0, pos1 = inf_to_large(pos0, pos1, radius)
+            select_x0, select_y0, select_z0 = pos0
+            select_x1, select_y1, select_z1 = pos1
 
             # calculate the normalized k1 vector from the positions
             # inside and outside (X0,y0,z0) and (x1,y1,z1)
-            k1 = normalize(select_x1 - select_x0, select_y1 - select_y0,
-                           select_z1 - select_z0)
+            k1 = normalize(pos1 - pos0)
 
             # get positions at sphere boundary from exit
             x_inter, y_inter, z_inter = find_vec_sphere_intersect(select_x0,
@@ -413,7 +391,7 @@ def get_angles(indices, boundary, trajectories, thickness,
                                                                   radius)
 
         # calculate the vector normal to the sphere boundary at the exit
-        norm = normalize(x_inter, y_inter, z_inter)
+        norm = normalize(np.array([x_inter, y_inter, z_inter]))
 
         # calculate the dot product between the normal vector
         # and the exit vector
@@ -1378,7 +1356,7 @@ def calc_refracted_direction(kx_1, ky_1, kz_1, x_1, y_1, z_1, n1, n2, plot):
     u = -ky_1
     v = kx_1
     w = np.zeros((v.shape))
-    u, v, w = normalize(u, v, w)
+    u, v, w = normalize(np.array([u, v, w]))
 
     # Calculate the angle with respect to the normal at which the trajectories
     # leave
@@ -2009,10 +1987,9 @@ def run_sphere_fresnel_traj(refl_per_traj_nf, trans_per_traj_nf,
         diameter = diameter.to_preferred().magnitude
 
     radius = diameter / 2
-    x,y,z = trajectories.position
     kx, ky, kz = trajectories.direction
-    nevents = x.shape[0]
-    ntraj = x.shape[1]
+    nevents = trajectories.position.shape[1]
+    ntraj = trajectories.position.shape[2]
 
     # New weights are the weights that are fresnel reflected
     # back into the sphere.
@@ -2028,23 +2005,15 @@ def run_sphere_fresnel_traj(refl_per_traj_nf, trans_per_traj_nf,
     indices = refl_indices + trans_indices + tir_indices
 
     # Get positions outside of sphere boundary from after exit
-    select_x1 = select_events(x[1:,:], indices)
-    select_y1 = select_events(y[1:,:], indices)
-    select_z1 = select_events(z[1:,:], indices)
+    pos1 = select_events(trajectories.position[:, 1:, :], indices)
 
     # get positions inside sphere boundary from before exit
-    select_x0 = select_events(x[:len(x)-1,:], indices)
-    select_y0 = select_events(y[:len(y)-1,:], indices)
-    select_z0 = select_events(z[:len(z)-1,:], indices)
+    pos0 = select_events(trajectories.position[:, :-1, :], indices)
 
     # make sure none of the coordinates are infinite
-    (select_x0,
-     select_y0,
-     select_z0,
-     select_x1,
-     select_y1,
-     select_z1) = inf_to_large(select_x0, select_y0, select_z0,
-                               select_x1, select_y1, select_z1, radius)
+    pos0, pos1 = inf_to_large(pos0, pos1, radius)
+    select_x0, select_y0, select_z0 = pos0
+    select_x1, select_y1, select_z1 = pos1
 
     # get radius vector to subtract from select_z
     select_radius = select_events(radius * np.ones((nevents, ntraj)), indices)

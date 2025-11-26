@@ -274,9 +274,8 @@ def test_reflection_sphere_mc():
                         rng=rng)
     sim.run()
 
-    # Calculate reflectance and transmittance
-    # The default value of run_tir is True, so you must set it to False to
-    # exclude the fresnel reflected trajectories.
+    # Calculate reflectance and transmittance without fresnel reflected
+    # trajectories
     R, T = det.calc_refl_trans(sim, assembly_diameter, plot_exits = False)
 
     R_expected = 0.24878084752516244

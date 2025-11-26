@@ -128,24 +128,21 @@ def refraction(angles, n_before, n_after):
     return np.arcsin(snell)
 
 
-def normalize(x, y, z, return_nan=True):
+def normalize(vec, return_nan=True):
     '''
     normalize a vector
 
     Parameters
     ----------
-    x: float or array
-        1st component of vector
-    y: float or array
-        2nd component of vector
-    z: float or array
-        3rd component of vector
+    vec : array
+        vector to normalize
 
     Returns
     -------
     array of normalized vector(s) components
     '''
-    magnitude = np.sqrt(np.abs(x) ** 2 + np.abs(y) ** 2 + np.abs(z) ** 2)
+    # axis=0 should be component axis
+    magnitude = np.sqrt(np.sum(np.abs(vec)**2, axis=0))
 
     if isinstance(magnitude, xr.DataArray):
         magnitude = magnitude.to_numpy()
@@ -154,7 +151,7 @@ def normalize(x, y, z, return_nan=True):
     with np.errstate(divide='ignore', invalid='ignore'):
         if (not return_nan) and magnitude.all() == 0:
             magnitude[magnitude == 0] = 1
-        return np.array([x / magnitude, y / magnitude, z / magnitude])
+        return vec/magnitude
 
 
 def select_events(inarray, events):

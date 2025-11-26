@@ -566,7 +566,7 @@ class Simulation:
             else:
                 fields.sel(event=0).loc["x":"y"] = np.exp(phase*1j)
 
-            fields.loc[dict(event=0)] = normalize(*fields.sel(event=0))
+            fields.loc[dict(event=0)] = normalize(fields.sel(event=0))
 
             # first step into the sample has the same field vector as before
             fields.loc[dict(event=1)] = fields.sel(event=0)
@@ -1054,7 +1054,7 @@ class Simulation:
 
         # Normalize
         coords = En.coords
-        En = normalize(*En, return_nan=False)
+        En = normalize(En, return_nan=False)
 
         self.traj["fields"] = xr.DataArray(En, coords=coords)
 
