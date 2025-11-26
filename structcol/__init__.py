@@ -173,7 +173,7 @@ def select_events(inarray, events):
               events values.
 
     '''
-    if isinstance(inarray, xr.DataArray):
+    if isinstance(inarray, (xr.DataArray, xr.Dataset)):
         ev = xr.DataArray(events,
                           coords={"trajectory": range(events.shape[0])})
         ev = ev.where(ev > 0, drop=True)
@@ -195,13 +195,15 @@ def select_events(inarray, events):
     dtype = inarray.dtype
 
     # get an output array with elements corresponding to the input events
-    if len(inarray.shape) == 2:
+    if inarray.ndim == 2:
         outarray = np.zeros(len(events), dtype=dtype)
         outarray[valid_events] = inarray[ev, tr]
-
-    if len(inarray.shape) == 3:
+    elif inarray.ndim == 3:
         outarray = np.zeros((inarray.shape[0], len(events)), dtype=dtype)
         outarray[:, valid_events] = inarray[:, ev, tr]
+    else:
+        raise ValueError(f"cannot handle inarray with {inarray.ndim}"
+                         "dimensions")
 
     return outarray
 

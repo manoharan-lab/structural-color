@@ -1364,7 +1364,6 @@ def calc_indices_detected(indices, trajectories, det_theta, det_len, det_dist,
     """
     # get variables we need from trajectories
     x, y, z = trajectories.position
-    kx, ky, kz = trajectories.direction
 
     # detector parameters
     if isinstance(det_theta, sc.Quantity):
@@ -1940,10 +1939,7 @@ def run_sphere_fresnel_traj(refl_per_traj_nf, trans_per_traj_nf,
     intersect[2] = intersect[2] + select_radius
 
     # define vectors for reflection inside sphere
-    select_kx = select_events(kx, indices)
-    select_ky = select_events(ky, indices)
-    select_kz = select_events(kz, indices)
-    k_out = np.array([select_kx, select_ky, select_kz])
+    k_out = select_events(trajectories.direction, indices)
     normal = np.array([intersect[0] / radius, intersect[1] / radius,
                        (intersect[2] - select_radius) / radius])
 
@@ -2031,16 +2027,14 @@ def rotate_reflect(k_out, normal):
         trajectory direction as it exits sample.
     normal: array
         3d vector normal to the surface on which to reflect
-        .
+
     Returns
     -------
     k_refl: array
         3d vector that is reflected.
     '''
 
-    dot_k_out_normal = (k_out[0] * normal[0] + k_out[1] * normal[1] +
-                        k_out[2] * normal[2])
-
+    dot_k_out_normal = np.sum(k_out * normal, axis=0)
     k_refl = k_out - 2 * dot_k_out_normal * normal
 
     return k_refl
