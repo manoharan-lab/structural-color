@@ -75,25 +75,17 @@ def inf_to_large(pos0, pos1, radius):
     return pos0, pos1
 
 
-def find_vec_sphere_intersect(x0, y0, z0, x1, y1, z1, radius):
+def find_vec_sphere_intersect(pos0, pos1, radius):
     """
     Analytically solves for the point at which an exiting trajectory
     intersects with the boundary of the sphere
 
     Parameters
     ----------
-    x0: 1d array
-        initial x-position of each trajectory before exit
-    y0: 1d array
-        initial y-position of trajectory before exit
-    z0: 1d array
-        initial z-position of trajectory before exit
-    x1: 1d array
-        x-position of trajectory after exit
-    y1: 1d array
-        y-position of trajectory after exit
-    z1: 1d array
-        z-position of trajectory after exit
+    pos0 : array
+        initial position of each trajectory before exit
+    pos1 : array
+        position of each trajectory after exit
     radius : float
         radius of spherical boundary
 
@@ -106,37 +98,28 @@ def find_vec_sphere_intersect(x0, y0, z0, x1, y1, z1, radius):
     """
 
     # Find k vector from point inside and outside sphere.
-    pos0 = np.array([x0, y0, z0])
-    pos1 = np.array([x1, y1, z1])
-    kx, ky, kz = normalize(pos1 - pos0)
+    k = normalize(pos1 - pos0)
 
     # Solve for intersection of k with sphere surface using parameterization.
     # There will be two solutions for each k vector, corresponding to the two
     # points where a line intersects a sphere.
     # See http://www.ambrsoft.com/TrigoCalc/Sphere/SpherLineIntersection_.htm
     # or Annie Stephenson lab notebook #3, pg 18 for details.
-    a = kx ** 2 + ky ** 2 + kz ** 2
-    b = 2 * (kx * x0 + ky * y0 + kz * z0)
-    c = x0 ** 2 + y0 ** 2 + z0 ** 2 - radius ** 2
+    a = np.sum(k**2, axis=0)
+    b = 2 * np.sum(k * pos0, axis=0)
+    c = np.sum(pos0**2, axis=0) - radius ** 2
     with np.errstate(divide='ignore', invalid='ignore'):
         t_p = (-b + np.sqrt(b**2 - 4 * a * c)) / (2 * a)
         t_m = (-b - np.sqrt(b**2 - 4 * a * c)) / (2 * a)
     np.seterr(divide='warn', invalid='warn')
-    x_int_p = x0 + t_p * kx
-    y_int_p = y0 + t_p * ky
-    z_int_p = z0 + t_p * kz
-
-    x_int_m = x0 + t_m * kx
-    y_int_m = y0 + t_m * ky
-    z_int_m = z0 + t_m * kz
+    int_p = pos0 + t_p * k
+    int_m = pos0 + t_m * k
 
     # find the distances between the each solution point and the trajectory
     # point outside the sphere
     # casts nans to zero
-    dist_p = np.nan_to_num((x_int_p - x1) ** 2 + (y_int_p - y1) ** 2
-                           + (z_int_p - z1) ** 2)
-    dist_m = np.nan_to_num((x_int_m - x1) ** 2 + (y_int_m - y1) ** 2
-                           + (z_int_m - z1) ** 2)
+    dist_p = np.nan_to_num(np.sum((int_p - pos1) ** 2, axis=0))
+    dist_m = np.nan_to_num(np.sum((int_m - pos1) ** 2, axis=0))
 
     # Find the indices of the smaller distances of the two
     # because the intersection point corresponding to the exiting trajectory
@@ -149,9 +132,9 @@ def find_vec_sphere_intersect(x0, y0, z0, x1, y1, z1, radius):
 
     # Keep only the intercept closest to the exit point of the trajectory
     # pos_int will be zero when there was no exit_traj.
-    pos_int = np.zeros((3, len(x0)))
-    pos_int[:, ind_p] = x_int_p[ind_p], y_int_p[ind_p], z_int_p[ind_p]
-    pos_int[:, ind_m] = x_int_m[ind_m], y_int_m[ind_m], z_int_m[ind_m]
+    pos_int = np.zeros((3, len(pos0[0])))
+    pos_int[:, ind_p] = int_p[:, ind_p]
+    pos_int[:, ind_m] = int_m[:, ind_m]
 
     return pos_int
 
@@ -339,24 +322,16 @@ def get_angles(indices, boundary, trajectories, thickness,
         # If incident light..
         if init_dir is not None:
             # TODO implement capability for diffuse illumination of sphere
-            kx, ky, kz = trajectories.direction
+            k = trajectories.direction.copy()
 
             # Select initialized trajectory positions.
-            select_kx1 = select_events(kx, indices)
-            select_ky1 = select_events(ky, indices)
-            select_kz1 = select_events(kz, indices)
-
-            # Combine into one vector.
-            k1 = np.array([select_kx1, select_ky1, select_kz1])
+            k1 = select_events(k, indices)
 
             # Initial positions are on the sphere boundary.
             # Multiply by minus sign to flip normal vector so the dot product
             # with k1 has the right sign.
-            x_inter = -select_events(pos[0], indices)
-            y_inter = -select_events(pos[1], indices)
-            z_inter = -select_events(pos[2], indices)
+            intersect = -select_events(pos, indices)
         else:
-
             # Get positions outside of sphere boundary from after exit
             # (or entrance if this is for first event).
             # Index starting with 1 so we pick point after exit event, since
@@ -374,29 +349,20 @@ def get_angles(indices, boundary, trajectories, thickness,
             # where mu_scat is infinite, which means that the index contrast
             # between the particle and matrix is 0
             pos0, pos1 = inf_to_large(pos0, pos1, radius)
-            select_x0, select_y0, select_z0 = pos0
-            select_x1, select_y1, select_z1 = pos1
 
             # calculate the normalized k1 vector from the positions
             # inside and outside (X0,y0,z0) and (x1,y1,z1)
             k1 = normalize(pos1 - pos0)
 
             # get positions at sphere boundary from exit
-            x_inter, y_inter, z_inter = find_vec_sphere_intersect(select_x0,
-                                                                  select_y0,
-                                                                  select_z0,
-                                                                  select_x1,
-                                                                  select_y1,
-                                                                  select_z1,
-                                                                  radius)
+            intersect = find_vec_sphere_intersect(pos0, pos1, radius)
 
         # calculate the vector normal to the sphere boundary at the exit
-        norm = normalize(np.array([x_inter, y_inter, z_inter]))
+        norm = normalize(intersect)
 
         # calculate the dot product between the normal vector
         # and the exit vector
-        dot_norm = (norm[0, :] * k1[0, :] + norm[1, :] * k1[1, :]
-                    + norm[2, :] * k1[2, :])
+        dot_norm = np.sum(norm * k1, axis=0)
 
         # calulate the angle between the normal vector and the exit vector
         angles = np.arccos(np.nan_to_num(dot_norm))
@@ -407,7 +373,7 @@ def get_angles(indices, boundary, trajectories, thickness,
             ax = fig.add_subplot(111, projection='3d')
             # ax.scatter(select_x0,select_y0,select_z0, c = 'b')
             # ax.scatter(select_x1,select_y1,select_z1, c = 'g')
-            ax.scatter(x_inter, y_inter, z_inter, c='r')
+            ax.scatter(intersect[0], intersect[1], intersect[2], c='r')
             ax.set_xlabel('x')
             ax.set_ylabel('y')
             ax.set_zlabel('z')
@@ -422,7 +388,7 @@ def get_angles(indices, boundary, trajectories, thickness,
             ax.plot_wireframe(x, y, z, color=[0.8, 0.8, 0.8])
 
     if boundary == 'film':
-        kz = trajectories.direction[2]
+        kz = trajectories.direction[2].copy()
 
         # If incident light, use init dir instead of kz to get direction.
         # before entering sample.
@@ -2012,34 +1978,27 @@ def run_sphere_fresnel_traj(refl_per_traj_nf, trans_per_traj_nf,
 
     # make sure none of the coordinates are infinite
     pos0, pos1 = inf_to_large(pos0, pos1, radius)
-    select_x0, select_y0, select_z0 = pos0
-    select_x1, select_y1, select_z1 = pos1
 
     # get radius vector to subtract from select_z
     select_radius = select_events(radius * np.ones((nevents, ntraj)), indices)
 
     # shift z for intersect finding
-    select_z0 = select_z0 - select_radius
-    select_z1 = select_z1 - select_radius
+    pos0[2] = pos0[2] - select_radius
+    pos1[2] = pos1[2] - select_radius
 
     # get positions at sphere boundary from exit
-    x_inter, y_inter, z_inter = find_vec_sphere_intersect(select_x0,
-                                                          select_y0,
-                                                          select_z0,
-                                                          select_x1,
-                                                          select_y1,
-                                                          select_z1,
-                                                          radius)
+    intersect = find_vec_sphere_intersect(pos0, pos1, radius)
+
     # shift z back to global coordinates
-    z_inter = z_inter + select_radius
+    intersect[2] = intersect[2] + select_radius
 
     # define vectors for reflection inside sphere
     select_kx = select_events(kx, indices)
     select_ky = select_events(ky, indices)
     select_kz = select_events(kz, indices)
     k_out = np.array([select_kx, select_ky, select_kz])
-    normal = np.array([x_inter / radius, y_inter / radius,
-                       (z_inter - select_radius) / radius])
+    normal = np.array([intersect[0] / radius, intersect[1] / radius,
+                       (intersect[2] - select_radius) / radius])
 
     # calculate reflected direction inside sphere
     k_refl = rotate_reflect(k_out, normal)
@@ -2056,7 +2015,7 @@ def run_sphere_fresnel_traj(refl_per_traj_nf, trans_per_traj_nf,
                              coords = {"component": ["x", "y", "z"],
                                        "event": range(nevents+1),
                                        "trajectory": range(ntraj)})
-    positions[:, 0, :] = np.array([x_inter, y_inter, z_inter])
+    positions[:, 0, :] = intersect
 
     # TODO: get rid of trajectories whose initial weights are 0
     # find indices where initial weights are 0
