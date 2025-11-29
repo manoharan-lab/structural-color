@@ -543,14 +543,12 @@ def find_exits(n_sample, n_medium, thickness, z_low, boundary, trajectories):
 
     Returns
     -------
-    refl_indices: 1d array (length: ntraj)
-        array of event indices for reflected trajectories
-    trans_indices: 1d array (length: ntraj)
-        array of event indices for transmitted trajectories
-    stuck_indices: 1d array (length: ntraj)
-        array of event indices for stuck trajectories
-    tir_indices: 1d array (length: ntraj)
-        array of event indices for trajectories with TIR before exit
+    `xr.Dataset` : shape (..., ntraj)
+        "exit"  : array of event indices for exit, irrespective of direction
+        "refl"  : array of event indices for reflected trajectories
+        "trans" : array of event indices for transmitted trajectories
+        "stuck" : array of event indices for stuck trajectories
+        "tir"   : array of event indices for trajectories with TIR before exit
 
     """
 
@@ -576,27 +574,28 @@ def find_exits(n_sample, n_medium, thickness, z_low, boundary, trajectories):
         # have exited the sample.
 
         # Get variables we need from trajectories.
-        kz = (trajectories["direction"].sel(component="z").dropna("event")
-              .to_numpy().squeeze())
-        z = trajectories["position"].sel(component="z").to_numpy().squeeze()
+        zdir = trajectories["direction"].sel(component="z")
+        z = trajectories["position"].sel(component="z")
 
         # Rescale z in terms of integer numbers of sample thickness.
         z_floors = np.floor((z - z_low) / (thickness - z_low))
 
         # Potential exits occur whenever trajectories cross any boundary.
-        potential_exits = ~(np.diff(z_floors, axis=0) == 0)
+        potential_exits = ~(z_floors.diff("event") == 0)
 
         # Find all kz with magnitude large enough to exit.
         # todo-get particle in here?
-        no_tir = abs(kz) > np.cos(np.arcsin(n_medium / n_sample))
+        # we use .roll to shift zdir to the direction that got us to current z
+        no_tir = ((np.abs(zdir) > np.cos(np.arcsin(n_medium / n_sample)))
+                  .roll(event=1))
 
         # Exit in positive direction (transmission) occurs
         # iff crossing odd boundary.
         ##
         ## Truth table
         ## -----------
-        ## let a = floor at event n
-        ##     b = floor at event n+1 - floor at event n
+        ## let a = floor at event n-1
+        ##     b = floor at event n - floor at event n-1
         ## a odd,  b > : (odd  +  1) % 2 = 0 = False
         ## a odd,  b = : (odd  +  0) % 2 = 1 = True
         ## a odd,  b < : (odd  +  0) % 2 = 1 = True
@@ -614,8 +613,12 @@ def find_exits(n_sample, n_medium, thickness, z_low, boundary, trajectories):
         ## in both cases, True means that the trajectory has crossed an odd
         ## boundary, meaning it has come out the bottom of the film
         #
-        pos_dir = np.mod(z_floors[:-1]
-                         + 1 * (z_floors[1:] > z_floors[:-1]), 2).astype(bool)
+        pos_dir = (np.mod(z_floors.shift(event=1)
+                          + 1 * (z_floors > z_floors.shift(event=1)), 2)
+                   .astype(bool))
+        # equivalent numpy code
+        # pos_dir = np.mod(z_floors[:-1]
+        #                  + 1*(z_floors[1:] > z_floors[:-1]), 2).astype(bool)
 
         # Construct boolean arrays of all valid exits in pos & neg directions.
         exits_pos_dir = potential_exits & no_tir & pos_dir
@@ -624,29 +627,28 @@ def find_exits(n_sample, n_medium, thickness, z_low, boundary, trajectories):
         # Construct boolean array to describe whether a trajectory gets
         # totally internally reflected at any event.
         # (the ~pos_dir seems to be placed here with the assumption that only
-        # reflected TIR trajectories will be detected)
+        # reflected TIR trajectories will be affected by TIR and that double
+        # TIR events are rare)
         tir_refl_bool = potential_exits & ~no_tir & ~pos_dir
 
     if boundary == 'sphere':
 
         # Get variables we need from trajectories.
-        x, y, z = trajectories["position"].to_numpy().squeeze()
-
-        # Get number of trajectories.
-        ntraj = z.shape[1]
+        x, y, z = trajectories["position"].transpose("component", ...)
 
         # Define sphere radius.
         radius = thickness / 2
 
         # Potential exits occur whenever trajectories are outside
         # sphere boundary.
-        potential_exits = (x[1:, :] ** 2 + y[1:, :] ** 2
-                           + (z[1:, :] - radius) ** 2) > radius ** 2
-        potential_exit_indices = np.argmax(np.vstack([np.zeros(ntraj),
-                                                     potential_exits]), axis=0)
+        potential_exits = (x[..., 1:, :] ** 2 + y[..., 1:, :] ** 2
+                           + (z[..., 1:, :] - radius) ** 2) > radius ** 2
+        potential_exit_indices = (potential_exits.where(potential_exits)
+                                  .idxmin("event", fill_value=0))
 
         # kz_correct will be nan if trajectory is totally internally reflected.
-        kz_correct = exit_kz(potential_exit_indices, trajectories, boundary,
+        kz_correct = exit_kz(potential_exit_indices.to_numpy().squeeze(),
+                             trajectories, boundary,
                              thickness, n_sample, n_medium)
         # no_tir is calculated to match film case
         # for use in event_distribution.py
@@ -667,18 +669,19 @@ def find_exits(n_sample, n_medium, thickness, z_low, boundary, trajectories):
         # for the sphere.
         tir_refl_bool = potential_exits & ~no_tir
 
-    ntraj = trajectories.coords["trajectory"].shape[0]
     nevents = trajectories.coords["event"].shape[0] - 1
     # find first valid exit of each trajectory in each direction
     # note we convert to 2 1D arrays with len = Ntraj
-    # need vstack to reproduce earlier behaviour:
-    # an initial row of zeros is used to distinguish no events case
     # note that exits_neg_dir and exits_pos_dir contain values of 0 or 1,
-    # and argmax returns the *first* instance of the max (1), in cases
+    # and exits_neg_dir.where(exits_neg_dir) converts False to nan.
+    # Then idxmin returns the *first* instance of the min (1), in cases
     # where there are multiple 1's
     # ("low" here appears to mean low in the sense of small z)
-    low_event = np.argmax(np.vstack([np.zeros(ntraj), exits_neg_dir]), axis=0)
-    high_event = np.argmax(np.vstack([np.zeros(ntraj), exits_pos_dir]), axis=0)
+    low_event = exits_neg_dir.where(exits_neg_dir).idxmin("event",
+                                                          fill_value=0)
+
+    high_event = exits_pos_dir.where(exits_pos_dir).idxmin("event",
+                                                           fill_value=0)
 
     # find all trajectories that did not exit in each direction
     no_low_exit = (low_event == 0)
@@ -701,20 +704,26 @@ def find_exits(n_sample, n_medium, thickness, z_low, boundary, trajectories):
     stuck_indices = never_exit * nevents
 
     # correct tir_refl_bool to be True only before exit
-    event_indices = np.arange(nevents)
     ## we can add these arrays because they are 0 when the trajectory does not
     ## fall into a category (reflected, transmitted, stuck), and the three
     ## categories are mutually exclusive
     exit_indices = refl_indices + trans_indices + stuck_indices
     ## following will select only indices on or after exit events
-    exited = event_indices[:, np.newaxis] >= exit_indices
+    exited = tir_refl_bool.coords["event"] > exit_indices
     tir_refl_bool = tir_refl_bool & ~exited
 
     ## following will find first (i.e., minimum) index at which TIR occurs
-    tir_indices = np.argmax(np.vstack([np.zeros(ntraj), tir_refl_bool]),
-                            axis=0)
+    tir_indices = tir_refl_bool.where(tir_refl_bool).idxmin("event",
+                                                            fill_value=0)
 
-    return (refl_indices, trans_indices, stuck_indices, tir_indices)
+    # return Dataset. "exit" is all exit indices excluding stuck trajectories
+    indices = xr.Dataset({"exit": refl_indices + trans_indices,
+                          "refl": refl_indices,
+                          "trans": trans_indices,
+                          "stuck": stuck_indices,
+                          "tir": tir_indices})
+
+    return indices.drop_vars("component")
 
 
 def calc_outcome_weights(inc_fraction, refl_indices, trans_indices,
@@ -1661,11 +1670,13 @@ def calc_refl_trans(sim,
         thickness = thickness.to_preferred().magnitude
 
     # Find event indices for each trajectory outcome
-    exit_tuple = find_exits(n_tir, n_med, thickness, z_low, boundary, sim.traj)
+    exits = find_exits(n_tir, n_med, thickness, z_low, boundary, sim.traj)
 
-    refl_indices, trans_indices, stuck_indices, tir_indices = exit_tuple
-
-    # convert dataarrays to numpy
+    # convert to numpy for further processing
+    refl_indices = exits["refl"].to_numpy().squeeze()
+    trans_indices = exits["trans"].to_numpy().squeeze()
+    stuck_indices = exits["stuck"].to_numpy().squeeze()
+    tir_indices = exits["tir"].to_numpy().squeeze()
     trajectories = mc.NumpyTrajectory(sim.traj)
     kz0_rot = trajectories.kz0_rot
     kz0_refl = trajectories.kz0_refl

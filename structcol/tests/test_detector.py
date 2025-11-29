@@ -146,21 +146,39 @@ def test_exit_detection(seed):
                                                 tir_refl_expected]),
                                      axis=0)
 
-    exit_tuple = det.find_exits(n_sample, n_medium, thickness, 0, boundary,
+    exits = det.find_exits(n_sample, n_medium, thickness, 0, boundary,
                                 sim.traj)
-    refl_indices, trans_indices, stuck_indices, tir_indices = exit_tuple
+    # convert to Dataset for comparison
+    refl_expected = xr.DataArray(refl_indices_expected,
+                                 coords={"trajectory": range(ntrajectories)})
+    trans_expected = xr.DataArray(trans_indices_expected,
+                                  coords=refl_expected.coords)
+    stuck_expected = xr.DataArray(stuck_indices_expected,
+                                  coords=refl_expected.coords)
+    tir_expected = xr.DataArray(tir_indices_expected,
+                                  coords=refl_expected.coords)
 
-    assert_equal(refl_indices, refl_indices_expected)
-    assert_equal(trans_indices, trans_indices_expected)
-    assert_equal(stuck_indices, stuck_indices_expected)
-    assert_equal(tir_indices, tir_indices_expected)
+    exits_expected = xr.Dataset({"exit": refl_expected + trans_expected,
+                                 "refl": refl_expected,
+                                 "trans": trans_expected,
+                                 "stuck": stuck_expected,
+                                 "tir": tir_expected})
+
+    try:
+        xr.testing.assert_equal(exits.squeeze(drop=True), exits_expected)
+    except AssertionError as e:
+        print("\n*** position ***\n", traj.position.sel(component="z"))
+        print("\n*** direction ***\n", traj.direction.sel(component="z"))
+        print("\n*** exit ***\n", exits)
+        print("\n*** exit (loop calculation) ***", exits_expected)
+        raise e
 
     # check to make sure also that find_exits() returns unambiguous
     # transmitted, reflected, and stuck indices (meaning that each trajectory
     # can have a non-zero entry in only one of the three arrays)
-    assert not np.any(trans_indices & refl_indices)
-    assert not np.any(stuck_indices & refl_indices)
-    assert not np.any(stuck_indices & trans_indices)
+    assert not np.any(exits["trans"] & exits["refl"])
+    assert not np.any(exits["stuck"] & exits["refl"])
+    assert not np.any(exits["stuck"] & exits["trans"])
 
 
 def test_calc_refl_trans():
@@ -193,11 +211,13 @@ def test_calc_refl_trans():
                       coords=pos_coords)
     r0.loc["z"] = z_pos
     k0 = xr.zeros_like(r0.isel(event=slice(0, -1)))
-    k0.loc["z"] = np.array([[1,1,1,1],[-1,1,1,1],[-1,1,1,1]])
-    weights = xr.DataArray([[1., 1., 1., 1.],
-                            [.8, .8, .9, .8],
-                            [.7, .3, .7, 0],
-                            [.1, .1, .5, 0]],
+    k0.loc["z"] = np.array([[ 1,  1,  1,  1],
+                            [-1,  1,  1,  1],
+                            [-1,  1,  1,  1]])
+    weights = xr.DataArray([[1.0, 1.0, 1.0, 1.0],
+                            [0.8, 0.8, 0.9, 0.8],
+                            [0.7, 0.3, 0.7, 0.0],
+                            [0.1, 0.1, 0.5, 0.0]],
                            coords=r0.sel(component="x", drop=True).coords)
     # now we can see that the weights at exit are as follows
     # - trajectory 1: 0.7
