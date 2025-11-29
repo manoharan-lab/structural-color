@@ -527,10 +527,10 @@ def find_exits(n_sample, n_medium, thickness, z_low, boundary, trajectories):
 
     Parameters
     ----------
-    n_sample: float
-        Refractive index of the sample
-    n_medium: float
-        Refractive index of the medium
+    n_sample : `xr.DataArray`
+        Refractive index of the sample, returned from an `sc.Index` object
+    n_medium : `xr.DataArray`
+        Refractive index of the medium, returned from an `sc.Index` object
     thickness: float
         thickness of film or diameter of sphere
     z_low: float
@@ -538,8 +538,8 @@ def find_exits(n_sample, n_medium, thickness, z_low, boundary, trajectories):
         set to 0
     boundary: string
         geometrical boundary, current options are 'film' or 'sphere'
-    trajectories:Trajectory object
-        Trajectory object used in Monte Carlo simulation
+    trajectories : `xr.Dataset`
+        trajectories from a Simulation object
 
     Returns
     -------
@@ -649,7 +649,8 @@ def find_exits(n_sample, n_medium, thickness, z_low, boundary, trajectories):
         # kz_correct will be nan if trajectory is totally internally reflected.
         kz_correct = exit_kz(potential_exit_indices.to_numpy().squeeze(),
                              trajectories, boundary,
-                             thickness, n_sample, n_medium)
+                             thickness, n_sample.to_numpy().squeeze(),
+                             n_medium.to_numpy().squeeze())
         # no_tir is calculated to match film case
         # for use in event_distribution.py
         no_tir = ~np.isnan(kz_correct)
@@ -1630,15 +1631,8 @@ def calc_refl_trans(sim,
         transmittance
 
     """
-    # until this function is refactored to use xarray, convert all indices to
-    # numpy arrays
-    n_med = sim.model.index_medium(sim.wavelen).to_numpy()
+    n_med = sim.model.index_medium(sim.wavelen)
     n_samp = sim.model.index_external(sim.wavelen)
-    # drop VOLFRAC dimension, which will be included in all effective index
-    # calculations.
-    if sc.Coord.VOLFRAC in n_samp.coords:
-        n_samp = n_samp.isel({sc.Coord.VOLFRAC: 0}, drop=True)
-        n_samp = n_samp.to_numpy()
 
     boundary = sim.boundary
     fine_roughness = sim.fine_roughness
@@ -1662,7 +1656,7 @@ def calc_refl_trans(sim,
     else:
         n_tir = n_samp
 
-    # set up values as floats and numpy arrays to be used throughout function
+    # set up values as floats to be used throughout function
     ntraj = sim.ntrajectories
     if isinstance(z_low, sc.Quantity):
         z_low = z_low.to_preferred().magnitude
@@ -1680,6 +1674,16 @@ def calc_refl_trans(sim,
     trajectories = mc.NumpyTrajectory(sim.traj)
     kz0_rot = trajectories.kz0_rot
     kz0_refl = trajectories.kz0_refl
+    # until this function is refactored to use xarray, convert all indices to
+    # numpy arrays
+    n_med = n_med.to_numpy()
+    # drop VOLFRAC dimension, which will be included in all effective index
+    # calculations.
+    if sc.Coord.VOLFRAC in n_samp.coords:
+        n_samp = n_samp.isel({sc.Coord.VOLFRAC: 0}, drop=True)
+        n_tir = n_tir.isel({sc.Coord.VOLFRAC: 0}, drop=True)
+        n_samp = n_samp.to_numpy()
+        n_tir = n_tir.to_numpy()
 
     # Correct indices to account for detector.
     # TODO make this work for trans_indices as well
