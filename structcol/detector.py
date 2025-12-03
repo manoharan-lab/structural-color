@@ -199,7 +199,7 @@ def exit_kz(indices, trajectories, boundary, thickness, n_inside, n_outside):
 
 def rotate_refract(point, axis, vec, alpha):
     '''
-    Rotates vector <k1> by angle alpha about the unit vector <uvw>,
+    Rotates vector <vec> by angle alpha about the unit vector <uvw>,
     where (a,b,c) is a point on the vector we are rotating about.
 
     Parameters
@@ -211,7 +211,7 @@ def rotate_refract(point, axis, vec, alpha):
     vec : array
         vector to rotate
     alpha : 1d array
-        angle by which to rotate <k1>
+        angle by which to rotate <vec>
 
     length of each of these arrays is number of trajectories being rotated
 
@@ -229,10 +229,14 @@ def rotate_refract(point, axis, vec, alpha):
     '''
 
     a, b, c = point
-    u, v, w = axis
+    # normalize because the rotation matrix formula assumes <uvw> has length 1
+    u, v, w = normalize(axis, return_nan=False)
 
     # (x,y,z) is a physical point on the k vector
     # we find the point by adding a,b,c to the normalized k vector
+    # (this seems to just make the origins of both vec and axis the same --
+    # could achieve the same thing by moving "point" to the origin of the
+    # coordinate system)
     x, y, z = point + vec
 
     # rotation matrix
