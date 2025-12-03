@@ -37,7 +37,7 @@ import warnings
 import matplotlib.pyplot as plt
 import numpy as np
 import xarray as xr
-from numpy.random import random as random
+from scipy.spatial.transform import Rotation
 
 import structcol as sc
 
@@ -186,7 +186,7 @@ def exit_kz(indices, trajectories, boundary, thickness, n_inside, n_outside):
     theta = theta_2 - theta_1
 
     # Perform the rotation.
-    _, _, k2z = rotate_refract(norm * thickness / 2, kr, k1, theta)
+    _, _, k2z = rotate_refract(kr, k1, theta)
 
     # If k2z is nan, leave uncorrected.
     # Since nan means the trajectory was totally internally reflected, the
@@ -197,67 +197,34 @@ def exit_kz(indices, trajectories, boundary, thickness, n_inside, n_outside):
     return k2z
 
 
-def rotate_refract(point, axis, vec, alpha):
+def rotate_refract(axis, vec, alpha):
     '''
-    Rotates vector <vec> by angle alpha about the unit vector <uvw>,
-    where (a,b,c) is a point on the vector we are rotating about.
+    Rotates vector by angle alpha about an axis.
 
     Parameters
     ----------
-    point : array
-        point on the vector <uvw> to rotate about
-    axis : array
-        vector to rotate about
-    vec : array
-        vector to rotate
-    alpha : 1d array
-        angle by which to rotate <vec>
-
-    length of each of these arrays is number of trajectories being rotated
+    axis : array-like
+        vector to rotate about.  Shape (..., 3, num_trajectories)
+    vec : array-like
+        vector to rotate.  Shape (..., 3, num_trajectories)
+    alpha : array-like
+        angle by which to rotate vector.   Shape (..., num_trajectories)
 
     Returns
     -------
-    newvec : array
-        rotated vector
-
-    Notes
-    -----
-    This rotation matrix was derived by Glenn Murray
-    and it's derivation is explained here:
-    https://sites.google.com/site/glennmurray/Home/rotation-matrices
-    -and-formulas/rotation-about-an-arbitrary-axis-in-3-dimensions
+    newvec : array-like
+        rotated vector.  Shape (..., 3, num_trajectories)
     '''
 
-    a, b, c = point
-    # normalize because the rotation matrix formula assumes <uvw> has length 1
-    u, v, w = normalize(axis, return_nan=False)
+    transformed_axis = normalize(axis, return_nan=False).transpose()
+    # to set the angle of rotation, we use the "rotation vector"
+    # representation, in which the direction of the vector is the axis of
+    # rotation and the magnitude is the angle. Note that scipy expects the
+    # coordinate axis to be the last one; hence the transposes.
+    r = Rotation.from_rotvec(alpha[:, np.newaxis] * transformed_axis)
+    rotated_vec = r.apply(vec.transpose()).transpose()
 
-    # (x,y,z) is a physical point on the k vector
-    # we find the point by adding a,b,c to the normalized k vector
-    # (this seems to just make the origins of both vec and axis the same --
-    # could achieve the same thing by moving "point" to the origin of the
-    # coordinate system)
-    x, y, z = point + vec
-
-    # rotation matrix
-    x_rot = (a * (v**2 + w**2) \
-             - u * (b * v + c * w - u * x - v * y - w * z)) \
-             * (1 - np.cos(alpha)) + x * np.cos(alpha) \
-             + (-c * v + b * w - w * y + v * z) * np.sin(alpha)
-    y_rot = (b * (u**2 + w**2) \
-             - v * (a * u + c * w - u * x - v * y - w * z)) \
-             * (1 - np.cos(alpha)) + y * np.cos(alpha) \
-             + (c * u - a * w + w * x - u * z) * np.sin(alpha)
-    z_rot = (c * (u**2 + v**2) \
-             - w * (a * u + b * v - u * x - v * y - w * z)) \
-             * (1 - np.cos(alpha)) + z * np.cos(alpha) \
-             + (-b * u + a * v - v * x + u * y) * np.sin(alpha)
-
-    # to recover the k vector from the point rotated in space, we must subtract
-    # a,b,c
-    newvec = np.array([x_rot, y_rot, z_rot]) - point
-
-    return newvec
+    return rotated_vec
 
 
 def get_angles(indices, boundary, trajectories, thickness,
@@ -1302,7 +1269,7 @@ def calc_refracted_direction(dir, pos, n1, n2, plot):
     alpha = - (theta_2 - theta_1)
 
     # Rotate exit direction by refracted angle.
-    newdir = rotate_refract(point, axis, dir, alpha)
+    newdir = rotate_refract(axis, dir, alpha)
 
     if plot:    # pragma: no cover
         fig = plt.figure()
