@@ -80,6 +80,10 @@ def test_calc_refl_trans():
     trajectories = xr.Dataset({"position": r0,
                                "direction": k0,
                                "weight": weights})
+    # other dimensions needed to specify trajectories Dataset
+    expanded_dims = {"wavelength": [wavelen.to_preferred().magnitude],
+                     "volume_fraction": [volume_fraction]}
+    trajectories = trajectories.expand_dims(expanded_dims)
 
     # set up a dummy simulation and insert the trajectories
     # (index match particle so that effective index is same as matrix)
@@ -118,6 +122,7 @@ def test_calc_refl_trans():
     trajectories = xr.Dataset({"position": r0,
                                "direction": k0,
                                "weight": weights})
+    trajectories = trajectories.expand_dims(expanded_dims)
 
     # (go back to small index for matrix and particle)
     particle = sc.Sphere(index_small_n, radius)
@@ -141,7 +146,7 @@ def test_calc_refl_trans():
     trajectories = xr.Dataset({"position": r0,
                                "direction": k0,
                                "weight": weights})
-
+    trajectories = trajectories.expand_dims(expanded_dims)
     sim.traj = trajectories
 
     # ignore warning that too many trajectories did not exit the sample
@@ -150,7 +155,7 @@ def test_calc_refl_trans():
                                           run_fresnel_traj=True)
     # since the tir=True reruns the stuck trajectory, we don't know whether it will end up reflected or transmitted
     # all we can know is that the end refl + trans > 0.99
-    assert_almost_equal(refl + trans, 1.)
+    assert_almost_equal(refl + trans, xr.ones_like(refl))
 
 def test_get_angles_sphere():
     nevents = 3
@@ -178,12 +183,13 @@ def test_get_angles_sphere():
                                "direction": directions,
                                "weight": weights})
 
-    indices = np.array([1,1,1,1], dtype=float)
+    indices = xr.DataArray(np.array([1,1,1,1], dtype=float),
+                           coords = {"trajectory": range(ntrajectories)})
     thetas, _ = det.get_angles(indices, 'sphere', trajectories, assembly_radius,
                                init_dir = 1)
-    # used to be set to 0 but changed to np.pi since one trajectory is directed
-    # upward.
-    assert_almost_equal(np.sum(thetas), np.pi)
+
+    # indices are all 1, meaning to look at the 0th values of the k array
+    assert_almost_equal(np.sum(thetas), 0)
 
 def test_index_match():
     ntrajectories = 2
@@ -196,6 +202,8 @@ def test_index_match():
     index_matrix = sc.ConstantIndex(1.6)
     index_medium = sc.ConstantIndex(1.0)
 
+    seed = 1
+    rng = np.random.RandomState([seed])
     sphere = sc.Sphere(index_particle, radius)
     model = sc.model.HardSpheres(sphere, volume_fraction, index_matrix,
                                  index_medium)
@@ -212,10 +220,13 @@ def test_index_match():
     # make dummy simulation object and replace trajectories in the object with
     # the ones that we've set up
     sim = mc.Simulation(model, wavelen, nevents, ntrajectories, "sphere",
-                        sample_diameter = microsphere_radius*2)
+                        sample_diameter = microsphere_radius*2, rng=rng)
     trajectories_sphere = xr.Dataset({"position": r0_sphere,
                                       "direction": k0_sphere,
                                       "weight": W0_sphere})
+    expanded_dims = {"wavelength": [wavelen.to_preferred().magnitude],
+                     "volume_fraction": [volume_fraction]}
+    trajectories_sphere = trajectories_sphere.expand_dims(expanded_dims)
     sim.traj = trajectories_sphere
 
     # now run the simulation
@@ -234,7 +245,8 @@ def test_index_match():
     # sample size), and the light is scattered into the forward direction. As a
     # result, the reflectance is essentially deterministic, even though the
     # seed is not set for the random number generator.
-    assert_almost_equal(refl_sphere, refl_exact, decimal=3)
+    assert_almost_equal(refl_sphere, refl_exact*xr.ones_like(refl_sphere),
+                        decimal=3)
 
 def test_reflection_sphere_mc():
     """
@@ -319,7 +331,6 @@ def test_multiscale_mc():
     index_matrix_bulk = sc.index.vacuum
     n_matrix_bulk = index_matrix_bulk(wavelengths)
     index_medium = sc.index.vacuum
-    n_medium = index_medium(wavelengths)
 
     particle = sc.Sphere(index_particle, particle_radius)
 
@@ -341,13 +352,9 @@ def test_multiscale_mc():
     # set up scattering model
     model = sc.model.HardSpheres(particle, volume_fraction_particles,
                                  index_matrix, index_medium)
-    n_sample = model.index_external(wavelengths)
 
     # loop through wavelengths
     for i in range(wavelengths.size):
-        n_s = n_sample.isel(wavelength=[i])
-        n_m = n_matrix_bulk.isel(wavelength=[i])
-
         # Initialize and run the simulation
         sim = mc.Simulation(model, wavelengths[i], nevents, ntrajectories,
                             boundary,
@@ -355,17 +362,32 @@ def test_multiscale_mc():
         sim.run()
 
         # Calculate reflection and transmission
-        trajectories = sim.traj
         (refl_indices, trans_indices, stuck_indices, tir_indices,
          _, _, _,
          refl_per_traj, trans_per_traj,
          _,_,_,_,
-         reflectance_sphere[i],
+         reflectance,
          _, norm_refl, norm_trans) = \
              det.calc_refl_trans(sim, sphere_boundary_diameter,
                                  run_fresnel_traj = False,
                                  return_extra = True)
 
+        # until phase_func_sphere is refactored to use xarray, convert to numpy
+        reflectance_sphere[i] = reflectance.to_numpy().squeeze()
+        refl_indices = refl_indices.sortby("trajectory").to_numpy().squeeze()
+        trans_indices = trans_indices.sortby("trajectory").to_numpy().squeeze()
+        refl_per_traj = refl_per_traj.sortby("trajectory").to_numpy().squeeze()
+        trans_per_traj = (trans_per_traj.sortby("trajectory").to_numpy()
+                          .squeeze())
+        # need to expand norm_refl and norm_trans to have all trajectories as
+        # coordinates
+        alltraj_comp = xr.DataArray(np.ones((ntrajectories, 3)),
+                                    coords={"trajectory": range(ntrajectories),
+                                            "component": ["x", "y", "z"]})
+        norm_refl = (norm_refl.reindex_like(alltraj_comp, fill_value=0.0)
+                     .to_numpy().squeeze().transpose())
+        norm_trans = (norm_trans.reindex_like(alltraj_comp, fill_value=0.0)
+                      .to_numpy().squeeze().transpose())
 
         ### Calculate phase function and lscat ###
         # use output of calc_refl_trans to calculate phase function, mu_scat,
@@ -421,8 +443,6 @@ def test_multiscale_mc():
     model = sc.model.HardSpheres(dummy_particle, volume_fraction_particles,
                                  index_matrix_bulk, index_medium)
     for i in range(wavelengths.size):
-        n_med = n_medium.isel(wavelength=[i])
-        n_mat = n_matrix_bulk.isel(wavelength=[i])
         # Initialize the simulation
         sim = mc.Simulation(model, wavelengths[i], nevents_bulk,
                             ntrajectories_bulk, boundary_bulk, rng=rng)
@@ -446,9 +466,10 @@ def test_multiscale_mc():
         sim.move(step)
 
         # calculate bulk reflectance
-        trajectories = sim.traj
-        reflectance_bulk[i], transmittance = \
+        reflectance, transmittance = \
             det.calc_refl_trans(sim, bulk_thickness)
+
+        reflectance_bulk[i] = reflectance.to_numpy().squeeze()
 
     # these numbers look a little strange (multiply them by the number of
     # trajectories, and they all become integers). That's because there's no
@@ -505,7 +526,6 @@ def test_multiscale_polydispersity_mc():
     index_matrix_bulk = sc.index.vacuum
     n_matrix_bulk = index_matrix_bulk(wavelengths)
     index_medium = sc.index.vacuum
-    n_medium = index_medium(wavelengths)
 
     particle = sc.Sphere(index_particle, particle_radius)
 
@@ -539,13 +559,8 @@ def test_multiscale_polydispersity_mc():
     model = sc.model.HardSpheres(particle, volume_fraction_particles,
                                  index_matrix, index_medium)
 
-    n_sample = model.index_external(wavelengths)
-
     for j in range(sphere_boundary_diameters.size):
         for i in range(wavelengths.size):
-            n_m = n_matrix_bulk.isel(wavelength=[i])
-            n_s = n_sample.isel(wavelength=[i])
-
             # Initialize and run the simulation
             sim = mc.Simulation(model, wavelengths[i], nevents, ntrajectories,
                                 boundary,
@@ -554,17 +569,37 @@ def test_multiscale_polydispersity_mc():
             sim.run()
 
             # Calculate reflection and transmition
-            trajectories = sim.traj
             (refl_indices, trans_indices, stuck_indices, tir_indices,
              _, _, _,
              refl_per_traj, trans_per_traj,
              _,_,_,_,
-             reflectance_sphere[i],
+             reflectance,
              _, norm_refl, norm_trans) = \
                  det.calc_refl_trans(sim,
                                      sphere_boundary_diameters[j],
                                      run_fresnel_traj = False,
                                      return_extra = True)
+
+            # until phase_func_sphere is refactored to use xarray, convert to numpy
+            reflectance_sphere[i] = reflectance.to_numpy().squeeze()
+            refl_indices = (refl_indices.sortby("trajectory").to_numpy()
+                            .squeeze())
+            trans_indices = (trans_indices.sortby("trajectory").to_numpy()
+                             .squeeze())
+            refl_per_traj = (refl_per_traj.sortby("trajectory").to_numpy()
+                             .squeeze())
+            trans_per_traj = (trans_per_traj.sortby("trajectory").to_numpy()
+                              .squeeze())
+            # need to expand norm_refl and norm_trans to have all trajectories as
+            # coordinates
+            alltraj_comp = xr.DataArray(np.ones((ntrajectories, 3)),
+                                        coords={"trajectory":
+                                                range(ntrajectories),
+                                                "component": ["x", "y", "z"]})
+            norm_refl = (norm_refl.reindex_like(alltraj_comp, fill_value=0.0)
+                         .to_numpy().squeeze().transpose())
+            norm_trans = (norm_trans.reindex_like(alltraj_comp, fill_value=0.0)
+                          .to_numpy().squeeze().transpose())
 
             ### Calculate phase function and lscat ###
             p_bulk[j,i,:], mu_scat_bulk[j,i], mu_abs_bulk[j,i] = \
@@ -596,8 +631,6 @@ def test_multiscale_polydispersity_mc():
     model = sc.model.HardSpheres(particle, volume_fraction_particles,
                                  index_matrix_bulk, index_medium)
     for i in range(wavelengths.size):
-        n_med = n_medium.isel(wavelength=[i])
-        n_mat = n_matrix_bulk.isel(wavelength=[i])
         # Initialize the simulation
         sim = mc.Simulation(model, wavelengths[i], nevents_bulk,
                             ntrajectories_bulk, boundary_bulk, rng=rng)
@@ -622,9 +655,10 @@ def test_multiscale_polydispersity_mc():
         sim.move(step)
 
         # calculate reflectance
-        trajectories = sim.traj
-        reflectance_bulk_poly[i], transmittance = \
+        reflectance, transmittance = \
             det.calc_refl_trans(sim, bulk_thickness)
+
+        reflectance_bulk_poly[i] = reflectance.to_numpy().squeeze()
 
     # test reflectance from the bulk polydisperse sample
     R_expected = [0.5896400063098672, 0.5954498381410573, 0.5429987792670864,
@@ -680,7 +714,6 @@ def test_multiscale_color_mixing_mc():
     index_matrix_bulk = sc.index.vacuum
     n_matrix_bulk = index_matrix_bulk(wavelengths)
     index_medium = sc.index.vacuum
-    n_medium = index_medium(wavelengths)
 
     # Monte Carlo parameters
     ntrajectories = 2000
@@ -702,12 +735,8 @@ def test_multiscale_color_mixing_mc():
         # set up scattering model
         model = sc.model.HardSpheres(particle, volume_fraction_particles,
                                      index_matrix, index_medium)
-        n_sample_eff = model.index_external(wavelengths)
 
         for i in range(wavelengths.size):
-            n_sample = n_sample_eff.isel(wavelength=[i])
-            n_mat = n_matrix_bulk.isel(wavelength=[i])
-
             sim = mc.Simulation(model, wavelengths[i], nevents, ntrajectories,
                                 boundary,
                                 sample_diameter = sphere_boundary_diameter,
@@ -721,17 +750,37 @@ def test_multiscale_color_mixing_mc():
             sim.scatter(sintheta, costheta, sinphi, cosphi)
             sim.move(step)
 
-            trajectories = sim.traj
             (refl_indices, trans_indices, stuck_indices, tir_indices,
              _, _, _,
              refl_per_traj, trans_per_traj,
              _,_,_,_,
-             reflectance_sphere[i],
+             reflectance,
              _, norm_refl, norm_trans) = \
                  det.calc_refl_trans(sim,
                                      sphere_boundary_diameter,
                                      run_fresnel_traj = False,
                                      return_extra = True)
+
+            # until phase_func_sphere is refactored to use xarray, convert to numpy
+            reflectance_sphere[i] = reflectance.to_numpy().squeeze()
+            refl_indices = (refl_indices.sortby("trajectory").to_numpy()
+                            .squeeze())
+            trans_indices = (trans_indices.sortby("trajectory").to_numpy()
+                             .squeeze())
+            refl_per_traj = (refl_per_traj.sortby("trajectory").to_numpy()
+                             .squeeze())
+            trans_per_traj = (trans_per_traj.sortby("trajectory").to_numpy()
+                              .squeeze())
+            # need to expand norm_refl and norm_trans to have all trajectories as
+            # coordinates
+            alltraj_comp = xr.DataArray(np.ones((ntrajectories, 3)),
+                                        coords={"trajectory":
+                                                range(ntrajectories),
+                                                "component": ["x", "y", "z"]})
+            norm_refl = (norm_refl.reindex_like(alltraj_comp, fill_value=0.0)
+                         .to_numpy().squeeze().transpose())
+            norm_trans = (norm_trans.reindex_like(alltraj_comp, fill_value=0.0)
+                          .to_numpy().squeeze().transpose())
 
             p_bulk[j,i,:], mu_scat_bulk[j,i], mu_abs_bulk[j,i] = \
                 pfs.calc_scat_bulk(refl_per_traj, trans_per_traj, refl_indices,
@@ -760,8 +809,6 @@ def test_multiscale_color_mixing_mc():
     model = sc.model.HardSpheres(dummy_particle, volume_fraction_particles,
                                  index_matrix_bulk, index_medium)
     for i in range(wavelengths.size):
-        n_med = n_medium.isel(wavelength=[i])
-        n_mat = n_matrix_bulk.isel(wavelength=[i])
         # Initialize the simulation
         sim = mc.Simulation(model, wavelengths[i], nevents_bulk,
                             ntrajectories_bulk, boundary_bulk, rng=rng)
@@ -784,9 +831,10 @@ def test_multiscale_color_mixing_mc():
         sim.move(step)
 
         # calculate reflectance
-        trajectories = sim.traj
-        reflectance_bulk_mix[i], transmittance = \
+        reflectance, transmittance = \
             det.calc_refl_trans(sim, bulk_thickness)
+
+        reflectance_bulk_mix[i] = reflectance.to_numpy().squeeze()
 
     R_expected = [0.5822243679017965, 0.570507985912688, 0.5732372435793517,
                   0.5766096689394413, 0.6050485178180293, 0.5851506936930788,

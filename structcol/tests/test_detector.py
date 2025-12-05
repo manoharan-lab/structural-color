@@ -207,6 +207,9 @@ def test_calc_refl_trans():
     pos_coords = {"component": ["x", "y", "z"],
                   "event": range(nevents+1),
                   "trajectory": range(ntrajectories)}
+    # other dimensions needed to specify trajectories Dataset
+    expanded_dims = {"wavelength": [wavelen.to_preferred().magnitude],
+                     "volume_fraction": [volume_fraction]}
     r0 = xr.DataArray(np.zeros((3, nevents+1, ntrajectories)),
                       coords=pos_coords)
     r0.loc["z"] = z_pos
@@ -219,6 +222,7 @@ def test_calc_refl_trans():
                             [0.7, 0.3, 0.7, 0.0],
                             [0.1, 0.1, 0.5, 0.0]],
                            coords=r0.sel(component="x", drop=True).coords)
+
     # now we can see that the weights at exit are as follows
     # - trajectory 1: 0.7
     # - trajectory 2: 0.3
@@ -228,6 +232,8 @@ def test_calc_refl_trans():
     trajectories = xr.Dataset({"position": r0,
                                "direction": k0,
                                "weight": weights})
+    # expand to include other dimensions
+    trajectories = trajectories.expand_dims(expanded_dims)
 
     # set up a dummy simulation and insert the trajectories
     model = sc.model.HardSpheres(particle, volume_fraction, index_matrix_small,
@@ -294,6 +300,7 @@ def test_calc_refl_trans():
     trajectories = xr.Dataset({"position": r0,
                                "direction": k0,
                                "weight": weights})
+    trajectories = trajectories.expand_dims(expanded_dims)
 
     # set up a dummy simulation and insert the trajectories
     particle = sc.Sphere(index_matrix_large, radius)
@@ -349,6 +356,7 @@ def test_calc_refl_trans():
     trajectories = xr.Dataset({"position": r0,
                                "direction": k0,
                                "weight": weights})
+    trajectories = trajectories.expand_dims(expanded_dims)
 
     # set up a dummy simulation and insert the trajectories
     model = sc.model.HardSpheres(particle, volume_fraction, index_matrix_large,
@@ -952,9 +960,7 @@ def test_detectors_mc():
 
     radius = sc.Quantity('0.140 um')
     volume_fraction = 0.55
-    volume_fraction_da = xr.DataArray([[0.55, 1-0.55]],
-                                      coords = {sc.Coord.VOLFRAC: [0.55],
-                                                sc.Coord.MAT: range(2)})
+
     n_imag = 2.1e-4 * 1j
     index_particle = sc.index.polystyrene + sc.ConstantIndex(n_imag)
     sphere = sc.Sphere(index_particle, radius)
@@ -1017,7 +1023,7 @@ def test_detectors_mc():
 
     refl_renorm_expected = 0.4988708702766998
 
-    assert_almost_equal(refl_renorm.magnitude, refl_renorm_expected)
+    assert_almost_equal(refl_renorm, refl_renorm_expected)
 
 
 def test_throw_valueerror_for_polydisperse_core_shells():
@@ -1146,6 +1152,7 @@ def test_goniometer_detector():
                              coords = {"component": ["x", "y", "z"],
                                        "event": range(nevents + 1),
                                        "trajectory": range(ntrajectories)})
+
     directions = xr.DataArray(np.array([kx, ky, kz]),
                               coords =
                               positions.isel(event=slice(0, -1)).coords)
@@ -1157,6 +1164,11 @@ def test_goniometer_detector():
     trajectories = xr.Dataset({"position": positions,
                                "direction": directions,
                                "weight": weights})
+    # other dimensions needed to specify trajectories Dataset
+    expanded_dims = {"wavelength": [wavelen.to_preferred().magnitude],
+                     "volume_fraction": [volume_fraction]}
+    trajectories = trajectories.expand_dims(expanded_dims)
+
 
     # set up a dummy simulation and insert the trajectories
     index_medium = sc.ConstantIndex(1)

@@ -339,7 +339,6 @@ def test_structure_factor_data_reflectances():
     radius = sc.Quantity("0.5 um")
     volume_fraction = 0.5
     sphere = sc.Sphere(index_particle, radius)
-    n_medium = index_medium(wavelengths)
     boundary = "film"
     thickness = sc.Quantity("50 um")
 
@@ -347,14 +346,20 @@ def test_structure_factor_data_reflectances():
     structure_factor = sc.structure.PercusYevick(volume_fraction)
     s_data = structure_factor(ql_data)
 
-    reflectance = np.zeros(wavelengths.size)
+    reflectance = xr.DataArray(np.zeros((wavelengths.size, 1)),
+                               coords={"wavelength":
+                                       wavelengths.to_preferred().magnitude,
+                                       "volume_fraction": [volume_fraction]})
     for i in range(wavelengths.size):
 
         sim = mc.Simulation(model, wavelengths[i], nevents, ntrajectories,
                             boundary, rng=rng)
         sim.run()
 
-        reflectance[i], _ = det.calc_refl_trans(sim, thickness)
+        reflectance_i, _ = det.calc_refl_trans(sim, thickness)
+        print(reflectance_i)
+        print(reflectance[i])
+        reflectance[i] = reflectance_i.squeeze(drop=True)
 
     reflectance_expected = [0.8095144529605994, 0.7708351929683783,
                             0.7683968574771831, 0.7731988230034157,
@@ -367,4 +372,4 @@ def test_structure_factor_data_reflectances():
                             0.6722019134466689, 0.6727772099454623,
                             0.650529567039051, 0.6410007651289527]
 
-    assert_almost_equal(reflectance, reflectance_expected)
+    assert_almost_equal(reflectance.to_numpy().squeeze(), reflectance_expected)

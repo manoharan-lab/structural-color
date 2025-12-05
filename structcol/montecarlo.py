@@ -165,6 +165,7 @@ class Simulation:
     """
     def __init__(self, model, wavelen, nevents, ntraj, boundary,
                  rng=None,
+                 initial_state=None,
                  incidence_theta_min=sc.Quantity(0.,'rad'),
                  incidence_theta_max=sc.Quantity(0.,'rad'),
                  incidence_theta_data=None,
@@ -214,6 +215,9 @@ class Simulation:
         rng : numpy.random.Generator object (default None)
             If not specified, use the default generator initialized on loading
             the package
+        initial_state : `xr.Dataset`
+            Initial direction, position, and weights for the simulation.  If
+            not provided, these are set according to the incidence parameters.
         incidence_theta_min : float (structcol.Quantity [angle])
             Minimum value for theta when it incides onto the sample.
             Should be >= 0 and < pi/2.

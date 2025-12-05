@@ -402,9 +402,16 @@ def test_field_co_cross_mc():
         refl_trans_result = det.calc_refl_trans(sim, thickness,
                                                 return_extra=True)
 
-        reflectance[i] = refl_trans_result[13]
+        # we convert to numpy because detector_polarization_phase is not yet
+        # converted to use xarray
+        trajectories = mc.NumpyTrajectory(trajectories)
+
+        reflectance[i] = refl_trans_result[13].to_numpy().squeeze()
         refl_indices = refl_trans_result[0]
-        refl_per_traj = refl_trans_result[5]
+        refl_per_traj = (refl_trans_result[5].reindex_like(refl_indices,
+                                                           fill_value=0.0)
+                         .to_numpy().squeeze())
+        refl_indices = refl_indices.to_numpy().squeeze()
 
         # calculate reflectance including fields
         refl_fields, _ = detp.calc_refl_phase_fields(trajectories,

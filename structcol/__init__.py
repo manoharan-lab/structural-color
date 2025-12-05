@@ -129,7 +129,7 @@ def refraction(angles, n_before, n_after):
 
 
 def normalize(vec, return_nan=True):
-    '''
+    """
     normalize a vector
 
     Parameters
@@ -140,17 +140,14 @@ def normalize(vec, return_nan=True):
     Returns
     -------
     array of normalized vector(s) components
-    '''
-    # axis=0 should be component axis
-    magnitude = np.sqrt(np.sum(np.abs(vec)**2, axis=0))
+    """
+    magnitude = np.sqrt((np.abs(vec)**2).sum("component"))
 
-    if isinstance(magnitude, xr.DataArray):
-        magnitude = magnitude.to_numpy()
     # we ignore divide by zero error here because we do not want an error
     # in the case where we try to normalize a null vector <0,0,0>
     with np.errstate(divide='ignore', invalid='ignore'):
         if (not return_nan) and magnitude.all() == 0:
-            magnitude[magnitude == 0] = 1
+            magnitude = magnitude.where(magnitude != 0, 1)
         return vec/magnitude
 
 
@@ -174,11 +171,15 @@ def select_events(inarray, events):
 
     '''
     if isinstance(inarray, (xr.DataArray, xr.Dataset)):
-        ev = xr.DataArray(events,
-                          coords={"trajectory": range(events.shape[0])})
+        if not isinstance(events, xr.DataArray):
+            ev = xr.DataArray(events,
+                              coords={"trajectory":
+                                      range(events.shape[-1])})
+        else:
+            ev = events.copy(deep=True)
         ev = ev.where(ev > 0, drop=True)
-        return inarray.sel(event=ev, trajectory=ev.coords["trajectory"],
-                           drop=True)
+        sel = inarray.sel(event=ev, **ev.coords).drop_vars("event")
+        return sel
 
     # there is no 0th event, so disregard a 0 (or less) in the events array
     valid_events = (events > 0)
@@ -202,7 +203,7 @@ def select_events(inarray, events):
         outarray = np.zeros((inarray.shape[0], len(events)), dtype=dtype)
         outarray[:, valid_events] = inarray[:, ev, tr]
     else:
-        raise ValueError(f"cannot handle inarray with {inarray.ndim}"
+        raise ValueError(f"cannot handle inarray with {inarray.ndim} "
                          "dimensions")
 
     return outarray
