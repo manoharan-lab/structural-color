@@ -845,11 +845,20 @@ class Simulation:
         # ufunc.  But np.cumprod only does element by element.
         for n in np.arange(1, self.nevents):
             # Take the dot product of the rotation matrix for current event
-            # with the wavevector for previous event. "i" is a dummy index left
-            # over after the contraction. We rename to continue the loop.
-            kn.loc[dict(event=n)] = (xr.dot(R.sel(event=n), kn.sel(event=n-1),
-                                            dim=["component"])
-                                     .rename({"i": "component"}))
+            # with the wavevector for previous event. We use numpy for
+            # performance. The overhead of xr.dot() is too costly in a loop.
+            kn.data[..., n, :] = np.einsum("...ijl, ...jl -> ...il",
+                                           R.data[..., n-1, :],
+                                           kn.data[..., n-1, :])
+
+            # equivalent xarray code is below. This code is much slower but
+            # more explicit. Note R.sel(event=n) is analogous to R[.., n-1, :]
+            # because R has nevents-1 events and kn has nevents.
+
+            # kn.loc[dict(event=n)] = (xr.dot(R.sel(event=n),
+            #                                 kn.sel(event=n-1),
+            #                             dim=["component"])
+            #                          .rename({"i": "component"}))
 
         # Update all the directions of the trajectories
         self.traj["direction"] = kn
