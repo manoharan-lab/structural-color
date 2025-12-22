@@ -38,8 +38,8 @@ class TestSampling():
 
     """
     def test_choice_1d(self):
-        """Test that sc.montecarlo.choice() returns the same results as
-        rng.choice() for a 1D probability vector
+        """Test that sc.choice() returns the same results as rng.choice() for a
+        1D probability vector
 
         """
         num_samples = 100
@@ -60,20 +60,36 @@ class TestSampling():
 
         assert_equal(sc_choices, rng_choices)
 
-        # test with a single sample drawn multiple times
+    def test_choice_multidimensional(self):
+        """Test that sc.choice() returns the same results as rng.choice() for a
+        multidimensional probability distribution
+
+        """
+        nevents = 15
+        ntraj = 23
+
+        # assign random probabilities in 3D array
         seed = 1
         rng = np.random.default_rng([seed])
-        rng_choices = []
-        for _ in range(num_samples):
-            rng_choices.append(rng.choice(num_choices, p=p))
+        num_choices = 31
+        p = rng.random((nevents, ntraj, num_choices))
+        # normalize
+        p = p/p.sum(axis=-1)[..., np.newaxis]
+
+        # use loop to generate samples from rng.choice()
         seed = 1
         rng = np.random.default_rng([seed])
-        sc_choices = []
-        for _ in range(num_samples):
-            sc_choices.append(sc.choice(num_choices, 1, p, rng=rng))
+        rng_choices = np.zeros((nevents, ntraj))
+        for i in range(nevents):
+            for j in range(ntraj):
+                rng_choices[i,j] = rng.choice(num_choices, p=p[i, j, :])
 
-        assert_equal(np.array(rng_choices), np.array(sc_choices))
+        # vectorized version using sc.choice()
+        seed = 1
+        rng = np.random.default_rng([seed])
+        sc_choices = sc.choice(num_choices, (nevents, ntraj), p, rng)
 
+        assert_equal(sc_choices, rng_choices)
 
 class TestSimulation():
     """Tests for the Simulation class and methods

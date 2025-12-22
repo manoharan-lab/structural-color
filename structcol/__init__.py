@@ -376,15 +376,12 @@ def choice(a, size, p, rng):
     # compute CDF, assuming last axis corresponds to the random variable
     cdf = p.cumsum(axis=-1)
     # normalize
-    cdf = cdf / cdf[..., -1]
-    # look up maximum index at which y fits into CDF
+    cdf = cdf / cdf[..., [-1]]
+    # look up maximum index at which y fits into CDF (argmin returns the first
+    # index at which condition applies)
     x = np.argmin(y[..., np.newaxis] > cdf, axis=-1)
 
     result = a[..., x]
-
-    # return scalar if a single draw is requested
-    if result.size == 1:
-        result = result.item()
 
     return result
 

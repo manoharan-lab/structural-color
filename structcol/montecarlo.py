@@ -716,16 +716,10 @@ class Simulation:
                        * np.sin(thetas[:, np.newaxis, np.newaxis]))
             p_theta_norm = p_theta/np.sum(p_theta, axis=0)
 
-            # It's hard to vectorize this loop because rng.choice works only
-            # with a one-dimensional probability vector p. There may be a way
-            # to vectorize using rng.multinomial, which takes an array of
-            # probs. However, rng.multinomial might not work with
-            # np.random.RandomState
-            for i in range(nsamples):
-                for j in range(ntraj):
-                    theta_ind[i,j] = sc.choice(self.num_thetas, 1,
-                                               p_theta_norm[:,i,j],
-                                               rng=rng)
+            # sample theta, using moveaxis because sc.choice expects last axis
+            # to be the random variable
+            theta_ind = sc.choice(self.num_thetas, (nsamples, ntraj),
+                                  np.moveaxis(p_theta_norm, 0, -1), rng)
 
             # sampled angles
             theta = thetas[theta_ind.astype(int)]
