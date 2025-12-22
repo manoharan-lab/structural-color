@@ -541,11 +541,6 @@ def calc_refl_event_fresnel_pdf(refl_events, pdf_refl, pdf_trans, refl_indices,
     exits at event x + y. All fresnel trajectories generated at event x are
     associated with the same y.
 
-    This function does not yet broadcast over wavelength or other dimensions,
-    because rng.choice() can handle only a 1-D probability density function.
-    The function will throw an Exception if a passed arrays having leading
-    dimensions with more than one value.
-
     """
     if rng is None:
         rng = sc.rng
@@ -556,25 +551,31 @@ def calc_refl_event_fresnel_pdf(refl_events, pdf_refl, pdf_trans, refl_indices,
     trans_weights = trans_frac * sum_per_event_number(trans_fresnel,
                                                       trans_indices, nevents)
 
-    # squeeze PDF arrays since rng.choice() handles only 1D PDF
-    pdf_refl = pdf_refl.to_numpy().squeeze()
-    pdf_trans = pdf_trans.to_numpy().squeeze()
-    refl_weights = refl_weights.squeeze(drop=True)
-    trans_weights = trans_weights.squeeze(drop=True)
-
     # sample reflection and transmission event numbers
     # (for each possible event index, we pick an offset index from the actual
     # trajectories)
+    pdf_refl = pdf_refl.transpose(..., "event")
+    pdf_trans = pdf_trans.transpose(..., "event")
+    # save coords to add back to arrays after conversion to numpy for sampling
+    coords = pdf_refl.drop_vars("event").coords
+    # calculate shape of array to be sampled based on leading dims in pdf
+    leading_dims_shape = pdf_refl.shape[:-1]
+    sample_size = leading_dims_shape + (nevents+1,)
+
     sampled_refl_event = sc.choice(np.arange(2, nevents + 1),
-                                   nevents+1, pdf_refl, rng=rng)
+                                   sample_size, pdf_refl.to_numpy(),
+                                   rng=rng)
     sampled_trans_event = sc.choice(np.arange(1, nevents + 1),
-                                    nevents+1, pdf_trans, rng=rng)
+                                    sample_size, pdf_trans.to_numpy(),
+                                    rng=rng)
 
     # convert to DataArrays
     sampled_refl_event = xr.DataArray(sampled_refl_event,
-                                      coords={"event": range(nevents+1)})
+                                      coords=dict(**coords,
+                                                  event=range(nevents+1)))
     sampled_trans_event = xr.DataArray(sampled_trans_event,
-                                       coords={"event": range(nevents+1)})
+                                       coords=dict(**coords,
+                                                   event=range(nevents+1)))
 
     # add the frensel reflected trajectory event to the sampled event of
     # reflection or transmission
@@ -585,12 +586,14 @@ def calc_refl_event_fresnel_pdf(refl_events, pdf_refl, pdf_trans, refl_indices,
         # nevents + 1
         # sampled_trans_event has a size nevents + 1, even though it includes
         # an extra event to sample
-        new_refl_event = (ev + sampled_refl_event.isel(event=ev)).to_numpy()
-        fresnel_samp[new_refl_event] = (fresnel_samp[new_refl_event]
-                                        + refl_weights.isel(event=ev))
-        new_trans_event = (ev + sampled_trans_event.isel(event=ev)).to_numpy()
-        fresnel_samp.loc[new_trans_event] = (fresnel_samp[new_trans_event]
-                                             + trans_weights.isel(event=ev))
+        new_refl_event = (ev + sampled_refl_event.isel(event=ev))
+        fresnel_samp.loc[dict(event=new_refl_event)] = \
+            (fresnel_samp.isel(event=new_refl_event)
+             + refl_weights.isel(event=ev))
+        new_trans_event = (ev + sampled_trans_event.isel(event=ev))
+        fresnel_samp.loc[dict(event=new_trans_event)] = \
+            (fresnel_samp.isel(event=new_trans_event)
+             + trans_weights.isel(event=ev))
 
     # addition will restore leading dimensions to the returned array
     return refl_events + fresnel_samp
