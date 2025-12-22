@@ -32,7 +32,6 @@ from .. import detector as det
 import numpy as np
 import xarray as xr
 from numpy.testing import assert_almost_equal, assert_equal, assert_allclose
-from pint.errors import UnitStrippedWarning
 import pytest
 
 # Define a system to be used for the tests
@@ -611,13 +610,11 @@ def test_multiscale_polydispersity_mc():
                                    plot=False, phi_dependent=False)
 
     # sample
-    # This will raise a warning from Pint -- need to refactor function
-    with pytest.warns(UnitStrippedWarning):
-        sphere_diams_sampled = pfs.sample_diams(pdi,
-                                                sphere_boundary_diameters,
-                                                sphere_boundary_diam_mean,
-                                                ntrajectories_bulk,
-                                                nevents_bulk, rng=rng)
+    sphere_diams_sampled = pfs.sample_diams(pdi,
+                                            sphere_boundary_diameters,
+                                            sphere_boundary_diam_mean,
+                                            ntrajectories_bulk,
+                                            nevents_bulk, rng=rng)
 
     # test that the number of samples for each diameter matches what is
     # in the notebook

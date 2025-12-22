@@ -30,11 +30,10 @@ from scipy.stats import gaussian_kde
 from scipy.spatial.distance import cdist
 import structcol as sc
 from . import select_events
-from scipy.special import factorial
 import warnings
 
 def get_exit_pos(norm_refl, norm_trans, radius):
-    '''
+    """
     find the exit points of trajectories sent into a sphere
 
     Parameters
@@ -45,36 +44,20 @@ def get_exit_pos(norm_refl, norm_trans, radius):
     norm_trans: 2d array-like, shape (3, number of trajectoires)
         array of normal vectors for trajectories at their
         transmission exit from the sphere
-        norm_trans
     radius: float-like
         radius of the spherical boundary
 
     Returns
     -------
-    x_inter: array-like
-        x-coordinates of exit positions of trajectories
-    y_inter: array-like
-        y-coordinates of exit positions of trajectories
-    z_inter:array-like
-        z-coordinates of exit positions of trajectories
-    '''
+    intersect : array-like, shape (3, number of trajectories)
+        coordinates of exit positions of trajectories
+    """
     # add the normal vectors for reflection and transmission to get
     # normal vectors for all exits
     norm = norm_trans + norm_refl
+    intersect = norm * radius
 
-    # get the x-coordinate
-    x_inter = norm[0,:]
-    x_inter = x_inter * radius
-
-    # get the y-coordinate
-    y_inter = norm[1,:]
-    y_inter = y_inter * radius
-
-    # get the z-coordinate
-    z_inter = norm[2,:]
-    z_inter = z_inter * radius
-
-    return x_inter, y_inter, z_inter
+    return intersect
 
 def conv_circ(signal, ker ):
     '''
@@ -84,7 +67,7 @@ def conv_circ(signal, ker ):
     '''
     return np.real(np.fft.ifft(np.fft.fft(signal) * np.fft.fft(ker)))
 
-def calc_pdf(x, y, z, radius,
+def calc_pdf(intersect, radius,
              refl_per_traj,
              trans_per_traj,
              refl_indices,
@@ -105,12 +88,8 @@ def calc_pdf(x, y, z, radius,
 
     Parameters
     ----------
-    x: 1d array-like
-        x-coordinate of each trajectory at exit event
-    y: 1d array-like
-        y-coordinate of each trajectory at exit event
-    z: 1d array-like
-        z-coordinate of each trajectory at exit event
+    intersect : array-like, shape (3, ntrajectories)
+        coordinates of each trajectory at exit event
     radius: float
         radius of sphere boundary
     refl_per_traj: 1d array
@@ -160,6 +139,7 @@ def calc_pdf(x, y, z, radius,
     see http://mathworld.wolfram.com/SpherePointPicking.html for more details
 
     '''
+    x, y, z = intersect
     trans_indices_scat = np.copy(trans_indices)
     trans_indices_scat[trans_indices == 1] = 0
 
@@ -690,11 +670,11 @@ def calc_scat_bulk(refl_per_traj,
                                        wavelength)
 
     # find the points on the sphere where trajectories exit
-    x_inter, y_inter, z_inter = get_exit_pos(norm_refl, norm_trans, radius)
+    intersect = get_exit_pos(norm_refl, norm_trans, radius)
 
     # calculate the probability density function as a function of nu, which
     # depends on the scattering angle
-    p = calc_pdf(x_inter, y_inter, z_inter, radius,
+    p = calc_pdf(intersect, radius,
                  refl_per_traj,
                  trans_per_traj,
                  refl_indices,
@@ -708,37 +688,6 @@ def calc_scat_bulk(refl_per_traj,
 
     return p, mu_scat, mu_abs
 
-def size_distribution(diameter_range, mean, t):
-    '''
-    Depricated in Mie-separated branch. A nearly identical function exists in
-    model.py. The only difference is that this function is not normalized
-
-    Parameters
-    ----------
-    diameter_range: array
-        Range of diameters of the distribution.
-    mean: 1-element array
-        Mean diameter of the distribution.
-    t: 1-element array
-        'Width' of the distribution. t = (1 - p**2) / p**2, where p is the
-        polydispersity index.
-
-    Returns
-    -------
-    distr: array (same length as diameter_range)
-        Schulz distribution as a fuction of diameter.
-
-    '''
-    if t <= 100:
-        schulz = (((t + 1) / mean)**(t + 1) * diameter_range**t
-                  / factorial(t) * np.exp(- diameter_range / mean * (t + 1)))
-        distr = schulz
-    else:
-        std_dev = diameter_range / np.sqrt(t + 1)
-        distr = (np.exp(-(diameter_range - mean)**2 / (2 * std_dev**2))
-                 / np.sqrt(2 * np.pi * std_dev**2))
-        #distr = distr/np.sum(distr)
-    return(distr)
 
 def calc_diam_list(num_diam, diameter_mean, pdi,
                    equal_spacing=False, plot=True, num_pdf_points=600):
@@ -790,7 +739,7 @@ def calc_diam_list(num_diam, diameter_mean, pdi,
     else:
         # calculate pdf
         t = (1 - pdi**2) / pdi**2
-        pdf_range = size_distribution(diam_range, 2 * radius_mean, t).magnitude
+        pdf_range = sc.model.size_distribution(diam_range, 2 * radius_mean, t)
         rad_range = diam_range.magnitude / 2
 
         # find radius at maximum of pdf
@@ -827,9 +776,10 @@ def calc_diam_list(num_diam, diameter_mean, pdi,
         t = (1 - pdi**2) / pdi**2
 
         # calculate pdf
-        pdf = size_distribution(2*rad_list, 2 * radius_mean, t)
+        pdf = sc.model.size_distribution(2*rad_list, 2 * radius_mean, t)
         if equal_spacing:
-            pdf_range = size_distribution(diam_range, 2 * radius_mean, t)
+            pdf_range = sc.model.size_distribution(diam_range,
+                                                   2 * radius_mean, t)
 
         plt.figure()
         plt.scatter(2 * rad_list, pdf, s=45, color=[0.8,0.3,0.3])
@@ -878,7 +828,7 @@ def sample_diams(pdi, diam_list, diam_mean, ntrajectories_bulk, nevents_bulk,
     t = (1 - pdi**2) / pdi**2
 
     # calculate pdf
-    pdf = size_distribution(diam_list, diam_mean, t)
+    pdf = sc.model.size_distribution(diam_list, diam_mean, t)
     pdf_norm = pdf / np.sum(pdf)
 
     # sample diameter distribution

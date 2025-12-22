@@ -661,6 +661,8 @@ class Simulation:
             if sc.Coord.PHI not in self.p.coords:
                 p_is_1d = True
         else:
+            # can remove this "else" clause when phase_func_sphere is converted
+            # to xarray
             p = self.p
             if self.p.ndim == 1:
                 p_is_1d = True
