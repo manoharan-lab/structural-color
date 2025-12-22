@@ -719,7 +719,7 @@ def field_phase_py(qd, phi, n=10000, r_d=np.arange(1,5,0.005), rng=None):
     g = radial_dist_py(phi, x = r_d)
 
     # sample the g of r probability distribution
-    r_samp = rng.choice(r_d, n, p = g/np.sum(g))
+    r_samp = sc.choice(r_d, n, p = g/np.sum(g), rng=rng)
 
     # calculate the field term
     field_s = np.zeros(qd.shape, dtype='complex')

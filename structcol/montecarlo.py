@@ -687,7 +687,7 @@ class Simulation:
             prob_norm = prob/prob.sum()
 
             # Randomly sample scattering angle theta
-            theta = rng.choice(thetas, (nsamples, ntraj), p = prob_norm)
+            theta = sc.choice(thetas, (nsamples, ntraj), prob_norm, rng=rng)
 
         else:
             # if p depends on theta and phi
@@ -701,8 +701,9 @@ class Simulation:
             phis = np.linspace(self.min_angle, 2*np.pi, num_phi)
 
             # sample indices for phi values
-            phi_ind = rng.choice(num_phi, (nsamples, ntraj),
-                                 p = p_phi/np.sum(p_phi))
+            phi_ind = sc.choice(num_phi, (nsamples, ntraj),
+                                p_phi/np.sum(p_phi),
+                                rng=rng)
 
             # sample thetas based on sampled phi values
             theta_ind = np.zeros((nsamples, ntraj))
@@ -722,8 +723,9 @@ class Simulation:
             # np.random.RandomState
             for i in range(nsamples):
                 for j in range(ntraj):
-                    theta_ind[i,j] = rng.choice(self.num_thetas,
-                                                p = p_theta_norm[:,i,j])
+                    theta_ind[i,j] = sc.choice(self.num_thetas, 1,
+                                               p_theta_norm[:,i,j],
+                                               rng=rng)
 
             # sampled angles
             theta = thetas[theta_ind.astype(int)]
@@ -1235,7 +1237,7 @@ def coarse_roughness_enter(k, n_medium, n_sample, coarse_roughness, boundary,
         Geometrical boundary for Monte Carlo calculations. Current options are
         'film' or 'sphere.' Coarse roughness is currently only implemented for
         a film.
-    rng: numpy.random.Generator object (default None) random number generator.
+    rng: numpy.random.Generator object (default None)
         If not specified, use the default generator initialized on loading the
         package
 
@@ -1286,7 +1288,7 @@ def coarse_roughness_enter(k, n_medium, n_sample, coarse_roughness, boundary,
     if np.isnan(prob_a).all():
         theta_a = np.zeros(ntraj)
     else:
-        theta_a = np.array([rng.choice(theta_a_full, ntraj, p=prob_a)
+        theta_a = np.array([sc.choice(theta_a_full, ntraj, p=prob_a, rng=rng)
                             for i in range(1)]).flatten()
 
     # In case the surface is rough, then find new coordinates of initial

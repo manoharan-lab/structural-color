@@ -565,12 +565,10 @@ def calc_refl_event_fresnel_pdf(refl_events, pdf_refl, pdf_trans, refl_indices,
     # sample reflection and transmission event numbers
     # (for each possible event index, we pick an offset index from the actual
     # trajectories)
-    sampled_refl_event = rng.choice(np.arange(2, nevents + 1),
-                                    size = nevents+1,
-                                    p = pdf_refl)
-    sampled_trans_event = rng.choice(np.arange(1, nevents + 1),
-                                     size = nevents+1,
-                                     p = pdf_trans)
+    sampled_refl_event = sc.choice(np.arange(2, nevents + 1),
+                                   nevents+1, pdf_refl, rng=rng)
+    sampled_trans_event = sc.choice(np.arange(1, nevents + 1),
+                                    nevents+1, pdf_trans, rng=rng)
 
     # convert to DataArrays
     sampled_refl_event = xr.DataArray(sampled_refl_event,

@@ -832,9 +832,9 @@ def sample_diams(pdi, diam_list, diam_mean, ntrajectories_bulk, nevents_bulk,
     pdf_norm = pdf / np.sum(pdf)
 
     # sample diameter distribution
-    diams_sampled = np.reshape(rng.choice(diam_list.magnitude,
-                                          ntrajectories_bulk*nevents_bulk,
-                                          p=pdf_norm),
+    diams_sampled = np.reshape(sc.choice(diam_list.magnitude,
+                                         ntrajectories_bulk*nevents_bulk,
+                                         pdf_norm, rng=rng),
                                (nevents_bulk, ntrajectories_bulk))
 
     return diams_sampled
@@ -868,9 +868,9 @@ def sample_concentration(p, ntrajectories_bulk, nevents_bulk, rng=None):
     # sample distribution
     param_list = np.arange(np.size(p)) + 1
 
-    params_sampled = np.reshape(rng.choice(param_list,
-                                           (ntrajectories_bulk
-                                            *nevents_bulk), p=p),
+    params_sampled = np.reshape(sc.choice(param_list,
+                                          (ntrajectories_bulk
+                                           *nevents_bulk), p, rng=rng),
                                 (nevents_bulk, ntrajectories_bulk))
 
     return params_sampled
@@ -953,7 +953,8 @@ def sample_angles_step_poly(nevents_bulk, ntrajectories_bulk, p_sphere,
                                           * lscat[j].magnitude)
 
         # sample angles
-        theta[ind_ev, ind_tr] = rng.choice(angles, ind_ev.size, p=prob_norm)
+        theta[ind_ev, ind_tr] = sc.choice(angles, ind_ev.size, prob_norm,
+                                          rng=rng)
 
     # This function samples one extra step for each angle than is needed.
     # Whereas sample_angles was corrected to use nevents = nevents-1, this

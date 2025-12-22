@@ -339,6 +339,56 @@ def ql(n_medium, lengthscale, angles):
     return ql
 
 
+def choice(a, size, p, rng):
+    """Replacement for numpy's rng.choice() that can handle a multidimensional
+    probability distribution.
+
+    Parameters
+    ----------
+    a : int or array-like
+        specifies values to be chosen. If int, values are numbers from 0 to a
+    size : int or tuple
+        output shape
+    p : array-like
+        probability distribution, with the last axis corresponding to the
+        indices of the random variable
+    rng: numpy.random.Generator object (default None)
+        random number generator
+
+    Notes
+    -----
+    The probability vector in numpy's rng.choice() must be 1D, because it
+    relies on np.searchsorted(), which is limited to 1D arrays. This function
+    uses the same method to sample as rng.choice(), which involves sampling
+    from a uniform distribution and then inverting the CDF to convert to
+    samples from the PDF. However, this function does not rely on
+    np.searchsorted(), so that it can be extended to multidimensional
+    probability distributions.
+
+    """
+    # handle scalar a as in rng.choice()
+    if np.isscalar(a):
+        a = np.arange(a)
+
+    # sample from uniform distribution
+    y = rng.random(size)
+
+    # compute CDF, assuming last axis corresponds to the random variable
+    cdf = p.cumsum(axis=-1)
+    # normalize
+    cdf = cdf / cdf[..., -1]
+    # look up maximum index at which y fits into CDF
+    x = np.argmin(y[..., np.newaxis] > cdf, axis=-1)
+
+    result = a[..., x]
+
+    # return scalar if a single draw is requested
+    if result.size == 1:
+        result = result.item()
+
+    return result
+
+
 # Create a module-wide random number generator object that will be used by
 # default in any functions that do random sampling. Users can override the
 # default by passing their own rng to such functions. A user-specified rng is
