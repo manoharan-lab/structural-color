@@ -102,7 +102,6 @@ import warnings
 import matplotlib.pyplot as plt
 import numpy as np
 import xarray as xr
-from scipy.spatial.transform import Rotation
 
 import structcol as sc
 
@@ -247,7 +246,6 @@ def exit_kz(indices, trajectories, boundary, thickness, n_inside, n_outside):
     theta = theta_2 - theta_1
 
     # Perform the rotation.
-    #_, _, k2z = rotate_refract(kr, k1, theta)
     k2z = rotate_refract(kr, k1, theta).sel(component="z", drop=True)
 
     # If k2z is nan, leave uncorrected.
@@ -279,22 +277,32 @@ def rotate_refract(axis, vec, alpha):
         rotated vector
 
     """
-    # to set the angle of rotation, we use the "rotation vector"
-    # representation, in which the direction of the vector is the axis of
-    # rotation and the magnitude is the angle. Note that scipy expects the
-    # coordinate axis to be the last one; hence the transposes.
-    axis_normed = normalize(axis, return_nan=False).transpose(..., "component")
+    # axis of rotation must be normalized for rotation matrix formula to apply
+    axis_normed = normalize(axis, return_nan=False)
 
-    # must convert to numpy (for now) to use .apply() method of rotation
-    # matrix; we convert back to xarray at end
-    axis_normed = axis_normed.to_numpy()
-    r = Rotation.from_rotvec(alpha.to_numpy().squeeze()[:, np.newaxis]
-                             * axis_normed.squeeze())
-    rotated_vec = (r.apply(vec.transpose(..., "component")
-                           .to_numpy().squeeze())
-                   .transpose())
-    rotated_vec = xr.DataArray(rotated_vec.reshape(vec.shape),
-                               coords = vec.coords)
+    # create rotation matrix for rotation about arbitrary axis.  We can't use
+    # scipy's rotation matrix here because it doesn't broadcast (yet).  Note
+    # that drop=True is important below for xr.combine_nested() to work
+    ax = axis_normed.sel(component="x", drop=True)
+    ay = axis_normed.sel(component="y", drop=True)
+    az = axis_normed.sel(component="z", drop=True)
+
+    t = 1 - np.cos(alpha)
+    cosa = np.cos(alpha)
+    sina = np.sin(alpha)
+
+    R = xr.combine_nested(
+        [[ax**2 * t + cosa,  ax*ay*t - az*sina, ax*az*t + ay*sina],
+         [ax*ay*t + az*sina, ay**2 * t + cosa,  ay*az*t - ax*sina],
+         [ax*az*t - ay*sina, ay*az*t + ax*sina, az**2 * t + cosa]],
+        concat_dim=["i", "component"], join="exact")
+
+    # put leading axes back at beginning
+    R = R.transpose(..., "i", "component", "trajectory")
+
+    # rotate (dot product removes component axis, so we replace it)
+    rotated_vec = (xr.dot(R, vec, dim=["component"]).rename({"i":"component"})
+                   .assign_coords({"component": ["x", "y", "z"]}))
 
     return rotated_vec
 
