@@ -928,18 +928,15 @@ class Simulation:
         if sc.Coord.VOLFRAC in n_sample.coords:
             n_sample = n_sample.isel({sc.Coord.VOLFRAC: 0}, drop=True)
         n_sample = n_sample.to_numpy()
+        # xarray-based code
+        # m = sc.index.ratio(n_particle, n_sample)
+        # x = sc.size_parameter(n_sample, radius)
+        # k = sc.wavevector(n_sample).to_preferred().magnitude
 
         m = np.atleast_2d(n_particle/n_sample)
-        x = pymie.size_parameter(wavelen, n_sample, radius)
-        k = 2 * np.pi * n_sample / wavelen.magnitude
-        # TODO: fix the bug in the above code.  If the step size and wavelength
-        # are specified in different units, the results will be off by a lot.
-        # test_fields uses different units.  The commented code below is how
-        # this should look:
-        # m = sc.index.ratio(n_particle, n_sample)
-        # x = sc.size_parameter(wavelen, n_sample, radius)
-        # k = sc.wavevector(n_sample).magnitude
-        # Note also that all "wavelen" should be converted to "self.wavelen"
+        x = pymie.size_parameter(self.wavelen.to_preferred(), n_sample,
+                                 radius.to_preferred())
+        k = 2 * np.pi * n_sample / self.wavelen.to_preferred().magnitude
 
         # calculate the mie amplitude scattering matrix
         # we need to calculate the full matrix, rather than just the vector
