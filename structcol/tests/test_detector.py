@@ -434,8 +434,8 @@ def test_surface_roughness_mc():
     incidence_phi_max = sc.Quantity(2 * np.pi, 'rad')
 
     # Need to specify fine_roughness and coarse_roughness
-    fine_roughness = sc.Quantity(0.6, '')
-    coarse_roughness = sc.Quantity(1.1, '')
+    fine_roughness = 0.6
+    coarse_roughness = 1.1
 
     # Need to specify fine roughness parameter in this function
     model = sc.model.HardSpheres(sphere, volume_fraction, index_matrix,

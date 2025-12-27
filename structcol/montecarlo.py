@@ -1216,7 +1216,7 @@ def coarse_roughness_enter(k, n_medium, n_sample, coarse_roughness, boundary,
         Refractive index of the medium, as output from an `sc.Index` object.
     n_sample: `xr.DataArray`
         Refractive index of the sample, as output from an `sc.Index` object.
-    coarse_roughness : float (can be structcol.Quantity [dimensionless])
+    coarse_roughness : float
         Coarse surface roughness should be included when the roughness is large
         on the scale of the wavelength of light. This means that light
         encounters a locally smooth surface that has a slope relative to the
@@ -1277,13 +1277,10 @@ def coarse_roughness_enter(k, n_medium, n_sample, coarse_roughness, boundary,
     with np.errstate(divide='ignore', invalid='ignore'):
         prob_a = (P_theta_a(theta_a_full, coarse_roughness) /
                   sum(P_theta_a(theta_a_full, coarse_roughness)))
-        if isinstance(prob_a, sc.Quantity):
-            prob_a = prob_a.magnitude
     if np.isnan(prob_a).all():
         theta_a = np.zeros(ntraj)
     else:
-        theta_a = np.array([sc.choice(theta_a_full, ntraj, p=prob_a, rng=rng)
-                            for i in range(1)]).flatten()
+        theta_a = sc.choice(theta_a_full, ntraj, p=prob_a, rng=rng)
 
     # In case the surface is rough, then find new coordinates of initial
     # directions after rotating the surface by an angle theta_a around y axis
