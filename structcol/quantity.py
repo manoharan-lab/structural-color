@@ -43,6 +43,9 @@ class MyQuantity(pint.UnitRegistry.Quantity):
             new_q = self.to(LENGTH_UNIT**2)
         elif self.check("[length]^-1"):
             new_q = self.to(1/LENGTH_UNIT)
+        elif self.check("[length]^-3"):
+            # number density
+            new_q = self.to(1/LENGTH_UNIT**3)
         else:
             raise ValueError(f"Quantity {self} does not have expected units")
         return new_q

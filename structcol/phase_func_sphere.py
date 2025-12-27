@@ -686,7 +686,7 @@ def calc_scat_bulk(refl_per_traj,
                  kz=kz,
                  kernel_bin_width=kernel_bin_width)
 
-    return p, mu_scat, mu_abs
+    return p, mu_scat.to_preferred().magnitude, mu_abs.to_preferred().magnitude
 
 
 def calc_diam_list(num_diam, diameter_mean, pdi,
@@ -832,9 +832,9 @@ def sample_diams(pdi, diam_list, diam_mean, ntrajectories_bulk, nevents_bulk,
     pdf_norm = pdf / np.sum(pdf)
 
     # sample diameter distribution
-    diams_sampled = np.reshape(sc.choice(diam_list.magnitude,
-                                         ntrajectories_bulk*nevents_bulk,
-                                         pdf_norm, rng=rng),
+    diams_sampled = np.reshape(sc._choice(diam_list.magnitude,
+                                          ntrajectories_bulk*nevents_bulk,
+                                          pdf_norm, rng=rng),
                                (nevents_bulk, ntrajectories_bulk))
 
     return diams_sampled
@@ -868,9 +868,9 @@ def sample_concentration(p, ntrajectories_bulk, nevents_bulk, rng=None):
     # sample distribution
     param_list = np.arange(np.size(p)) + 1
 
-    params_sampled = np.reshape(sc.choice(param_list,
-                                          (ntrajectories_bulk
-                                           *nevents_bulk), p, rng=rng),
+    params_sampled = np.reshape(sc._choice(param_list,
+                                           (ntrajectories_bulk
+                                            *nevents_bulk), p, rng=rng),
                                 (nevents_bulk, ntrajectories_bulk))
 
     return params_sampled
@@ -932,6 +932,7 @@ def sample_angles_step_poly(nevents_bulk, ntrajectories_bulk, p_sphere,
     phi = 2 * np.pi * rand
 
     # Sample theta angles and calculate step size based on sampled radii
+    # TODO: make the minimum angle below (0.01) a parameter or set to 0
     theta = np.zeros((nevents_bulk, ntrajectories_bulk))
     lscat_rad_samp = np.zeros((nevents_bulk, ntrajectories_bulk))
     angles = np.linspace(0.01, np.pi, p_sphere.shape[1])
@@ -949,12 +950,11 @@ def sample_angles_step_poly(nevents_bulk, ntrajectories_bulk, p_sphere,
 
         # sample step sizes
         rand = rng.random(ind_ev.size)
-        lscat_rad_samp[ind_ev, ind_tr] = (-np.log(1.0 - rand)
-                                          * lscat[j].magnitude)
+        lscat_rad_samp[ind_ev, ind_tr] = (-np.log(1.0 - rand) * lscat[j])
 
         # sample angles
-        theta[ind_ev, ind_tr] = sc.choice(angles, ind_ev.size, prob_norm,
-                                          rng=rng)
+        theta[ind_ev, ind_tr] = sc._choice(angles, ind_ev.size, prob_norm,
+                                           rng=rng)
 
     # This function samples one extra step for each angle than is needed.
     # Whereas sample_angles was corrected to use nevents = nevents-1, this
@@ -974,10 +974,9 @@ def sample_angles_step_poly(nevents_bulk, ntrajectories_bulk, p_sphere,
     cosphi = xr.DataArray(np.cos(phi), coords=sintheta.coords)
 
 
-    step = (lscat_rad_samp * np.ones((nevents_bulk, ntrajectories_bulk))
-            * lscat.units)
+    step = (lscat_rad_samp * np.ones((nevents_bulk, ntrajectories_bulk)))
 
-    step = xr.DataArray(step.to_preferred().magnitude,
+    step = xr.DataArray(step,
                         coords = {"event": range(nevents_bulk),
                                   "trajectory": range(ntrajectories_bulk)})
 

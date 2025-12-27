@@ -853,10 +853,14 @@ def calc_outcome_weights(inc_fraction, exits, weights):
     # warn user if too many trajectories got stuck
     stuck_frac = (stuck_weights.sum("trajectory")
                   / inc_fraction.sum("trajectory")) * 100
-    stuck_traj_warn = (" \n{0}% of trajectories did not exit the sample. "
+    stuck_frac_max = 20
+    stuck_traj_warn = (f"More than {stuck_frac_max}% of trajectories did not "
+                       "exit the sample.\n"
+                       "Value of stuck_frac array: "
+                       f"\n\n{stuck_frac}\n\n"
                        "Increase Nevents to improve "
-                       "accuracy.").format(str(stuck_frac))
-    if np.any(stuck_frac >= 20):
+                       "accuracy.")
+    if np.any(stuck_frac >= stuck_frac_max):
         warnings.warn(stuck_traj_warn)
 
     return refl_weights, trans_weights, stuck_weights, absorb_weights

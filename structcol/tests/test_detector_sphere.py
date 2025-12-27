@@ -342,11 +342,13 @@ def test_multiscale_mc():
     # number of events to run in the bulk film
     nevents_bulk = 300
 
+    num_angles = 200
+
     # initialize quantities we want to save as a function of wavelength
     reflectance_sphere = np.zeros(wavelengths.size)
-    mu_scat_bulk = sc.Quantity(np.zeros(wavelengths.size),'1/um')
-    mu_abs_bulk = sc.Quantity(np.zeros(wavelengths.size),'1/um')
-    p_bulk = np.zeros((wavelengths.size, 200))
+    mu_scat_bulk = np.zeros(wavelengths.size)
+    mu_abs_bulk = np.zeros(wavelengths.size)
+    p_bulk = np.zeros((wavelengths.size, num_angles))
 
     # set up scattering model
     model = sc.model.HardSpheres(particle, volume_fraction_particles,
@@ -441,13 +443,29 @@ def test_multiscale_mc():
     dummy_particle = sc.Sphere(index_particle, radius)
     model = sc.model.HardSpheres(dummy_particle, volume_fraction_particles,
                                  index_matrix_bulk, index_medium)
+
+    # convert p_bulk to DataArray so that we can sample.  Note that
+    # calc_scat_bulk() implicitly assumes 0.01 as the minimum theta, so we have
+    # to use that value here to get the test results to agree
+    p_bulk = xr.DataArray(p_bulk,
+                          coords={sc.Coord.WAVELEN:
+                                  wavelengths.to_preferred().magnitude,
+                                  sc.Coord.THETAIDX: range(num_angles)})
+    p_bulk = p_bulk.assign_coords({sc.Coord.THETA:
+                                   (sc.Coord.THETAIDX,
+                                    np.linspace(0.01, np.pi, num_angles))})
+
     for i in range(wavelengths.size):
         # Initialize the simulation
         sim = mc.Simulation(model, wavelengths[i], nevents_bulk,
                             ntrajectories_bulk, boundary_bulk, rng=rng)
 
         # insert scattering quantities calculated for bulk system into object
-        sim.p = p_bulk[i, :]
+        sim.p = p_bulk[[i], :]
+        p_leading = sim.p.isel({sc.Coord.THETAIDX:0}, drop=True)
+        sim.leading_coords = p_leading.coords
+        sim.leading_dims = p_leading.dims
+        sim.leading_shape = p_leading.shape
         sim.mu_scat = mu_scat_bulk[i]
         sim.mu_abs = mu_abs_bulk[i]
 
@@ -549,10 +567,8 @@ def test_multiscale_polydispersity_mc():
     reflectance_sphere = np.zeros(wavelengths.size)
 
     p_bulk = np.zeros((sphere_boundary_diameters.size, wavelengths.size, 200))
-    mu_scat_bulk = sc.Quantity(np.zeros((sphere_boundary_diameters.size,
-                                         wavelengths.size)),'1/um')
-    mu_abs_bulk = sc.Quantity(np.zeros((sphere_boundary_diameters.size,
-                                        wavelengths.size)),'1/um')
+    mu_scat_bulk = np.zeros((sphere_boundary_diameters.size, wavelengths.size))
+    mu_abs_bulk = np.zeros((sphere_boundary_diameters.size, wavelengths.size))
 
     # set up scattering model
     model = sc.model.HardSpheres(particle, volume_fraction_particles,
@@ -721,10 +737,8 @@ def test_multiscale_color_mixing_mc():
     p_bulk = np.zeros((particle_radii.size, wavelengths.size, 200))
 
     reflectance_sphere = np.zeros(wavelengths.size)
-    mu_scat_bulk = sc.Quantity(np.zeros((particle_radii.size,
-                                         wavelengths.size)),'1/um')
-    mu_abs_bulk = sc.Quantity(np.zeros((particle_radii.size,
-                                        wavelengths.size)),'1/um')
+    mu_scat_bulk = np.zeros((particle_radii.size, wavelengths.size))
+    mu_abs_bulk = np.zeros((particle_radii.size, wavelengths.size))
 
     for j in range(particle_radii.size):
         particle = sc.Sphere(index_particle, particle_radii[j])

@@ -513,11 +513,14 @@ class TestEventDistributionWavelength():
             # direction.
             theta = (np.ones((nevents-1, self.ntrajectories))
                      * theta_range[j].to('rad').magnitude)
-            sintheta = xr.DataArray(np.sin(theta),
-                                    coords = {"event": range(1, nevents),
-                                              "trajectory":
-                                              range(self.ntrajectories)})
-            costheta = xr.DataArray(np.cos(theta), coords=sintheta.coords)
+
+            # broadcast to correct coordinates
+            sintheta = (xr.ones_like(sinphi)
+                        * xr.DataArray(np.sin(theta),
+                                       dims=["event", "trajectory"]))
+            costheta = (xr.ones_like(sinphi)
+                        * xr.DataArray(np.cos(theta),
+                                       dims=["event", "trajectory"]))
 
             # reset sim to initial conditions
             sim.reset()

@@ -312,8 +312,9 @@ class Simulation:
         """
 
         wavelen = wavelen.to_preferred()
-        units = wavelen.units
         self.wavelen = wavelen
+        wavelen_da = xr.DataArray(np.atleast_1d(wavelen.magnitude),
+                                  dims=sc.Coord.WAVELEN)
 
         self.model = model
 
@@ -327,9 +328,6 @@ class Simulation:
         self.min_angle = min_angle
         self.num_thetas = num_thetas
         self.num_phis = num_phis
-
-        # calculate the absorption coefficient
-        mu_abs = 4*np.pi*n_sample.imag.to_numpy().squeeze()/wavelen
 
         # Define angles at which phase function will be calculated, based on
         # whether light is polarized or unpolarized Scattering angles
@@ -350,12 +348,19 @@ class Simulation:
         cscat = model.scattering_cross_section(dscat)
         self.p = model.phase_function(dscat)
 
-        mu_scat = model.number_density * (cscat.loc["avg"].to_numpy().squeeze()
-                                          * units**2)
+        # calculate scattering and absorption coefficients in standard units
+        self.mu_scat = (model.number_density.to_preferred().magnitude
+                        * cscat.loc["avg"])
+        self.mu_abs = 4*np.pi * n_sample.imag / wavelen_da
 
-        # standardize units and store
-        self.mu_scat = mu_scat.to_preferred()
-        self.mu_abs = mu_abs.to_preferred()
+        # store leading dimensions (any dimensions to broadcast over, such as
+        # wavelength or volume fraction).  These are determined by phase func
+        p_leading = self.p.isel({sc.Coord.THETAIDX:0}, drop=True)
+        if phis is not None:
+            p_leading = p_leading.isel({sc.Coord.PHIIDX:0}, drop=True)
+        self.leading_coords = p_leading.coords
+        self.leading_dims = p_leading.dims
+        self.leading_shape = p_leading.shape
 
         # if there is fine surface roughness, also calculate and return the
         # scatt coeff from Mie theory. We assume that fine roughness particles
@@ -371,11 +376,10 @@ class Simulation:
 
             dscat = roughness_model.differential_cross_section(wavelen, thetas)
             cscat_total_mie = roughness_model.scattering_cross_section(dscat)
-            mu_scat_mie = (roughness_model.number_density
-                           * (cscat_total_mie.loc["avg"].to_numpy().squeeze()
-                              * units**2))
+            mu_scat_mie = (roughness_model.number_density.to_preferred()
+                           .magnitude * cscat_total_mie.loc["avg"])
 
-            self.mu_scat_mie = mu_scat_mie.to_preferred()
+            self.mu_scat_mie = mu_scat_mie
 
         self.nevents = nevents
         self.ntrajectories = ntraj
@@ -654,85 +658,77 @@ class Simulation:
         nsamples = self.nevents-1
         ntraj = self.ntrajectories
 
-        # convert phase function to numpy (for now)
-        p_is_1d = False
-        if isinstance(self.p, xr.DataArray):
-            p = self.p.to_numpy().squeeze()
-            if sc.Coord.PHI not in self.p.coords:
-                p_is_1d = True
-        else:
-            # can remove this "else" clause when phase_func_sphere is converted
-            # to xarray
-            p = self.p
-            if self.p.ndim == 1:
-                p_is_1d = True
+        p = self.p
+        thetas = p.coords["theta"]
 
-        # Scattering angles for the phase function calculation (typically from
-        # 0 to pi). A non-zero minimum angle is needed because in the single
-        # scattering model, if the analytic formula is used, S(q=0) returns
-        # nan.
-        thetas = np.linspace(self.min_angle, np.pi, self.num_thetas)
-
-        if p_is_1d:
+        if sc.Coord.PHI not in self.p.coords:
             # if p depends only on theta,
             # Randomly sample azimuthal angle phi from uniform distribution
             # [0 - 2pi]
-            rand = rng.random((nsamples, ntraj))
+            sampling_shape = self.leading_shape + (nsamples, ntraj)
+            rand = rng.random(sampling_shape)
             phi = 2*np.pi*rand
 
             # make sure probability is normalized
             # prob is integral of p in solid angle
             prob = p * np.sin(thetas)*2*np.pi
-             # normalize to make it add up to 1
-            prob_norm = prob/prob.sum()
+            # normalize to make it add up to 1
+            prob_norm = prob/prob.sum(sc.Coord.THETAIDX)
+
+            # expand and transpose to ensure proper broadcasting in sc.choice()
+            prob_norm = (prob_norm.expand_dims(("event", "trajectory"))
+                         .transpose(*self.leading_dims, "event", "trajectory",
+                                    ...))
 
             # Randomly sample scattering angle theta
-            theta = sc.choice(thetas, (nsamples, ntraj), prob_norm, rng=rng)
+            theta = sc.choice(thetas, sampling_shape, prob_norm, rng=rng)
 
         else:
             # if p depends on theta and phi
-            num_phi = self.num_phis
+            # We must sample from the joint distribution
+            # p(theta, phi) = p(phi) * p(theta | phi).  First calculate p(phi)
+            # by marginalizing over theta:
+            p_phi = p.sum(sc.Coord.THETAIDX)
 
-            # sum for theta axis to get phi probabilities
-            p_phi = np.sum(p, axis = 0)
-
-            # define phi values from which to sample
-            # TODO: this should be from 0, not self.min_angle
-            phis = np.linspace(self.min_angle, 2*np.pi, num_phi)
-
-            # sample indices for phi values
-            phi_ind = sc.choice(num_phi, (nsamples, ntraj),
-                                p_phi/np.sum(p_phi),
+            # sample indices for phi values. We need indices to calculate
+            # p(theta | phi) later.
+            sampling_shape = self.leading_shape + (nsamples, ntraj)
+            phi_ind = sc.choice(p_phi.coords[sc.Coord.PHIIDX],
+                                sampling_shape,
+                                p_phi/p_phi.sum(sc.Coord.PHIIDX),
                                 rng=rng)
+            phi_ind = xr.DataArray(phi_ind,
+                                   dims = (self.leading_dims
+                                           + ("event", "trajectory")),
+                                   coords = {"event": range(1, self.nevents),
+                                             "trajectory": range(ntraj)})
+            phi_ind = phi_ind.assign_coords(self.leading_coords)
 
-            # sample thetas based on sampled phi values
-            theta_ind = np.zeros((nsamples, ntraj))
-            theta = np.zeros((nsamples, ntraj))
-            phi = np.zeros((nsamples, ntraj))
+            # and convert to sampled phis
+            phi = p_phi.coords[sc.Coord.PHI][phi_ind]
 
-            # calculate and normalize p(theta) for each phi, event, and
-            # trajectory
-            p_theta = (p[:, phi_ind]
-                       * np.sin(thetas[:, np.newaxis, np.newaxis]))
-            p_theta_norm = p_theta/np.sum(p_theta, axis=0)
+            # Now calculate and normalize p(theta | phi) for each phi, event,
+            # and trajectory
+            p_theta = (p[..., phi_ind] * np.sin(thetas))
+            p_theta_norm = p_theta/p_theta.sum(sc.Coord.THETAIDX)
+            p_theta_norm = p_theta_norm.transpose(..., sc.Coord.THETAIDX)
 
-            # sample theta, using moveaxis because sc.choice expects last axis
-            # to be the random variable
-            theta_ind = sc.choice(self.num_thetas, (nsamples, ntraj),
-                                  np.moveaxis(p_theta_norm, 0, -1), rng)
+            # sample theta from conditional distribution
+            theta = sc.choice(thetas, sampling_shape, p_theta_norm, rng)
 
-            # sampled angles
-            theta = thetas[theta_ind.astype(int)]
-            phi = phis[phi_ind.astype(int)]
-
-        # set event number correctly (note again that we did not sample angles
-        # for event 0)
+        # Assign coords, setting event number correctly (note again that we did
+        # not sample angles for event 0)
         sintheta = xr.DataArray(np.sin(theta),
+                                dims = (self.leading_dims
+                                        + ("event", "trajectory")),
                                 coords = {"event": range(1, self.nevents),
                                           "trajectory": range(ntraj)})
+        sintheta = sintheta.assign_coords(self.leading_coords)
         costheta = xr.DataArray(np.cos(theta), coords=sintheta.coords)
         sinphi = xr.DataArray(np.sin(phi), coords=sintheta.coords)
         cosphi = xr.DataArray(np.cos(phi), coords=sintheta.coords)
+        theta = xr.DataArray(theta, coords=sintheta.coords)
+        phi = xr.DataArray(phi, coords=sintheta.coords)
 
         return sintheta, costheta, sinphi, cosphi, theta, phi
 
@@ -757,7 +753,9 @@ class Simulation:
         ntraj = self.ntrajectories
 
         # Generate array of random numbers from 0 to 1
-        rand = rng.random((nevents,ntraj)) #uncomment
+        sampling_shape = self.leading_shape + (nevents, ntraj)
+        rand = xr.DataArray(rng.random(sampling_shape),
+                            dims = self.leading_dims + ("event", "trajectory"))
 
         # sample step sizes
         step = -np.log(1.0-rand) / self.mu_scat
@@ -766,12 +764,16 @@ class Simulation:
         # theory for the number of trajectories set by fine_roughness
         if self.fine_roughness > 0:
             ntraj_mie = int(round(ntraj * self.fine_roughness))
-            rand_ntraj = rng.random(ntraj_mie)
-            step[0,0:ntraj_mie] = -np.log(1.0-rand_ntraj) / self.mu_scat_mie
+            rand_ntraj = xr.DataArray(rng.random(ntraj_mie),
+                                      dims=["trajectory"])
+            step.loc[dict(event=0, trajectory=slice(0, ntraj_mie))] = \
+                -np.log(1.0-rand_ntraj) / self.mu_scat_mie
 
-        step = xr.DataArray(step.to_preferred().magnitude,
-                            coords = {"event": range(nevents),
-                                      "trajectory": range(ntraj)})
+        # assign event, trajectory coords (leading coords should have already
+        # been transferred from mu_scat)
+        step = step.assign_coords({"event": range(nevents),
+                                   "trajectory": range(ntraj)})
+
         return step
 
     def absorb(self, step_size):
@@ -792,7 +794,7 @@ class Simulation:
         step = xr.DataArray(step_size)
         step.coords["event"] = range(1, self.nevents + 1)
 
-        mu_abs = self.mu_abs.to_preferred().magnitude
+        mu_abs = self.mu_abs
 
         # beer lambert
         weight = (self.traj["weight"].sel(event=0)
@@ -820,24 +822,19 @@ class Simulation:
         """
         kn = self.traj["direction"]
 
-        # Calculate the new x, y, z coordinates of the propagation
-        # direction using the following equations, which can be derived by
-        # using matrix operations to perform a rotation about the y-axis by
-        # angle theta followed by a rotation about the z-axis by angle phi
+        # Calculate the new propagation direction by rotation about the y-axis
+        # by angle theta followed by rotation about the z-axis by angle phi
         # see pg 105 in A.B. Stephenson lab notebook 1 for derivation and
         # notes
 
         # this is the product of the rotation matrices R_z(phi).R_y(theta)
-        # calculated for each event in each trajectory
-        # shape of kn is [3,nevents,ntraj]
-        # shape of R is [3,3,nevents-1,ntraj]
-        R = xr.DataArray([[costheta*cosphi, -sinphi, sintheta*cosphi],
-                          [costheta*sinphi, cosphi, sintheta*sinphi],
-                          [-sintheta, np.zeros(sinphi.shape), costheta]],
-                         coords={"i": ["x", "y", "z"],
-                                 "component": ["x", "y", "z"],
-                                 "event": sintheta.coords["event"],
-                                 "trajectory": sintheta.coords["trajectory"]})
+        # shape of kn is    (3, nevents+1, ntraj)
+        # shape of R is  (3, 3, nevents-1, ntraj)
+        R = xr.combine_nested([[costheta*cosphi, -sinphi, sintheta*cosphi],
+                               [costheta*sinphi, cosphi, sintheta*sinphi],
+                               [-sintheta, xr.zeros_like(sinphi), costheta]],
+                              concat_dim=["i", "component"])
+        R = R.transpose(..., "i", "component", "event", "trajectory")
 
         # could vectorize this loop if numpy had a cumulative dot product
         # ufunc.  But np.cumprod only does element by element.
@@ -845,13 +842,13 @@ class Simulation:
             # Take the dot product of the rotation matrix for current event
             # with the wavevector for previous event. We use numpy for
             # performance. The overhead of xr.dot() is too costly in a loop.
-            kn.data[..., n, :] = np.einsum("...ijl, ...jl -> ...il",
+            kn.data[..., n, :] = np.einsum("...ijk, ...jk -> ...ik",
                                            R.data[..., n-1, :],
                                            kn.data[..., n-1, :])
 
             # equivalent xarray code is below. This code is much slower but
-            # more explicit. Note R.sel(event=n) is analogous to R[.., n-1, :]
-            # because R has nevents-1 events and kn has nevents.
+            # more explicit. Note R.sel(event=n) is equal to R[.., n-1, :]
+            # because R has nevents-1 events and kn has nevents+1.
 
             # kn.loc[dict(event=n)] = (xr.dot(R.sel(event=n),
             #                                 kn.sel(event=n-1),
@@ -918,8 +915,14 @@ class Simulation:
             Electric field vector for each trajectory and event
             in global coordinates
         """
-
         # until refactoring, convert DataArrays to numpy
+        sintheta = sintheta.to_numpy().squeeze()
+        costheta = costheta.to_numpy().squeeze()
+        sinphi = sinphi.to_numpy().squeeze()
+        cosphi = cosphi.to_numpy().squeeze()
+        theta = theta.to_numpy().squeeze()
+        phi = phi.to_numpy().squeeze()
+        step = step.squeeze(drop=True)
         n_particle = self.model.sphere.n(wavelen)
         n_particle = n_particle.to_numpy().squeeze()
         n_sample = self.model.index_external(wavelen)
@@ -969,8 +972,8 @@ class Simulation:
         En = self.traj["fields"]
 
         # En has shape (3, nevents+1, ntraj)
-        Ex = En[0, 0, :]
-        Ey = En[1, 0, :]
+        Ex = En[..., 0, 0, :]
+        Ey = En[..., 1, 0, :]
 
         # Ex and Ey are the initialized as the incident field vectors. To get
         # the Ex and Ey at each event, we have to multiply by the scattering

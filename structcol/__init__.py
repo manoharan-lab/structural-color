@@ -339,7 +339,7 @@ def ql(n_medium, lengthscale, angles):
     return ql
 
 
-def choice(a, size, p, rng):
+def _choice(a, size, p, rng):
     """Replacement for numpy's rng.choice() that can handle a multidimensional
     probability distribution.
 
@@ -384,6 +384,19 @@ def choice(a, size, p, rng):
     result = a[..., x]
 
     return result
+
+def choice(a, size, p, rng):
+    """xarray-based wrapper around sc._choice()
+
+    """
+    # TODO: infer actual sampling shape needed from dimensions of p and size,
+    # assuming last axis in p corresponds to the random variable to be sampled
+    # (for example, theta or phi)
+
+    if not isinstance(p, xr.DataArray):
+        return _choice(a, size, p, rng)
+    else:
+        return _choice(a.data, size, p.data, rng)
 
 
 # Create a module-wide random number generator object that will be used by

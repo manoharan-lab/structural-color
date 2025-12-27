@@ -172,8 +172,7 @@ class TestSimulation():
                             "film")
 
         # Test the absorb function
-        mu_abs = 1/sc.Quantity(10.0, 'um')
-        sim.mu_abs = mu_abs
+        sim.mu_abs = (1/sc.Quantity(10.0, 'um')).to_preferred().magnitude
         # step size is 1 in all events and trajectories
         step = xr.DataArray([[1, 1, 1], [1, 1, 1]],
                             coords={"event": range(nevents),
@@ -229,9 +228,6 @@ class TestSimulation():
     def test_vectorized_mc(self, boundary):
         """Tests that Monte Carlo simulations vectorize over wavelength
         """
-        # NOTE: currently tests only initial state.  Does not yet check that
-        # runs are vectorized
-
         # we'll use the default RNG here (more advanced than
         # np.random.RandomState) since we're not comparing to previously
         # simulated values
@@ -257,6 +253,9 @@ class TestSimulation():
                             incidence_theta_data=incidence_theta_data,
                             incidence_phi_data=incidence_phi_data,
                             rng=rng)
+
+        # ensure that simulation runs when vectorized over wavelength
+        sim.run()
 
         # reset RNG before doing comparisons
         rng = np.random.default_rng([seed])
