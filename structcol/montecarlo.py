@@ -1158,48 +1158,6 @@ class MCResult:
         pass
 
 
-class NumpyTrajectory():
-    """Temporary class to convert xarray-based trajectories to numpy for
-    processing by calc_refl_trans() and other functions. Can be removed when
-    these functions have been refactored to use DataArrays.
-
-    Notes
-    -----
-    For compatibility with the event processing code (calc_refl_trans and
-    associated functions), we set the size of the weights array to
-    nevents*ntraj by trimming the first event (where the weight is 1 by
-    definition). Therefore the weights array begins with the weight of the
-    photons after their first event.
-
-    """
-    def __init__(self, trajectory):
-        self.position = trajectory["position"].squeeze(drop=True).to_numpy()
-        self.direction = (trajectory["direction"].squeeze(drop=True)
-                          .dropna("event").to_numpy())
-        self.weight = trajectory["weight"].sel(event=slice(1, None))
-        self.weight = self.weight.squeeze(drop=True).dropna("event").to_numpy()
-        if "fields" in trajectory:
-            self.fields = trajectory["fields"].squeeze(drop=True).to_numpy()
-        else:
-            self.fields = None
-        if "kz0_rot" in trajectory:
-            self.kz0_rot = trajectory["kz0_rot"].to_numpy()
-        else:
-            self.kz0_rot = None
-        if "kz0_refl" in trajectory:
-            self.kz0_refl = trajectory["kz0_refl"].to_numpy()
-        else:
-            self.kz0_refl = None
-
-    @property
-    def nevents(self):
-        return self.weight.shape[0]
-
-    @property
-    def ntrajectories(self):
-        return self.weight.shape[1]
-
-
 def coarse_roughness_enter(k, n_medium, n_sample, coarse_roughness, boundary,
                            rng=None):
     '''
