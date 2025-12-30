@@ -472,14 +472,8 @@ class TestEventDistributionWavelength():
                             0.006963695412474454, 0.009301718632232548,
                             0.006497908757697398]
 
-        # insert zeros in array for wavelengths without TIR
-        wavelen = self.wavelengths.to_preferred().magnitude
-        all_wavelen = xr.DataArray(np.zeros(wavelen.shape[0]),
-                                   coords={"wavelength": wavelen})
-        tir_single_refl_events = tir_single_refl_events
-
-        assert_almost_equal((tir_single_refl_events.reindex_like(all_wavelen)
-                             .sum("event").to_numpy().squeeze()),
+        assert_almost_equal((tir_single_refl_events.sum("event"))
+                            .to_numpy().squeeze(),
                             tir_sum_expected)
 
     def test_event_distribution_angle_mc(self):

@@ -27,6 +27,7 @@ calculated reflectance are in test_detector.py
 
 import structcol as sc
 from .. import montecarlo as mc
+from .. import detector as det
 import numpy as np
 import xarray as xr
 from numpy.testing import assert_equal, assert_almost_equal
@@ -224,6 +225,28 @@ class TestSimulation():
         direction = sim.traj["direction"].isel(event=-1).to_numpy().squeeze()
         assert_equal(direction, np.full_like(direction, np.nan))
 
+class TestVectorization():
+    """Tests that Simulations vectorize over wavelength and volume fraction
+
+    """
+    # Define a system to be used for the tests
+    nevents = 20
+    ntrajectories = 10000
+    radius = sc.Quantity("150.0 nm")
+    volume_fraction = 0.5
+
+    num_wavelen = 10
+    wavelen = sc.Quantity(np.linspace(400, 800, num_wavelen), "nm")
+    thickness = sc.Quantity(10, "um")
+
+    index_particle = sc.ConstantIndex(1.5)
+    sphere = sc.Sphere(index_particle, radius)
+    index_matrix = sc.ConstantIndex(1.0)
+    index_medium = sc.ConstantIndex(1.0)
+
+    model = sc.model.HardSpheres(sphere, volume_fraction, index_matrix,
+                                 index_medium)
+
     @pytest.mark.parametrize("boundary", ["film", "sphere"])
     def test_vectorized_mc(self, boundary):
         """Tests that Monte Carlo simulations vectorize over wavelength
@@ -233,8 +256,6 @@ class TestSimulation():
         # simulated values
         seed = 1
         rng = np.random.default_rng([seed])
-        num_wavelen = 10
-        wavelen = sc.Quantity(np.linspace(400, 800, num_wavelen), "nm")
 
         # we set incidence_theta_data and incidence_phi_data so that random
         # numbers are not generated for angles
@@ -246,45 +267,74 @@ class TestSimulation():
         else:
             sample_diameter = sc.Quantity(10, "um")
 
-        # ensure that simulation initializes when vectorized over wavelength
-        sim = mc.Simulation(self.model, wavelen, self.nevents,
-                            self.ntrajectories, boundary=boundary,
-                            sample_diameter=sample_diameter,
-                            incidence_theta_data=incidence_theta_data,
-                            incidence_phi_data=incidence_phi_data,
-                            rng=rng)
+        # vectorized simulation
+        sim_vec = mc.Simulation(self.model, self.wavelen, self.nevents,
+                                self.ntrajectories, boundary=boundary,
+                                sample_diameter=sample_diameter,
+                                incidence_theta_data=incidence_theta_data,
+                                incidence_phi_data=incidence_phi_data,
+                                rng=rng)
 
         # ensure that simulation runs when vectorized over wavelength
-        sim.run()
+        sim_vec.run()
 
-        # reset RNG before doing comparisons
+        # reseed RNG before doing comparisons
         rng = np.random.default_rng([seed])
 
-        # do looped calculation first
+        # do looped calculation
         looped_initials = []
-        for i in range(num_wavelen):
-            sim_loop = mc.Simulation(self.model, wavelen[i], self.nevents,
+        traj_loop = []
+        reflectance_loop = []
+        transmittance_loop = []
+
+        for i in range(self.num_wavelen):
+            sim_loop = mc.Simulation(self.model, self.wavelen[i], self.nevents,
                                      self.ntrajectories, boundary=boundary,
                                      sample_diameter=sample_diameter,
                                      incidence_theta_data=incidence_theta_data,
                                      incidence_phi_data=incidence_phi_data,
                                      rng=rng)
+            sim_loop.run()
             looped_initials.append(sim_loop.initial_state)
+            traj_loop.append(sim_loop.traj)
+
+            refl, trans = det.calc_refl_trans(sim_loop, self.thickness)
+            reflectance_loop.append(refl)
+            transmittance_loop.append(trans)
+
         looped_initials = xr.concat(looped_initials, sc.Coord.WAVELEN)
+        traj_loop = xr.concat(traj_loop, sc.Coord.WAVELEN)
+        reflectance_loop = xr.concat(reflectance_loop, sc.Coord.WAVELEN)
+        transmittance_loop = xr.concat(transmittance_loop, sc.Coord.WAVELEN)
 
         # test that dimensions and sizes are the same
-        assert sim.initial_state.sizes == looped_initials.sizes
+        assert sim_vec.initial_state.sizes == looped_initials.sizes
 
         # initial states should be the same only for the first wavelength;
         # other wavelengths will have the same initial state for the vectorized
         # calculation and different initial states for the looped calculation
-        xr.testing.assert_equal(sim.initial_state.isel(wavelength=0),
+        xr.testing.assert_equal(sim_vec.initial_state.isel(wavelength=0),
                                 looped_initials.isel(wavelength=0))
 
         # ensure initial states are in fact the same for each wavelength in the
         # vectorized calculation
-        diff = sim.initial_state-sim.initial_state.isel(wavelength=0)
+        diff = sim_vec.initial_state-sim_vec.initial_state.isel(wavelength=0)
         xr.testing.assert_equal(diff, xr.zeros_like(diff))
+
+        # check that vectorized calculations are within 5% of looped calcs
+        refl_vec, trans_vec = det.calc_refl_trans(sim_vec, self.thickness)
+        xr.testing.assert_allclose(refl_vec, reflectance_loop, rtol=0.05)
+        xr.testing.assert_allclose(trans_vec, transmittance_loop, rtol=0.05)
+
+        # check that vectorized calc_refl_trans gives same results as loop
+        # (we do this by inserting the concatenated trajectories from the
+        # looped calculations into the vectorized Simulation object, then
+        # running calc_refl_trans()
+        sim_vec.traj = traj_loop
+        reflectance, transmittance = det.calc_refl_trans(sim_vec,
+                                                        self.thickness)
+        xr.testing.assert_equal(reflectance, reflectance_loop)
+        xr.testing.assert_equal(transmittance, transmittance_loop)
 
 
 # NOTE: the test below will no longer work, since the

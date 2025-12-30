@@ -380,15 +380,8 @@ def test_multiscale_mc():
         refl_per_traj = refl_per_traj.sortby("trajectory").to_numpy().squeeze()
         trans_per_traj = (trans_per_traj.sortby("trajectory").to_numpy()
                           .squeeze())
-        # need to expand norm_refl and norm_trans to have all trajectories as
-        # coordinates
-        alltraj_comp = xr.DataArray(np.ones((ntrajectories, 3)),
-                                    coords={"trajectory": range(ntrajectories),
-                                            "component": ["x", "y", "z"]})
-        norm_refl = (norm_refl.reindex_like(alltraj_comp, fill_value=0.0)
-                     .to_numpy().squeeze().transpose())
-        norm_trans = (norm_trans.reindex_like(alltraj_comp, fill_value=0.0)
-                      .to_numpy().squeeze().transpose())
+        norm_refl = (norm_refl.to_numpy().squeeze().transpose())
+        norm_trans = (norm_trans.to_numpy().squeeze().transpose())
 
         ### Calculate phase function and lscat ###
         # use output of calc_refl_trans to calculate phase function, mu_scat,
@@ -605,16 +598,8 @@ def test_multiscale_polydispersity_mc():
                              .squeeze())
             trans_per_traj = (trans_per_traj.sortby("trajectory").to_numpy()
                               .squeeze())
-            # need to expand norm_refl and norm_trans to have all trajectories as
-            # coordinates
-            alltraj_comp = xr.DataArray(np.ones((ntrajectories, 3)),
-                                        coords={"trajectory":
-                                                range(ntrajectories),
-                                                "component": ["x", "y", "z"]})
-            norm_refl = (norm_refl.reindex_like(alltraj_comp, fill_value=0.0)
-                         .to_numpy().squeeze().transpose())
-            norm_trans = (norm_trans.reindex_like(alltraj_comp, fill_value=0.0)
-                          .to_numpy().squeeze().transpose())
+            norm_refl = norm_refl.to_numpy().squeeze().transpose()
+            norm_trans = norm_trans.to_numpy().squeeze().transpose()
 
             ### Calculate phase function and lscat ###
             p_bulk[j,i,:], mu_scat_bulk[j,i], mu_abs_bulk[j,i] = \
@@ -788,10 +773,8 @@ def test_multiscale_color_mixing_mc():
                                         coords={"trajectory":
                                                 range(ntrajectories),
                                                 "component": ["x", "y", "z"]})
-            norm_refl = (norm_refl.reindex_like(alltraj_comp, fill_value=0.0)
-                         .to_numpy().squeeze().transpose())
-            norm_trans = (norm_trans.reindex_like(alltraj_comp, fill_value=0.0)
-                          .to_numpy().squeeze().transpose())
+            norm_refl = norm_refl.to_numpy().squeeze().transpose()
+            norm_trans = norm_trans.to_numpy().squeeze().transpose()
 
             p_bulk[j,i,:], mu_scat_bulk[j,i], mu_abs_bulk[j,i] = \
                 pfs.calc_scat_bulk(refl_per_traj, trans_per_traj, refl_indices,

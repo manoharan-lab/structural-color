@@ -54,7 +54,9 @@ def get_exit_pos(norm_refl, norm_trans, radius):
     """
     # add the normal vectors for reflection and transmission to get
     # normal vectors for all exits
-    norm = norm_trans + norm_refl
+    # (nans are present in norm_trans where reflections happen, and in
+    # norm_refl where transmissions happen; replace with zeros before adding)
+    norm = np.nan_to_num(norm_trans) + np.nan_to_num(norm_refl)
     intersect = norm * radius
 
     return intersect

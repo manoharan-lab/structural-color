@@ -282,7 +282,7 @@ def rotate_refract(axis, vec, alpha):
 
     # create rotation matrix for rotation about arbitrary axis.  We can't use
     # scipy's rotation matrix here because it doesn't broadcast (yet).  Note
-    # that drop=True is important below for xr.combine_nested() to work
+    # that drop=True below is important for xr.combine_nested() to work
     ax = axis_normed.sel(component="x", drop=True)
     ay = axis_normed.sel(component="y", drop=True)
     az = axis_normed.sel(component="z", drop=True)
@@ -372,9 +372,10 @@ def get_angles(indices, boundary, trajectories, thickness,
 
             # Get positions inside sphere boundary from before exit
             indices_prev = indices - 1
-            indices_prev = indices_prev.where(indices_prev >= 0, drop=True)
-            pos0 = pos.sel(event=indices_prev,
-                           **indices_prev.coords, drop=True).drop_vars("event")
+            ## keep negative indices from causing IndexError
+            indices_prev_pos = indices_prev.where(indices_prev >= 0).fillna(0)
+            pos0 = (pos.sel(event=indices_prev_pos).where(indices_prev>=0)
+                    .drop_vars("event"))
 
             # Make sure there are no infinite values in the coordinates.
             # This prevents an error for the extreme case
@@ -394,7 +395,9 @@ def get_angles(indices, boundary, trajectories, thickness,
 
         # calculate the dot product between the normal vector
         # and the exit vector
-        dot_norm = (normal * k1).sum("component").fillna(0.0)
+        # (must use skipna=False here; the default is skipna=True, which will
+        # result in missing values having dot_norm=0 and arccos=pi/2)
+        dot_norm = (normal * k1).sum("component", skipna=False)
 
         # calulate the angle between the normal vector and the exit vector
         angles = np.arccos(dot_norm)
@@ -430,7 +433,6 @@ def get_angles(indices, boundary, trajectories, thickness,
         else:
             # Select scattering events resulted in exit.
             cosz = select_events(kz, indices)
-            cosz = cosz.combine_first(xr.zeros_like(kz.coords["trajectory"]))
 
         # Calculate angle to normal from cos_z component (only want
         # magnitude).
@@ -438,9 +440,7 @@ def get_angles(indices, boundary, trajectories, thickness,
 
         # Calculate the normal vector.
         normal = xr.zeros_like(trajectories["direction"])
-        # avoid IndexError associated with empty cosz array
-        if cosz.size > 0:
-            normal.loc[dict(component="z")] = np.sign(cosz)
+        normal.loc[dict(component="z")] = np.sign(cosz)
 
     if "event" in normal.coords:
         normal = normal.drop_vars("event")
@@ -516,6 +516,10 @@ def fresnel_pass_frac(indices, n_before, n_inside, n_after, boundary,
     # then replace it with pi/2 (the trajectory goes sideways infinitely) to
     # avoid errors during the calculation of stuck trajectories.
     theta_inside = theta_inside.fillna(np.pi / 2.0)
+    # but we need to be careful -- theta_inside might be nan because
+    # theta_before was nan, which happens when there are no trajectories
+    # selected.  Below we restore nan where there are no trajectories selected
+    theta_inside = theta_inside.where(theta_before.notnull())
 
     # Find fraction passing through both interfaces.
     _, trans_1 = model.fresnel_coeffs(n_before, n_inside, theta_before)
@@ -523,6 +527,7 @@ def fresnel_pass_frac(indices, n_before, n_inside, n_after, boundary,
     _, trans_2 = model.fresnel_coeffs(n_inside, n_after, theta_inside)
     trans_s2, trans_p2 = trans_2
     fresnel_trans = (trans_s1 + trans_p1) * (trans_s2 + trans_p2) / 4.
+    fresnel_trans = fresnel_trans.fillna(0)
 
     # Find fraction reflected off both interfaces before transmission.
     refl_1, _ = model.fresnel_coeffs(n_inside, n_after, theta_inside)
@@ -530,6 +535,7 @@ def fresnel_pass_frac(indices, n_before, n_inside, n_after, boundary,
     refl_2, _ = model.fresnel_coeffs(n_inside, n_before, theta_inside)
     refl_s2, refl_p2 = refl_2
     fresnel_refl = (refl_s1 + refl_p1) * (refl_s2 + refl_p2) / 4.
+    fresnel_refl = fresnel_refl.fillna(0)
 
     # Any number of higher order reflections off the two interfaces.
     # Use converging geometric series 1 + a + a ** 2 + a ** 3... = 1 / (1 - a)
@@ -724,24 +730,11 @@ def find_exits(n_sample, n_medium, thickness, z_low, boundary, trajectories):
         # for use in event_distribution.py
         no_tir = ~np.isnan(kz_correct)
 
-        # because running select_events() on a DataArray will return an array
-        # with coordinates matching only the selected events, we use
-        # combine_first() to make a complete array with the full coordinates.
-        # It fills in the empty coordinates with the values of all_traj, which
-        # we set to True for no_tir
-        all_traj = xr.ones_like(pos.coords["trajectory"]).astype(bool)
-        no_tir = no_tir.combine_first(all_traj).astype(bool)
-
         # Exit in positive direction is transmission,
         # and exit in negative direction is reflection.
         # kz_correct will be nan if trajectory is totally internally reflected.
-        # (as above, we fill the array using combine_first, but here we fill
-        # with False by default)
-        all_traj = xr.zeros_like(pos.coords["trajectory"]).astype(bool)
         pos_dir = kz_correct > 0
-        pos_dir = pos_dir.combine_first(all_traj).astype(bool)
         neg_dir = kz_correct < 0  # Can't just do ~pos_dir to exclude TIR.
-        neg_dir = neg_dir.combine_first(all_traj).astype(bool)
 
         # Construct boolean arrays of all valid exits in pos & neg directions.
         exits_pos_dir = potential_exits & pos_dir
@@ -842,13 +835,12 @@ def calc_outcome_weights(inc_fraction, exits, weights):
     if "event" in stuck_weights.coords:
         stuck_weights = stuck_weights.drop_vars("event")
 
-    sum_weights = xr.concat([refl_weights, trans_weights, stuck_weights],
-                            dim="trajectory", join="outer")
-    # we use combine_first here because inc_fraction is calculated for all
-    # trajectories and sum_weights is calculated for only some of them.  For
-    # the trajectories for which sum_weights does not exist, we assign
-    # inc_fraction.
-    absorb_weights = (inc_fraction - sum_weights).combine_first(inc_fraction)
+    refl_weights = refl_weights.fillna(0)
+    trans_weights = trans_weights.fillna(0)
+    stuck_weights = stuck_weights.fillna(0)
+    sum_weights = refl_weights + trans_weights + stuck_weights
+
+    absorb_weights = inc_fraction - sum_weights
 
     # warn user if too many trajectories got stuck
     stuck_frac = (stuck_weights.sum("trajectory")
@@ -1077,9 +1069,8 @@ def fresnel_correct_exit(ntraj, n_sample, n_medium, n_front, n_back,
 
     else:
         # calculate fraction that are successfully transmitted or reflected
-        known_outcomes = (absorb_weights.sum("trajectory")
-                          + refl_weights_pass.sum("trajectory")
-                          + trans_weights_pass.sum("trajectory"))
+        known_outcomes = (absorb_weights + refl_weights_pass
+                          + trans_weights_pass).sum("trajectory")
         refl_frac = refl_weights_pass.sum("trajectory") / known_outcomes
         trans_frac = trans_weights_pass.sum("trajectory") / known_outcomes
 
@@ -1268,14 +1259,10 @@ def distribute_ambig_traj_weights(ntraj, refl_fresnel, trans_fresnel,
         # non-TIR fresnel are treated as new trajectories at the appropriate
         # interface. This means reversed R/T ratios for fresnel reflection
         # at transmission interface.
-        extra_refl = xr.concat([refl_fresnel * refl_frac,
-                                trans_fresnel * trans_frac,
-                                stuck_weights * 0.5],
-                               dim="trajectory", join="outer")
-        extra_trans = xr.concat([trans_fresnel * refl_frac,
-                                 refl_fresnel * trans_frac,
-                                 stuck_weights * 0.5],
-                                dim="trajectory", join="outer")
+        extra_refl = (refl_fresnel * refl_frac + trans_fresnel * trans_frac
+                      + stuck_weights * 0.5)
+        extra_trans = (trans_fresnel * refl_frac + refl_fresnel * trans_frac
+                      + stuck_weights * 0.5)
 
     if boundary == 'sphere':
         # TODO these approximations work best if run_fresnel_traj = True
@@ -1285,9 +1272,7 @@ def distribute_ambig_traj_weights(ntraj, refl_fresnel, trans_fresnel,
         # non-TIR fresnel are treated as new trajectories at the appropriate
         # interface. This means reversed R/T ratios for fresnel reflection at
         # transmission interface.
-        extra_refl = 0.5 * xr.concat([refl_fresnel, trans_fresnel,
-                                       stuck_weights],
-                                      dim="trajectory", join="outer")
+        extra_refl = 0.5 * (refl_fresnel + trans_fresnel + stuck_weights)
         extra_trans = extra_refl.copy(deep=True)
 
     if detector:
@@ -1302,21 +1287,9 @@ def distribute_ambig_traj_weights(ntraj, refl_fresnel, trans_fresnel,
         extra_refl = refl_fresnel * refl_frac
 
     # calculate transmitted and reflected weights for each traj
-    ## to add these arrays together we have to account for the different
-    ## trajectory selections in each array. extra_trans has values for all
-    ## trajectories, as does extra_refl and inc_refl_detected. trans_detected
-    ## has values only for the transmitted trajectories (similarly for
-    ## refl_detected and the reflected trajectories). We use
-    ## "reindex_like(fill_value=0.0" to expand trans_detected and refl_detected
-    ## to have coordinates for all trajectories, with zeros at the newly
-    ## inserted coords.
-    trans_weights = extra_trans * trans_det_frac
-    trans_weights = (trans_detected.reindex_like(trans_weights, fill_value=0.0)
-                     + trans_weights)
-
-    refl_weights = extra_refl * refl_det_frac + inc_refl_detected
-    refl_weights = (refl_detected.reindex_like(refl_weights, fill_value=0.0)
-                    + refl_weights)
+    trans_weights = extra_trans * trans_det_frac + trans_detected
+    refl_weights = (extra_refl * refl_det_frac + inc_refl_detected
+                    + refl_detected)
 
     # divide by ntraj to get refl and trans per traj
     refl_per_traj = refl_weights / ntraj
@@ -1461,9 +1434,6 @@ def calc_indices_detected(indices, trajectories, det_theta, det_len, det_dist,
         trajectory that did not make it into the detector
 
     """
-    # drop trajectories where event index is 0
-    indices = indices.where(indices > 0, drop=True)
-
     # detector parameters
     if isinstance(det_theta, sc.Quantity):
         det_theta = det_theta.to('radians').magnitude
@@ -1821,8 +1791,7 @@ def calc_refl_trans(sim,
                                                             detection_angle,
                                                             EPS)
 
-    da_list = [refl_fresnel, trans_fresnel, stuck_weights]
-    total_stuck = (xr.concat(da_list, dim="trajectory", join="outer")
+    total_stuck = ((refl_fresnel + trans_fresnel + stuck_weights)
                    .sum("trajectory") / ntraj)
 
     # If we want to run Fresnel reflected as new trajectories
@@ -1831,13 +1800,8 @@ def calc_refl_trans(sim,
         and total_stuck > max_stuck):
         # Calculate the reflectance and transmittance per trajectory
         # without Fresnel weights.
-
-        refl_per_traj_nf = (refl_detected.reindex_like(inc_refl_detected,
-                                                       fill_value=0.0)
-                            + inc_refl_detected) / ntraj
-        trans_per_traj_nf = (trans_detected.reindex_like(inc_refl_detected,
-                                                         fill_value=0.0)
-                             / ntraj)
+        refl_per_traj_nf = (refl_detected + inc_refl_detected) / ntraj
+        trans_per_traj_nf = trans_detected / ntraj
 
         # Rerun Fresnel reflected components of trajectories.
         # We have to pass the original DataArrays for n_medium and n_sample
@@ -2020,10 +1984,7 @@ def run_sphere_fresnel_traj(refl_per_traj_nf, trans_per_traj_nf,
 
     # New weights are the weights that are fresnel reflected
     # back into the sphere.
-    all_traj = sim_fresnel.traj.coords["trajectory"]
-    new_weights = (xr.concat([refl_fresnel, trans_fresnel, stuck_weights],
-                             dim="trajectory", join="outer")
-                   .reindex_like(all_traj, fill_value=0.0))
+    new_weights = refl_fresnel + trans_fresnel + stuck_weights
     sim_fresnel.traj["weight"].loc[dict(event=0)] = new_weights
 
     # Add refl and trans indices for all attempted or successful exit indices
@@ -2038,9 +1999,9 @@ def run_sphere_fresnel_traj(refl_per_traj_nf, trans_per_traj_nf,
 
     # get positions inside sphere boundary from before exit
     indices_prev = indices - 1
-    indices_prev = indices_prev.where(indices_prev >= 0, drop=True)
-    pos0 = pos.sel(event=indices_prev,
-                   **indices_prev.coords, drop=True).drop_vars("event")
+    ## replace negative indices with 0 (TODO: check if needed)
+    indices_prev = indices_prev.where(indices_prev >= 0).fillna(0)
+    pos0 = pos.sel(event=indices_prev).drop_vars("event")
 
     # make sure none of the coordinates are infinite
     pos0, pos1 = inf_to_large(pos0, pos1, radius)
@@ -2070,12 +2031,10 @@ def run_sphere_fresnel_traj(refl_per_traj_nf, trans_per_traj_nf,
     k_refl = rotate_reflect(k_out, normal)
 
     # set the initial directions as the reflected directions
-    sim_fresnel.traj["direction"].loc[dict(event=0)] = \
-        k_refl.reindex_like(all_traj, fill_value=0.0)
+    sim_fresnel.traj["direction"].loc[dict(event=0)] = k_refl
 
     # set the initial positions at the sphere boundary
-    sim_fresnel.traj["position"].loc[dict(event=0)] = \
-        intersect.reindex_like(all_traj, fill_value=0.0)
+    sim_fresnel.traj["position"].loc[dict(event=0)] = intersect
 
     # TODO: get rid of trajectories whose initial weights are 0
     # find indices where initial weights are 0
@@ -2109,14 +2068,10 @@ def run_sphere_fresnel_traj(refl_per_traj_nf, trans_per_traj_nf,
     reflectance_no_fresnel = refl_per_traj_nf.sum("trajectory")
     transmittance_no_fresnel = trans_per_traj_nf.sum("trajectory")
 
-    return (reflectance_fresnel.reindex_like(all_traj, fill_value=0.0)
-            + reflectance_no_fresnel.reindex_like(all_traj, fill_value=0.0),
-            transmittance_fresnel.reindex_like(all_traj, fill_value=0.0)
-            + transmittance_no_fresnel.reindex_like(all_traj, fill_value=0.0),
-            refl_per_traj_fresnel.reindex_like(all_traj, fill_value=0.0)
-            + refl_per_traj_nf.reindex_like(all_traj, fill_value=0.0),
-            trans_per_traj_fresnel.reindex_like(all_traj, fill_value=0.0)
-            + trans_per_traj_nf.reindex_like(all_traj, fill_value=0.0))
+    return (reflectance_fresnel + reflectance_no_fresnel,
+            transmittance_fresnel + transmittance_no_fresnel,
+            refl_per_traj_fresnel + refl_per_traj_nf,
+            trans_per_traj_fresnel + trans_per_traj_nf)
 
 
 def rotate_reflect(k_out, normal):

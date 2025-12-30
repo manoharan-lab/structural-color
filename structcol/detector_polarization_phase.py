@@ -79,11 +79,9 @@ def calc_refl_phase_fields(trajectories, refl_indices, refl_per_traj,
     w = np.sqrt(refl_per_traj * ntraj)
 
     # Write expression for field.
-    # 0th event is before entering sample, so we start from 1,
-    # for later use with select_events.
-    traj_field_x = w * trajectories.fields[0, 1:, :]
-    traj_field_y = w * trajectories.fields[1, 1:, :]
-    traj_field_z = w * trajectories.fields[2, 1:, :]
+    traj_field_x = w * trajectories.fields[0, :, :].drop_vars("component")
+    traj_field_y = w * trajectories.fields[1, :, :].drop_vars("component")
+    traj_field_z = w * trajectories.fields[2, :, :].drop_vars("component")
 
     # Select traj_field values only for the reflected indices.
     refl_field_x = select_events(traj_field_x, refl_indices)

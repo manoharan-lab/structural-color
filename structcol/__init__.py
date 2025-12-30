@@ -157,56 +157,30 @@ def select_events(inarray, events):
 
     Parameters
     ----------
-    inarray: 2D or 3D array
-        Should have axes corresponding to events, trajectories
-        or coordinates, events, trajectories
-    events: 1D array
-        Should have length corresponding to ntrajectories.
+    inarray : `xr.DataArray`
+        Should have "event" and "trajectory" coords
+    events : array-like
         Non-zero entries correspond to the event of interest
 
     Returns
     -------
-    1D array: contains only the elements of inarray corresponding to non-zero
-              events values.
+    selection : `xr.DataArray`
+        The elements of inarray corresponding to non-zero event values.
+        Unselected elements are marked with nan
 
     '''
-    if isinstance(inarray, (xr.DataArray, xr.Dataset)):
-        if not isinstance(events, xr.DataArray):
-            ev = xr.DataArray(events,
-                              coords={"trajectory":
-                                      range(events.shape[-1])})
-        else:
-            ev = events.copy(deep=True)
-        ev = ev.where(ev > 0, drop=True)
-        sel = inarray.sel(event=ev, **ev.coords).drop_vars("event")
-        return sel
-
-    # there is no 0th event, so disregard a 0 (or less) in the events array
-    valid_events = (events > 0)
-
-    # The 0th element in arrays such as direction refer to the 1st event
-    # so subtract 1 from all the valid events to correct for array indexing
-    ev = events[valid_events].astype(int) - 1
-
-    # find the trajectories where there are valid events
-    tr = np.where(valid_events)[0]
-
-    # want output of the same form as events, so create variable
-    # for object type
-    dtype = inarray.dtype
-
-    # get an output array with elements corresponding to the input events
-    if inarray.ndim == 2:
-        outarray = np.zeros(len(events), dtype=dtype)
-        outarray[valid_events] = inarray[ev, tr]
-    elif inarray.ndim == 3:
-        outarray = np.zeros((inarray.shape[0], len(events)), dtype=dtype)
-        outarray[:, valid_events] = inarray[:, ev, tr]
+    if not isinstance(events, xr.DataArray):
+        # can remove this if statement after
+        # detector_polarization_phase.calc_refl_phase_fields() is
+        # refactored
+        ev = xr.DataArray(events,
+                          coords={"trajectory":
+                                  range(events.shape[-1])})
     else:
-        raise ValueError(f"cannot handle inarray with {inarray.ndim} "
-                         "dimensions")
+        ev = events.copy(deep=True)
 
-    return outarray
+    selection = inarray.sel(event=ev).where(ev>0).drop_vars("event")
+    return selection
 
 
 def size_parameter(n_medium, radius):

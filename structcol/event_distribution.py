@@ -102,9 +102,7 @@ def calc_refl_trans_event(refl_per_traj, inc_refl_per_traj, trans_per_traj,
     trans_events = sum_per_event_number(trans_per_traj, trans_indices, nevents)
 
     # zeroth event should include only fresnel reflection
-    # need to use reindex_like() to select only those events in refl_events
-    refl_events.loc[dict(event=0)] = \
-        inc_refl_per_traj.reindex_like(refl_events).sum("trajectory")
+    refl_events.loc[dict(event=0)] = inc_refl_per_traj.sum("trajectory")
     trans_events.loc[dict(event=0)] = xr.zeros_like(trans_events.sel(event=0))
 
     return(refl_events, trans_events)
@@ -674,12 +672,7 @@ def calc_refl_event_fresnel_avg(refl_events, refl_indices, trans_indices,
     trans_weights = trans_weights.transpose("event",...).loc[trans_index_shift]
 
     # add to get total weights
-    ntraj = refl_indices.sizes["trajectory"]
-    alltraj = xr.DataArray(np.zeros(ntraj),
-                           coords={"trajectory": range(ntraj)})
-    fresnel_weights = (refl_weights.reindex_like(alltraj, fill_value=0.0)
-                       + trans_weights.reindex_like(alltraj, fill_value=0.0)
-                       + refl_events)
+    fresnel_weights = refl_weights + trans_weights + refl_events
 
     return fresnel_weights
 

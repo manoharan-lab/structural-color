@@ -369,7 +369,6 @@ def test_field_co_cross_mc():
     sphere = sc.Sphere(index_particle, radius)
     index_matrix = sc.index.vacuum
     index_medium = sc.index.vacuum
-    n_medium = index_medium(wavelengths)
 
     thickness = sc.Quantity('80 um')
     boundary = 'film'
@@ -404,13 +403,9 @@ def test_field_co_cross_mc():
 
         # we convert to numpy because detector_polarization_phase is not yet
         # converted to use xarray
-        trajectories = mc.NumpyTrajectory(trajectories)
-
         reflectance[i] = refl_trans_result[13].to_numpy().squeeze()
         refl_indices = refl_trans_result[0]
-        refl_per_traj = (refl_trans_result[5].reindex_like(refl_indices,
-                                                           fill_value=0.0)
-                         .to_numpy().squeeze())
+        refl_per_traj = refl_trans_result[5].to_numpy().squeeze()
         refl_indices = refl_indices.to_numpy().squeeze()
 
         # calculate reflectance including fields

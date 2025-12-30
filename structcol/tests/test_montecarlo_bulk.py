@@ -22,7 +22,6 @@ Tests for the montecarlo bulk model
 """
 
 import numpy as np
-import xarray as xr
 import structcol as sc
 from structcol import montecarlo as mc
 from structcol import detector as det
@@ -132,15 +131,8 @@ def test_mu_scat_abs_bulk():
     refl_per_traj = refl_per_traj.sortby("trajectory").to_numpy().squeeze()
     trans_per_traj = (trans_per_traj.sortby("trajectory").to_numpy()
                       .squeeze())
-    # need to expand norm_refl and norm_trans to have all trajectories as
-    # coordinates
-    alltraj_comp = xr.DataArray(np.ones((ntrajectories, 3)),
-                                coords={"trajectory": range(ntrajectories),
-                                        "component": ["x", "y", "z"]})
-    norm_refl = (norm_refl.reindex_like(alltraj_comp, fill_value=0.0)
-                 .to_numpy().squeeze().transpose())
-    norm_trans = (norm_trans.reindex_like(alltraj_comp, fill_value=0.0)
-                  .to_numpy().squeeze().transpose())
+    norm_refl = norm_refl.to_numpy().squeeze().transpose()
+    norm_trans = norm_trans.to_numpy().squeeze().transpose()
 
     _, _, mu_abs_bulk = pfs.calc_scat_bulk(refl_per_traj,
                                            trans_per_traj,
