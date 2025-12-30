@@ -70,15 +70,14 @@ def test_2pi_shift():
 
     refl_indices = refl_trans_result[0]
     refl_per_traj = refl_trans_result[5]
-    reflectance_fields, _ = detp.calc_refl_phase_fields(trajectories,
-                                                        refl_indices,
-                                                        refl_per_traj)
+    reflectance_fields, _ = detp.calc_refl_fields(trajectories, refl_indices,
+                                                  refl_per_traj)
 
     # now do mod 2pi
     trajectories["fields"] = trajectories.fields*np.exp(2*np.pi*1j)
-    reflectance_fields_shift, _ = detp.calc_refl_phase_fields(trajectories,
-                                                              refl_indices,
-                                                              refl_per_traj)
+    reflectance_fields_shift, _ = detp.calc_refl_fields(trajectories,
+                                                        refl_indices,
+                                                        refl_per_traj)
 
     assert_almost_equal(reflectance_fields, reflectance_fields_shift,
                         decimal=15)
@@ -122,15 +121,15 @@ def test_intensity_coherent():
                                "weight": weights,
                                "fields": fields})
 
-    # calculate reflectance phase
+    # calculate reflectance from fields model
     refl_per_traj = xr.DataArray(np.array([0.5, 0.5]),
                                  coords={"trajectory": range(ntrajectories)})
     refl_indices = xr.DataArray(np.array([2, 2]),
                                 coords={"trajectory": range(ntrajectories)})
-    refl_phase, _ = detp.calc_refl_phase_fields(trajectories, refl_indices,
-                                                refl_per_traj)
+    refl_fields, _ = detp.calc_refl_fields(trajectories, refl_indices,
+                                       refl_per_traj)
     intensity_incident = np.sum(trajectories.weight[0,:])
-    intensity = refl_phase*intensity_incident
+    intensity = refl_fields * intensity_incident
 
     # Calculate I = (E1 + E2)*(E1 + E2) = E1*E1 + E2*E2 + E1*E2 + E2*E1
     ev = 1
@@ -195,8 +194,8 @@ def test_pi_shift_zero():
                                  coords={"trajectory": range(ntrajectories)})
     refl_indices = xr.DataArray(np.array([2, 2]),
                                 coords={"trajectory": range(ntrajectories)})
-    refl_fields, _ = detp.calc_refl_phase_fields(trajectories, refl_indices,
-                                                 refl_per_traj)
+    refl_fields, _ = detp.calc_refl_fields(trajectories, refl_indices,
+                                           refl_per_traj)
 
     # check whether reflectance phase is 0
     assert_almost_equal(refl_fields, 0, decimal=15)
@@ -343,9 +342,8 @@ def test_field_reflectance_mc():
     refl_indices = refl_trans_result[0]
     refl_per_traj = refl_trans_result[5]
 
-    refl_fields, _ = detp.calc_refl_phase_fields(trajectories,
-                                                 refl_indices,
-                                                 refl_per_traj)
+    refl_fields, _ = detp.calc_refl_fields(trajectories, refl_indices,
+                                           refl_per_traj)
 
     refl_fields_expected = 0.847085540141198
     refl_intensity_expected = 0.42164540478888135
@@ -383,17 +381,12 @@ def test_field_co_cross_mc():
     # polarization detector parameters
     det_theta = sc.Quantity('10 deg')
 
-    reflectance = np.zeros(wavelengths.size)
-    refl_tot = np.zeros(wavelengths.size)
-    refl_co = np.zeros(wavelengths.size)
-    refl_cr = np.zeros(wavelengths.size)
-    refl_perp = np.zeros(wavelengths.size)
-    refl_field = np.zeros(wavelengths.size)
-    refl_intensity = np.zeros(wavelengths.size)
-
     # set up scattering model
     model = sc.model.HardSpheres(sphere, volume_fraction, index_matrix,
                                  index_medium)
+
+    refl_intensity = []
+    refl = []
 
     for i in range(wavelengths.size):
         # Initialize and run simulation
@@ -407,24 +400,16 @@ def test_field_co_cross_mc():
 
         # we convert to numpy because detector_polarization_phase is not yet
         # converted to use xarray
-        reflectance[i] = refl_trans_result[13].to_numpy().squeeze()
+        refl_intensity.append(refl_trans_result[13])
         refl_indices = refl_trans_result[0]
         refl_per_traj = refl_trans_result[5]
 
-        # calculate reflectance including fields
-        refl_fields, _ = detp.calc_refl_phase_fields(trajectories,
-                                                     refl_indices,
-                                                     refl_per_traj)
-
         # calculate reflectance contribution from each polarization component
-        (refl_co[i],
-         refl_cr[i],
-         refl_perp[i],
-         refl_field[i],
-         refl_intensity[i]) = detp.calc_refl_co_cross_fields(trajectories,
-                                                             refl_indices,
-                                                             refl_per_traj,
-                                                             det_theta)
+        refl.append(detp.calc_refl_co_cross_fields(trajectories, refl_indices,
+                                                   refl_per_traj, det_theta))
+
+    refl_intensity = xr.concat(refl_intensity, dim=sc.Coord.WAVELEN)
+    refl = xr.concat(refl, dim=sc.Coord.WAVELEN)
 
     R_expected = [0.681824026794771, 0.6948436254210142, 0.6576767551090704,
                   0.6485419612486806, 0.6105017450658912, 0.6102481369185175,
@@ -463,8 +448,18 @@ def test_field_co_cross_mc():
                         0.0100856579063141, 0.5112362551840111,
                         1.                ]
 
-    assert_allclose(refl_intensity, R_expected)
-    # reduce tolerances from default to 1e-3 because of test failures on MacOS
-    assert_allclose(refl_field, R_field_expected, rtol=1e-3)
-    assert_allclose(refl_co/np.max(refl_co), R_co_expected, rtol=3e-2)
-    assert_allclose(refl_cr/np.max(refl_cr), R_cross_expected, rtol=3e-2)
+    # drop volume fraction coordinate before comparing
+    refl = refl.squeeze(drop=True)
+    refl_intensity = refl_intensity.squeeze(drop=True)
+
+    # TODO: check that incoherent reflectance from fields model and intensity
+    # model are close (need to figure out what tolerance to use; these may not
+    # be that close for a small number of trajectories)
+    # assert_allclose(refl["intensity"], refl_intensity)
+
+    assert_allclose(refl["intensity"], R_expected)
+    # reduced tolerances from default to 1e-3 because of test failures on MacOS
+    assert_allclose(refl["field"], R_field_expected, rtol=1e-3)
+    assert_allclose(refl["co"]/np.max(refl["co"]), R_co_expected, rtol=3e-2)
+    assert_allclose(refl["cross"]/np.max(refl["cross"]), R_cross_expected,
+                    rtol=3e-2)

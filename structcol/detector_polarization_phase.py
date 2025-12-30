@@ -22,6 +22,7 @@ related to it's field properties: polarization and phase.
 
 
 .. moduleauthor:: Annie Stephenson <stephenson@g.harvard.edu>
+.. moduleauthor:: Vinothan N. Manoharan <vnm@seas.harvard.edu>
 
 """
 import structcol as sc
@@ -29,49 +30,42 @@ from pymie import mie
 from . import select_events
 from . import LIGHT_SPEED_VACUUM
 import numpy as np
+import xarray as xr
 import warnings
 
 
-def calc_refl_phase_fields(trajectories, refl_indices, refl_per_traj,
-                           components=False):
-    '''
-    Calculates the reflectance including phase, by considering trajectories
-    that exit at the same time to be coherent. To do this, we must bin
-    trajectories with similar exit times and add their fields. Then
-    we convolve the reflectance as a function of time with a step function
-    in order to give a steady state value for the reflectance.
+def calc_refl_fields(trajectories, refl_indices, refl_per_traj,
+                     components=False):
+    """
+    Calculates the reflectance by adding fields coherently
 
     Parameters
     ----------
-    trajectories: Trajectory object
-        Trajectory object used in Monte Carlo simulation
-    refl_indices: 1d array (length: ntraj)
-        array of event indices for reflected trajectories
-    refl_per_traj: 1d array (length: ntraj)
-        reflectance distributed to each trajectory, including fresnel
+    trajectories : `xr.Dataset` (dims=..., component, event, trajectory)
+        Trajectories from a `sc.Simulation` object
+    refl_indices : `xr.DataArray` (dims=..., trajectory)
+        Event indices for reflected trajectories
+    refl_per_traj : `xr.DataArray` (dims=..., trajectory)
+        Reflectance distributed to each trajectory, including fresnel
         contributions
-    components: boolean
+    components : boolean
+        If True, return total field in addition to reflectances
 
     Returns
     -------
     if components == True:
-        return tot_field_x, tot_field_y, tot_field_z, refl_fields,
-        refl_non_phase / intensity_incident
+        tot_field, refl_fields, refl_non_phase / intensity_incident
     else:
-        return refl_fields, refl_non_phase / intensity_incident
-    '''
+        refl_fields, refl_non_phase / intensity_incident
 
-    ntraj = len(trajectories.direction[0, 0, :])
+    """
+    ntraj = trajectories.sizes["trajectory"]
 
-    if np.all(refl_indices == 0):
+    if (refl_indices == 0).all():
         no_refl_warn = '''No trajectories were reflected.
                           Check sample parameters or increase number
                           of trajectories.'''
         warnings.warn(no_refl_warn)
-    if isinstance(trajectories.weight, sc.Quantity):
-        weights = trajectories.weight.magnitude
-    else:
-        weights = trajectories.weight
 
     # Get the amplitude of the field
     # The expression below gives 0 for not reflected traj, but that's fine
@@ -79,47 +73,28 @@ def calc_refl_phase_fields(trajectories, refl_indices, refl_per_traj,
     w = np.sqrt(refl_per_traj * ntraj)
 
     # Write expression for field.
-    traj_field_x = w * trajectories.fields[0, :, :].drop_vars("component")
-    traj_field_y = w * trajectories.fields[1, :, :].drop_vars("component")
-    traj_field_z = w * trajectories.fields[2, :, :].drop_vars("component")
+    traj_field = w * trajectories.fields
 
     # Select traj_field values only for the reflected indices.
-    refl_field_x = select_events(traj_field_x, refl_indices)
-    refl_field_y = select_events(traj_field_y, refl_indices)
-    refl_field_z = select_events(traj_field_z, refl_indices)
+    refl_field = select_events(traj_field, refl_indices)
 
     # Add reflected fields from all trajectories.
-    tot_field_x = np.sum(refl_field_x)
-    tot_field_y = np.sum(refl_field_y)
-    tot_field_z = np.sum(refl_field_z)
-
-    # Calculate the incoherent reflectance for comparison.
-    non_phase_int_x = np.conj(refl_field_x) * refl_field_x
-    non_phase_int_y = np.conj(refl_field_y) * refl_field_y
-    non_phase_int_z = np.conj(refl_field_z) * refl_field_z
-    refl_non_phase = np.sum(non_phase_int_x + non_phase_int_y
-                            + non_phase_int_z)
-
+    tot_field = refl_field.sum("trajectory")
     # Calculate intensity as E^*E.
-    intensity_x = np.conj(tot_field_x) * tot_field_x
-    intensity_y = np.conj(tot_field_y) * tot_field_y
-    intensity_z = np.conj(tot_field_z) * tot_field_z
-
+    intensity = tot_field.real**2 + tot_field.imag**2
     # Add the x,y, and z intensity.
-    refl_intensity = np.sum(intensity_x + intensity_y + intensity_z)
-
+    refl_intensity = intensity.sum("component")
     # Normalize, assuming incident light is incoherent.
     intensity_incident = ntraj  # np.sum(weights[0,:])
-    refl_fields = np.real(refl_intensity / intensity_incident)
+    refl_fields = (refl_intensity / intensity_incident).real
 
-    refl_x = np.sum(intensity_x) / intensity_incident
-    refl_y = np.sum(intensity_y) / intensity_incident
-    refl_z = np.sum(intensity_z) / intensity_incident
-    refl_intensity_tot = np.real(refl_non_phase / intensity_incident)
+    # Calculate the incoherent reflectance for comparison.
+    refl_incoherent = ((refl_field.real**2 + refl_field.imag**2)
+                       .sum(["component", "trajectory"]))
+    refl_intensity_tot = (refl_incoherent / intensity_incident).real
 
     if components:
-        return (tot_field_x, tot_field_y, tot_field_z, refl_fields,
-                refl_intensity_tot)
+        return tot_field, refl_fields, refl_intensity_tot
     else:
         return refl_fields, refl_intensity_tot
 
@@ -139,17 +114,10 @@ def calc_refl_co_cross_fields(trajectories, refl_indices, refl_per_traj,
 
     '''
 
-    (tot_field_x,
-     tot_field_y,
-     tot_field_z,
-     refl_field,
-     refl_intensity) = calc_refl_phase_fields(trajectories, refl_indices,
-                                              refl_per_traj,
-                                              components=True)
-    if isinstance(tot_field_x, sc.Quantity):
-        tot_field_x = tot_field_x.magnitude
-        tot_field_y = tot_field_y.magnitude
-        tot_field_z = tot_field_z.magnitude
+    (tot_field, refl_field, refl_intensity) = \
+        calc_refl_fields(trajectories, refl_indices, refl_per_traj,
+                         components=True)
+
     if isinstance(det_theta, sc.Quantity):
         det_theta = det_theta.to('radians').magnitude
 
@@ -159,20 +127,26 @@ def calc_refl_co_cross_fields(trajectories, refl_indices, refl_per_traj,
     # Co-polarized field is mostly x-polarized.
     # Cross-polarized field is mostly y-polarized.
     # Field perpendicular to scattering plane is mostly z-polarized.
-    tot_field_co = (tot_field_x * np.cos(det_theta) + tot_field_z
-                    * np.sin(det_theta))
-    tot_field_cr = tot_field_y
-    tot_field_perp = (-tot_field_x * np.sin(det_theta) + tot_field_z
-                      * np.cos(det_theta))
+    tot_field_co = (tot_field.sel(component="x") * np.cos(det_theta)
+                    + tot_field.sel(component="z") * np.sin(det_theta))
+    tot_field_cr = tot_field.sel(component="y")
+    tot_field_perp = (-tot_field.sel(component="x") * np.sin(det_theta)
+                      + tot_field.sel(component="z") * np.cos(det_theta))
+
+    # convert to Dataset
+    tot_field = xr.Dataset({"co": tot_field_co,
+                            "cross": tot_field_cr,
+                            "perp": tot_field_perp})
 
     # Take the modulus to get intensity.
-    refl_co = np.real(np.conj(tot_field_co) * tot_field_co)
-    refl_cr = np.real(np.conj(tot_field_cr) * tot_field_cr)
-    refl_perp = np.real(np.conj(tot_field_perp) * tot_field_perp)
+    refl = tot_field.real**2 + tot_field.imag**2
+    refl["field"] = refl_field
+    refl["intensity"] = refl_intensity
 
-    return (refl_co, refl_cr, refl_perp, refl_field, refl_intensity)
+    return refl
 
-
+# this function is not used (likely deprecated since the introduction of the
+# fields model)
 def calc_traj_time(step, exit_indices, radius,
                    n_particle, n_sample, wavelength,
                    min_angle=0.01,
