@@ -111,35 +111,6 @@ from . import normalize, refraction, select_events
 
 EPS = 1.e-9
 
-
-def inf_to_large(pos0, pos1, radius):
-    """
-    convert two sets of trajectory coordinates from infinite values to a large
-    value instead
-
-    Parameters
-    ----------
-    pos0 : `xr.DataArray` (dims=..., component, trajectory)
-        position of first point
-    pos1 : `xr.DataArray` (dims=..., component, trajectory)
-        position of second point
-    radius : float
-        value that scales the large value that replaces the infinite value.
-
-    Returns
-    -------
-    pos0, pos1 : `xr.DataArray` (dims=..., component, trajectory)
-        positions with infinite values replaced with large ones
-    """
-    bigval = 100*radius
-    pos0 = xr.where(pos0 > 1e20 * radius, bigval, pos0)
-    pos1 = xr.where(pos1 > 1e20 * radius, bigval, pos1)
-    pos0 = xr.where(pos0 < -1e20 * radius, -bigval, pos0)
-    pos1 = xr.where(pos1 < -1e20 * radius, -bigval, pos1)
-
-    return pos0, pos1
-
-
 def find_vec_sphere_intersect(pos0, pos1, radius):
     """
     Analytically solves for the point at which an exiting trajectory
@@ -381,7 +352,8 @@ def get_angles(indices, boundary, trajectories, thickness,
             # This prevents an error for the extreme case
             # where mu_scat is infinite, which means that the index contrast
             # between the particle and matrix is 0
-            pos0, pos1 = inf_to_large(pos0, pos1, radius)
+            pos0 = pos0.clip(-500*radius, 500*radius)
+            pos1 = pos1.clip(-500*radius, 500*radius)
 
             # calculate the normalized k1 vector from the positions
             # inside and outside (X0,y0,z0) and (x1,y1,z1)
@@ -2004,7 +1976,8 @@ def run_sphere_fresnel_traj(refl_per_traj_nf, trans_per_traj_nf,
     pos0 = pos.sel(event=indices_prev).drop_vars("event")
 
     # make sure none of the coordinates are infinite
-    pos0, pos1 = inf_to_large(pos0, pos1, radius)
+    pos0 = pos0.clip(-500*radius, 500*radius)
+    pos1 = pos1.clip(-500*radius, 500*radius)
 
     # get radius vector to subtract from select_z
     select_radius = radius * xr.ones_like(new_weights)
