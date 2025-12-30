@@ -123,8 +123,10 @@ def test_intensity_coherent():
                                "fields": fields})
 
     # calculate reflectance phase
-    refl_per_traj = np.array([0.5, 0.5])
-    refl_indices = np.array([2, 2])
+    refl_per_traj = xr.DataArray(np.array([0.5, 0.5]),
+                                 coords={"trajectory": range(ntrajectories)})
+    refl_indices = xr.DataArray(np.array([2, 2]),
+                                coords={"trajectory": range(ntrajectories)})
     refl_phase, _ = detp.calc_refl_phase_fields(trajectories, refl_indices,
                                                 refl_per_traj)
     intensity_incident = np.sum(trajectories.weight[0,:])
@@ -189,8 +191,10 @@ def test_pi_shift_zero():
                                "fields": fields})
 
     # calculate reflectance phase
-    refl_per_traj = np.array([0.5, 0.5])
-    refl_indices = np.array([2, 2])
+    refl_per_traj = xr.DataArray(np.array([0.5, 0.5]),
+                                 coords={"trajectory": range(ntrajectories)})
+    refl_indices = xr.DataArray(np.array([2, 2]),
+                                coords={"trajectory": range(ntrajectories)})
     refl_fields, _ = detp.calc_refl_phase_fields(trajectories, refl_indices,
                                                  refl_per_traj)
 
@@ -405,8 +409,7 @@ def test_field_co_cross_mc():
         # converted to use xarray
         reflectance[i] = refl_trans_result[13].to_numpy().squeeze()
         refl_indices = refl_trans_result[0]
-        refl_per_traj = refl_trans_result[5].to_numpy().squeeze()
-        refl_indices = refl_indices.to_numpy().squeeze()
+        refl_per_traj = refl_trans_result[5]
 
         # calculate reflectance including fields
         refl_fields, _ = detp.calc_refl_phase_fields(trajectories,

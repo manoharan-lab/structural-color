@@ -152,7 +152,7 @@ def normalize(vec, return_nan=True):
 
 
 def select_events(inarray, events):
-    '''
+    """
     Selects the items of inarray according to event coordinates
 
     Parameters
@@ -168,19 +168,8 @@ def select_events(inarray, events):
         The elements of inarray corresponding to non-zero event values.
         Unselected elements are marked with nan
 
-    '''
-    if not isinstance(events, xr.DataArray):
-        # can remove this if statement after
-        # detector_polarization_phase.calc_refl_phase_fields() is
-        # refactored
-        ev = xr.DataArray(events,
-                          coords={"trajectory":
-                                  range(events.shape[-1])})
-    else:
-        ev = events.copy(deep=True)
-
-    selection = inarray.sel(event=ev).where(ev>0).drop_vars("event")
-    return selection
+    """
+    return inarray.sel(event=events).where(events>0).drop_vars("event")
 
 
 def size_parameter(n_medium, radius):
