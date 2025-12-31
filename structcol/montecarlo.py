@@ -980,39 +980,27 @@ class Simulation:
             sintheta[tir_ind_theta, :] = sintheta_tir
 
         # Rotate to global coords
-        # Start with event 2 because the 0th event contains the initialized
-        # values from before the field enters the sample. The 1st event
-        # contains the values for the field after entering the sample, but
-        # before scattering
 
         # this is the product of the rotation matrices R_z(phi).R_y(theta)
         # calculated for each event in each trajectory
-        # shape of kn is (..., 3, nevents, ntraj)
-        # shape of R is  (..., 3, 3, nevents, ntraj)
+        # shape of En is    (..., 3, nevents+1, ntraj)
+        # shape of R is  (..., 3, 3, nevents-1, ntraj)
         R = np.array([[costheta*cosphi, -sinphi, sintheta*cosphi],
                       [costheta*sinphi, cosphi, sintheta*sinphi],
                       [-sintheta, np.zeros(sinphi.shape), costheta]])
         # reshape to (..., 3, 3, events, trajectories)
         R = np.moveaxis(R, (0, 1), (-4, -3))
 
+        # Start with event 2 because the 0th event contains the initialized
+        # values from before the field enters the sample. The 1st event
+        # contains the values for the field after entering the sample, but
+        # before scattering
         for n in np.arange(2, self.nevents + 1):
-            # Calculate the new x, y, z coordinates of the propagation
-            # direction using the following equations, which can be derived by
-            # using matrix operations to perform a rotation about the y-axis by
-            # angle theta followed by a rotation about the z-axis by angle phi
-            #
             # Einstein summation to take the dot product of each rotation
             # matrix at each event in each trajectory with the wavevector
             # (the n: ensures that all subsequent fields are also rotated)
             En[..., n:, :] = np.einsum('...ijl,...jkl->...ikl',
                                        R[..., n-2, :], En[..., n:, :])
-            # Annie's equivalent code:
-            # Ex = ((En[0,n:,:]*costheta[n-2,:] + En[2,n:,:]*sintheta[n-2,:])*
-            #         cosphi[n-2,:]) - En[1,n:,:]*sinphi[n-2,:]
-            # Ey = ((En[0,n:,:]*costheta[n-2,:] + En[2,n:,:]*sintheta[n-2,:])*
-            #       sinphi[n-2,:]) + En[1,n:,:]*cosphi[n-2,:]
-            # Ez =  -En[0,n:,:]*sintheta[n-2,:] + En[2,n:,:]*costheta[n-2,:]
-            # En[:,n:,:] = Ex, Ey, Ez
 
         # calculate the step propagation factor
         step_cumul = np.abs(k) * step.cumsum("event")
