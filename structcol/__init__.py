@@ -176,14 +176,6 @@ def size_parameter(n_medium, radius):
     """
     Calculates the size parameter x=k_medium*a needed for Mie calculations.
 
-    This function expects n_medium to be a DataArray returned by an Index
-    object, which will consist of index of refraction at various wavelengths.
-
-    Notes
-    -----
-    Since the size parameter is nondimensional, this function strips units,
-    returning a pure DataArray (not a Quantity object)
-
     Parameters
     ----------
     n_medium : `xr.DataArray`
@@ -200,6 +192,14 @@ def size_parameter(n_medium, radius):
         volume fraction is one of the coordinates of n_medium (which should be
         the case if n_medium is an effective index), also returns VOLFRAC
         dimension.
+
+    Notes
+    -----
+    This function expects n_medium to be a DataArray returned by an Index
+    object, which will consist of index of refraction at various wavelengths.
+
+    Since the size parameter is nondimensional, this function strips units,
+    returning a pure DataArray (not a Quantity object)
 
     """
 

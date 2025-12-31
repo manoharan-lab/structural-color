@@ -61,7 +61,7 @@ def test_2pi_shift():
     # Initialize and run simulation
     sim = mc.Simulation(model, wavelength, nevents, ntrajectories, boundary,
                         fields=True)
-    sim.run(radius=radius, wavelength=wavelength)
+    sim.run()
 
     # calculate reflectance
     trajectories = sim.traj
@@ -233,17 +233,12 @@ def test_field_normalized():
     # Initialize and run simulation
     sim = mc.Simulation(model, wavelength, nevents, ntrajectories,
                         boundary, fields=True)
-    sim.run(radius=radius, wavelength=wavelength)
+    sim.run()
 
     # take the dot product
-    trajectories = sim.traj
-
-    field_mag= np.sqrt(np.conj(trajectories.fields[0,:,:])
-                       * trajectories.fields[0,:,:] +
-                       np.conj(trajectories.fields[1,:,:])
-                       * trajectories.fields[1,:,:] +
-                       np.conj(trajectories.fields[2,:,:])
-                       * trajectories.fields[2,:,:])
+    field_mag = np.sqrt((sim.traj.fields.real**2
+                        + sim.traj.fields.imag**2)
+                        .sum("component"))
 
     assert_almost_equal(np.sum(field_mag)/(ntrajectories*(nevents+1)), 1,
                         decimal=15)
@@ -280,7 +275,7 @@ def test_field_perp_direction():
     # Initialize and run simulation
     sim = mc.Simulation(model, wavelength, nevents, ntrajectories, boundary,
                         fields=True)
-    sim.run(radius=radius, wavelength=wavelength)
+    sim.run()
 
     # direction at event=n and field at event=n+1 should be orthogonal
     dot_prod = xr.dot(sim.traj.direction.shift(event=1, fill_value=0),
@@ -330,7 +325,7 @@ def test_field_reflectance_mc():
     # Initialize and run simulation
     sim = mc.Simulation(model, wavelength, nevents, ntrajectories, boundary,
                         coherent=False, fields=True, fine_roughness=0, rng=rng)
-    sim.run(radius=radius, wavelength=wavelength)
+    sim.run()
 
     trajectories = sim.traj
 
@@ -392,7 +387,7 @@ def test_field_co_cross_mc():
         # Initialize and run simulation
         sim = mc.Simulation(model, wavelengths[i], nevents, ntrajectories,
                             boundary, fields=True, coherent=False, rng=rng)
-        sim.run(radius=radius, wavelength=wavelengths[i])
+        sim.run()
 
         trajectories = sim.traj
         refl_trans_result = det.calc_refl_trans(sim, thickness,

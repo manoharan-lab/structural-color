@@ -33,7 +33,6 @@ Radiation Transfer” (July 2013).
 """
 
 import structcol as sc
-import pymie
 from pymie import mie
 from . import refraction
 from . import normalize
@@ -204,7 +203,7 @@ class Simulation:
         model : `sc.Model` object
             scattering model to use
         wavelen : float (structcol.Quantity [length])
-            Wavelength of light in vacuum.                 ):
+            Wavelength of light in vacuum
         nevents : int
             Number of scattering events in each trajectory
         ntraj : int
@@ -558,26 +557,27 @@ class Simulation:
         if fields:
             # The field is initialized with nevents+1 because we want to save
             # the value of the field from before the photon enters the sample.
-            # Shape should be [3, nevents+1, ntraj)]
-            fields = xr.DataArray(0.0 + 0j,
-                                  dims = ["component", "event", "trajectory"],
-                                  coords = {"component": ["x", "y", "z"],
-                                            "event": range(nevents+1),
-                                            "trajectory": range(ntraj)})
+            # Shape should be (..., 3, nevents+1, ntraj)
+            fields = xr.zeros_like(position).astype(complex)
+
             # initialize for unpolarized, incoherent light
             if coherent:
                 phase = np.zeros((2,ntraj))
             else:
                 phase = self.rng.random((2, ntraj))*2*np.pi
             if polarized:
-                fields.sel(event=0).loc["x"] = np.exp(phase[0]*1j)
+                fields.loc[dict(event=0, component="x")] = np.exp(phase[0]*1j)
             else:
-                fields.sel(event=0).loc["x":"y"] = np.exp(phase*1j)
+                fields.loc[dict(event=0, component=slice("x","y"))] = \
+                    np.exp(phase*1j)
 
             fields.loc[dict(event=0)] = normalize(fields.sel(event=0))
 
             # first step into the sample has the same field vector as before
             fields.loc[dict(event=1)] = fields.sel(event=0)
+
+            # note that same initial values are broadcast to all wavelengths
+            # (and other leading dimensions)
             self.traj["fields"] = fields
 
         # save initial state
@@ -593,7 +593,7 @@ class Simulation:
         if "fields" in self.traj:
             self.traj.fields.loc[dict(event=1)] = self.traj.fields.sel(event=0)
 
-    def run(self, rng=None, radius=None, wavelength=None):
+    def run(self, rng=None):
         """
         Run the simulation.
 
@@ -602,10 +602,6 @@ class Simulation:
         rng: numpy.random.Generator object (default None)
             Random number generator. If not specified, use the generator stored
             in the Simulation object
-        radius : `sc.Quantity` [length]
-            radius of particle used in scattering calculation
-        wavelength : `sc.Quantity` [length]
-            wavelength of light in vacuum
 
         Returns
         -------
@@ -623,10 +619,10 @@ class Simulation:
         self.move(step)
         self.absorb(step)
 
-        # calculate fields if radius is specified
-        if radius is not None:
+        # calculate fields if present
+        if "fields" in self.traj:
             self.calc_fields(theta, phi, sintheta, costheta, sinphi, cosphi,
-                             step, radius, wavelength)
+                             step)
 
     def sample_angles(self, rng=None):
         """Samples scattering angles (theta) and azimuthal angles (phi)
@@ -859,7 +855,7 @@ class Simulation:
         self.traj["direction"] = kn
 
     def calc_fields(self, theta, phi, sintheta, costheta, sinphi, cosphi,
-                    step, radius, wavelen, tir_indices=None):
+                    step, tir_indices=None):
         """
         Calculates local x and y polarization rotated in reference frame where
         initial polarization is x-polarized. Assumes the incident light is in
@@ -890,56 +886,33 @@ class Simulation:
 
         Parameters
         ----------
-        theta: 2d array
-            Theta angles.
-        phi: 2d array
-            Phi angles.
-        sintheta, costheta, sinphi, cosphi : array_like
+        theta : `xr.DataArray` (dims=..., event, trajectory)
+            Scattering angles
+        phi : `xr.DataArray` (dims=..., event, trajectory)
+            Azimuthal angles
+        sintheta, costheta, sinphi, cosphi : `xr.DataArray`
             Sines and cosines of scattering (theta) and azimuthal (phi) angles
             sampled from the phase function. Theta and phi are angles that are
             defined with respect to the previous corresponding direction of
             propagation. Thus, they are defined in a local spherical coordinate
-            system. All have dimensions of (nevents, ntrajectories).
-        radius: float
-            Radius of particle.
-        wavelen: float
-            Wavelength.
-        step: ndarray (structcol.Quantity [length])
-            Step sizes of packets (sampled from scattering lengths).
-        tir_indices: array (shape: ntraj)
-            array of event indices for trajectories with TIR before exit
+            system. All have dims=..., event, trajectory.
+        step : `xr.DataArray` (dims=..., event, trajectory)
+            Step sizes of packets (sampled from scattering lengths)
+        tir_indices : `xr.DataArray` (dims=..., trajectory)
+            Array of event indices for trajectories with TIR before exit
 
-        Calculates:
-        ----------
-        En: ndarray, shape: (3, nevents, ntrajectories)
-            Electric field vector for each trajectory and event
-            in global coordinates
+        Returns
+        -------
+        None, but modifies self.traj["field"] : `xr.DataArray`
+            Electric field vector for each trajectory and event in global
+            coordinates
         """
-        # until refactoring, convert DataArrays to numpy
-        sintheta = sintheta.to_numpy().squeeze()
-        costheta = costheta.to_numpy().squeeze()
-        sinphi = sinphi.to_numpy().squeeze()
-        cosphi = cosphi.to_numpy().squeeze()
-        theta = theta.to_numpy().squeeze()
-        phi = phi.to_numpy().squeeze()
-        step = step.squeeze(drop=True)
-        n_particle = self.model.sphere.n(wavelen)
-        n_particle = n_particle.to_numpy().squeeze()
-        n_sample = self.model.index_external(wavelen)
-        # drop VOLFRAC dimension, which is included in all effective
-        # index calculations.
-        if sc.Coord.VOLFRAC in n_sample.coords:
-            n_sample = n_sample.isel({sc.Coord.VOLFRAC: 0}, drop=True)
-        n_sample = n_sample.to_numpy()
-        # xarray-based code
-        # m = sc.index.ratio(n_particle, n_sample)
-        # x = sc.size_parameter(n_sample, radius)
-        # k = sc.wavevector(n_sample).to_preferred().magnitude
+        n_particle = self.model.sphere.n(self.wavelen)
+        n_sample = self.model.index_external(self.wavelen)
 
-        m = np.atleast_2d(n_particle/n_sample)
-        x = pymie.size_parameter(self.wavelen.to_preferred(), n_sample,
-                                 radius.to_preferred())
-        k = 2 * np.pi * n_sample / self.wavelen.to_preferred().magnitude
+        m = sc.index.ratio(n_particle, n_sample)
+        x = sc.size_parameter(n_sample, self.model.sphere.radius_q)
+        k = sc.wavevector(n_sample)
 
         # calculate the mie amplitude scattering matrix
         # we need to calculate the full matrix, rather than just the vector
@@ -952,7 +925,8 @@ class Simulation:
         # and event j we calculate the matrix for the combination of (theta_ij,
         # phi_ij) in that event).  We therefore calculate the matrix for each
         # theta (passing a flat array), then reshape and modify for each phi
-        S = mie.amplitude_scattering_matrix(m, x, theta.ravel())
+        S = mie.amplitude_scattering_matrix(m.to_numpy(), x.to_numpy(),
+                                            theta.to_numpy().ravel())
 
         # for clarity of indexing (0->1) we add a zero element to the list
         S = [0] + list(S)
@@ -984,14 +958,15 @@ class Simulation:
         # Note: this basis assumes that
         # the direction of propagation is the +z direction.
         for n in np.arange(2, self.nevents + 1):
-            Ex = S2[n-2, :] * Ex + S3[n-2, :] * Ey
-            Ey = S4[n-2, :] * Ex + S1[n-2, :] * Ey
+            Ex = S2[..., n-2, :] * Ex + S3[..., n-2, :] * Ey
+            Ey = S4[..., n-2, :] * Ex + S1[..., n-2, :] * Ey
             # 0th event is before sample, the 1st event has no rotation
-            En[0, n, :] = Ex
-            En[1, n, :] = Ey
+            En[..., 0, n, :] = Ex
+            En[..., 1, n, :] = Ey
 
         # Deal with tir
         if tir_indices is not None:
+            # TODO: need to test this code (currently untested)
             # select the tir event for each trajectory
             theta_1 = select_events(theta, tir_indices - 2)
             kz_tir = select_events(self.traj.direction[2], tir_indices)
@@ -1012,11 +987,13 @@ class Simulation:
 
         # this is the product of the rotation matrices R_z(phi).R_y(theta)
         # calculated for each event in each trajectory
-        # shape of kn is [3,nevents,ntraj]
-        # shape of R is [3,3,nevents,ntraj]
+        # shape of kn is (..., 3, nevents, ntraj)
+        # shape of R is  (..., 3, 3, nevents, ntraj)
         R = np.array([[costheta*cosphi, -sinphi, sintheta*cosphi],
                       [costheta*sinphi, cosphi, sintheta*sinphi],
                       [-sintheta, np.zeros(sinphi.shape), costheta]])
+        # reshape to (..., 3, 3, events, trajectories)
+        R = np.moveaxis(R, (0, 1), (-4, -3))
 
         for n in np.arange(2, self.nevents + 1):
             # Calculate the new x, y, z coordinates of the propagation
@@ -1027,8 +1004,8 @@ class Simulation:
             # Einstein summation to take the dot product of each rotation
             # matrix at each event in each trajectory with the wavevector
             # (the n: ensures that all subsequent fields are also rotated)
-            En[:, n:, :] = np.einsum('ijl,jkl->ikl',
-                                     R[:, :, n-2, :], En[:, n:, :])
+            En[..., n:, :] = np.einsum('...ijl,...jkl->...ikl',
+                                       R[..., n-2, :], En[..., n:, :])
             # Annie's equivalent code:
             # Ex = ((En[0,n:,:]*costheta[n-2,:] + En[2,n:,:]*sintheta[n-2,:])*
             #         cosphi[n-2,:]) - En[1,n:,:]*sinphi[n-2,:]
@@ -1048,13 +1025,10 @@ class Simulation:
         # shift on scattering from fine roughness particles.
         # should multiply by 1 for trajectories do not have fine roughness
         # ntraj_fine = int(round(ntraj * self.fine_roughness))
-        En[:, 1:, :] = En[:, 1:, :] * step_phase_factor
+        En[..., 1:, :] = En[..., 1:, :] * step_phase_factor
 
         # Normalize
-        coords = En.coords
-        En = normalize(En, return_nan=False)
-
-        self.traj["fields"] = xr.DataArray(En, coords=coords)
+        self.traj["fields"] = normalize(En, return_nan=False)
 
     def move(self, step):
         """
