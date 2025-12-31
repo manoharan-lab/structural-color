@@ -54,4 +54,4 @@ jobs:
       run: pip install pytest-github-actions-annotate-failures
     - name: Test with pytest
       run: |
-        pytest
+        pytest -n logical
