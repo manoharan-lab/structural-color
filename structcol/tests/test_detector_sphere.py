@@ -466,13 +466,13 @@ def test_multiscale_mc():
         # values will need to be updated
 
         # Sample angles
-        sintheta, costheta, sinphi, cosphi, _, _= sim.sample_angles()
+        angles = sim.sample_angles()
 
         # Calculate step size
         step = sim.sample_step()
 
         # Run photons
-        sim.scatter(sintheta, costheta, sinphi, cosphi)
+        sim.scatter(angles)
         sim.move(step)
 
         # calculate bulk reflectance
@@ -642,6 +642,12 @@ def test_multiscale_polydispersity_mc():
                                         param_list =
                                         sphere_boundary_diameters, rng=rng)
 
+        angles = xr.Dataset({
+            "sintheta": sintheta,
+            "costheta": costheta,
+            "sinphi": sinphi,
+            "cosphi": cosphi})
+
         # insert scattering quantities calculated for bulk system into object
         sim.mu_abs = mu_abs_bulk[0, i]
 
@@ -649,7 +655,7 @@ def test_multiscale_polydispersity_mc():
         # the bulk so we arbitrarily use index 0, assuming that all scattering
         # events have the same amount of absorption
         sim.absorb(step)
-        sim.scatter(sintheta, costheta, sinphi, cosphi)
+        sim.scatter(angles)
         sim.move(step)
 
         # calculate reflectance
@@ -738,12 +744,12 @@ def test_multiscale_color_mixing_mc():
                                 sample_diameter = sphere_boundary_diameter,
                                 rng=rng)
 
-            sintheta, costheta, sinphi, cosphi, _, _ = sim.sample_angles()
+            angles = sim.sample_angles()
 
             step = sim.sample_step()
 
             sim.absorb(step)
-            sim.scatter(sintheta, costheta, sinphi, cosphi)
+            sim.scatter(angles)
             sim.move(step)
 
             (refl_indices, trans_indices, stuck_indices, tir_indices,
@@ -813,6 +819,11 @@ def test_multiscale_color_mixing_mc():
                                         sphere_type_sampled,
                                         mu_scat_bulk[:,i],
                                         rng=rng)
+        angles = xr.Dataset({
+            "sintheta": sintheta,
+            "costheta": costheta,
+            "sinphi": sinphi,
+            "cosphi": cosphi})
 
         # insert scattering quantities calculated for bulk system into object
         sim.mu_abs = mu_abs_bulk[0, i]
@@ -821,7 +832,7 @@ def test_multiscale_color_mixing_mc():
         # Note: we assume that all scattering events
         # have the same amount of absorption
         sim.absorb(step)
-        sim.scatter(sintheta, costheta, sinphi, cosphi)
+        sim.scatter(angles)
         sim.move(step)
 
         # calculate reflectance

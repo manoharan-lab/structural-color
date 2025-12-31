@@ -610,19 +610,17 @@ class Simulation:
         """
         # Sample trajectory angles
         angles = self.sample_angles(rng=rng)
-        sintheta, costheta, sinphi, cosphi, theta, phi = angles
         # Sample step sizes
         step = self.sample_step(rng=rng)
 
         # Update trajectories based on sampled values
-        self.scatter(sintheta, costheta, sinphi, cosphi)
+        self.scatter(angles)
         self.move(step)
         self.absorb(step)
 
         # calculate fields if present
         if "fields" in self.traj:
-            self.calc_fields(theta, phi, sintheta, costheta, sinphi, cosphi,
-                             step)
+            self.calc_fields(angles, step)
 
     def sample_angles(self, rng=None):
         """Samples scattering angles (theta) and azimuthal angles (phi)
@@ -635,15 +633,16 @@ class Simulation:
 
         Parameters
         ----------
-        rng: numpy.random.Generator object (default None)
+        rng : numpy.random.Generator object (default None)
             Random number generator. If not specified, use the generator stored
             in the Simulation object
 
         Returns
         -------
-        sintheta, costheta, sinphi, cosphi, theta, phi : array-like
+        sampled_angles : `xr.Dataset` (dims=..., event, trajectory)
             Sampled azimuthal and scattering angles, and their sines and
-            cosines.
+            cosines ("sintheta", "costheta", "sinphi", "cosphi", "theta",
+            "phi")
 
         """
         if rng is None:
@@ -719,14 +718,15 @@ class Simulation:
                                         + ("event", "trajectory")),
                                 coords = {"event": range(1, self.nevents),
                                           "trajectory": range(ntraj)})
-        sintheta = sintheta.assign_coords(self.leading_coords)
-        costheta = xr.DataArray(np.cos(theta), coords=sintheta.coords)
-        sinphi = xr.DataArray(np.sin(phi), coords=sintheta.coords)
-        cosphi = xr.DataArray(np.cos(phi), coords=sintheta.coords)
-        theta = xr.DataArray(theta, coords=sintheta.coords)
-        phi = xr.DataArray(phi, coords=sintheta.coords)
+        sampled_angles = xr.Dataset(
+            {"sintheta": sintheta.assign_coords(self.leading_coords),
+             "costheta": xr.DataArray(np.cos(theta), coords=sintheta.coords),
+             "sinphi": xr.DataArray(np.sin(phi), coords=sintheta.coords),
+             "cosphi": xr.DataArray(np.cos(phi), coords=sintheta.coords),
+             "theta": xr.DataArray(theta, coords=sintheta.coords),
+             "phi": xr.DataArray(phi, coords=sintheta.coords)})
 
-        return sintheta, costheta, sinphi, cosphi, theta, phi
+        return sampled_angles
 
     def sample_step(self, rng=None):
         """Samples step sizes from exponential distribution.
@@ -797,7 +797,7 @@ class Simulation:
                   * np.exp(-(mu_abs * step.cumsum("event"))))
         self.traj["weight"].loc[dict(event=slice(1, None))] = weight
 
-    def scatter(self, sintheta, costheta, sinphi, cosphi):
+    def scatter(self, angles):
         """
         Calculates the directions of propagation after scattering (for either
         'scattering plane' or 'cartesian' polarizations).
@@ -808,7 +808,7 @@ class Simulation:
 
         Parameters
         ----------
-        sintheta, costheta, sinphi, cosphi : array_like
+        angles : `xr.Dataset` (dims=..., event, trajectory)
             Sines and cosines of scattering (theta) and azimuthal (phi) angles
             sampled from the phase function. Theta and phi are angles that are
             defined with respect to the previous corresponding direction of
@@ -816,6 +816,9 @@ class Simulation:
             system. All have dimensions of (nevents, ntrajectories).
 
         """
+        sintheta, costheta, sinphi, cosphi = (angles[key] for key in
+                                              ["sintheta", "costheta",
+                                               "sinphi", "cosphi"])
         kn = self.traj["direction"]
 
         # Calculate the new propagation direction by rotation about the y-axis
@@ -854,8 +857,7 @@ class Simulation:
         # Update all the directions of the trajectories
         self.traj["direction"] = kn
 
-    def calc_fields(self, theta, phi, sintheta, costheta, sinphi, cosphi,
-                    step, tir_indices=None):
+    def calc_fields(self, angles, step, tir_indices=None):
         """
         Calculates local x and y polarization rotated in reference frame where
         initial polarization is x-polarized. Assumes the incident light is in
@@ -886,16 +888,12 @@ class Simulation:
 
         Parameters
         ----------
-        theta : `xr.DataArray` (dims=..., event, trajectory)
-            Scattering angles
-        phi : `xr.DataArray` (dims=..., event, trajectory)
-            Azimuthal angles
-        sintheta, costheta, sinphi, cosphi : `xr.DataArray`
+        angles : `xr.Dataset` (dims=..., event, trajectory)
             Sines and cosines of scattering (theta) and azimuthal (phi) angles
             sampled from the phase function. Theta and phi are angles that are
             defined with respect to the previous corresponding direction of
             propagation. Thus, they are defined in a local spherical coordinate
-            system. All have dims=..., event, trajectory.
+            system.
         step : `xr.DataArray` (dims=..., event, trajectory)
             Step sizes of packets (sampled from scattering lengths)
         tir_indices : `xr.DataArray` (dims=..., trajectory)
@@ -906,7 +904,10 @@ class Simulation:
         None, but modifies self.traj["field"] : `xr.DataArray`
             Electric field vector for each trajectory and event in global
             coordinates
+
         """
+        sintheta, costheta, sinphi, cosphi, theta, phi = angles.values()
+
         n_particle = self.model.sphere.n(self.wavelen)
         n_sample = self.model.index_external(self.wavelen)
 
@@ -930,8 +931,7 @@ class Simulation:
 
         # for clarity of indexing (0->1) we add a zero element to the list
         S = [0] + list(S)
-        # Reshape to (..., nevents, ntraj). Also because calc_fields() is not
-        # yet vectorized, we remove the wavelength axis from each element
+        # Reshape to (..., nevents, ntraj)
         for i in (1,2,3,4):
             S[i] = S[i][0].reshape(theta.shape)
         # now account for phi

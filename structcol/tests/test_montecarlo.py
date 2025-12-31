@@ -199,8 +199,14 @@ class TestSimulation():
         cosphi = xr.DataArray([[0., 0., 0.]],
                               coords=sintheta.coords)
 
+        angles = xr.Dataset({
+            "sintheta": sintheta,
+            "costheta": costheta,
+            "sinphi": sinphi,
+            "cosphi": cosphi})
+
         # Test the scatter function. Should also produce a deterministic result
-        sim.scatter(sintheta, costheta, sinphi, cosphi)
+        sim.scatter(angles)
 
         # Expected propagation directions
         kx = np.array([[0., 0., 0.], [0., 0., 0.]])

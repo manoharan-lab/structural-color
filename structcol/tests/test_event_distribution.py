@@ -501,7 +501,7 @@ class TestEventDistributionWavelength():
 
         for j in range(theta_range.size):
             # Generate a matrix of all the randomly sampled angles first
-            _, _, sinphi, cosphi, _, _ = sim.sample_angles()
+            angles = sim.sample_angles()
 
             # need nevents-1 because the first event doesn't involve a change in
             # direction.
@@ -509,19 +509,21 @@ class TestEventDistributionWavelength():
                      * theta_range[j].to('rad').magnitude)
 
             # broadcast to correct coordinates
-            sintheta = (xr.ones_like(sinphi)
+            sintheta = (xr.ones_like(angles["sinphi"])
                         * xr.DataArray(np.sin(theta),
                                        dims=["event", "trajectory"]))
-            costheta = (xr.ones_like(sinphi)
+            costheta = (xr.ones_like(angles["sinphi"])
                         * xr.DataArray(np.cos(theta),
                                        dims=["event", "trajectory"]))
+            angles["sintheta"] = sintheta
+            angles["costheta"] = costheta
 
             # reset sim to initial conditions
             sim.reset()
 
             # Run photons
             sim.absorb(step)
-            sim.scatter(sintheta, costheta, sinphi, cosphi)
+            sim.scatter(angles)
             sim.move(step)
 
             ################### Calculate reflection and transmition
