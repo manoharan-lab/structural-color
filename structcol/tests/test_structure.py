@@ -357,8 +357,6 @@ def test_structure_factor_data_reflectances():
         sim.run()
 
         reflectance_i, _ = det.calc_refl_trans(sim, thickness)
-        print(reflectance_i)
-        print(reflectance[i])
         reflectance[i] = reflectance_i.squeeze(drop=True)
 
     reflectance_expected = [0.8095144529605994, 0.7708351929683783,

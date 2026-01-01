@@ -167,6 +167,7 @@ def test_exit_detection(seed):
     try:
         xr.testing.assert_equal(exits.squeeze(drop=True), exits_expected)
     except AssertionError as e:
+        # for debugging in case a test fails
         print("\n*** position ***\n", traj.position.sel(component="z"))
         print("\n*** direction ***\n", traj.direction.sel(component="z"))
         print("\n*** exit ***\n", exits)

@@ -1122,19 +1122,19 @@ class MCResult:
 
 def coarse_roughness_enter(k, n_medium, n_sample, coarse_roughness, boundary,
                            rng=None):
-    '''
+    """
     Calculates new initial directions based on the coarse roughness of the
     sample.
 
     Parameters
     ----------
-    k: `xr.DataArray`
+    k : `xr.DataArray`
         Directions of propagation. Has shape of (..., 3, number of events,
         number of trajectories). k0.loc["x"] and k0.loc["y"] are initialized to
         zero, and k0.loc[dict(event=0, component="z")] is initialized to 1.
-    n_medium: `xr.DataArray`
+    n_medium : `xr.DataArray` (dims=...)
         Refractive index of the medium, as output from an `sc.Index` object.
-    n_sample: `xr.DataArray`
+    n_sample : `xr.DataArray` (dims=...)
         Refractive index of the sample, as output from an `sc.Index` object.
     coarse_roughness : float
         Coarse surface roughness should be included when the roughness is large
@@ -1147,17 +1147,17 @@ def coarse_roughness_enter(k, n_medium, n_sample, coarse_roughness, boundary,
         bound, but when the coarse roughness tends to infinity, the surface
         becomes too "spiky" and light can no longer hit it, which reduces the
         reflectance down to 0.
-    boundary: string
+    boundary : string
         Geometrical boundary for Monte Carlo calculations. Current options are
         'film' or 'sphere.' Coarse roughness is currently only implemented for
         a film.
-    rng: numpy.random.Generator object (default None)
+    rng : numpy.random.Generator object (default None)
         If not specified, use the default generator initialized on loading the
         package
 
     Returns
     -------
-    k0_rough: `xr.DataArray`
+    k0_rough : `xr.DataArray`
         Initial direction of propagation, corrected for coarse roughness.
     kz0_rot : `xr.DataArray`
         Initial z-directions that are rotated to account for the fact that
@@ -1171,7 +1171,7 @@ def coarse_roughness_enter(k, n_medium, n_sample, coarse_roughness, boundary,
         coordinate system. The array size is (1, ntraj). Only returned if
         coarse_roughness is set to > 0.
 
-    '''
+    """
     if rng is None:
         rng = sc.rng
 

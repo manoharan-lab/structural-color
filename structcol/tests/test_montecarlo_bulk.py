@@ -17,6 +17,8 @@
 """
 Tests for the montecarlo bulk model
 
+TODO: consider moving tests to test_detector_sphere()
+
 .. moduleauthor:: Anna B. Stephenson <stephenson@g.harvard.edu>
 .. moduleauthor:: Vinothan N. Manoharan <vnm@seas.harvard.edu>
 """
@@ -27,6 +29,7 @@ from structcol import montecarlo as mc
 from structcol import detector as det
 from structcol import phase_func_sphere as pfs
 from numpy.testing import assert_almost_equal
+import xarray as xr
 import pytest
 
 ### Set parameters ###
@@ -103,18 +106,6 @@ def calc_sphere_mc():
     return (refl_indices, trans_indices, refl_per_traj, trans_per_traj,
             reflectance_sphere, norm_refl, norm_trans)
 
-    ### Calculate phase function and lscat ###
-    # use output of calc_refl_trans to calculate phase function, mu_scat,
-    # and mu_abs for the bulk
-    p_bulk, mu_scat_bulk, mu_abs_bulk = pfs.calc_scat_bulk(refl_per_traj,
-                                                           trans_per_traj,
-                                                           trans_indices,
-                                                           norm_refl, norm_trans,
-                                                           volume_fraction_bulk,
-                                                           sphere_boundary_diameter,
-                                                           n_matrix_bulk,
-                                                           wavelength)
-    return p_bulk, mu_scat_bulk, mu_abs_bulk
 
 def test_mu_scat_abs_bulk():
 
@@ -124,16 +115,9 @@ def test_mu_scat_abs_bulk():
      reflectance_sphere,
      norm_refl, norm_trans) = calc_sphere_mc()
 
-    # until phase_func_sphere is refactored to use xarray, convert to numpy
-    reflectance_sphere = reflectance_sphere.to_numpy().squeeze()
-    refl_indices = refl_indices.sortby("trajectory").to_numpy().squeeze()
-    trans_indices = trans_indices.sortby("trajectory").to_numpy().squeeze()
-    refl_per_traj = refl_per_traj.sortby("trajectory").to_numpy().squeeze()
-    trans_per_traj = (trans_per_traj.sortby("trajectory").to_numpy()
-                      .squeeze())
-    norm_refl = norm_refl.to_numpy().squeeze().transpose()
-    norm_trans = norm_trans.to_numpy().squeeze().transpose()
-
+    ### Calculate phase function and lscat ###
+    # use output of calc_refl_trans to calculate phase function, mu_scat,
+    # and mu_abs for the bulk
     _, _, mu_abs_bulk = pfs.calc_scat_bulk(refl_per_traj,
                                            trans_per_traj,
                                            refl_indices,
@@ -150,15 +134,16 @@ def test_mu_scat_abs_bulk():
     # make sure mu_abs reaches limit when there is no scattering
     with pytest.warns(UserWarning,
                       match="No trajectories reflected or transmitted"):
-        _, mu_scat_bulk, mu_abs_bulk = pfs.calc_scat_bulk(np.zeros((ntrajectories)),
-                                                        np.zeros((ntrajectories)),
-                                                        refl_indices,
-                                                        trans_indices,
-                                                        norm_refl, norm_trans,
-                                                        volume_fraction_bulk,
-                                                        sphere_boundary_diameter,
-                                                        n_matrix_bulk,
-                                                        wavelength)
+        _, mu_scat_bulk, mu_abs_bulk = \
+            pfs.calc_scat_bulk(xr.zeros_like(refl_per_traj),
+                               xr.zeros_like(trans_per_traj),
+                               refl_indices,
+                               trans_indices,
+                               norm_refl, norm_trans,
+                               volume_fraction_bulk,
+                               sphere_boundary_diameter,
+                               n_matrix_bulk,
+                               wavelength)
 
     number_density = volume_fraction_bulk/(4/3*np.pi*
                                         (sphere_boundary_diameter.magnitude/2)**3)
@@ -171,17 +156,19 @@ def test_mu_scat_abs_bulk():
 
 
     # check the mu_scat_bulk reaches limit when there is only scattering
-    norm_refl[2,:]= 1/np.sqrt(3)
-    norm_refl[1,:]= 1/np.sqrt(3)
-    norm_refl[0,:]= 1/np.sqrt(3)
-    norm_trans[2,:]= 0
-    norm_trans[1,:]= 0
-    norm_trans[0,:]= 0
+    norm_refl.loc[dict(component="z")] = 1/np.sqrt(3)
+    norm_refl.loc[dict(component="y")] = 1/np.sqrt(3)
+    norm_refl.loc[dict(component="x")] = 1/np.sqrt(3)
+    norm_trans.loc[dict(component="z")]= 0
+    norm_trans.loc[dict(component="y")] = 0
+    norm_trans.loc[dict(component="x")] = 0
 
-    _, mu_scat_bulk, _ = pfs.calc_scat_bulk(1/ntrajectories*np.ones((ntrajectories)), # refl_per_traj
-                                            np.zeros((ntrajectories)), # trans_per_traj
-                                            np.ones(ntrajectories)+3, # refl_indices
-                                            np.zeros(ntrajectories), # trans_indices
+
+    _, mu_scat_bulk, _ = pfs.calc_scat_bulk(1/ntrajectories
+                                            * xr.ones_like(refl_per_traj),
+                                            xr.zeros_like(trans_per_traj),
+                                            xr.ones_like(refl_indices) + 3,
+                                            xr.zeros_like(trans_indices),
                                             norm_refl, norm_trans,
                                             volume_fraction_bulk,
                                             sphere_boundary_diameter,

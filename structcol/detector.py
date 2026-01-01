@@ -17,14 +17,26 @@
 # You should have received a copy of the GNU General Public License
 # along with this package.  If not, see <http://www.gnu.org/licenses/>.
 
-"""
-This package uses a Monte Carlo approach to model multiple scattering of
+"""This module uses a Monte Carlo approach to model multiple scattering of
 photons in a medium.
 
 References
 ----------
 [1] K. Wood, B. Whitney, J. Bjorkman, M. Wolff. “Introduction to Monte Carlo
 Radiation Transfer” (July 2013).
+
+[2] Hwang, Victoria, Anna B. Stephenson, Solomon Barkley, Soeren Brandt, Ming
+Xiao, Joanna Aizenberg, Vinothan N. Manoharan, “Designing Angle-Independent
+Structural Colors Using Monte Carlo Simulations of Multiple Scattering.”
+Physical Sciences. Proceedings of the National Academy of Sciences 118, no. 4
+(2021): e2015551118. https://doi.org/10.1073/pnas.2015551118.
+
+[3] Stephenson, Anna B., Ming Xiao, Victoria Hwang, Liangliang Qu, Paul A.
+Odorisio, Michael Burke, Keith Task, Ted Deisenroth, Solomon Barkley, Rupa H.
+Darji, Vinothan N. Manoharan, “Predicting the Structural Colors of Films of
+Disordered Photonic Balls.” ACS Photonics 10, no. 1 (2022): 58–70.
+https://doi.org/10.1021/acsphotonics.2c00892.
+
 .. moduleauthor:: Victoria Hwang <vhwang@g.harvard.edu>
 .. moduleauthor:: Annie Stephenson <stephenson@g.harvard.edu>
 .. moduleauthor:: Solomon Barkley <barkley@g.harvard.edu>
@@ -96,6 +108,7 @@ refl_per_traj_nf:
     reflectance per trajectory without Fresnel weights.
 trans_per_traj_nf
     transmittance per trajectory without Fresnel weights.
+
 """
 import warnings
 
@@ -138,7 +151,7 @@ def find_vec_sphere_intersect(pos0, pos1, radius):
     # There will be two solutions for each k vector, corresponding to the two
     # points where a line intersects a sphere.
     # See http://www.ambrsoft.com/TrigoCalc/Sphere/SpherLineIntersection_.htm
-    # or Annie Stephenson lab notebook #3, pg 18 for details.
+    # or SI of ref. [3] for details
     a = (k**2).sum("component")
     b = 2 * (k * pos0).sum("component")
     c = (pos0**2).sum("component") - radius ** 2
@@ -197,6 +210,10 @@ def exit_kz(indices, trajectories, boundary, thickness, n_inside, n_outside):
     -------
     k2z : `xr.DataArray`  (dims=..., trajectory)
         z components of refracted direction upon trajectory exit
+
+    Notes
+    -----
+    See SI of ref. [3] for details
 
     """
     # Get the angles between trajectories and the normal,
@@ -1301,6 +1318,9 @@ def calc_refracted_direction(dir, pos, n1, n2, plot=False):
         refracted direction vector
     point : `xr.DataArray` (dims=..., component, trajectory)
         point of intersection of direction vector and incident plane
+
+    References
+    ----------
 
     """
     # Find point on the vector around which to rotate.

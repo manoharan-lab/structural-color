@@ -16,10 +16,20 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this package.  If not, see <http://www.gnu.org/licenses/>.
-"""
-Created on Thu Feb  8 12:34:06 2018
+"""This module calculates the phase function and optical properties (absorption
+and scattering coefficients) for a spherical photonic ball
 
-@author: stephenson
+References
+----------
+[1] Stephenson, Anna B., Ming Xiao, Victoria Hwang, Liangliang Qu, Paul A.
+Odorisio, Michael Burke, Keith Task, Ted Deisenroth, Solomon Barkley, Rupa H.
+Darji, Vinothan N. Manoharan, “Predicting the Structural Colors of Films of
+Disordered Photonic Balls.” ACS Photonics 10, no. 1 (2022): 58–70.
+https://doi.org/10.1021/acsphotonics.2c00892.
+
+.. moduleauthor:: Annie Stephenson <stephenson@g.harvard.edu> .. moduleauthor::
+Vinothan N. Manoharan <vnm@seas.harvard.edu>
+
 """
 
 import numpy as np
@@ -38,25 +48,26 @@ def get_exit_pos(norm_refl, norm_trans, radius):
 
     Parameters
     ----------
-    norm_refl: 2d array-like, shape (3, number of trajectories)
-        array of normal vectors for trajectories at their
-        reflection exit from the sphere
-    norm_trans: 2d array-like, shape (3, number of trajectoires)
-        array of normal vectors for trajectories at their
-        transmission exit from the sphere
-    radius: float-like
-        radius of the spherical boundary
+    norm_refl : `xr.DataArray` (dims=..., component, trajectory)
+        Normal vectors for trajectories at their reflection exit from the
+        sphere
+    norm_trans  : `xr.DataArray` (dims=..., component, trajectory)
+        Normal vectors for trajectories at their transmission exit from the
+        sphere
+    radius : float
+        Radius of the spherical boundary, in preferred units
 
     Returns
     -------
-    intersect : array-like, shape (3, number of trajectories)
-        coordinates of exit positions of trajectories
+    intersect : `xr.DataArray` (dims=..., component, trajectory)
+        Exit positions of trajectories
+
     """
     # add the normal vectors for reflection and transmission to get
     # normal vectors for all exits
     # (nans are present in norm_trans where reflections happen, and in
     # norm_refl where transmissions happen; replace with zeros before adding)
-    norm = np.nan_to_num(norm_trans) + np.nan_to_num(norm_refl)
+    norm = norm_trans.fillna(0) + norm_refl.fillna(0)
     intersect = norm * radius
 
     return intersect
@@ -81,8 +92,7 @@ def calc_pdf(intersect, radius,
              kz=None,
              kernel_bin_width='silverman'):
 
-    '''
-    Calculates kernel density estimate of probability density function
+    """Calculates kernel density estimate of probability density function
     as a function of nu or nu and phi for a given set of x,y, and z coordinates
 
     x, y, and z are the points on the sphere at which a trajectory exits
@@ -90,45 +100,45 @@ def calc_pdf(intersect, radius,
 
     Parameters
     ----------
-    intersect : array-like, shape (3, ntrajectories)
-        coordinates of each trajectory at exit event
-    radius: float
-        radius of sphere boundary
-    refl_per_traj: 1d array
-        array of trajectory weights that exit through reflection, normalized
-        by the total number of trajectories
-    trans_per_traj: 1d array
-        array of trajectory weights that exit through transmission, normalized
-        by the total number of trajectories
-    refl_indices: 1d array
-        array of event indices at which trajectories exit structured sphere
-        through reflection
-    trans_indices: 1d array
-        array of event indices at which trajectories exit structured sphere
+    intersect : `xr.DataArray` (dims=..., component, trajectory)
+        Exit positions of trajectories
+    radius : float
+        Radius of structured spheres in a bulk film, in preferred units
+    refl_per_traj : `xr.DataArray` (dims=..., trajectory)
+        Trajectory weights that exit through reflection, normalized by the
+        total number of trajectories
+    trans_per_traj : `xr.DataArray` (dims=..., trajectory)
+        Trajectory weights that exit through transmission, normalized by the
+        total number of trajectories
+    refl_indices : `xr.DataArray` (dims=..., trajectory)
+        Event indices at which trajectories exit structured sphere through
+        reflection
+    trans_indices : `xr.DataArray` (dims=..., trajectory)
+        Array of event indices at which trajectories exit structured sphere
         through transmission
-    plot: boolean
+    plot : boolean
         If set to True, the intermediate and final pdfs will be plotted
-    phi_dependent: boolean (optional)
+    phi_dependent : boolean (optional)
         If set to True, the returned pdf will require both a nu and a phi
         input
-    nu_range: 1d array (optional)
-        the nu values for which the pdf
-    phi_range: 1d array (optional)
+    nu_range : 1d array (optional)
+        The nu values for which to calculate the pdf
+    phi_range : 1d array (optional)
         the phi values for which to calculate the pdf, if the pdf is
         phi-dependent
-    kz: 1d array or None (optional)
+    kz : 1d array or None (optional)
         the kz values at the exit events for all the trajectories
-    kernel_bin_width: string or scalar or callable (optional)
+    kernel_bin_width : string or scalar or callable (optional)
         determines the bin width for the gaussian kde used to calculate the
         structured sphere phase function. See scipy's gaussian_kde() function
         for more details. Default is 'silverman'
 
     Returns
     -------
-    pdf_array: 1d or 2d array
+    pdf_array : `xr.DataArray` (dims=..., THETAIDX, [PHIIDX])
         probability density function values as function of nu if
         phi_dependent = False, and as a function of nu and phi if
-        phi_depenedent = True
+        phi_dependent = True
 
     Notes
     -----
@@ -140,10 +150,21 @@ def calc_pdf(intersect, radius,
 
     see http://mathworld.wolfram.com/SpherePointPicking.html for more details
 
-    '''
-    x, y, z = intersect
-    trans_indices_scat = np.copy(trans_indices)
-    trans_indices_scat[trans_indices == 1] = 0
+    See supplementary information of ref. [1] for more details. As noted there,
+    "In assigning an angle to each photon packet, we use the angle of the exit
+    position on the surface rather than the exit direction, which enforces an
+    assumption that the photon packets exit normal to the sphere surface.
+    Though the simulated photon packets do not necessarily exit the ball normal
+    to the surface, the alternative of using the exit directions would neglect
+    how exit positions can geometrically restrict the direction of the next
+    scattering event. Because unpolarized scattering depends only on the
+    scattering angle θ and not on the azimuthal angle φ, we assume that the
+    distribution of azimuthal angles is uniform, and we restrict our
+    calculation of the photonic-ball phase function to a distribution of θ
+    only."
+
+    """
+    trans_indices_scat = trans_indices.where(trans_indices != 1, 0)
 
     # calculate thetas for each exit point
     # If optional parameter kz is specified, we calculate theta based on kz.
@@ -152,12 +173,12 @@ def calc_pdf(intersect, radius,
         # remove the values of kz=0 because they mean that there
         # was no reflection or transmission event
         kz = select_events(kz, refl_indices + trans_indices_scat)
-        kz = kz[kz != 0]
+        kz = kz.where(kz != 0)
         theta = np.arccos(kz)
     else:
         # turn indices into booleans
-        refl_indices[refl_indices != 0] = 1
-        trans_indices_scat[trans_indices_scat != 0] = 1
+        refl_indices = (refl_indices.fillna(0) != 0)
+        trans_indices = (trans_indices.fillna(0) != 0)
 
         # multiply by _per_traj to get only the weights of the exited photons
         # need to include this because of TIR
@@ -165,19 +186,19 @@ def calc_pdf(intersect, radius,
         trans_weights_z = trans_per_traj * trans_indices_scat
 
         # turn back into boolean
-        refl_weights_z[refl_weights_z != 0] = 1
-        trans_weights_z[trans_weights_z != 0] = 1
+        refl_weights_z = (refl_weights_z.fillna(0) != 0)
+        trans_weights_z = (trans_weights_z.fillna(0) != 0)
 
         # multiply z's by 0 if there is no exit
-        z = z*(refl_weights_z + trans_weights_z)
+        z = intersect.sel(component="z") * (refl_weights_z + trans_weights_z)
 
         # get rid of the z's that don't exit
-        z = z[z != 0]
+        z = z.where(z != 0)
         theta = np.arccos(z / radius)
 
     # since we don't care about event number, change all non-zero values to 1
-    refl_indices[refl_indices != 0] = 1
-    trans_indices_scat[trans_indices_scat != 0] = 1
+    refl_indices = (refl_indices.fillna(0) != 0)
+    trans_indices_scat = (trans_indices_scat.fillna(0) != 0)
 
     # mutiply per_traj by indices to get rid of intensities where there is no
     # actual scattering exit event
@@ -188,33 +209,72 @@ def calc_pdf(intersect, radius,
     weights = refl_weights + trans_weights
 
     # remove zeros to match kz size
-    weights = weights[weights != 0]
+    weights = weights.where(weights != 0, drop=True)
 
     # convert thetas to nus
     nu = (np.cos(theta) + 1) / 2
 
     # add reflections of data on to ends to prevent dips in distribution
     # due to edges
-    nu_edge_correct = np.hstack((-nu, nu, -nu + 2))
-    weights_edge_correct = np.hstack((weights, weights, weights))
+    nu_edge_correct = xr.concat([-nu, nu, -nu + 2], "trajectory")
+    weights_edge_correct = xr.concat([weights, weights, weights], "trajectory")
 
+    # must drop nan (corresponding to missing points) before doing KDE
+    nu_edge_correct = nu_edge_correct.dropna("trajectory")
+
+    # TODO: need to ensure this test works for each leading dimension
+    if not phi_dependent and nu_edge_correct.size == 0:
+        warnings.warn("No trajectories reflected or transmitted. "
+                      "Check sample parameters")
+        pdf_array = np.nan
+        return pdf_array
+
+    # have to loop over wavelengths and other leading dimensions here (not sure
+    # how to vectorize PDF creation from scipy's gaussian_kde() over
+    # wavelength).  Here we assume that leading dimensions are wavelength and
+    # volume fraction
+    pdf_loop_wavelen = []
+    for wavelen in refl_indices.coords[sc.Coord.WAVELEN]:
+        pdf_loop_volfrac = []
+        for volfrac in refl_indices.coords[sc.Coord.VOLFRAC]:
+            nu_edge_sel  = nu_edge_correct.sel({sc.Coord.WAVELEN: wavelen,
+                                                sc.Coord.VOLFRAC: volfrac})
+            weights_edge_sel = weights_edge_correct.sel(
+                {sc.Coord.WAVELEN: wavelen,
+                 sc.Coord.VOLFRAC: volfrac}
+            )
+            pdf_loop_volfrac.append(
+                _calc_pdf(nu_edge_sel, weights_edge_sel, intersect,
+                          plot, phi_dependent, nu_range, phi_range,
+                          kernel_bin_width)
+                )
+        pdf_loop_wavelen.append(xr.concat(pdf_loop_volfrac, sc.Coord.VOLFRAC))
+    pdf_array = xr.concat(pdf_loop_wavelen, sc.Coord.WAVELEN)
+    pdf_array = pdf_array.assign_coords(
+        {sc.Coord.WAVELEN: refl_indices.coords[sc.Coord.WAVELEN],
+         sc.Coord.VOLFRAC: refl_indices.coords[sc.Coord.VOLFRAC]
+        })
+
+    return(pdf_array)
+
+
+def _calc_pdf(nu_edge_correct, weights_edge_correct, intersect,
+              plot,
+              phi_dependent,
+              nu_range,
+              phi_range,
+              kernel_bin_width):
     if not phi_dependent:
-        if nu_edge_correct.size == 0:
-            warnings.warn("No trajectories reflected or transmitted. "
-                          "Check sample parameters")
-            pdf_array = np.nan
+        # calculate the pdf kernel density estimate
+        pdf = gaussian_kde(nu_edge_correct,
+                           bw_method=kernel_bin_width,
+                           weights=weights_edge_correct)
 
-        else:
-            # calculate the pdf kernel density estimate
-            pdf = gaussian_kde(nu_edge_correct.magnitude,
-                               bw_method=kernel_bin_width,
-                               weights=weights_edge_correct)
-
-            # calculate the pdf for specific nu values
-            theta = np.linspace(0.01, np.pi, 200)
-            nu = (np.cos(theta) + 1) / 2
-            pdf_array = pdf(nu)
-            pdf_array = pdf_array / np.sum(pdf_array)
+        # calculate the pdf for specific nu values
+        theta = np.linspace(0.01, np.pi, 200)
+        nu = (np.cos(theta) + 1) / 2
+        pdf_array = pdf(nu)
+        pdf_array = pdf_array / np.sum(pdf_array)
 
         if plot:    # pragma: no cover
             # plot the distribution from data, with edge correction, and kde
@@ -222,8 +282,11 @@ def calc_pdf(intersect, radius,
             plt.xlabel(r'$\nu$')
 
     else:
+        # TODO: this code is untested; either add tests or delete
+
         # calculate phi for each exit point
-        phi = np.arctan2(y, x) + np.pi
+        phi = np.arctan2(intersect.sel(component="y"),
+                         intersect.sel(component="x")) + np.pi
 
         # add reflections of data to ends to prevent dips in distribution
         # due to edges
@@ -255,6 +318,8 @@ def calc_pdf(intersect, radius,
             pdf_marg_phi = np.sum(pdf_vals, axis = 1)
             plot_dist_1d(phi_range, phi, phi_edge_correct, pdf_marg_phi)
             plt.xlabel(r'$\phi$')
+
+    pdf_array = xr.DataArray(pdf_array, coords={sc.Coord.THETAIDX: range(200)})
 
     return pdf_array
 
@@ -491,7 +556,7 @@ def calc_d_avg(volume_fraction, radius):
 def calc_mu_scat_abs(refl_per_traj, trans_per_traj, refl_indices,
                      trans_indices, volume_fraction, radius, n_sample,
                      wavelength):
-    '''
+    """
     Calculates scattering coefficient and absorption coefficient using results
     of the Monte Carlo calc_refl_trans() function
 
@@ -528,51 +593,52 @@ def calc_mu_scat_abs(refl_per_traj, trans_per_traj, refl_indices,
 
     Parameters
     ----------
-    refl_per_traj: 1d array
-        array of trajectory weights that exit through reflection, normalized
-        by the total number of trajectories
-    trans_per_traj: 1d array
-        array of trajectory weights that exit through transmission, normalized
-        by the total number of trajectories
-    refl_indices: 1d array
-        array of event indices at which trajectories exit structured sphere
-        through reflection
-    trans_indices: 1d array
-        array of event indices at which trajectories exit structured sphere
+    refl_per_traj : `xr.DataArray` (dims=..., trajectory)
+        Trajectory weights that exit through reflection, normalized by the
+        total number of trajectories
+    trans_per_traj : `xr.DataArray` (dims=..., trajectory)
+        Trajectory weights that exit through transmission, normalized by the
+        total number of trajectories
+    refl_indices : `xr.DataArray` (dims=..., trajectory)
+        Event indices at which trajectories exit structured sphere through
+        reflection
+    trans_indices : `xr.DataArray` (dims=..., trajectory)
+        Array of event indices at which trajectories exit structured sphere
         through transmission
-    volume_fraction: float-like
-        volume fraction of structured spheres in a bulk film
-    radius: float-like
-        radius of structured spheres in a bulk film
-    n_sample: float-like
-        refractive index of the material surrounding the sphere, oven referred
-        to as the bulk matrix
-    wavelength: float-like
-        source light wavelength
+    volume_fraction : float
+        Volume fraction of structured spheres in a bulk film
+    radius : float
+        Radius of structured spheres in a bulk film, in preferred units
+    n_sample : `xr.DataArray` (dims=...)
+        Refractive index of the material surrounding the sphere (the "bulk
+        matrix"), as output from an `sc.Index` object.
+    wavelength : `xr.DataArray` (dims=...)
+        Wavelength of incident light
 
     Returns
     -------
-    mu_scat: float-like
-        scattering coefficient for bulk film of structured spheres
-    mu_abs: float-like
-        absorption coefficient for bulk film of structured spheres
+    mu_scat : `xr.DataArray` (dims=...)
+        Scattering coefficient for bulk film of structured spheres
+    mu_abs : `xr.DataArray` (dims=...)
+        Absorption coefficient for bulk film of structured spheres
 
-    '''
+    """
 
     # calculate the number density
     number_density = volume_fraction / (4 / 3 * np.pi * radius**3)
 
     # calculate the total absorption cross section
     # assumes no stuck
-    tot_abs_cross_section = ((1 - np.sum(refl_per_traj + trans_per_traj))
-                             * np.pi * radius**2)
+    tot_abs_cross_section = \
+        ((1 - (refl_per_traj + trans_per_traj).sum("trajectory"))
+         * np.pi * radius**2)
 
     # remove transmission contribution from trajectories that did not scatter
-    trans_per_traj_scat = np.copy(trans_per_traj)
-    trans_per_traj_scat[trans_indices == 1] = 0
+    trans_per_traj_scat = trans_per_traj.where(trans_indices != 1, 0)
 
-    tot_scat_cross_section = (np.sum(refl_per_traj + trans_per_traj_scat)
-                              * 2 * np.pi * radius**2)
+    tot_scat_cross_section = \
+        ((refl_per_traj + trans_per_traj_scat).sum("trajectory")
+         * 2 * np.pi * radius**2)
 
     # calculate mu_scat, mu_abs using the sphere
     mu_scat = number_density * tot_scat_cross_section
@@ -600,70 +666,69 @@ def calc_scat_bulk(refl_per_traj,
                    phi_range=np.linspace(0, 2 * np.pi, 300),
                    kz=None,
                    kernel_bin_width='silverman'):
-    '''
+    """
     Parameters
     ----------
-    refl_per_traj: 1d array
-        array of trajectory weights that exit through reflection, normalized
-        by the total number of trajectories
-    trans_per_traj: 1d array
-        array of trajectory weights that exit through transmission, normalized
-        by the total number of trajectories
-    refl_indices: 1d array
-        array of event indices at which trajectories exit structured sphere
-        through reflection
-    trans_indices: 1d array
-        array of event indices at which trajectories exit structured sphere
+    refl_per_traj : `xr.DataArray` (dims=..., trajectory)
+        Trajectory weights that exit through reflection, normalized by the
+        total number of trajectories
+    trans_per_traj : `xr.DataArray` (dims=..., trajectory)
+        Trajectory weights that exit through transmission, normalized by the
+        total number of trajectories
+    refl_indices : `xr.DataArray` (dims=..., trajectory)
+        Event indices at which trajectories exit structured sphere through
+        reflection
+    trans_indices : `xr.DataArray` (dims=..., trajectory)
+        Array of event indices at which trajectories exit structured sphere
         through transmission
-    norm_refl: 2d array-like, shape (3, number of trajectories)
-        array of normal vectors for trajectories at their
-        reflection exit from the sphere
-    norm_trans: 2d array-like, shape (3, number of trajectoires)
-        array of normal vectors for trajectories at their
-        transmission exit from the sphere
-        norm_trans
-    volume_fraction: float-like
-        volume fraction of structured spheres in a bulk film
-    diameter: float-like
-        diameter of structured spheres in a bulk film
-    n_sample: float-like
-        refractive index of the material surrounding the sphere, often referred
-        to as the bulk matrix
-    wavelength: float-like
-        source light wavelength
-    plot: boolean (optional)
+    norm_refl : `xr.DataArray` (dims=..., component, trajectory)
+        Normal vectors for trajectories at their reflection exit from the
+        sphere
+    norm_trans  : `xr.DataArray` (dims=..., component, trajectory)
+        Normal vectors for trajectories at their transmission exit from the
+        sphere
+    volume_fraction : float
+        Volume fraction of structured spheres in a bulk film
+    diameter : float
+        Diameter of structured spheres in a bulk film
+    n_sample : `xr.DataArray` (dims=...)
+        Refractive index of the material surrounding the sphere (the "bulk
+        matrix"), as output from an `sc.Index` object.
+    wavelength : `xr.DataArray` (dims=...)
+        Wavelength of incident light
+    plot : boolean (optional)
         If set to True, the intermediate and final pdfs will be plotted
-    phi_dependent: boolean (optional)
+    phi_dependent : boolean (optional)
         If set to True, the returned pdf will require both a nu and a phi
         input
-    nu_range: 1d array (optional)
-        the nu values for which the pdf
-    phi_range: 1d array (optional)
+    nu_range : 1d array (optional)
+        the nu values for which to calculate the pdf
+    phi_range : 1d array (optional)
         the phi values for which to calculate the pdf, if the pdf is
         phi-dependent
-    kz: None or 1d array (optional)
+    kz : None or 1d array (optional)
         the kz values at the exit events of the trajectories
-    kernel_bin_width: string or scalar or callable (optional)
+    kernel_bin_width : string or scalar or callable (optional)
         determines the bin width for the gaussian kde used to calculate the
         structured sphere phase function. See scipy's gaussian_kde() function
         for more details. Default is 'silverman'
 
     Returns
     -------
-    p: 1d array
+    p : `xr.DataArray` (dims=..., THETA_IDX, [PHI_IDX])
         phase function for bulk film
-    mu_scat: float-like
+    mu_scat : `xr.DataArray` (dims=...)
         scattering coefficient for bulk film
-    mu_abs: float-like
+    mu_abs : `xr.DataArray` (dims=...)
         absorption coefficient for bulk film
 
-    '''
-    # until refactoring, convert back to numpy
-    if isinstance(n_sample, xr.DataArray):
-        n_sample = n_sample.to_numpy()
-
+    """
     # get radius from diameter
     radius = diameter / 2
+
+    # standardize and remove units
+    radius = radius.to_preferred().magnitude
+    wavelength = wavelength.to_preferred().magnitude
 
     # calculate the lscat of the microsphere for use in the bulk simulation
     mu_scat, mu_abs = calc_mu_scat_abs(refl_per_traj, trans_per_traj,
@@ -688,7 +753,7 @@ def calc_scat_bulk(refl_per_traj,
                  kz=kz,
                  kernel_bin_width=kernel_bin_width)
 
-    return p, mu_scat.to_preferred().magnitude, mu_abs.to_preferred().magnitude
+    return p, mu_scat.squeeze(drop=True), mu_abs.squeeze(drop=True)
 
 
 def calc_diam_list(num_diam, diameter_mean, pdi,

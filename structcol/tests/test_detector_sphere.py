@@ -16,13 +16,14 @@
 # You should have received a copy of the GNU General Public License along with
 # this package. If not, see <http://www.gnu.org/licenses/>.
 """
-Tests for the montecarlo model for sphere geometry (in structcol/montecarlo.py)
+Tests for the montecarlo model for sphere geometry (in
+structcol/montecarlo.py). Also makes use of phase_func_sphere.py.
+
 .. moduleauthor:: Annie Stephenson <stephenson@g.harvard.edu>
 .. moduleauthor:: Victoria Hwang <vhwang@g.harvard.edu>
-.. moduleathor:: Solomon Barkley <barkley@g.harvard.edu>
+.. moduleauthor:: Solomon Barkley <barkley@g.harvard.edu>
 .. moduleauthor:: Vinothan N. Manoharan <vnm@seas.harvard.edu>
 
-TODO: either delete this file or delete tests repeated in montecarlo.py
 """
 
 import structcol as sc
@@ -345,7 +346,7 @@ def test_multiscale_mc():
     num_angles = 200
 
     # initialize quantities we want to save as a function of wavelength
-    reflectance_sphere = np.zeros(wavelengths.size)
+    reflectance_sphere = []
     mu_scat_bulk = np.zeros(wavelengths.size)
     mu_abs_bulk = np.zeros(wavelengths.size)
     p_bulk = np.zeros((wavelengths.size, num_angles))
@@ -373,15 +374,7 @@ def test_multiscale_mc():
                                  run_fresnel_traj = False,
                                  return_extra = True)
 
-        # until phase_func_sphere is refactored to use xarray, convert to numpy
-        reflectance_sphere[i] = reflectance.to_numpy().squeeze()
-        refl_indices = refl_indices.sortby("trajectory").to_numpy().squeeze()
-        trans_indices = trans_indices.sortby("trajectory").to_numpy().squeeze()
-        refl_per_traj = refl_per_traj.sortby("trajectory").to_numpy().squeeze()
-        trans_per_traj = (trans_per_traj.sortby("trajectory").to_numpy()
-                          .squeeze())
-        norm_refl = (norm_refl.to_numpy().squeeze().transpose())
-        norm_trans = (norm_trans.to_numpy().squeeze().transpose())
+        reflectance_sphere.append(reflectance)
 
         ### Calculate phase function and lscat ###
         # use output of calc_refl_trans to calculate phase function, mu_scat,
@@ -392,6 +385,8 @@ def test_multiscale_mc():
                                volume_fraction_bulk, sphere_boundary_diameter,
                                n_matrix_bulk[i], wavelengths[i], plot=False,
                                phi_dependent=False)
+
+    reflectance_sphere = xr.concat(reflectance_sphere, sc.Coord.WAVELEN)
 
     # test that reflectance and phase function at backscattering angle are
     # as expected
@@ -426,12 +421,12 @@ def test_multiscale_mc():
                     0.0047808140756161, 0.0048249082594418,
                     0.0047717541318914]
 
-    assert_allclose(reflectance_sphere, R_sphere_expected)
+    assert_allclose(reflectance_sphere.to_numpy().squeeze(), R_sphere_expected)
     assert_allclose(p_bulk[:, 100], pfb_expected)
 
     # now look at bulk film
     # initialize some quantities we want to save as a function of wavelength
-    reflectance_bulk = np.zeros(wavelengths.size)
+    reflectance_bulk = []
     # particle doesn't matter here but is needed to set up model object
     dummy_particle = sc.Sphere(index_particle, radius)
     model = sc.model.HardSpheres(dummy_particle, volume_fraction_particles,
@@ -479,7 +474,9 @@ def test_multiscale_mc():
         reflectance, transmittance = \
             det.calc_refl_trans(sim, bulk_thickness)
 
-        reflectance_bulk[i] = reflectance.to_numpy().squeeze()
+        reflectance_bulk.append(reflectance)
+
+    reflectance_bulk = xr.concat(reflectance_bulk, sc.Coord.WAVELEN)
 
     # these numbers look a little strange (multiply them by the number of
     # trajectories, and they all become integers). That's because there's no
@@ -502,7 +499,7 @@ def test_multiscale_mc():
                        0.1055000016002607, 0.0825000016836126,
                        0.0810000016891221]
 
-    assert_allclose(reflectance_bulk, R_bulk_expected)
+    assert_allclose(reflectance_bulk.to_numpy().squeeze(), R_bulk_expected)
 
 @pytest.mark.slow
 def test_multiscale_polydispersity_mc():
@@ -557,8 +554,6 @@ def test_multiscale_polydispersity_mc():
     assert_almost_equal(sphere_boundary_diameters.magnitude,
                         sbd_expected.magnitude)
 
-    reflectance_sphere = np.zeros(wavelengths.size)
-
     p_bulk = np.zeros((sphere_boundary_diameters.size, wavelengths.size, 200))
     mu_scat_bulk = np.zeros((sphere_boundary_diameters.size, wavelengths.size))
     mu_abs_bulk = np.zeros((sphere_boundary_diameters.size, wavelengths.size))
@@ -588,19 +583,6 @@ def test_multiscale_polydispersity_mc():
                                      run_fresnel_traj = False,
                                      return_extra = True)
 
-            # until phase_func_sphere is refactored to use xarray, convert to numpy
-            reflectance_sphere[i] = reflectance.to_numpy().squeeze()
-            refl_indices = (refl_indices.sortby("trajectory").to_numpy()
-                            .squeeze())
-            trans_indices = (trans_indices.sortby("trajectory").to_numpy()
-                             .squeeze())
-            refl_per_traj = (refl_per_traj.sortby("trajectory").to_numpy()
-                             .squeeze())
-            trans_per_traj = (trans_per_traj.sortby("trajectory").to_numpy()
-                              .squeeze())
-            norm_refl = norm_refl.to_numpy().squeeze().transpose()
-            norm_trans = norm_trans.to_numpy().squeeze().transpose()
-
             ### Calculate phase function and lscat ###
             p_bulk[j,i,:], mu_scat_bulk[j,i], mu_abs_bulk[j,i] = \
                 pfs.calc_scat_bulk(refl_per_traj, trans_per_traj, refl_indices,
@@ -624,7 +606,7 @@ def test_multiscale_polydispersity_mc():
     num_samples_expected = np.array([74692, 150504, 74804])
     assert_equal(num_samples, num_samples_expected)
 
-    reflectance_bulk_poly = np.zeros(wavelengths.size)
+    reflectance_bulk_poly = []
 
     model = sc.model.HardSpheres(particle, volume_fraction_particles,
                                  index_matrix_bulk, index_medium)
@@ -662,7 +644,9 @@ def test_multiscale_polydispersity_mc():
         reflectance, transmittance = \
             det.calc_refl_trans(sim, bulk_thickness)
 
-        reflectance_bulk_poly[i] = reflectance.to_numpy().squeeze()
+        reflectance_bulk_poly.append(reflectance)
+
+    reflectance_bulk_poly = xr.concat(reflectance_bulk_poly, sc.Coord.WAVELEN)
 
     # test reflectance from the bulk polydisperse sample
     R_expected = [0.5896400063098672, 0.5954498381410573, 0.5429987792670864,
@@ -680,7 +664,7 @@ def test_multiscale_polydispersity_mc():
                   0.5257883037969457, 0.4210454026749897, 0.4197884817583484,
                   0.4122825885825516, 0.3873631350660365]
 
-    assert_almost_equal(reflectance_bulk_poly, R_expected)
+    assert_almost_equal(reflectance_bulk_poly.to_numpy().squeeze(), R_expected)
 
 @pytest.mark.slow
 def test_multiscale_color_mixing_mc():
@@ -727,7 +711,6 @@ def test_multiscale_color_mixing_mc():
 
     p_bulk = np.zeros((particle_radii.size, wavelengths.size, 200))
 
-    reflectance_sphere = np.zeros(wavelengths.size)
     mu_scat_bulk = np.zeros((particle_radii.size, wavelengths.size))
     mu_abs_bulk = np.zeros((particle_radii.size, wavelengths.size))
 
@@ -763,25 +746,6 @@ def test_multiscale_color_mixing_mc():
                                      run_fresnel_traj = False,
                                      return_extra = True)
 
-            # until phase_func_sphere is refactored to use xarray, convert to numpy
-            reflectance_sphere[i] = reflectance.to_numpy().squeeze()
-            refl_indices = (refl_indices.sortby("trajectory").to_numpy()
-                            .squeeze())
-            trans_indices = (trans_indices.sortby("trajectory").to_numpy()
-                             .squeeze())
-            refl_per_traj = (refl_per_traj.sortby("trajectory").to_numpy()
-                             .squeeze())
-            trans_per_traj = (trans_per_traj.sortby("trajectory").to_numpy()
-                              .squeeze())
-            # need to expand norm_refl and norm_trans to have all trajectories as
-            # coordinates
-            alltraj_comp = xr.DataArray(np.ones((ntrajectories, 3)),
-                                        coords={"trajectory":
-                                                range(ntrajectories),
-                                                "component": ["x", "y", "z"]})
-            norm_refl = norm_refl.to_numpy().squeeze().transpose()
-            norm_trans = norm_trans.to_numpy().squeeze().transpose()
-
             p_bulk[j,i,:], mu_scat_bulk[j,i], mu_abs_bulk[j,i] = \
                 pfs.calc_scat_bulk(refl_per_traj, trans_per_traj, refl_indices,
                                    trans_indices, norm_refl, norm_trans,
@@ -803,7 +767,7 @@ def test_multiscale_color_mixing_mc():
     assert_equal(num_samples, num_samples_expected)
 
     # calculate reflectance of bulk film with spheres of two different colors
-    reflectance_bulk_mix = np.zeros(wavelengths.size)
+    reflectance_bulk_mix = []
     # particle doesn't matter here but is needed to set up model object
     dummy_particle = sc.Sphere(index_particle, radius)
     model = sc.model.HardSpheres(dummy_particle, volume_fraction_particles,
@@ -839,7 +803,9 @@ def test_multiscale_color_mixing_mc():
         reflectance, transmittance = \
             det.calc_refl_trans(sim, bulk_thickness)
 
-        reflectance_bulk_mix[i] = reflectance.to_numpy().squeeze()
+        reflectance_bulk_mix.append(reflectance)
+
+    reflectance_bulk_mix = xr.concat(reflectance_bulk_mix, sc.Coord.WAVELEN)
 
     R_expected = [0.5822243679017965, 0.570507985912688, 0.5732372435793517,
                   0.5766096689394413, 0.6050485178180293, 0.5851506936930788,
@@ -856,4 +822,4 @@ def test_multiscale_color_mixing_mc():
                   0.3119104024632695, 0.2872385723431669, 0.2774248890098253,
                   0.2517904562212582, 0.2431888889355178]
 
-    assert_almost_equal(reflectance_bulk_mix, R_expected)
+    assert_almost_equal(reflectance_bulk_mix.to_numpy().squeeze(), R_expected)
