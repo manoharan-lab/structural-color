@@ -908,6 +908,11 @@ def effective_index(index_list, volume_fractions, wavelen,
 
     n_bg = xr.DataArray(n_bg, coords=coords, attrs=attrs)
 
+    # Numerical solution may lead to index less than 1 in certain vectorized
+    # calculations, which will lead to problems when calculating arcsin later.
+    # We correct this case here:
+    n_bg = n_bg.clip(min=1.0)
+
     return n_bg
 
 def ratio(n_particle, n_matrix):

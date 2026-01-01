@@ -343,13 +343,8 @@ def test_multiscale_mc():
     # number of events to run in the bulk film
     nevents_bulk = 300
 
-    num_angles = 200
-
     # initialize quantities we want to save as a function of wavelength
-    reflectance_sphere = []
-    mu_scat_bulk = np.zeros(wavelengths.size)
-    mu_abs_bulk = np.zeros(wavelengths.size)
-    p_bulk = np.zeros((wavelengths.size, num_angles))
+    trajectories = []
 
     # set up scattering model
     model = sc.model.HardSpheres(particle, volume_fraction_particles,
@@ -362,31 +357,35 @@ def test_multiscale_mc():
                             boundary,
                             sample_diameter = sphere_boundary_diameter, rng=rng)
         sim.run()
+        trajectories.append(sim.traj)
+    trajectories = xr.concat(trajectories, sc.Coord.WAVELEN)
 
-        # Calculate reflection and transmission
-        (refl_indices, trans_indices, stuck_indices, tir_indices,
-         _, _, _,
-         refl_per_traj, trans_per_traj,
-         _,_,_,_,
-         reflectance,
-         _, norm_refl, norm_trans) = \
-             det.calc_refl_trans(sim, sphere_boundary_diameter,
-                                 run_fresnel_traj = False,
-                                 return_extra = True)
+    # set up dummy simulation to hold combined trajectories object for analysis
+    # (don't pass rng; we don't want to affect next simulation)
+    sim = mc.Simulation(model, wavelengths, nevents, ntrajectories,
+                        boundary, sample_diameter = sphere_boundary_diameter)
+    sim.traj = trajectories
 
-        reflectance_sphere.append(reflectance)
+    # Calculate reflection and transmission
+    (refl_indices, trans_indices, stuck_indices, tir_indices,
+     _, _, _,
+     refl_per_traj, trans_per_traj,
+     _,_,_,_,
+     reflectance_sphere,
+     _, norm_refl, norm_trans) = \
+         det.calc_refl_trans(sim, sphere_boundary_diameter,
+                             run_fresnel_traj = False,
+                             return_extra = True)
 
-        ### Calculate phase function and lscat ###
-        # use output of calc_refl_trans to calculate phase function, mu_scat,
-        # and mu_abs for the bulk
-        p_bulk[i,:], mu_scat_bulk[i], mu_abs_bulk[i] = \
-            pfs.calc_scat_bulk(refl_per_traj, trans_per_traj, refl_indices,
-                               trans_indices, norm_refl, norm_trans,
-                               volume_fraction_bulk, sphere_boundary_diameter,
-                               n_matrix_bulk[i], wavelengths[i], plot=False,
-                               phi_dependent=False)
-
-    reflectance_sphere = xr.concat(reflectance_sphere, sc.Coord.WAVELEN)
+    ### Calculate phase function and lscat ###
+    # use output of calc_refl_trans to calculate phase function, mu_scat,
+    # and mu_abs for the bulk
+    p_bulk, mu_scat_bulk, mu_abs_bulk = \
+        pfs.calc_scat_bulk(refl_per_traj, trans_per_traj, refl_indices,
+                           trans_indices, norm_refl, norm_trans,
+                           volume_fraction_bulk, sphere_boundary_diameter,
+                           n_matrix_bulk, wavelengths, plot=False,
+                           phi_dependent=False)
 
     # test that reflectance and phase function at backscattering angle are
     # as expected
@@ -422,26 +421,16 @@ def test_multiscale_mc():
                     0.0047717541318914]
 
     assert_allclose(reflectance_sphere.to_numpy().squeeze(), R_sphere_expected)
-    assert_allclose(p_bulk[:, 100], pfb_expected)
+    assert_allclose(p_bulk.sel({sc.Coord.THETAIDX: 100}).to_numpy().squeeze(),
+                    pfb_expected)
 
     # now look at bulk film
     # initialize some quantities we want to save as a function of wavelength
-    reflectance_bulk = []
+    trajectories = []
     # particle doesn't matter here but is needed to set up model object
     dummy_particle = sc.Sphere(index_particle, radius)
     model = sc.model.HardSpheres(dummy_particle, volume_fraction_particles,
                                  index_matrix_bulk, index_medium)
-
-    # convert p_bulk to DataArray so that we can sample.  Note that
-    # calc_scat_bulk() implicitly assumes 0.01 as the minimum theta, so we have
-    # to use that value here to get the test results to agree
-    p_bulk = xr.DataArray(p_bulk,
-                          coords={sc.Coord.WAVELEN:
-                                  wavelengths.to_preferred().magnitude,
-                                  sc.Coord.THETAIDX: range(num_angles)})
-    p_bulk = p_bulk.assign_coords({sc.Coord.THETA:
-                                   (sc.Coord.THETAIDX,
-                                    np.linspace(0.01, np.pi, num_angles))})
 
     for i in range(wavelengths.size):
         # Initialize the simulation
@@ -449,13 +438,14 @@ def test_multiscale_mc():
                             ntrajectories_bulk, boundary_bulk, rng=rng)
 
         # insert scattering quantities calculated for bulk system into object
-        sim.p = p_bulk[[i], :]
+        wavelen = wavelengths[i].to_preferred().magnitude
+        sim.p = p_bulk.sel(wavelength = [wavelen])
         p_leading = sim.p.isel({sc.Coord.THETAIDX:0}, drop=True)
         sim.leading_coords = p_leading.coords
         sim.leading_dims = p_leading.dims
         sim.leading_shape = p_leading.shape
-        sim.mu_scat = mu_scat_bulk[i]
-        sim.mu_abs = mu_abs_bulk[i]
+        sim.mu_scat = mu_scat_bulk.sel(wavelength = [wavelen])
+        sim.mu_abs = mu_abs_bulk.sel(wavelength = [wavelen])
 
         # TODO: change the below to include absorption (using sim.run()). Test
         # values will need to be updated
@@ -470,13 +460,17 @@ def test_multiscale_mc():
         sim.scatter(angles)
         sim.move(step)
 
-        # calculate bulk reflectance
-        reflectance, transmittance = \
-            det.calc_refl_trans(sim, bulk_thickness)
+        trajectories.append(sim.traj)
 
-        reflectance_bulk.append(reflectance)
+    trajectories = xr.concat(trajectories, sc.Coord.WAVELEN)
 
-    reflectance_bulk = xr.concat(reflectance_bulk, sc.Coord.WAVELEN)
+    # set up dummy simulation to hold combined trajectories object for analysis
+    sim = mc.Simulation(model, wavelengths, nevents_bulk,
+                        ntrajectories_bulk, boundary_bulk)
+    sim.traj = trajectories
+
+    # calculate bulk reflectance
+    reflectance_bulk, _ = det.calc_refl_trans(sim, bulk_thickness)
 
     # these numbers look a little strange (multiply them by the number of
     # trajectories, and they all become integers). That's because there's no
@@ -616,19 +610,14 @@ def test_multiscale_polydispersity_mc():
                             ntrajectories_bulk, boundary_bulk, rng=rng)
 
         # Sample angles and calculate step size based on sampled radii
-        sintheta, costheta, sinphi, cosphi, step, _, _ = \
-            pfs.sample_angles_step_poly(nevents_bulk, ntrajectories_bulk,
-                                        p_bulk[:,i,:],
-                                        sphere_diams_sampled,
-                                        mu_scat_bulk[:,i],
-                                        param_list =
-                                        sphere_boundary_diameters, rng=rng)
-
-        angles = xr.Dataset({
-            "sintheta": sintheta,
-            "costheta": costheta,
-            "sinphi": sinphi,
-            "cosphi": cosphi})
+        angles, step = pfs.sample_angles_step_poly(nevents_bulk,
+                                                   ntrajectories_bulk,
+                                                   p_bulk[:,i,:],
+                                                   sphere_diams_sampled,
+                                                   mu_scat_bulk[:,i],
+                                                   param_list =
+                                                   sphere_boundary_diameters,
+                                                   rng=rng)
 
         # insert scattering quantities calculated for bulk system into object
         sim.mu_abs = mu_abs_bulk[0, i]
@@ -777,17 +766,12 @@ def test_multiscale_color_mixing_mc():
         sim = mc.Simulation(model, wavelengths[i], nevents_bulk,
                             ntrajectories_bulk, boundary_bulk, rng=rng)
 
-        (sintheta, costheta, sinphi, cosphi, step, _, _) = \
-            pfs.sample_angles_step_poly(nevents_bulk, ntrajectories_bulk,
-                                        p_bulk[:,i,:],
-                                        sphere_type_sampled,
-                                        mu_scat_bulk[:,i],
-                                        rng=rng)
-        angles = xr.Dataset({
-            "sintheta": sintheta,
-            "costheta": costheta,
-            "sinphi": sinphi,
-            "cosphi": cosphi})
+        angles, step = pfs.sample_angles_step_poly(nevents_bulk,
+                                                   ntrajectories_bulk,
+                                                   p_bulk[:,i,:],
+                                                   sphere_type_sampled,
+                                                   mu_scat_bulk[:,i],
+                                                   rng=rng)
 
         # insert scattering quantities calculated for bulk system into object
         sim.mu_abs = mu_abs_bulk[0, i]

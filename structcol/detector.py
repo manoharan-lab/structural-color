@@ -1700,9 +1700,9 @@ def calc_refl_trans(sim,
     fine_roughness = sim.fine_roughness
 
     if fine_roughness > 0:
-        n_matrix = sim.model.index_matrix(sim.wavelen).to_numpy()
+        n_matrix = sim.model.index_matrix(sim.wavelen)
         try:
-            n_particle = sim.model.sphere.n(sim.wavelen).to_numpy()
+            n_particle = sim.model.sphere.n(sim.wavelen)
             # TODO use xr.where to handle vectorization over wavelength
             if n_particle < n_matrix:
                 n_tir = (fine_roughness

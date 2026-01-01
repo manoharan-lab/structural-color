@@ -219,30 +219,39 @@ def calc_pdf(intersect, radius,
     nu_edge_correct = xr.concat([-nu, nu, -nu + 2], "trajectory")
     weights_edge_correct = xr.concat([weights, weights, weights], "trajectory")
 
-    # must drop nan (corresponding to missing points) before doing KDE
-    nu_edge_correct = nu_edge_correct.dropna("trajectory")
-
-    # TODO: need to ensure this test works for each leading dimension
-    if not phi_dependent and nu_edge_correct.size == 0:
-        warnings.warn("No trajectories reflected or transmitted. "
-                      "Check sample parameters")
-        pdf_array = np.nan
-        return pdf_array
-
     # have to loop over wavelengths and other leading dimensions here (not sure
     # how to vectorize PDF creation from scipy's gaussian_kde() over
     # wavelength).  Here we assume that leading dimensions are wavelength and
     # volume fraction
+    no_reflection_warning = ("No trajectories reflected or transmitted. "
+                             "Check sample parameters")
     pdf_loop_wavelen = []
     for wavelen in refl_indices.coords[sc.Coord.WAVELEN]:
         pdf_loop_volfrac = []
         for volfrac in refl_indices.coords[sc.Coord.VOLFRAC]:
-            nu_edge_sel  = nu_edge_correct.sel({sc.Coord.WAVELEN: wavelen,
-                                                sc.Coord.VOLFRAC: volfrac})
-            weights_edge_sel = weights_edge_correct.sel(
-                {sc.Coord.WAVELEN: wavelen,
-                 sc.Coord.VOLFRAC: volfrac}
-            )
+            try:
+                nu_edge_sel = nu_edge_correct.sel({sc.Coord.WAVELEN: wavelen,
+                                                   sc.Coord.VOLFRAC: volfrac})
+                weights_edge_sel = weights_edge_correct.sel(
+                    {sc.Coord.WAVELEN: wavelen,
+                     sc.Coord.VOLFRAC: volfrac}
+                )
+            except KeyError:
+                # selection will fail if all values are nan for each wavelength
+                warnings.warn(no_reflection_warning)
+                pdf_array = np.nan
+                return pdf_array
+            # must drop nan (corresponding to missing points) before doing KDE
+            nu_edge_sel = nu_edge_sel.dropna("trajectory")
+            weights_edge_sel = weights_edge_sel.dropna("trajectory")
+
+            if not phi_dependent and nu_edge_sel.size == 0:
+                # here we catch the case when nu_edge_sel has all nan values
+                # for a particular wavelength
+                warnings.warn(no_reflection_warning)
+                pdf_array = np.nan
+                return pdf_array
+
             pdf_loop_volfrac.append(
                 _calc_pdf(nu_edge_sel, weights_edge_sel, intersect,
                           plot, phi_dependent, nu_range, phi_range,
@@ -319,7 +328,10 @@ def _calc_pdf(nu_edge_correct, weights_edge_correct, intersect,
             plot_dist_1d(phi_range, phi, phi_edge_correct, pdf_marg_phi)
             plt.xlabel(r'$\phi$')
 
+    # Add coordinates to pdf_array
     pdf_array = xr.DataArray(pdf_array, coords={sc.Coord.THETAIDX: range(200)})
+    pdf_array = pdf_array.assign_coords({sc.Coord.THETA:
+                                         (sc.Coord.THETAIDX, theta)})
 
     return pdf_array
 
@@ -953,11 +965,11 @@ def sample_angles_step_poly(nevents_bulk, ntrajectories_bulk, p_sphere,
 
     Parameters
     ----------
-    ntrajectories_bulk: int
+    ntrajectories_bulk : int
         number of trajectories in the bulk Monte Carlo simulation
-    nevents_bulk: int
+    nevents_bulk : int
         number of trajectories in the bulk Monte Carlo simulation
-    p_sphere: 2d array (shape number of sphere types, number of angles)
+    p_sphere : 2d array (shape number of sphere types, number of angles)
         phase function for a sphere, found from a Monte Carlo simulation
         with spherical boundary conditions
     params_sampled: 2d array (shape nevents_bulk, ntrajectories_bulk)
@@ -975,12 +987,11 @@ def sample_angles_step_poly(nevents_bulk, ntrajectories_bulk, p_sphere,
 
     Returns
     -------
-    sintheta, costheta, sinphi, cosphi: ndarray
-        Sampled scattering and azimuthal angles sines and cosines.
-    step:ndarray
+    angles : `xr.Dataset`
+       Sampled scattering and azimuthal angles, along with sines and cosines
+        ("sintheta", "costheta", "sinphi", "cosphi", "theta", "phi")
+    step: `xr.DataArray`
         Sampled step sizes for all trajectories and scattering events
-    theta, phi: ndarray
-        Sampled scattering and azimuthal angles
     '''
     if rng is None:
         rng = sc.rng
@@ -1036,10 +1047,6 @@ def sample_angles_step_poly(nevents_bulk, ntrajectories_bulk, p_sphere,
     sintheta = xr.DataArray(np.sin(theta),
                             coords = {"event": range(1, nevents_bulk),
                                       "trajectory": range(ntrajectories_bulk)})
-    costheta = xr.DataArray(np.cos(theta), coords=sintheta.coords)
-    sinphi = xr.DataArray(np.sin(phi), coords=sintheta.coords)
-    cosphi = xr.DataArray(np.cos(phi), coords=sintheta.coords)
-
 
     step = (lscat_rad_samp * np.ones((nevents_bulk, ntrajectories_bulk)))
 
@@ -1047,5 +1054,12 @@ def sample_angles_step_poly(nevents_bulk, ntrajectories_bulk, p_sphere,
                         coords = {"event": range(nevents_bulk),
                                   "trajectory": range(ntrajectories_bulk)})
 
-    return sintheta, costheta, sinphi, \
-        cosphi, step, theta, phi
+    angles = xr.Dataset(
+        {"sintheta": sintheta,
+         "costheta": xr.DataArray(np.cos(theta), coords=sintheta.coords),
+         "sinphi": xr.DataArray(np.sin(phi), coords=sintheta.coords),
+         "cosphi": xr.DataArray(np.cos(phi), coords=sintheta.coords),
+         "theta": xr.DataArray(theta, coords=sintheta.coords),
+         "phi": xr.DataArray(phi, coords=sintheta.coords)})
+
+    return angles, step
