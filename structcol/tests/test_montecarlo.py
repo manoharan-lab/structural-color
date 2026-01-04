@@ -253,8 +253,10 @@ class TestVectorization():
     model = sc.model.HardSpheres(sphere, volume_fraction, index_matrix,
                                  index_medium)
 
-    @pytest.mark.parametrize("boundary", ["film", "sphere"])
-    def test_vectorized_mc(self, boundary):
+    @pytest.mark.parametrize("boundary, fields", [("film", False),
+                                                  ("film", True),
+                                                  ("sphere", False)])
+    def test_vectorized_mc(self, boundary, fields):
         """Tests that Monte Carlo simulations vectorize over wavelength
         """
         # we'll use the default RNG here (more advanced than
@@ -263,19 +265,32 @@ class TestVectorization():
         seed = 1
         rng = np.random.default_rng([seed])
 
-        # we set incidence_theta_data and incidence_phi_data so that random
-        # numbers are not generated for angles
-        incidence_theta_data = np.zeros(self.ntrajectories)
-        incidence_phi_data = np.zeros(self.ntrajectories)
-
         if boundary == "film":
             sample_diameter = None
         else:
             sample_diameter = sc.Quantity(10, "um")
 
+        # reduce trajectories for fields simulation
+        if fields is True:
+            nevents = 20
+            ntrajectories = 1000
+            # set max 15% error for this number of trajectories
+            tolerance = 0.15
+        else:
+            nevents = self.nevents
+            ntrajectories = self.ntrajectories
+            # with larger number of trajectories, tolerance is tighter
+            tolerance = 0.05
+
+        # we set incidence_theta_data and incidence_phi_data so that random
+        # numbers are not generated for angles
+        incidence_theta_data = np.zeros(ntrajectories)
+        incidence_phi_data = np.zeros(ntrajectories)
+
         # vectorized simulation
-        sim_vec = mc.Simulation(self.model, self.wavelen, self.nevents,
-                                self.ntrajectories, boundary=boundary,
+        sim_vec = mc.Simulation(self.model, self.wavelen, nevents,
+                                ntrajectories, boundary=boundary,
+                                fields=fields,
                                 sample_diameter=sample_diameter,
                                 incidence_theta_data=incidence_theta_data,
                                 incidence_phi_data=incidence_phi_data,
@@ -294,8 +309,9 @@ class TestVectorization():
         transmittance_loop = []
 
         for i in range(self.num_wavelen):
-            sim_loop = mc.Simulation(self.model, self.wavelen[i], self.nevents,
-                                     self.ntrajectories, boundary=boundary,
+            sim_loop = mc.Simulation(self.model, self.wavelen[i], nevents,
+                                     ntrajectories, boundary=boundary,
+                                     fields=fields,
                                      sample_diameter=sample_diameter,
                                      incidence_theta_data=incidence_theta_data,
                                      incidence_phi_data=incidence_phi_data,
@@ -327,10 +343,11 @@ class TestVectorization():
         diff = sim_vec.initial_state-sim_vec.initial_state.isel(wavelength=0)
         xr.testing.assert_equal(diff, xr.zeros_like(diff))
 
-        # check that vectorized calculations are within 5% of looped calcs
+        # check that vectorized and loop calculations are within a few percent
         refl_vec, trans_vec = det.calc_refl_trans(sim_vec, self.thickness)
-        xr.testing.assert_allclose(refl_vec, reflectance_loop, rtol=0.05)
-        xr.testing.assert_allclose(trans_vec, transmittance_loop, rtol=0.05)
+        xr.testing.assert_allclose(refl_vec, reflectance_loop, rtol=tolerance)
+        xr.testing.assert_allclose(trans_vec, transmittance_loop,
+                                   rtol=tolerance)
 
         # check that vectorized calc_refl_trans gives same results as loop
         # (we do this by inserting the concatenated trajectories from the

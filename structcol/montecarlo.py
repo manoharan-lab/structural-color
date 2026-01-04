@@ -685,12 +685,18 @@ class Simulation:
             # by marginalizing over theta:
             p_phi = p.sum(sc.Coord.THETAIDX)
 
+            # expand and transpose to ensure proper broadcasting in sc.choice()
+            p_phi_norm = ((p_phi/p_phi.sum(sc.Coord.PHIIDX))
+                          .expand_dims(("event", "trajectory"))
+                          .transpose(*self.leading_dims, "event", "trajectory",
+                                     ...))
+
             # sample indices for phi values. We need indices to calculate
             # p(theta | phi) later.
             sampling_shape = self.leading_shape + (nsamples, ntraj)
             phi_ind = sc.choice(p_phi.coords[sc.Coord.PHIIDX],
                                 sampling_shape,
-                                p_phi/p_phi.sum(sc.Coord.PHIIDX),
+                                p_phi_norm,
                                 rng=rng)
             phi_ind = xr.DataArray(phi_ind,
                                    dims = (self.leading_dims
@@ -703,7 +709,8 @@ class Simulation:
             phi = p_phi.coords[sc.Coord.PHI][phi_ind]
 
             # Now calculate and normalize p(theta | phi) for each phi, event,
-            # and trajectory
+            # and trajectory. Note: this is memory-intensive
+            # (nwavelengths * nevents * ntrajectories * ntheta)
             p_theta = (p[..., phi_ind] * np.sin(thetas))
             p_theta_norm = p_theta/p_theta.sum(sc.Coord.THETAIDX)
             p_theta_norm = p_theta_norm.transpose(..., sc.Coord.THETAIDX)
