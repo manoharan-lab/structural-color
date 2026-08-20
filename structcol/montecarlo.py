@@ -965,9 +965,8 @@ class Simulation:
         # Note: this basis assumes that
         # the direction of propagation is the +z direction.
         for n in np.arange(2, self.nevents + 1):
-            Ex_new = S2[n, :] * Ex + S3[n, :] * Ey
-            Ey_new = S4[n, :] * Ex + S1[n, :] * Ey
-            Ex, Ey = Ex_new, Ey_new
+            Ex = S2[..., n-2, :] * Ex + S3[..., n-2, :] * Ey
+            Ey = S4[..., n-2, :] * Ex + S1[..., n-2, :] * Ey
             # 0th event is before sample, the 1st event has no rotation
             En[..., 0, n, :] = Ex
             En[..., 1, n, :] = Ey
