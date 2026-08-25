@@ -638,7 +638,7 @@ class Simulation:
             # consistently. Both must use alpha, otherwise the field and the 
             # direction of propagation end up in frames that differ by the accumulated gamma rotations.
             *local_fields, alpha = self.calc_local_fields(angles)
-            self.scatter(angles, azimuth=alpha)
+            self.scatter(angles, effective_azimuth=alpha)
         else:
             self.scatter(angles)
 
