@@ -1009,8 +1009,10 @@ class Simulation:
             En[..., n:, :] = np.einsum('...ijl,...jkl->...ikl',
                                        R[..., n-2, :], En[..., n:, :])
 
-        # calculate the step propagation factor
-        step_cumul = np.abs(k) * step.cumsum("event")
+        # calculate the step propagation factor. Note that step is in units of
+        # sc.LENGTH_UNIT and k is in units of 1/sc.LENGTH_UNIT, so the product
+        # is the dimensionless accumulated phase k*distance.
+        step_cumul = step.cumsum("event")
         step_phase_factor = np.exp(1j*np.abs(k)*step_cumul)
         # shift event coord so that step_phase_factor maps correctly onto field
         step_phase_factor.coords["event"] = range(1, self.nevents + 1)
