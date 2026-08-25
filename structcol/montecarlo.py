@@ -108,7 +108,9 @@ class Simulation:
     calc_local_fields(angles)
         propagate the field through the scattering events in the local
         scattering-plane basis of each event, and return the azimuthal
-        rotations needed to get from one scattering plane to the next.
+        rotations needed to get from one scattering plane to the next accounting
+        for the additional rotation from the non-zero polarization angle after each
+        scattering event.
     calc_fields(angles, step, local_fields, alpha)
         rotate the local fields into global coordinates and add the phase
         accumulated along the path.
@@ -627,13 +629,14 @@ class Simulation:
             # measured from the incoming polarization rather than from the
             # previous scattering plane. The rotation that actually takes one
             # scattering plane to the next is alpha = gamma + phi, where gamma
-            # is the polarization angle of the incoming field.
+            # is the polarization angle of the incoming field relative to the 
+            # previous scattering plane.
             #
             # gamma depends only on the field, not on the direction, so we can
-            # propagate the field in its local basis first and then use the
-            # resulting alpha to propagate the direction. Both must use alpha,
-            # otherwise the field and the direction of propagation end up in
-            # frames that differ by the accumulated gamma rotations.
+            # propagate the field in its local basis first, calculate alpha, and
+            # then use the resulting alpha to propagate the direction self-
+            # consistently. Both must use alpha, otherwise the field and the 
+            # direction of propagation end up in frames that differ by the accumulated gamma rotations.
             *local_fields, alpha = self.calc_local_fields(angles)
             self.scatter(angles, azimuth=alpha)
         else:
@@ -829,7 +832,7 @@ class Simulation:
                   * np.exp(-(mu_abs * step.cumsum("event"))))
         self.traj["weight"].loc[dict(event=slice(1, None))] = weight
 
-    def scatter(self, angles, azimuth=None):
+    def scatter(self, angles, effective_azimuth=None):
         """
         Calculates the directions of propagation after scattering (for either
         'scattering plane' or 'cartesian' polarizations).
@@ -846,7 +849,7 @@ class Simulation:
             defined with respect to the previous corresponding direction of
             propagation. Thus, they are defined in a local spherical coordinate
             system. All have dimensions of (nevents, ntrajectories).
-        azimuth : `xr.DataArray` (dims=..., event, trajectory), optional
+        effective_azimuth : `xr.DataArray` (dims=..., event, trajectory), optional
             Azimuthal angle to rotate the scattering plane by, used in place of
             the sampled phi. This is needed when fields are tracked: there the
             2D phase function is calculated for light polarized along x, so the
@@ -860,10 +863,10 @@ class Simulation:
 
         """
         sintheta, costheta = angles["sintheta"], angles["costheta"]
-        if azimuth is None:
+        if effective_azimuth is None:
             sinphi, cosphi = angles["sinphi"], angles["cosphi"]
         else:
-            sinphi, cosphi = np.sin(azimuth), np.cos(azimuth)
+            sinphi, cosphi = np.sin(effective_azimuth), np.cos(effective_azimuth)
         kn = self.traj["direction"]
 
         # Calculate the new propagation direction by rotation about the y-axis
@@ -939,8 +942,9 @@ class Simulation:
         """
         Propagates the field through the scattering events, keeping it in the
         local (parallel, perpendicular) scattering-plane basis of each event,
-        and returns the azimuthal rotations needed to get from one scattering
-        plane to the next.
+        and returns the effective azimuthal rotations needed to get from one scattering
+        plane to the next accounting for the additional rotatino of the polarization
+        direction. 
 
         Assumes the incident light propagates along +z and (for polarized
         light) is polarized along +x.
@@ -962,16 +966,13 @@ class Simulation:
 
         Once the field is in the scattering plane basis, we multiply it by the
         amplitude scattering matrix, which is diagonal in this basis. This
-        gives the amplitude scattering vector -- the amplitudes of the
-        scattered field components. We then recalculate gamma, now relative to
+        gives the amplitude scattering vector (the amplitudes of the
+        scattered field components.) We then recalculate gamma, now relative to
         this event's own local basis, and the process repeats.
 
         The returned alpha must be used to propagate the direction vector in
-        scatter() as well. The extra rotation by gamma does not cancel out
-        between the forward and backward transformations: the frames compose as
-        M_n = M_{n-1} R_z(alpha_n) R_y(theta_n), and the propagation direction
-        is the third column of M_n, which depends on alpha_n whenever
-        theta_n is nonzero. Rotating the field basis by gamma while leaving the
+        scatter() as well for self-consistency.
+        Rotating the field basis by gamma while leaving the
         direction rotated by phi alone would leave the field non-transverse.
 
         Parameters
