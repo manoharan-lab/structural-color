@@ -866,9 +866,9 @@ class Simulation:
 
     def calc_fields(self, angles, step, tir_indices=None):
         """
-        Calculates local x and y polarization rotated in reference frame where
-        initial polarization is x-polarized. Assumes the incident light is in
-        +z direction
+        Calculates the amplitudes of the scattered fields after each scattering event. 
+        Assumes the incident light is polarzed along the +x direction and is 
+        propogating in +z direction
 
         Within one trajectory, fields is accounted for by calculating
         the form factor using Mie theory, which gives the scattered fields
@@ -882,16 +882,30 @@ class Simulation:
 
         Here is an outline of how it is implemented:
 
-        We start by calculating the amplitude scattering matrix in the
-        parallel/perpendicular basis. We then multiply the matrix by the
-        initial fields. This gives the scattered fields purely due to
-        the form factor.
+        We start by expressing the incoming field in terms of the scattering
+        plane basis for the upcoming scattering event. The scattering plane for
+        event n is rotated by phi_n about the propagation direction relative to
+        the scattering plane of event n-1, so we rotate the basis by phi_n.
+        Because we propagate the full Jones vector rather than a polarization
+        angle, this single basis rotation already accounts for the orientation
+        of the incoming polarization relative to the new scattering plane: the
+        projection of the incoming field onto the new parallel axis is exactly
+        cos(phi)*E_par + sin(phi)*E_perp.
 
-        Then we add these phase shifts to the phase shift incurred due to
-        distance travelled, calculated as k*distance.
+        Once the field is expressed in the scattering plane basis, we multiply
+        it by the amplitude scattering matrix, which is diagonal in this basis.
+        This gives the amplitude scattering vector -- the amplitudes of the
+        scattered field components -- and the process repeats.
 
-        We then rotate these phase values into local x and y coordinates,
-        and after that, rotate them into global x, y, and z coordinates.
+        We then add the phase shift due to the distance travelled
+        (calculated as k*distance) to these fields.
+
+        Finally, we rotate the local (parallel, perpendicular) fields at each
+        event into global x, y, z coordinates by composing each event's
+        (phi, theta) rotation. This composition must match the one used in
+        scatter() to propagate the direction vector, since the local
+        perpendicular/parallel basis is by construction orthogonal to the
+        direction of propagation.
 
         Parameters
         ----------
@@ -923,9 +937,6 @@ class Simulation:
         k = sc.wavevector(n_sample)
 
         # calculate the mie amplitude scattering matrix
-        # we need to calculate the full matrix, rather than just the vector
-        # scattering amplitude, because each matrix element contributes to
-        # the changes in E field
         #
         # amplitude_scattering_matrix() is set up to broadcast over phi (for
         # each theta we calculate all the matrix for all phi values). Here we
@@ -939,37 +950,61 @@ class Simulation:
         # for clarity of indexing (0->1) we add a zero element to the list
         S = [0] + list(S)
         # Reshape to (..., nevents, ntraj)
-        for i in (1,2,3,4):
+        for i in (1,2):
             S[i] = S[i][0].reshape(theta.shape)
-        # now account for phi
-        cosphi = np.cos(phi)
-        sinphi = np.sin(phi)
-        S1 = S[2]*(sinphi)**2 + S[1]*(cosphi)**2
-        S2 = S[2]*(cosphi)**2 + S[1]*(sinphi)**2
-        S3 = S[2]*sinphi*cosphi - S[1]*sinphi*cosphi
-        S4 = S[2]*cosphi*sinphi - S[1]*cosphi*sinphi
+        # S3 = S4 = 0 always for a sphere (spherical symmetry), so the
+        # amplitude scattering matrix is diagonal in the parallel/
+        # perpendicular basis
 
-        # mutliply the scat amp mats
         En = self.traj["fields"]
 
-        # En has shape (3, nevents+1, ntraj)
-        Ex = En[..., 0, 0, :]
-        Ey = En[..., 1, 0, :]
+        # En has shape (..., 3, nevents+1, ntraj). Events 0 and 1 both hold the
+        # incident field, expressed in the lab x, y basis, because the packet
+        # propagates into the sample without scattering in the first event.
+        Epar = En[..., 0, 1, :].values
+        Eperp = En[..., 1, 1, :].values
 
-        # Ex and Ey are the initialized as the incident field vectors. To get
-        # the Ex and Ey at each event, we have to multiply by the scattering
-        # amplitude matrix, cumulatively for each event.
-        # this gives us the local Ex and Ey vectors
-        # Reminder: there is one less sampled angle than event number, because
-        # the first event propogates straight into the sample.
-        # Note: this basis assumes that
-        # the direction of propagation is the +z direction.
-        for n in np.arange(2, self.nevents + 1):
-            Ex = S2[..., n-2, :] * Ex + S3[..., n-2, :] * Ey
-            Ey = S4[..., n-2, :] * Ex + S1[..., n-2, :] * Ey
-            # 0th event is before sample, the 1st event has no rotation
-            En[..., 0, n, :] = Ex
-            En[..., 1, n, :] = Ey
+        # storage for the field expressed in each event's own local
+        # (par, perp) basis
+        Epar_local = np.zeros(theta.shape, dtype=complex)
+        Eperp_local = np.zeros(theta.shape, dtype=complex)
+
+        # Reminder: there is one less sampled angle than event number,
+        # because the first event propogates straight into the sample with
+        # no scattering. theta/phi at position p correspond to the
+        # scattering event that produces field event n = p + 2.
+        for p in range(self.nevents - 1):
+            cosphi_p = cosphi.values[..., p, :]
+            sinphi_p = sinphi.values[..., p, :]
+
+            # Rotate the basis about the propagation direction by phi so that
+            # it lies in the scattering plane of this event. This is a basis
+            # rotation, so the field components rotate by -phi relative to the
+            # new basis. Projecting the Jones vector like this automatically
+            # accounts for the polarization angle of the incoming field
+            # relative to the new scattering plane; no separate polarization
+            # angle needs to be tracked.
+            Epar_i = cosphi_p * Epar + sinphi_p * Eperp
+            Eperp_i = -sinphi_p * Epar + cosphi_p * Eperp
+
+            # apply the Mie amplitude scattering matrix, which is diagonal in
+            # the scattering plane basis
+            #
+            # theta rotates the basis about the perpendicular axis, which
+            # leaves the (par, perp) components unchanged, so these are
+            # already the field in this event's own local basis
+            Epar = S[2][..., p, :] * Epar_i
+            Eperp = S[1][..., p, :] * Eperp_i
+
+            Epar_local[..., p, :] = Epar
+            Eperp_local[..., p, :] = Eperp
+
+        # write each event's local (par, perp, 0) field into En; it is
+        # rotated into global coordinates below. The z (propagation) component
+        # stays zero, which is what makes the field transverse in the global
+        # frame after the rotation below.
+        En[..., 0, 2:, :] = Epar_local
+        En[..., 1, 2:, :] = Eperp_local
 
         # Deal with tir
         if tir_indices is not None:
@@ -989,7 +1024,10 @@ class Simulation:
         # Rotate to global coords
 
         # this is the product of the rotation matrices R_z(phi).R_y(theta)
-        # calculated for each event in each trajectory
+        # calculated for each event in each trajectory. This must be the same
+        # matrix that scatter() uses to propagate the direction vector,
+        # otherwise the field will not come out perpendicular to the direction
+        # of propagation.
         # shape of En is    (..., 3, nevents+1, ntraj)
         # shape of R is  (..., 3, 3, nevents-1, ntraj)
         R = np.array([[costheta*cosphi, -sinphi, sintheta*cosphi],
@@ -997,7 +1035,6 @@ class Simulation:
                       [-sintheta, np.zeros(sinphi.shape), costheta]])
         # reshape to (..., 3, 3, events, trajectories)
         R = np.moveaxis(R, (0, 1), (-4, -3))
-
         # Start with event 2 because the 0th event contains the initialized
         # values from before the field enters the sample. The 1st event
         # contains the values for the field after entering the sample, but
@@ -1026,6 +1063,7 @@ class Simulation:
 
         # Normalize
         self.traj["fields"] = normalize(En, return_nan=False)
+
 
     def move(self, step):
         """
