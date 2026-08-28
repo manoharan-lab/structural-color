@@ -108,9 +108,9 @@ class Simulation:
     calc_local_fields(angles)
         propagate the field through the scattering events in the local
         scattering-plane basis of each event, and return the azimuthal
-        rotations needed to get from one scattering plane to the next accounting
-        for the additional rotation from the non-zero polarization angle after each
-        scattering event.
+        rotations needed to get from one scattering plane to the next 
+        accounting for the additional rotation from the non-zero polarization
+        angle after each scattering event.
     calc_fields(angles, step, local_fields, alpha)
         rotate the local fields into global coordinates and add the phase
         accumulated along the path.
@@ -629,14 +629,15 @@ class Simulation:
             # measured from the incoming polarization rather than from the
             # previous scattering plane. The rotation that actually takes one
             # scattering plane to the next is alpha = gamma + phi, where gamma
-            # is the polarization angle of the incoming field relative to the 
+            # is the polarization angle of the incoming field relative to the
             # previous scattering plane.
             #
             # gamma depends only on the field, not on the direction, so we can
-            # propagate the field in its local basis first, calculate alpha, and
+            # propagate the field in its local basis first, calculate alpha,
             # then use the resulting alpha to propagate the direction self-
-            # consistently. Both must use alpha, otherwise the field and the 
-            # direction of propagation end up in frames that differ by the accumulated gamma rotations.
+            # consistently. Both must use alpha, otherwise the field and the
+            # direction of propagation end up in frames that differ by the 
+            # accumulated gamma rotations.
             *local_fields, alpha = self.calc_local_fields(angles)
             self.scatter(angles, effective_azimuth=alpha)
         else:
@@ -849,7 +850,7 @@ class Simulation:
             defined with respect to the previous corresponding direction of
             propagation. Thus, they are defined in a local spherical coordinate
             system. All have dimensions of (nevents, ntrajectories).
-        effective_azimuth : `xr.DataArray` (dims=..., event, trajectory), optional
+        effective_azimuth : `xr.DataArray` (dims=..., event, traj), optional
             Azimuthal angle to rotate the scattering plane by, used in place of
             the sampled phi. This is needed when fields are tracked: there the
             2D phase function is calculated for light polarized along x, so the
@@ -866,7 +867,9 @@ class Simulation:
         if effective_azimuth is None:
             sinphi, cosphi = angles["sinphi"], angles["cosphi"]
         else:
-            sinphi, cosphi = np.sin(effective_azimuth), np.cos(effective_azimuth)
+            sinphi, cosphi = (
+                np.sin(effective_azimuth),
+                np.cos(effective_azimuth))
         kn = self.traj["direction"]
 
         # Calculate the new propagation direction by rotation about the y-axis
