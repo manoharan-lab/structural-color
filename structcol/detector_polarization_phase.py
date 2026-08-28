@@ -88,8 +88,8 @@ def calc_refl_fields(trajectories, refl_indices, refl_per_traj,
     intensity_incident = ntraj  # np.sum(weights[0,:])
     refl_fields = (refl_intensity / intensity_incident).real
 
-    # Calculate the incoherent reflectance for comparison. This is done by 
-    # first finding the intensity per trajectory then summing over all 
+    # Calculate the incoherent reflectance for comparison. This is done by
+    # first finding the intensity per trajectory then summing over all
     # trajectories where as when interfering between trajectories we first
     # add the field components of all trajectories then sum over components
     refl_incoherent = ((refl_field.real**2 + refl_field.imag**2)

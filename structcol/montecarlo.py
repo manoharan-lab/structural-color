@@ -108,7 +108,7 @@ class Simulation:
     calc_local_fields(angles)
         propagate the field through the scattering events in the local
         scattering-plane basis of each event, and return the azimuthal
-        rotations needed to get from one scattering plane to the next 
+        rotations needed to get from one scattering plane to the next
         accounting for the additional rotation from the non-zero polarization
         angle after each scattering event.
     calc_fields(angles, step, local_fields, alpha)
@@ -636,7 +636,7 @@ class Simulation:
             # propagate the field in its local basis first, calculate alpha,
             # then use the resulting alpha to propagate the direction self-
             # consistently. Both must use alpha, otherwise the field and the
-            # direction of propagation end up in frames that differ by the 
+            # direction of propagation end up in frames that differ by the
             # accumulated gamma rotations.
             *local_fields, alpha = self.calc_local_fields(angles)
             self.scatter(angles, effective_azimuth=alpha)
@@ -919,11 +919,11 @@ class Simulation:
 
         Defined via the Stokes parameters Q = |Epar|^2 - |Eperp|^2 and
         U = 2*Re(Epar * conj(Eperp)) as gamma = 0.5*arctan2(U, Q). Unlike the
-        naive gamma = arctan(Eperp/Epar), this is real-valued even when Epar and
-        Eperp have different complex phases (elliptical polarization), and it is
-        invariant under multiplying (Epar, Eperp) by any common complex scalar
-        (e.g. an isotropic propagation phase factor) since such a factor scales
-        both Q and U by the same real, positive |scalar|**2.
+        naive gamma = arctan(Eperp/Epar), this is real-valued even when Epar
+        and Eperp have different complex phases (elliptical polarization), and
+        it is invariant under multiplying (Epar, Eperp) by any common complex
+        scalar (e.g. an isotropic propagation phase factor) since such a factor
+        scales both Q and U by the same real, positive |scalar|**2.
 
         Parameters
         ----------
@@ -945,9 +945,9 @@ class Simulation:
         """
         Propagates the field through the scattering events, keeping it in the
         local (parallel, perpendicular) scattering-plane basis of each event,
-        and returns the effective azimuthal rotations needed to get from one scattering
-        plane to the next accounting for the additional rotatino of the polarization
-        direction. 
+        and returns the effective azimuthal rotations needed to get from one
+        scattering plane to the next accounting for the additional rotation of
+        the polarization direction.
 
         Assumes the incident light propagates along +z and (for polarized
         light) is polarized along +x.
