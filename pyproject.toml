@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools"]
+requires = ["setuptools>=64"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -10,11 +10,16 @@ readme = "README.md"
 authors = [
     { name = "Manoharan Lab, Harvard University", email = "vnm@seas.harvard.edu" },
 ]
+
 dependencies = [
     "numpy",
     "pint",
     "scipy",
 ]
+
+# only install the top-level 'structcol' folder (excludes 'tutorials')
+[tool.setuptools.packages.find]
+include = ["structcol*"]
 
 [project.urls]
 Homepage = "https://github.com/manoharan-lab/structural-color"
