@@ -1002,6 +1002,8 @@ class Simulation:
         n_sample = self.model.index_external(self.wavelen)
 
         m = sc.index.ratio(n_particle, n_sample)
+        # note that this does not include polydispersity so the fields model
+        # will not be as accurate for polydisperse samples
         x = sc.size_parameter(n_sample, self.model.sphere.radius_q)
 
         # calculate the mie amplitude scattering matrix
