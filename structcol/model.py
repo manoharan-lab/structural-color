@@ -361,6 +361,21 @@ class PolydisperseHardSpheres(FormStructureModel):
                          index_external, index_medium,
                          volume_fraction=volume_fraction)
 
+    @property
+    def sphere(self):
+        """Representative sphere, for calculations that need a single particle
+        rather than a distribution.
+
+        Used by the field-tracking Monte Carlo to calculate the Mie amplitude
+        scattering matrix, and by the detector to correct the index for total
+        internal reflection when the surface is rough. Polydispersity enters
+        those calculations only through the structure factor and phase
+        function, so a single representative species is enough.
+
+        As with `lengthscale`, we use the first species by convention.
+
+        """
+        return self.sphere_dist.spheres[0]
 
     def scattering_cross_section(self, diff_cscat):
         """Special routine to calculate scattering cross section for
